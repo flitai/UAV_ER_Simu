@@ -1,0 +1,59 @@
+{
+  "format": {
+    "container": "raw",
+    "sample_encoding": "complex int16 interleaved (I,Q)",
+    "byte_order": "little-endian",
+    "full_scale": 32768,
+    "num_samples": 20000000,
+    "note": "容器规范未定稿，见 docs/iq-format.md 第 3 节；本文件为临时形态"
+  },
+  "observation_point": "S4 (DDC 后、信道化前)",
+  "acquisition": {
+    "sample_rate_Hz": 100000000.0,
+    "center_frequency_Hz": 2440000000.0,
+    "channel": "RF1",
+    "device": "USRP-2955",
+    "rx_gain_dB": 50,
+    "antenna": "全向垂直，3 dBi",
+    "source": "paper",
+    "note": "T10010(FrSky X20) 通道映射与其余文件相反：RF0=915 MHz, RF1=2440 MHz"
+  },
+  "time": {
+    "basis": "file_acquisition",
+    "continuity": "每 1000 万点内连续，块间有损伤(采-存模式)",
+    "absolute_timestamp": null
+  },
+  "truth": {
+    "class_code": "T10010",
+    "class_name": "FrSky X20 飞控器",
+    "scene": "室内，距接收机约 2 m",
+    "distance_annotation": null,
+    "note": "文件名无 D 字段，属室内类"
+  },
+  "calibration": {
+    "absolute_power": "未标定",
+    "reason": "缺馈线损耗与标定常数，量化码无法换算 dBm"
+  },
+  "provenance": {
+    "dataset": "DroneRFa",
+    "doi": "10.11999/JEIT230570",
+    "scidb": "34f0a91e8a544904998b8fdc44477380",
+    "source_file": "T10010_S0000.mat",
+    "source_offset_samples": 20000000,
+    "extracted_by": "WORKLOG 2026-09-03",
+    "lossless": "int16 无损，已逐位回读对拍"
+  },
+  "quality": {
+    "status": "degraded",
+    "reasons": [
+      "源文件内无元数据，采集参数取自论文",
+      "无绝对功率标定",
+      "片间时间不连续且无绝对时间戳"
+    ]
+  },
+  "purpose": [
+    "最强信号样本，用于观测量提取调试",
+    "915 MHz 通道映射的唯一测试用例",
+    "T#_S# 无距离字段文件名形态的唯一测试用例"
+  ]
+}

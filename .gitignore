@@ -11,9 +11,11 @@ data/**
 !data/**/*.md
 !data/**/*.manifest.json
 
-# 公开数据集 DroneRFb-DIR，64 GB，永不入库。
-# 摸底结论见 WORKLOG.md 2026-09-03 条目。
-Datasets1-DroneRFb-DIR/
+# 公开数据集，永不入库。用通配以覆盖后续新增的数据集目录。
+#   Datasets1-DroneRFb-DIR  64 GB
+#   Datasets2-DroneRFa      全集 560 GB，本地保留子集
+# 摸底结论见 WORKLOG.md 2026-09-03 各条目。
+Datasets*/
 
 # 只读参考快照，1.5 GB，与 /Users/zhiyu/CC/EM-C-UAV 同源。
 # 去留属未决事项（CLAUDE.md OPEN 表「参考快照去留」）。
