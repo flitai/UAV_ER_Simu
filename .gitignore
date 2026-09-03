@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# 804 C-UAV 忽略规则
+# 依据：CLAUDE.md 铁律 15（文件名纯 ASCII）、目录结构一节「大文件不入 git，
+#       只入索引与元数据」；06 备忘录 §2 步骤 S-2。
+# ---------------------------------------------------------------------------
+
+# 数据产物一律不入库，只保留说明文件与清单文件。
+# 三条反向规则的顺序不能调换：必须先放行目录，后续的文件级放行才能生效。
+data/**
+!data/**/
+!data/**/*.md
+!data/**/*.manifest.json
+
+# 公开数据集 DroneRFb-DIR，64 GB，永不入库。
+# 摸底结论见 WORKLOG.md 2026-09-03 条目。
+Datasets1-DroneRFb-DIR/
+
+# 只读参考快照，1.5 GB，与 /Users/zhiyu/CC/EM-C-UAV 同源。
+# 去留属未决事项（CLAUDE.md OPEN 表「参考快照去留」）。
+C-UAV Model Demo/
+
+# 构建产物
+node_modules/
+build/
+dist/
+*.tsbuildinfo
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.uv/
+
+# 编辑器与操作系统
+.DS_Store
+.idea/
+.vscode/
+*.swp

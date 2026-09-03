@@ -1,0 +1,19 @@
+{
+  "name": "cuav-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "804 C-UAV 应用服务：REST 与 WebSocket、项目与任务管理、支持 Range 的文件服务",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "tsx": "4.23.13",
+    "typescript": "6.0.3"
+  }
+}

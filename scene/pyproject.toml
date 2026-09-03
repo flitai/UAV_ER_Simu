@@ -1,0 +1,9 @@
+[project]
+name = "cuav-scene"
+version = "0.0.0"
+description = "804 C-UAV 场景数据包生产脚本"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
