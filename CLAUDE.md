@@ -148,6 +148,7 @@
 ├── geo/             显示子线物理侧：IMapQuery + LocalSceneAdapter + 刀口衍射（自 emcore 移植，带 golden）
 ├── third_party/foundation/   AFSIM 抽取库 vendored（补 ModelApi.hpp + 顶层 CMakeLists，保留文件头）
 ├── algos/           WP6 算法与评价基线、用户插件接口
+├── tools/           内部数据工具：iq_convert（DS-2/DA-2）、iq_survey（DS-5/DA-5，04 §10.6 八项质检）、iq_format 共享库；不进交付包
 ├── matlab/          内部工具链（参考模型、Coder 工程），不进交付包
 ├── scene/           场景数据包生产脚本：pmtiles extract / buildings 解码合并 / dem；AOI 定义
 ├── data/{iq/{measured,synthetic,mixed}, scene/<aoi>/, golden/}   大文件不入 git，只入索引与元数据
@@ -163,6 +164,10 @@
 - 开发机（2026-09-02 核实）：macOS 26.5 arm64；node 25.8 / npm 11.12；cmake 4.2 / Apple clang 21；GDAL 3.12；`pmtiles` CLI；python 3.13 + uv 0.12；cargo 1.96；java 11。不需要 tilemaker / planetiler / osmium / qgis。
 - 目标机：客户端与单机 Windows x64；集中部署服务端 Windows 或 Linux x64（D-015 / D-016）。MSVC / GCC 构建、Node LTS 版本与验证机待阶段 0 冻结；emcore / foundation 的 CMake 无平台私有 flag 且已链 `ws2_32`，但**只在 macOS 实测过**，MSVC 与 GCC 构建需在 D3 首次验证。
 - 构建与测试命令待代码建立后回填。占位：`web`、`server`：`npm run dev | build | test`；`engine`、`geo`：`cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure`；`scene`：`python3 scene/fetch_tiles.py --bbox W,S,E,N --maxzoom 15 --estimate`。
+- 数据工具（已可用，依赖 h5py + numpy，经 uv 拉起，不进交付包）：
+  转换 `uv run --quiet --with h5py --with numpy python tools/iq_convert.py <源.mat 或目录> -o data/iq/measured/<batch>/`；
+  质检 `uv run --quiet --with h5py --with numpy python tools/iq_survey.py data/iq/measured/<batch>/ --report <报告.md>`；
+  单测 `uv run --quiet --with h5py --with numpy python tests/unit/test_iq_tools.py`（32 项，用合成夹具，不依赖数据集）。
 - 验收入口：`tests/golden` 与 `tests/regression` 全绿 + 12 项标准算例（04 §15.2）。
 
 ## 里程碑状态
@@ -207,6 +212,7 @@ D0–D4 挂靠 P0 冻结后启动，不进入 P1 退出条件。
 | D-017 | 2026-09-02 | 地图渲染的图层顺序与显示风格照搬 Airports（浅色手写 Protomaps 样式、hillshade、建筑拉伸外观、相机与控件、字形策略）；em-demo 只贡献态势图层的图形语义与离线加载机制，其深色主题与 `protomaps-themes-base` 不采用；态势色值在浅色底图上重标定 | 用户确认"沿用或照搬 Airports" |
 | D-018 | 2026-09-03 | 两个公开数据集**互补不替代**，都完整保留。DroneRFb-DIR 承担：跨层算例 ② 的唯一量级依据（视距/非视距标签）、P3 的 D 组独立验证集（出版方已划分）、DS-6 虚警率标定主样本（62 片背景）、`iq_survey` 正交项 `valid` 正例与 DA-7 对照组、个体识别素材。DroneRFa 承担：距离与路损粗档标定、运动与多普勒、正交不平衡唯一校准素材、长突发时序、双通道解析分支。转换与质检按角色排序，不做删减 | 用户问"DroneRFb 是否可以不用了"；06 §11.4、§11.5 角色段 |
 | D-019 | 2026-09-03 | 实测路损指数只冻结**粗档结论「2.4 GHz 城市户外链路 n ≈ 2」**：`T0010` 六片 n = 1.93（逐对极差 0.12、标准差 0.05），`T0011` 三片 1.69，两机型宽基线一致。**1.93 的前提是"距离取区间中点"这一计算假设，不代表数据精度**——真实距离比只能定在 2.0–7.5，同一实测降幅对应 n = 1.29–3.75。P3 模型卡必须三件事一并写；相邻距离档比较一律不得用于标定；带真实置信区间的路损曲线仍只能靠带 GPS 距离的甲方自采数据 | DA-6 实测（`scripts/da6_pathloss.py`）；WORKLOG 2026-09-03 第四条 |
+| D-020 | 2026-09-03 | IQ 数据格式定稿（`docs/iq-format.md` 第 3、4 节）：容器用**裸样点文件加旁挂 JSON 清单**（Range 取区间时字节偏移是常数乘法，且与 SigMF 两文件结构同构）；字节序**固定小端且不做自动探测**；单段上限 67108864 复样点；元数据十四个顶层键，另加 `field_sources` 逐字段标注 `measured/paper/derived/assumed/absent`；`not_applicable` 与 `valid` 严格分开，整体状态取八项最差。**正交不平衡判据取安静帧的 I/Q 标准差比，不取整片**——实测 DroneRFa 的不平衡在噪声路径上，整片值随信噪比趋近 1，按整片判会漏掉三片中的两片。直流、标准差比、互相关三项判据取「固定阈值」与「5 倍统计标准差」中较宽者，避免短窗误报 | P1-1 第一批定稿；WORKLOG 2026-09-03 第五条；实现见 `tools/` |
 
 ## 对上游文档的修正与补充
 
