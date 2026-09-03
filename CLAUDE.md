@@ -59,7 +59,7 @@
 | `/Users/zhiyu/CC/Airports/tiles/planet.pmtiles` | 全球 Protomaps 底图 z0–15，128 GB，planetiler 0.10.2，OSM 2026-08-17；`buildings` 层 z11–15 含 `height / min_height / kind` | 只读；AOI 底图与建筑 GeoJSON 的共同源（D-010） | 缺瓦片渲染为空白不降级，AOI 档案 zoom 必须"满" |
 | `/Users/zhiyu/CC/Airports/tiles/dem/{z}/{x}/{y}.png` | AWS terrarium DEM z0–8，7.1 GB | 只读；hillshade 用 | 百米级/像素，对街区 LOS 无用；高分辨率 DEM OPEN |
 | `/Users/zhiyu/CC/C-UAV/天津机场_地表材质与建筑数据工作流.md` | 地表材质面层 + 建筑 GeoJSON 的 QGIS 工作流 | 只参考（材质分类与 εr/σ/roughness 默认表） | 双径地面参数将来用 |
-| `data/`（待建） | IQ、场景数据包、黄金基准 | 大文件不入 git，只入索引与元数据 | 每个产物挂同构元数据 |
+| `data/` | IQ、共享底图与 DEM（`basemap/`）、场景数据包、黄金基准 | 大文件不入 git，只入索引与元数据；开发机上 `data/basemap/{planet.pmtiles, dem}` 是指向 Airports 的软链 | 每个产物挂同构元数据；`data/basemap/*.manifest.json` 已生成（D-022） |
 
 ## 首期边界与架构决策
 
@@ -87,7 +87,7 @@
 | 遮挡计算落点 | server 预计算场 + WS 推送 / 浏览器 TS 复算并与 C++ golden 对拍 | D3 设计报告 |
 | 坐标基座实现 | foundation `UtEllipsoidalEarth` vendored / GeographicLib | D3 设计报告 |
 | 高分辨率 DEM 与垂直基准 | Copernicus 30 m / 本地 DSM | D0 |
-| AOI、首批频段/带宽/机型 | 04 附录 B 清单 | 阶段 0 |
+| AOI 范围大小（中心已由用户定为北京亚运村，D-021）、首批频段/带宽/机型 | 04 附录 B 清单；当前范围 10 × 10 km 为 PROVISIONAL | 阶段 0 |
 | 缺失引用文件 | 主界面交互原型 html、两阶段建设方案、signal signature database、实施方案 v1.0、01/02 三张架构图 | 阶段 0（阻塞退出） |
 | 参考快照去留 | 保留 `C-UAV Model Demo/` / 直接引用 EM-C-UAV | 目录建立时 |
 | 跨层一致性容差 δ | 按指标分别冻结，参考 04 §16.3（检出率差 5–10 个百分点、功率统计 10–20%） | 阶段 1 设计报告 |
@@ -99,8 +99,8 @@
 
 三条路线的决策如下，细节进 `docs/display-route.md`（待写）。
 
-- **2.5D 地理环境（照搬 Airports）**：`scene/` 脚本用 `pmtiles extract` 从本地 planet.pmtiles 裁 AOI（z0–15；建筑几何 z ≥ 11；档案必须"满"）→ `data/scene/<aoi>/basemap.pmtiles`。**图层顺序与显示风格逐项照搬 Airports `index.html`**：`protomapsStyle()`（810–1092 行，60 层浅色样式与 `PM` 配色表，含机场要素）、hillshade 参数（1218 行）、建筑拉伸外观（`addBldg3d()` 1296 行：`#e6e1da`、minzoom 14、14→14.7 渐显）、相机与控件（`newMap()` 1375 行、pitch 55、`NavigationControl({visualizePitch:true})`）、标签与字形（`localglyphs://` 拉丁 SDF + CJK 交给系统字体）、`probePmBldg()` 探测与 `window.__probe` 探针。只把原生 JS 切成 TS 模块，不改视觉参数；**不采用** em-demo 的 protomaps `black` 深色主题与 `protomaps-themes-base`。AOI 内建筑改用同源 GeoJSON 拉伸，但外观参数与 Airports 瓦片建筑层一致；AOI 外保留 Airports 瓦片建筑层（铁律 11）。任何视觉偏离 Airports 须记决策。
-- **建筑数据（D-010）**：从**同一份** planet.pmtiles 的 z15 瓦片解码 `buildings` 层、跨瓦片合并去重 → `data/scene/<aoi>/buildings.geojson`，字段 `{id, base_m, height_m, src, footprint}`；`height` 缺失时按 em-demo `fetch-buildings.mjs` 的用途/面积分档确定性估高并记 `src=est:*`；缺高度地区后续逐步用 Overpass 全标签或人工数据补齐（只升级 `src` 与高度，不改几何 id）。国内城市 OSM 高度覆盖极低（西安 12×12 km 样本 13,593 栋：height 1.0%、levels 1.3%、`building=yes` 96.1%），这是首个已知数据欠项。
+- **2.5D 地理环境（照搬 Airports）**：底图直接用整份全球 `planet.pmtiles`（137 GB，登记为共享资产 `data/basemap/`，D-022），不按 AOI 裁切；`scene/fetch_tiles.py` 裁出的 `data/scene/<aoi>/basemap-slice.pmtiles` 只作测试夹具（z0–15；建筑几何 z ≥ 11；档案必须"满"，AOI 外空白）。**图层顺序与显示风格逐项照搬 Airports `index.html`**：`protomapsStyle()`（810–1092 行，60 层浅色样式与 `PM` 配色表，含机场要素）、hillshade 参数（1218 行）、建筑拉伸外观（`addBldg3d()` 1296 行：`#e6e1da`、minzoom 14、14→14.7 渐显）、相机与控件（`newMap()` 1375 行、pitch 55、`NavigationControl({visualizePitch:true})`）、标签与字形（`localglyphs://` 拉丁 SDF + CJK 交给系统字体）、`probePmBldg()` 探测与 `window.__probe` 探针。只把原生 JS 切成 TS 模块，不改视觉参数；**不采用** em-demo 的 protomaps `black` 深色主题与 `protomaps-themes-base`。AOI 内建筑改用同源 GeoJSON 拉伸，但外观参数与 Airports 瓦片建筑层一致；AOI 外保留 Airports 瓦片建筑层（铁律 11）。任何视觉偏离 Airports 须记决策。
+- **建筑数据（D-010）**：从**同一份** planet.pmtiles 的 z15 瓦片解码 `buildings` 层、跨瓦片合并去重 → `data/scene/<aoi>/buildings.geojson`，字段 `{id, base_m, height_m, src, footprint}`；`height` 缺失时按 em-demo `fetch-buildings.mjs` 的用途/面积分档确定性估高并记 `src=est:*`；缺高度地区后续逐步用 Overpass 全标签或人工数据补齐（只升级 `src` 与高度，不改几何 id）。国内城市 OSM 高度覆盖极低（西安 12×12 km 样本 13,593 栋：height 1.0%、levels 1.3%、`building=yes` 96.1%），这是首个已知数据欠项；北京亚运村范围的覆盖率待 D0-3 实测。
 - **无人机 / 电磁态势（参考 em-demo）**：图形语义沿用——威胁红/黄/绿、效应染色优先于威胁等级、AOA 与 TDOA 双色区分、覆盖 viridis 5 档 + 值域不透明度、iso-Pd 包络（marching squares，画在楼之上）；PPI 扫描 / 测向线 / 2σ 误差椭圆走 Canvas 叠加层并用 `map.project` 投影；定频 tick（20 Hz）+ 每帧一次状态提交；无人机图标 SVG 光栅化 `source-in` 染色、`icon-rotate` 航向；航迹抽稀。**具体色值须在 Airports 浅色底图上重新标定**（em-demo 的 AOA 橙 `#f97316`、TDOA 青 `#22d3ee` 等是为深色底图调的），标定结果进 `docs/display-route.md`。参考 `em-demo/src/components/{MapView,CoverageControl,SignalPanel}.tsx`、`src/models/coverage.ts`、`src/simulation/engine.ts`。
 - **地理计算与遮挡（D-005）**：`IMapQuery`（`getTerrainHeight / queryBuildings / raycast / getMaterial`）+ `LocalSceneAdapter`（100 m 桶网格 + DDA，命中语义"侵入最深的等效单刀口"）+ `models/occlusion`（ITU-R P.526 刀口衍射）自 emcore 移植到 `geo/`；遮挡是软的：雷达 `SINR − 2·L_diff`、单程 `P_rx − L_diff`，实时与覆盖场同一注入点；移植后必须通过 148 例 golden 对拍（rel ≤ 1e-9）+ 独立解析锚点（如 FSPL@2.4 GHz/1 km ≈ 100.1 dB）才算可信。
 
@@ -151,7 +151,7 @@
 ├── tools/           内部数据工具：iq_convert（DS-2/DA-2）、iq_survey（DS-5/DA-5，04 §10.6 八项质检）、iq_format 共享库；不进交付包
 ├── matlab/          内部工具链（参考模型、Coder 工程），不进交付包
 ├── scene/           场景数据包生产脚本：pmtiles extract / buildings 解码合并 / dem；AOI 定义
-├── data/{iq/{measured,synthetic,mixed}, scene/<aoi>/, golden/}   大文件不入 git，只入索引与元数据
+├── data/{iq/{measured,synthetic,mixed}, basemap/, scene/<aoi>/, golden/}   大文件不入 git，只入索引与元数据；basemap/ 为共享底图与 DEM（D-022）
 ├── tests/{unit,integration,e2e,golden,regression}/               04 §15.1 五级验证
 ├── deploy/          WP8 单机/内网部署包、离线静态资源、启动器
 └── C-UAV Model Demo/   只读参考快照，不在其中开发
@@ -163,7 +163,7 @@
 
 - 开发机（2026-09-02 核实）：macOS 26.5 arm64；node 25.8 / npm 11.12；cmake 4.2 / Apple clang 21；GDAL 3.12；`pmtiles` CLI；python 3.13 + uv 0.12；cargo 1.96；java 11。不需要 tilemaker / planetiler / osmium / qgis。
 - 目标机：客户端与单机 Windows x64；集中部署服务端 Windows 或 Linux x64（D-015 / D-016）。MSVC / GCC 构建、Node LTS 版本与验证机待阶段 0 冻结；emcore / foundation 的 CMake 无平台私有 flag 且已链 `ws2_32`，但**只在 macOS 实测过**，MSVC 与 GCC 构建需在 D3 首次验证。
-- 构建与测试命令待代码建立后回填。占位：`web`、`server`：`npm run dev | build | test`；`engine`、`geo`：`cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure`；`scene`：`python3 scene/fetch_tiles.py --bbox W,S,E,N --maxzoom 15 --estimate`。
+- 构建与测试命令待代码建立后回填。占位：`web`、`server`：`npm run dev | build | test`；`engine`、`geo`：`cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure`；`scene`：`uv run python scene/fetch_tiles.py --aoi <id> --estimate`（已可用）、`uv run python scene/register_basemap.py --planet <planet.pmtiles> --dem <dem> --sha256 <hex> --link`。
 - 数据工具（已可用，依赖 h5py + numpy，经 uv 拉起，不进交付包）：
   转换 `uv run --quiet --with h5py --with numpy python tools/iq_convert.py <源.mat 或目录> -o data/iq/measured/<batch>/`；
   质检 `uv run --quiet --with h5py --with numpy python tools/iq_survey.py data/iq/measured/<batch>/ --report <报告.md>`；
@@ -181,7 +181,7 @@
 | P2 | B/S 框图平台与组件化 | 04 §13.4 / WP2-3-8 | 未开始 | 04 §13.4 六条 + 05 P0 端口命名预留检查 + Windows 单机一体化包在干净 Windows 机上安装运行 | — | — |
 | P3 | 工程等效模型与实测校准 | 04 §13.5 / WP4-7 | 未开始 | 04 §13.5 四条 + 首批跨层一致性算例全部在容差内，M1/M2 校准参数已回写并版本冻结 | — | — |
 | P4 | 试用、整改与交付 | 04 §13.6 / WP8 | 未开始 | 04 §13.6 四条 + 第三方许可合规 | — | — |
-| D0 | 场景数据包 | scene/ | 未开始 | AOI basemap.pmtiles + buildings.geojson（解码合并，含 src）+ dem + manifest，全离线可加载 | — | — |
+| D0 | 场景数据包 | scene/ | 进行中（D0-1、D0-2、D0-5 完成 2026-09-03） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 底图 137370745450 B、sha256 b4c46742…；DEM 87381 文件；切片 206 瓦片 4342046 B | WORKLOG 2026-09-03「D0-1 / D0-2」 |
 | D1 | 2.5D 离线底图在 web/ 可显 | web/scene | 未开始 | Range 服务、字形/sprite 随包、ASCII 验收通过；同一 AOI 与 Airports 并排截图，图层与风格一致 | — | — |
 | D2 | 态势图层接 WS 状态流 | web/scene | 未开始 | 无人机图标/航迹/覆盖热力图/包络随状态流刷新 | — | — |
 | D3 | 遮挡库移植与验证 | geo/ | 未开始 | golden 148 例 rel ≤ 1e-9 + 解析锚点；接入 04 §7.3 LOS/NLOS | — | — |
@@ -213,6 +213,8 @@ D0–D4 挂靠 P0 冻结后启动，不进入 P1 退出条件。
 | D-018 | 2026-09-03 | 两个公开数据集**互补不替代**，都完整保留。DroneRFb-DIR 承担：跨层算例 ② 的唯一量级依据（视距/非视距标签）、P3 的 D 组独立验证集（出版方已划分）、DS-6 虚警率标定主样本（62 片背景）、`iq_survey` 正交项 `valid` 正例与 DA-7 对照组、个体识别素材。DroneRFa 承担：距离与路损粗档标定、运动与多普勒、正交不平衡唯一校准素材、长突发时序、双通道解析分支。转换与质检按角色排序，不做删减 | 用户问"DroneRFb 是否可以不用了"；06 §11.4、§11.5 角色段 |
 | D-019 | 2026-09-03 | 实测路损指数只冻结**粗档结论「2.4 GHz 城市户外链路 n ≈ 2」**：`T0010` 六片 n = 1.93（逐对极差 0.12、标准差 0.05），`T0011` 三片 1.69，两机型宽基线一致。**1.93 的前提是"距离取区间中点"这一计算假设，不代表数据精度**——真实距离比只能定在 2.0–7.5，同一实测降幅对应 n = 1.29–3.75。P3 模型卡必须三件事一并写；相邻距离档比较一律不得用于标定；带真实置信区间的路损曲线仍只能靠带 GPS 距离的甲方自采数据 | DA-6 实测（`scripts/da6_pathloss.py`）；WORKLOG 2026-09-03 第四条 |
 | D-020 | 2026-09-03 | IQ 数据格式定稿（`docs/iq-format.md` 第 3、4 节）：容器用**裸样点文件加旁挂 JSON 清单**（Range 取区间时字节偏移是常数乘法，且与 SigMF 两文件结构同构）；字节序**固定小端且不做自动探测**；单段上限 67108864 复样点；元数据十四个顶层键，另加 `field_sources` 逐字段标注 `measured/paper/derived/assumed/absent`；`not_applicable` 与 `valid` 严格分开，整体状态取八项最差。**正交不平衡判据取安静帧的 I/Q 标准差比，不取整片**——实测 DroneRFa 的不平衡在噪声路径上，整片值随信噪比趋近 1，按整片判会漏掉三片中的两片。直流、标准差比、互相关三项判据取「固定阈值」与「5 倍统计标准差」中较宽者，避免短窗误报 | P1-1 第一批定稿；WORKLOG 2026-09-03 第五条；实现见 `tools/` |
+| D-021 | 2026-09-03 | **AOI = 北京亚运村周围**（用户否决原计划的 em-demo 西安范围）。中心 (116.405, 39.990) 由用户定；范围 `116.345,39.945,116.465,40.035`（约 10 × 10 km）由实施方暂定、标 PROVISIONAL；定义文件 `scene/aoi/beijing-yayuncun.json`，含从底图瓦片解出的地名核实证据。后果：em-demo 的 13,594 栋西安 Overpass 建筑集不再能作 D0-4 对拍基准，需在建库阶段对北京 bbox 重拉 | 用户指示"不放在西安，放在北京亚运村周围"；范围大小待用户确认 |
+| D-022 | 2026-09-03 | **底图与 DEM 直接用整份全球文件，登记为共享资产 `data/basemap/`，不按 AOI 裁切**：`planet.pmtiles` 137370745450 B（sha256 `b4c46742…`，planetiler 0.10.2，OSM 2026-08-17）、terrarium DEM z0–8 共 87381 文件。开发机上软链到 Airports，目标机放真实文件；必须经 Range 服务提供。`scene/fetch_tiles.py` 裁出的 AOI 切片 `basemap-slice.pmtiles` 降为测试夹具与便携底图（AOI 外空白）。缩小到 AOI 之外仍有完整世界图，"AOI 外空白"这一继承的坑随之消失 | 用户指示"我可以用大的呀，128 GB 没有问题"；项目记忆：存储不是约束，不做省空间取舍 |
 
 ## 对上游文档的修正与补充
 

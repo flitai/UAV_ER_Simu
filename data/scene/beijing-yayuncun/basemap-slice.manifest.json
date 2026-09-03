@@ -1,0 +1,248 @@
+{
+  "schema": "cuav-scene-basemap-manifest/1",
+  "product": "basemap-slice.pmtiles",
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "name": "北京亚运村周围",
+    "status": {
+      "center": "user_specified",
+      "center_decided_on": "2026-09-03",
+      "extent": "PROVISIONAL",
+      "note": "中心位置由用户指定（原计划的 em-demo 西安范围被用户否决）。范围大小约 10 x 10 km 由实施方暂定，04 号方案附录 B 对观测区域大小没有规定。用户调整 bbox 后，整个 data/scene/beijing-yayuncun/ 目录用 scene/fetch_tiles.py --force 重跑重生成。"
+    },
+    "crs": "EPSG:4326",
+    "coord_version": "WGS-84 经纬度（度），与 OpenStreetMap 一致；禁止混入 GCJ-02（CLAUDE.md 铁律 1）",
+    "bbox": [
+      116.345,
+      39.945,
+      116.465,
+      40.035
+    ],
+    "bbox_order": "west, south, east, north",
+    "center": [
+      116.405,
+      39.99
+    ],
+    "extent_km": [
+      10.23,
+      9.99
+    ],
+    "evidence": {
+      "method": "2026-09-03 实测：用 pmtiles tile 从 planet.pmtiles 取 z12 / z13 / z14 瓦片，gzip 解压后提取矢量瓦片里的中文串，核对亚运村及周边地名落在候选范围内",
+      "z12_tile": {
+        "x": 3372,
+        "y": 1550,
+        "bounds": [
+          116.3672,
+          39.9771,
+          116.4551,
+          40.0444
+        ]
+      },
+      "names_found": [
+        "亚运村街道",
+        "亚运村全民健身园",
+        "安慧桥",
+        "安慧北里秀园",
+        "奥林匹克公园",
+        "国家奥林匹克体育中心",
+        "大屯",
+        "大屯路",
+        "大屯街道",
+        "慧忠路",
+        "慧忠北里第二社区",
+        "北辰路",
+        "北辰东路",
+        "北辰西路",
+        "安立路",
+        "安贞街道",
+        "望京西路",
+        "清河"
+      ]
+    },
+    "replaces": "06 备忘录 §4 D0-1 原定的 em-demo 西安范围 108.8805,34.2956,109.0005,34.4056（该范围仅因有 13594 栋 Overpass 建筑可对拍而被选为临时区域）",
+    "replace_when": "用户调整范围，或阶段 0 正式冻结观测区域时"
+  },
+  "aoi_definition_file": "scene/aoi/beijing-yayuncun.json",
+  "crs": "EPSG:4326",
+  "coord_version": "交换用 WGS-84 经纬度（度，EPSG:4326）；瓦片网格为 Web Mercator（EPSG:3857）XYZ 方案，y 轴自北向南；CLAUDE.md 铁律 1",
+  "source": {
+    "path": "/Users/zhiyu/CC/Airports/tiles/planet.pmtiles",
+    "size_bytes": 137370745450,
+    "mtime_utc": "2026-08-19T03:45:30Z",
+    "header_sha256_first_bytes": 16384,
+    "header_sha256": "d8e1473c4a6944e6e4a51bd6ece2723a0d04a60c980c8f91b1895260ab65b84b",
+    "sha256": "b4c4674234ae75c8fea8a10c23f1cce49626155f56a437eda89b006f1e02b2b7",
+    "sha256_note": "由 --source-sha256 传入",
+    "pmtiles_spec_version": "3",
+    "tile_type": "mvt",
+    "minzoom": 0,
+    "maxzoom": 15,
+    "planetiler_version": "0.10.2",
+    "planetiler_githash": "0e5588c4a6e8c29a270a33afe8df62027d889604",
+    "planetiler_buildtime": "2026-03-28T14:41:39.524Z",
+    "osm_replication_time": "2026-08-17T04:00:00Z",
+    "osm_replication_seq": "122085",
+    "osm_replication_url": "https://planet.osm.org/replication/hour/",
+    "basemap_name": "Protomaps Basemap",
+    "basemap_version": "4.15.2",
+    "attribution": "<a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">&copy; OpenStreetMap</a>"
+  },
+  "extract": {
+    "tool": "pmtiles CLI (go-pmtiles)",
+    "tool_version": "pmtiles dev, commit none, built at unknown",
+    "command": [
+      "/opt/homebrew/bin/pmtiles",
+      "extract",
+      "/Users/zhiyu/CC/Airports/tiles/planet.pmtiles",
+      "/Users/zhiyu/CC/804 C-UAV/data/scene/beijing-yayuncun/basemap-slice.part.pmtiles",
+      "--bbox=116.345000,39.945000,116.465000,40.035000",
+      "--minzoom=0",
+      "--maxzoom=15"
+    ],
+    "bbox": [
+      116.345,
+      39.945,
+      116.465,
+      40.035
+    ],
+    "minzoom": 0,
+    "maxzoom": 15,
+    "overfetch": 0.05,
+    "dry_run_region_tiles": 206,
+    "dry_run_tile_entries": 206,
+    "dry_run_archive_size_text": "4.3 MB"
+  },
+  "output": {
+    "file": "basemap-slice.pmtiles",
+    "size_bytes": 4342046,
+    "sha256": "a0a40f550bea6d1e55fa83accdd0d310870b3839364a6b0c5cc1db16a2190990",
+    "bounds": [
+      116.345,
+      39.945,
+      116.465,
+      40.035
+    ],
+    "minzoom": 0,
+    "maxzoom": 15,
+    "addressed_tiles": 206,
+    "tile_entries": 206,
+    "tile_contents": 206,
+    "tile_compression": "gzip",
+    "vector_layers": [
+      {
+        "id": "boundaries",
+        "minzoom": 0,
+        "maxzoom": 15
+      },
+      {
+        "id": "buildings",
+        "minzoom": 11,
+        "maxzoom": 15
+      },
+      {
+        "id": "earth",
+        "minzoom": 0,
+        "maxzoom": 15
+      },
+      {
+        "id": "landcover",
+        "minzoom": 0,
+        "maxzoom": 7
+      },
+      {
+        "id": "landuse",
+        "minzoom": 2,
+        "maxzoom": 15
+      },
+      {
+        "id": "places",
+        "minzoom": 1,
+        "maxzoom": 15
+      },
+      {
+        "id": "pois",
+        "minzoom": 5,
+        "maxzoom": 15
+      },
+      {
+        "id": "roads",
+        "minzoom": 3,
+        "maxzoom": 15
+      },
+      {
+        "id": "water",
+        "minzoom": 0,
+        "maxzoom": 15
+      }
+    ],
+    "checks": [
+      {
+        "check": "bounds_cover_bbox",
+        "pass": true,
+        "got": [
+          116.345,
+          39.945,
+          116.465,
+          40.035
+        ],
+        "want": [
+          116.345,
+          39.945,
+          116.465,
+          40.035
+        ]
+      },
+      {
+        "check": "minzoom",
+        "pass": true,
+        "got": 0,
+        "want": 0
+      },
+      {
+        "check": "maxzoom",
+        "pass": true,
+        "got": 15,
+        "want": 15
+      },
+      {
+        "check": "tile_entries_equal_dry_run",
+        "pass": true,
+        "got": 206,
+        "want": 206
+      },
+      {
+        "check": "buildings_layer_z11_15",
+        "pass": true,
+        "got": {
+          "minzoom": 11,
+          "maxzoom": 15
+        },
+        "want": {
+          "minzoom": 11,
+          "maxzoom": 15
+        }
+      },
+      {
+        "check": "center_tile_has_buildings_layer",
+        "pass": true,
+        "got": {
+          "z": 15,
+          "x": 26979,
+          "y": 12406,
+          "bytes_uncompressed": 22177,
+          "contains_buildings": true
+        },
+        "want": "bytes > 0 且含 buildings"
+      }
+    ]
+  },
+  "generated_at_utc": "2026-09-03T15:50:01Z",
+  "generator": {
+    "script": "scene/fetch_tiles.py",
+    "git_commit": "9fcac45-dirty",
+    "python": "3.13.1",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "note": "在 macOS 开发机生成；按 D-015 / D-016，macOS 结果不作验收依据，数据包本身与平台无关"
+  }
+}

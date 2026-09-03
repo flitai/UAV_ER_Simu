@@ -8,7 +8,8 @@
 | `iq/measured/` | 实测 IQ |
 | `iq/synthetic/` | 合成 IQ |
 | `iq/mixed/` | 混合增强：实测背景加合成目标 |
-| `scene/<aoi>/` | 场景数据包，规范见 `docs/scene-package.md` |
+| `basemap/` | 全球底图与数字高程模型，共享资产，只有一份（决策 D-022） |
+| `scene/<aoi>/` | 观测区域专属的场景数据（建筑、可选切片、清单），规范见 `docs/scene-package.md` |
 | `golden/` | 黄金基准 |
 
 ## 三条纪律

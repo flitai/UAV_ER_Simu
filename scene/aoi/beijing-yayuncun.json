@@ -1,0 +1,27 @@
+{
+  "id": "beijing-yayuncun",
+  "name": "北京亚运村周围",
+  "status": {
+    "center": "user_specified",
+    "center_decided_on": "2026-09-03",
+    "extent": "PROVISIONAL",
+    "note": "中心位置由用户指定（原计划的 em-demo 西安范围被用户否决）。范围大小约 10 x 10 km 由实施方暂定，04 号方案附录 B 对观测区域大小没有规定。用户调整 bbox 后，整个 data/scene/beijing-yayuncun/ 目录用 scene/fetch_tiles.py --force 重跑重生成。"
+  },
+  "crs": "EPSG:4326",
+  "coord_version": "WGS-84 经纬度（度），与 OpenStreetMap 一致；禁止混入 GCJ-02（CLAUDE.md 铁律 1）",
+  "bbox": [116.345, 39.945, 116.465, 40.035],
+  "bbox_order": "west, south, east, north",
+  "center": [116.405, 39.99],
+  "extent_km": [10.23, 9.99],
+  "evidence": {
+    "method": "2026-09-03 实测：用 pmtiles tile 从 planet.pmtiles 取 z12 / z13 / z14 瓦片，gzip 解压后提取矢量瓦片里的中文串，核对亚运村及周边地名落在候选范围内",
+    "z12_tile": { "x": 3372, "y": 1550, "bounds": [116.3672, 39.9771, 116.4551, 40.0444] },
+    "names_found": [
+      "亚运村街道", "亚运村全民健身园", "安慧桥", "安慧北里秀园", "奥林匹克公园",
+      "国家奥林匹克体育中心", "大屯", "大屯路", "大屯街道", "慧忠路", "慧忠北里第二社区",
+      "北辰路", "北辰东路", "北辰西路", "安立路", "安贞街道", "望京西路", "清河"
+    ]
+  },
+  "replaces": "06 备忘录 §4 D0-1 原定的 em-demo 西安范围 108.8805,34.2956,109.0005,34.4056（该范围仅因有 13594 栋 Overpass 建筑可对拍而被选为临时区域）",
+  "replace_when": "用户调整范围，或阶段 0 正式冻结观测区域时"
+}
