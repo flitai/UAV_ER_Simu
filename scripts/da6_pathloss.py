@@ -6,7 +6,11 @@
   带内 = 相对中心频率 +2 至 +12 MHz（2442–2452 MHz，已确认为图传）。
 本次新增的只有统计处理：片间抖动、按对组合、最小二乘拟合、距离区间敏感性。
 """
-import h5py, numpy as np, itertools, json, os
+import h5py, numpy as np, itertools, json, os, sys
+
+# 路径一律从本文件位置推导，不写死绝对路径：写死之后项目一迁移、一换平台就全部失效。
+# 数据集目录可用环境变量 CUAV_DRONERFA_DIR 覆盖（数据集不入库，各机器摆放位置可能不同）。
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 NF = 8192
 W = 2_000_000
@@ -15,7 +19,10 @@ OFFS = [0, 30_000_000, 60_000_000, 90_000_000, 120_000_000, 146_000_000]
 fr = np.fft.fftshift(np.fft.fftfreq(NF, 1 / FS)) / 1e6
 BAND = (fr >= 2) & (fr < 12)
 
-DIR = "/Users/zhiyu/CC/804 C-UAV/Datasets2-DroneRFa"
+DIR = os.environ.get("CUAV_DRONERFA_DIR") or os.path.join(ROOT, "Datasets2-DroneRFa")
+if not os.path.isdir(DIR):
+    sys.exit(f"找不到数据集目录 {DIR}\n"
+             f"数据集不入库。把它放到仓库根目录下，或用 CUAV_DRONERFA_DIR 指定位置。")
 
 # 距离档的三种取值口径：区间中点、区间几何均值、以及区间上下界（用于给出边界）
 BINS = {"D00": (20, 40), "D01": (40, 80), "D10": (80, 150)}

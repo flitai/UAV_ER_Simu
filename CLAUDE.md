@@ -46,6 +46,7 @@
 14. **合成数据不用于展示**：演示与交付图一律真实数据或显式标注；`src=est:*`（估算建筑高度）、合成底噪等标记随字段传到每个下游产物（04 §9.2）。
 15. **不静默降级 + ASCII 文件名**：结果状态四态 `valid / degraded / invalid / not_applicable`，禁止默认值顶替（如 `height ?? 8`）；Web 资源与数据包文件名纯 ASCII，出包执行 `find dist -type f | LC_ALL=C grep -nP '[^\x00-\x7f]'`（05 §16.3；em-demo 打包说明）。
 16. **目标平台**：客户端与单机一体化包 **Windows x64 优先**；内网集中模式的服务端（应用服务 + C++ 引擎 + 数据库）**Windows 或 Linux x64 视情选择**，二者从第一天起都进 CI 构建。开发机是 macOS，其结果不作验收依据；打包与性能数字只认目标平台原生验证。引擎与服务不得直接调用平台私有 API，共享内存、内存映射、路径与编码一律经抽象层（D-015 / D-016；04 附录 B；方法论阶段 7）。
+17. **路径可迁移**：入库文件里不得出现机器相关的绝对路径（`/Users/`、`/home/<用户名>`、`X:\Users\`）。路径一律从文件自身位置推导（Python `__file__`、Node `import.meta.url`、CMake `CMAKE_CURRENT_SOURCE_DIR`），或由命令行参数与环境变量给入；产物清单里仓库内的路径写成**相对仓库根目录**的形式，记录的命令只写工具名不写工具的绝对位置。外部参考工程的实际位置只在本文件的资源清单里记一处，代码注释引用它时只写工程名与文件名。数据清单里记录外部**历史来源**的 `origin` / `dev_link_target` 是唯一例外，它们是留档不是可解析的位置，任何代码不得解析。出包与提交前执行 `scripts/check-paths.sh`（已接入 `scripts/build-all.sh`）。
 
 ## 资源清单 · 只读边界 · 复用边界
 
@@ -175,6 +176,7 @@
   转换 `uv run --quiet --with h5py --with numpy python tools/iq_convert.py <源.mat 或目录> -o data/iq/measured/<batch>/`；
   质检 `uv run --quiet --with h5py --with numpy python tools/iq_survey.py data/iq/measured/<batch>/ --report <报告.md>`；
   单测 `uv run --quiet --with h5py --with numpy python tests/unit/test_iq_tools.py`（32 项，用合成夹具，不依赖数据集）。
+- 两项出包前必查：`scripts/check-paths.sh`（路径可迁移，铁律 17）、`scripts/check-ascii.sh`（文件名纯 ASCII，铁律 15），均已接入 `scripts/build-all.sh`。
 - 验收入口：`tests/golden` 与 `tests/regression` 全绿 + 12 项标准算例（04 §15.2）。
 
 ## 里程碑状态
@@ -249,4 +251,5 @@ D0–D4 挂靠 P0 冻结后启动，不进入 P1 退出条件。
 - Web 资源文件名含非 ASCII，macOS 打包后在 Windows 解压乱码导致 404。
 - foundation 缺 `ModelApi.hpp`；emcore 三套常数刻意不统一，"统一化"会破坏 golden。
 - 定位 CEP 公式曾经蒙特卡洛散布校验发现有误（√trace → 0.5887·(σmax+σmin)），TS/C++ 两侧同步修正（EM-C-UAV 09 号方案 W4）——解析锚点与统计校验缺一不可。
+- 本机仓库目录名 `804 C-UAV` **含空格是有意保留的探针**：远端仓库名 `UAV_ER_Simu` 不含空格，克隆、持续集成检出与交付包都不会有，所以这个空格只存在于开发机上，正好让"路径没加引号、`file://` 没做编码"这类问题在开发阶段就暴露，而不是等到 Windows 上（那里的真实路径常含空格与中文）才炸。代价是必须守两条：脚本里路径一律加引号；拼 `file://` 一律用 `pathToFileURL` 而非字符串拼接——2026-09-04 服务静默不启动就是后者造成的，`import.meta.url` 把空格编码成 `%20`，与 `process.argv[1]` 比较永远不相等。
 - Windows 交付经验（em-demo 打包说明）：启动脚本 `.bat` 必须 GBK 编码 + CRLF 换行，否则中文乱码或无法执行；macOS 上 zip 打包中文文件名到 Windows 解压乱码；Windows 原生构建在 Mac 上无法交叉完成，需 Windows 机或 CI。

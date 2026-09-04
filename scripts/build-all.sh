@@ -24,6 +24,9 @@ for proj in engine geo; do
   ctest --test-dir "$proj/build" --output-on-failure
 done
 
+printf '=== 路径检查 ===\n'
+sh scripts/check-paths.sh
+
 printf '=== ASCII 检查 ===\n'
 sh scripts/check-ascii.sh
 

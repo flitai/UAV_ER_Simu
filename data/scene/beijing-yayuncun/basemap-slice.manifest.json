@@ -82,7 +82,7 @@
   "crs": "EPSG:4326",
   "coord_version": "交换用 WGS-84 经纬度（度，EPSG:4326）；瓦片网格为 Web Mercator（EPSG:3857）XYZ 方案，y 轴自北向南；CLAUDE.md 铁律 1",
   "source": {
-    "path": "/Users/zhiyu/CC/804 C-UAV/data/basemap/planet.pmtiles",
+    "path": "data/basemap/planet.pmtiles",
     "size_bytes": 137370745450,
     "mtime_utc": "2026-09-04T00:45:14Z",
     "header_sha256_first_bytes": 16384,
@@ -107,10 +107,10 @@
     "tool": "pmtiles CLI (go-pmtiles)",
     "tool_version": "pmtiles dev, commit none, built at unknown",
     "command": [
-      "/opt/homebrew/bin/pmtiles",
+      "pmtiles",
       "extract",
-      "/Users/zhiyu/CC/804 C-UAV/data/basemap/planet.pmtiles",
-      "/Users/zhiyu/CC/804 C-UAV/data/scene/beijing-yayuncun/basemap-slice.part.pmtiles",
+      "data/basemap/planet.pmtiles",
+      "data/scene/beijing-yayuncun/basemap-slice.part.pmtiles",
       "--bbox=116.288000,39.900000,116.522000,40.080000",
       "--minzoom=0",
       "--maxzoom=15"
@@ -252,10 +252,10 @@
       }
     ]
   },
-  "generated_at_utc": "2026-09-04T01:49:00Z",
+  "generated_at_utc": "2026-09-04T09:37:38Z",
   "generator": {
     "script": "scene/fetch_tiles.py",
-    "git_commit": "b7b780b-dirty",
+    "git_commit": "a71f67a-dirty",
     "python": "3.13.1",
     "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
     "note": "在 macOS 开发机生成；按 D-015 / D-016，macOS 结果不作验收依据，数据包本身与平台无关"

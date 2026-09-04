@@ -6,7 +6,7 @@ data/basemap/planet.manifest.json），**不按 AOI 裁切**。本脚本产出�
 （端到端测试、持续集成）、以及没有 128 GB 全球文件的机器上的便携底图。切片在 AOI 之外是空白。
 
 对应 06 备忘录 §4 步骤 D0-2；产物规范见 docs/scene-package.md。
-参考 /Users/zhiyu/CC/Airports/fetch_tiles.py（本方自有代码）：那份脚本对远端 planet
+参考 Airports 工程的 `fetch_tiles.py`（本方自有代码，位置见 CLAUDE.md 资源清单）：那份脚本对远端 planet
 做 HTTP Range 抓取；本脚本改为读本地文件，不联网，不做区域预设。
 
 用法
@@ -252,6 +252,20 @@ def git_commit() -> str | None:
         return None
 
 
+def repo_path(path: str) -> str:
+    """把路径写成**相对仓库根目录**的形式，供清单与日志使用。
+
+    产物清单里不得出现机器相关的绝对路径：项目整体迁移或换平台后，那些路径全部失效，
+    清单也就不再可核对。仓库之外的路径（例如外部参考工程）原样返回，并由调用方注明它是
+    历史来源而不是可解析的位置。
+    """
+    ap = os.path.abspath(path)
+    root = os.path.abspath(ROOT)
+    if ap == root or ap.startswith(root + os.sep):
+        return os.path.relpath(ap, root).replace(os.sep, "/")
+    return ap
+
+
 def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -389,7 +403,7 @@ def main() -> int:
         "coord_version": "交换用 WGS-84 经纬度（度，EPSG:4326）；瓦片网格为 Web Mercator（EPSG:3857）XYZ 方案，"
                          "y 轴自北向南；CLAUDE.md 铁律 1",
         "source": {
-            "path": a.planet,
+            "path": repo_path(a.planet),
             "size_bytes": os.path.getsize(a.planet),
             "mtime_utc": mtime_utc(a.planet),
             "header_sha256_first_bytes": HEADER_HASH_BYTES,
@@ -413,7 +427,10 @@ def main() -> int:
         "extract": {
             "tool": "pmtiles CLI (go-pmtiles)",
             "tool_version": ver,
-            "command": real["command"],
+            # 命令里只记工具名与仓库相对路径：绝对路径换台机器或换平台就失效，
+            # 清单也就不再可复跑。工具的具体版本另记在 tool_version。
+            "command": ["pmtiles" if i == 0 else (repo_path(c) if os.sep in c else c)
+                        for i, c in enumerate(real["command"])],
             "bbox": bbox,
             "minzoom": a.minzoom,
             "maxzoom": a.maxzoom,

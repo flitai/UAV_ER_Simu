@@ -1,9 +1,17 @@
 """按本地实际文件重新生成 DroneRFa 补数清单。首版生成脚本见 WORKLOG 2026-09-03 第三条日志。"""
-import os, glob
+import os, glob, sys
 
-ROOT = "/Users/zhiyu/CC/804 C-UAV"
-DIR = os.path.join(ROOT, "Datasets2-DroneRFa")
+# 路径一律从本文件位置推导，不写死绝对路径。数据集不入库，位置可用环境变量覆盖。
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DIR = os.environ.get("CUAV_DRONERFA_DIR") or os.path.join(ROOT, "Datasets2-DroneRFa")
+if not os.path.isdir(DIR):
+    sys.exit(f"找不到数据集目录 {DIR}\n"
+             f"数据集不入库。把它放到仓库根目录下，或用 CUAV_DRONERFA_DIR 指定位置。")
 OUT = os.path.join(ROOT, "data/iq/measured/dronerfa/download-list.md")
+
+PRODUCT_DIR = os.path.join(ROOT, "data", "iq", "measured", "dronerfa")
+n_iq = len(glob.glob(os.path.join(PRODUCT_DIR, "*.iq")))
+n_man = len(glob.glob(os.path.join(PRODUCT_DIR, "*.manifest.json")))
 
 files = sorted(glob.glob(os.path.join(DIR, "*.mat")))
 local = [os.path.basename(f)[:-4] for f in files]
@@ -84,8 +92,11 @@ L.append(f"""# DroneRFa 下载清单（按命名规则枚举）
 ```
 
 2026-09-03 曾误删 `T10010_S0000.mat` 与 `T10110_S0000.mat`（过程与由此确立的纪律见 WORKLOG
-同日第三条日志第 7 节），当日已重新下载，**现无缺口**。`data/iq/measured/dronerfa/` 下那份
-2000 万点的 `T10010_S0000_RF1_excerpt.iq` 是格式预演产物，不再充当原文件的替代品，去留待确认。
+同日第三条日志第 7 节），当日已重新下载，**现无缺口**。
+
+转换产物目录 `data/iq/measured/dronerfa/` 当前有 {n_iq} 个样点文件、{n_man} 份清单（本行由脚本
+按实际文件数生成，不是手写）。**本节只陈述脚本能核实的事实**：叙事性的过程记录一律放 WORKLOG，
+不由本生成器复述——否则手工更新过的说明会在下次复跑时被脚本里的旧文字覆盖，2026-09-04 已发生过一次。
 
 ## 距离阶梯的当前完整度
 

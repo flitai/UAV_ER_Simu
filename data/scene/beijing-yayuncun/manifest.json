@@ -123,8 +123,8 @@
       "file": "buildings.manifest.json",
       "role": "建筑产物的同构元数据",
       "in_git": true,
-      "size_bytes": 6748,
-      "sha256": "e00e603907956ebfaa0de020530b39f810e71b190105e864708c22241f24bb40"
+      "size_bytes": 6722,
+      "sha256": "7e56207c52c731c21bac366d0942a6e55ac9c1fcc7684a5a0005efa44ac34f16"
     },
     {
       "file": "basemap-slice.pmtiles",
@@ -137,8 +137,8 @@
       "file": "basemap-slice.manifest.json",
       "role": "切片的同构元数据",
       "in_git": true,
-      "size_bytes": 7510,
-      "sha256": "89d0dda4a3560b03ad4473f2071277dc46f95dab23e9aeb2787cbb82780998e9"
+      "size_bytes": 7414,
+      "sha256": "d45450ea50ae31ceaa4d0fe9dafb8aaac214fb3fc8e25bb0ccb5d183774c7783"
     },
     {
       "file": "osm-buildings-raw.json",
@@ -159,7 +159,7 @@
       "role": "质量报告（D0-4 对拍 + D0-7）",
       "in_git": true,
       "size_bytes": 4523,
-      "sha256": "15cf65f018849b925c42de0cbdc0bae00a492c610785a4c26eb9c8bb422ac6f9"
+      "sha256": "a62a5bf7e066c9ea88efc71cce63e2de962eff97554c0344f47af04fc9ef9844"
     }
   ],
   "provenance": {
@@ -206,9 +206,9 @@
     "uv run python scene/make_manifest.py --aoi beijing-yayuncun [--force]",
     "sh scripts/check-ascii.sh data/scene"
   ],
-  "generated_at_utc": "2026-09-04T03:04:26Z",
+  "generated_at_utc": "2026-09-04T09:37:39Z",
   "generator": {
     "script": "scene/make_manifest.py",
-    "git_commit": "c0637e5-dirty"
+    "git_commit": "a71f67a-dirty"
   }
 }

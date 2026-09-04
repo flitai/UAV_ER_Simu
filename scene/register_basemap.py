@@ -37,7 +37,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fetch_tiles import (ROOT, HEADER_HASH_BYTES, die, info, need_pmtiles, pmtiles_version,  # noqa: E402
-                         show_header, show_metadata, sha256_of, git_commit, utc_now, mtime_utc)
+                         show_header, show_metadata, sha256_of, git_commit, utc_now, mtime_utc,
+                         repo_path)
 
 BASEMAP_DIR = os.path.join(ROOT, "data", "basemap")
 
@@ -118,9 +119,11 @@ def main() -> int:
         "role": "全球底图，共享资产，不按 AOI 裁切；各 AOI 清单按本文件的 sha256 引用（决策 D-022）",
         "canonical_path": "data/basemap/planet.pmtiles",
         "storage": storage,
-        "dev_link_target": link_target,
+        "dev_link_target": repo_path(link_target) if link_target else None,
         "origin": a.origin,
-        "origin_note": "本项目自持的副本，与来源逐字节相同（sha256 一致即为证）；来源工程只读，不作运行时依赖" if a.origin else None,
+        "origin_note": ("**历史来源，不是可解析的路径**：本项目自持的副本与它逐字节相同（sha256 一致即为证）。"
+                        "换机器后该路径失效，但副本与哈希仍然有效，因此它只作留档，任何代码都不得去解析它")
+                       if a.origin else None,
         "size_bytes": os.path.getsize(planet),
         "mtime_utc": mtime_utc(planet),
         "header_sha256_first_bytes": HEADER_HASH_BYTES,
@@ -171,8 +174,9 @@ def main() -> int:
             "role": "全球 DEM 瓦片（AWS terrarium 编码，zoom 0 至 8），共享资产，只作山体阴影视觉；不进 LOS 计算（CLAUDE.md 铁律 2）",
             "canonical_path": "data/basemap/dem",
             "storage": dstorage,
-            "dev_link_target": dlink,
+            "dev_link_target": repo_path(dlink) if dlink else None,
             "origin": a.dem_origin,
+            "origin_note": "同上，历史来源留档，不作解析",
             "encoding": "terrarium: 高程 m = (R * 256 + G + B / 256) - 32768",
             "vertical_datum": "OPEN（CLAUDE.md 铁律 2：DEM 垂直基准未决）",
             "attribution": "AWS Terrain Tiles (Mapzen terrarium), https://registry.opendata.aws/terrain-tiles/",

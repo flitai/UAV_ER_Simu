@@ -1,5 +1,5 @@
 // Airports 浅色底图的配色表与标注字段，逐字节照搬（决策 D-017）。
-// 来源：/Users/zhiyu/CC/Airports/index.html 第 790 行起的 `PM` 表（本方自有代码）。
+// 来源：Airports 工程 `index.html` 第 790 行起的 `PM` 表（本方自有代码，位置见 CLAUDE.md 资源清单）。
 // **不得改动任何色值**：任何视觉偏离都要先记一条决策（CLAUDE.md 地理场景一节）。
 
 export const PM = {

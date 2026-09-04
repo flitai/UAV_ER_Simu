@@ -5,7 +5,7 @@
 // 整个文件等于完全不可用。这是继承自既有项目的已知坑：Python 标准库的 `http.server`
 // 对 Range 就是返回整文件。
 //
-// 参考实现：/Users/zhiyu/CC/Airports/serve.py 的 RangeHandler（本方自有代码）。
+// 参考实现：Airports 工程 `serve.py` 的 RangeHandler（本方自有代码，位置见 CLAUDE.md 资源清单）。
 //
 // 语义对齐 RFC 9110 §14：
 //   - 单区间 `bytes=start-end`、开区间 `bytes=start-`、后缀区间 `bytes=-suffix`

@@ -46,7 +46,7 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fetch_tiles import (ROOT, DEFAULT_PLANET, HEADER_HASH_BYTES, die, info, need_pmtiles,  # noqa: E402
                          load_aoi, tile_xy, extent_km, show_header, sha256_of, git_commit,
-                         utc_now, pmtiles_version)
+                         utc_now, pmtiles_version, repo_path)
 from probe_buildings import read_tile, fields, value_of, varint  # noqa: E402
 
 try:
@@ -309,7 +309,7 @@ def main() -> int:
         for e in raw.get("elements", []):
             if e.get("tags"):
                 osm_tags[(TYPE_CODE.get(e.get("type")), e.get("id"))] = e["tags"]
-        osm_meta = {"file": os.path.relpath(os.path.abspath(a.osm_tags), ROOT),
+        osm_meta = {"file": repo_path(a.osm_tags),
                     "sha256": sha256_of(a.osm_tags),
                     "osm_timestamp": (raw.get("osm3s") or {}).get("timestamp_osm_base"),
                     "elements_with_tags": len(osm_tags)}
@@ -426,7 +426,7 @@ def main() -> int:
         "coord_version": "WGS-84 经纬度（度）；由 Web Mercator 瓦片坐标反投影而来，铁律 1",
         "coverage_bbox": [round(v, 6) for v in cover],
         "coverage_note": "瓦片对齐后的实际覆盖范围，略大于 AOI；边界外的建筑保留，供边缘站点的视距计算使用",
-        "source": {"path": os.path.abspath(a.planet), "zoom": z, "tiles": len(tiles), "empty_tiles": empty,
+        "source": {"path": repo_path(a.planet), "zoom": z, "tiles": len(tiles), "empty_tiles": empty,
                    "layer": "buildings", "header_sha256": sha256_of(a.planet, HEADER_HASH_BYTES),
                    "planetiler_version": hdr.get("planetiler:version"),
                    "osm_replication_time": hdr.get("planetiler:osm:osmosisreplicationtime"),

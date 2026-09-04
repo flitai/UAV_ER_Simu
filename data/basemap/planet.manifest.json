@@ -5,7 +5,7 @@
   "storage": "in_place",
   "dev_link_target": null,
   "origin": "/Users/zhiyu/CC/Airports/tiles/planet.pmtiles",
-  "origin_note": "本项目自持的副本，与来源逐字节相同（sha256 一致即为证）；来源工程只读，不作运行时依赖",
+  "origin_note": "**历史来源，不是可解析的路径**：本项目自持的副本与它逐字节相同（sha256 一致即为证）。换机器后该路径失效，但副本与哈希仍然有效，因此它只作留档，任何代码都不得去解析它",
   "size_bytes": 137370745450,
   "mtime_utc": "2026-09-04T00:45:14Z",
   "header_sha256_first_bytes": 16384,
@@ -457,11 +457,11 @@
     }
   ],
   "serving_note": "必须经支持 HTTP Range 的服务提供；Python http.server 对 Range 返回整文件，128 GB 时不可用",
-  "generated_at_utc": "2026-09-04T00:50:30Z",
+  "generated_at_utc": "2026-09-04T09:36:31Z",
   "generator": {
     "script": "scene/register_basemap.py",
     "pmtiles_cli": "pmtiles dev, commit none, built at unknown",
-    "git_commit": "4cfa441-dirty",
+    "git_commit": "a71f67a-dirty",
     "python": "3.13.1",
     "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O"
   }
