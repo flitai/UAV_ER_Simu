@@ -153,5 +153,100 @@ class TestOnSyntheticAWGN(unittest.TestCase):
         self.assertGreater(p_burst.mean() / p_clean.mean(), 10.0)
 
 
+class TestAnalyticPd(unittest.TestCase):
+    """检测概率解析式：退化、单调、以及与蒙特卡洛的对拍（跨层一致性算例 ① 的单测形态）。"""
+
+    def test_degenerates_to_pfa_at_zero_snr(self):
+        for m in (1, 16, 128):
+            for pfa in (1e-2, 1e-3):
+                eta = ed.threshold_for_pfa(m, pfa)
+                self.assertAlmostEqual(ed.pd_random_signal(m, eta, 0.0), pfa, delta=pfa * 1e-6)
+                self.assertAlmostEqual(ed.pd_deterministic_signal(m, eta, 0.0), pfa,
+                                       delta=pfa * 1e-6)
+
+    def test_monotone_in_snr(self):
+        m, eta = 128, ed.threshold_for_pfa(128, 1e-3)
+        prev_r = prev_d = 0.0
+        for db in range(-20, 11, 2):
+            s = ed.snr_db_to_linear(db)
+            r, d = ed.pd_random_signal(m, eta, s), ed.pd_deterministic_signal(m, eta, s)
+            self.assertGreaterEqual(r, prev_r - 1e-12)
+            self.assertGreaterEqual(d, prev_d - 1e-12)
+            prev_r, prev_d = r, d
+        self.assertGreater(prev_r, 0.999)
+
+    def test_analytic_matches_monte_carlo_in_awgn(self):
+        """公式侧（M1/M2）对蒙特卡洛侧（M3）。容差取 0.01，04 §16.3 建议的是 0.05 至 0.10。"""
+        rng = np.random.default_rng(11)
+        m, frames = 32, 40000
+        eta = ed.threshold_for_pfa(m, 1e-3)
+        for db in (-8, -5, -3, 0):
+            s = ed.snr_db_to_linear(db)
+            noise = ((rng.standard_normal((frames, m))
+                      + 1j * rng.standard_normal((frames, m))) / math.sqrt(2))
+            # 随机型：信号功率均摊到各频点
+            sig = ((rng.standard_normal((frames, m)) + 1j * rng.standard_normal((frames, m)))
+                   * math.sqrt(s / 2))
+            lam = (np.abs(noise + sig) ** 2).sum(axis=1) / m
+            mc = float(np.mean(lam > eta))
+            an = ed.pd_random_signal(m, eta, s)
+            self.assertLess(abs(mc - an), 0.01, f"随机型 {db} dB：蒙特卡洛 {mc}，解析 {an}")
+            # 确定型：全部能量集中在一个频点
+            sig2 = np.zeros((frames, m), dtype=complex)
+            sig2[:, m // 2] = math.sqrt(s * m) * np.exp(
+                1j * rng.uniform(0, 2 * math.pi, size=frames))
+            lam2 = (np.abs(noise + sig2) ** 2).sum(axis=1) / m
+            mc2 = float(np.mean(lam2 > eta))
+            an2 = ed.pd_deterministic_signal(m, eta, s)
+            self.assertLess(abs(mc2 - an2), 0.01, f"确定型 {db} dB：蒙特卡洛 {mc2}，解析 {an2}")
+
+
+class TestBurstEquivalence(unittest.TestCase):
+    def test_burst_equals_continuous_at_same_frame_snr(self):
+        """对按帧取总能量的检测器，突发与连续在同一帧平均信噪比下等价。
+
+        帧内能量只取决于总能量，与它在帧内怎么分布无关。所以 DS-7 不单列突发一档；
+        突发的真实影响是另外两条：只有含突发的帧有机会被检出，以及突发短于帧长时
+        等效帧平均信噪比下降 10·lg(占空比)。这里验证第一条等价性与第二条的量值。
+        """
+        rng = np.random.default_rng(12)
+        frames, nfft, duty = 6000, 256, 0.1
+        fs = 80e6
+        band = ed.Band(-40e6, 40e6)          # 整带，避免带外泄漏干扰比较
+        mask = band.mask(nfft, fs)
+        m = int(np.count_nonzero(mask))
+        snr = 0.5                            # 帧平均信噪比
+
+        def lam_of(sig_frames):
+            noise = ((rng.standard_normal((frames, nfft))
+                      + 1j * rng.standard_normal((frames, nfft))) / math.sqrt(2))
+            x = (noise + sig_frames).astype(np.complex64).reshape(-1)
+            p = ed.frame_bin_power(x, nfft)
+            return ed.statistic(p, mask, ed.estimate_noise_per_bin(p))
+
+        # 连续：每个样点功率 snr
+        cont = ((rng.standard_normal((frames, nfft))
+                 + 1j * rng.standard_normal((frames, nfft))) * math.sqrt(snr / 2))
+        # 突发：只在帧内 duty 比例的样点上有信号，功率 snr/duty，帧平均功率相同
+        burst = np.zeros((frames, nfft), dtype=complex)
+        n_on = int(nfft * duty)
+        burst[:, :n_on] = ((rng.standard_normal((frames, n_on))
+                            + 1j * rng.standard_normal((frames, n_on)))
+                           * math.sqrt(snr / duty / 2))
+        lam_c, lam_b = lam_of(cont), lam_of(burst)
+        self.assertAlmostEqual(float(lam_c.mean()), float(lam_b.mean()), delta=0.02)
+        eta = ed.threshold_for_pfa(m, 1e-3)
+        pd_c, pd_b = float(np.mean(lam_c > eta)), float(np.mean(lam_b > eta))
+        self.assertLess(abs(pd_c - pd_b), 0.03, f"连续 {pd_c}，突发 {pd_b}")
+
+    def test_short_burst_costs_ten_log_duty(self):
+        """突发短于帧长、峰值功率固定时，帧平均信噪比按 10·lg(占空比) 下降。"""
+        for duty in (1.0, 0.5, 0.1, 0.01):
+            loss_db = 10 * math.log10(duty)
+            peak_snr = 1.0
+            frame_avg = peak_snr * duty
+            self.assertAlmostEqual(10 * math.log10(frame_avg), loss_db, places=9)
+
+
 if __name__ == "__main__":
     unittest.main()

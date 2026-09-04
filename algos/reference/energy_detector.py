@@ -172,3 +172,54 @@ def detect(x: np.ndarray, fs: float, band: Band, nfft: int, pfa: float
     eta = threshold_for_pfa(m, pfa)
     return lam > eta, eta, {"m_bins": m, "frames": int(p.shape[0]),
                             "lambda": lam, "noise_per_bin": noise}
+
+
+# ---------------------------------------------------------------- 检测概率的解析式
+#
+# EM-S-02 概念模型只要求「模型应输出检测概率」并允许「解析近似或查表」
+# （K-EM-CM-S-002-002），没有钉死闭式。本项目据此**显式选定**下面两个解析式作为
+# 跨层一致性算例 ① 的公式侧（M1/M2 侧），它们与上面的检测量定义严格配套，不是近似：
+#
+# 记检测频段内 M 个频点，s = 频段内信号总功率 / 频段内噪声总功率（线性比，不是 dB）。
+#
+# 1. **随机型目标**（带限噪声，统计上像图传下行的 OFDM）：信号使每个频点的功率按 (1+s)
+#    等比放大，故 Λ 的分布只是 H0 分布的 (1+s) 倍：
+#        Pd = Q(M, M·η / (1+s))
+#
+# 2. **确定型目标**（单音等）：Λ 服从非中心卡方，用泊松混合展开成中心卡方的加权和，
+#    即广义 Marcum Q 函数的级数形式：
+#        Pd = Σ_k Poisson(k; M·s) · Q(M+k, M·η)
+#    这样只依赖上面已经验证过的 Q，不再引入第二套特殊函数。
+#
+# 两式在 s → 0 时都退化为 Pfa = Q(M, M·η)，单测把这一点钉住。
+
+def pd_random_signal(m_bins: int, eta: float, snr_linear: float) -> float:
+    """随机型（带限噪声）目标的检出概率。snr_linear 是频段内信噪比的线性值。"""
+    if snr_linear < 0:
+        raise ValueError("信噪比线性值不能为负")
+    return regularized_gamma_q(m_bins, m_bins * eta / (1.0 + snr_linear))
+
+
+def pd_deterministic_signal(m_bins: int, eta: float, snr_linear: float,
+                            terms: int | None = None) -> float:
+    """确定型（单音）目标的检出概率，广义 Marcum Q 的泊松混合级数。"""
+    if snr_linear < 0:
+        raise ValueError("信噪比线性值不能为负")
+    lam = m_bins * snr_linear          # 非中心参数的一半
+    if lam == 0:
+        return regularized_gamma_q(m_bins, m_bins * eta)
+    # 泊松权重集中在均值附近，截断到均值加若干倍标准差即可
+    if terms is None:
+        terms = int(lam + 12.0 * math.sqrt(lam) + 40)
+    total = 0.0
+    log_lam = math.log(lam)
+    for k in range(terms):
+        log_w = -lam + k * log_lam - math.lgamma(k + 1)
+        if log_w < -50 and k > lam:
+            break
+        total += math.exp(log_w) * regularized_gamma_q(m_bins + k, m_bins * eta)
+    return min(total, 1.0)
+
+
+def snr_db_to_linear(snr_db: float) -> float:
+    return 10.0 ** (snr_db / 10.0)
