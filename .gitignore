@@ -10,6 +10,9 @@ data/**
 !data/**/
 !data/**/*.md
 !data/**/*.manifest.json
+# 下面这条不能省：`*.manifest.json` 匹配不到不带前缀的 `manifest.json`，
+# 而它正是场景数据包的入口文件（D0-6），漏了会被静默排除在版本控制之外。
+!data/**/manifest.json
 
 # 公开数据集，永不入库。用通配以覆盖后续新增的数据集目录。
 #   Datasets1-DroneRFb-DIR  64 GB

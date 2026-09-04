@@ -1,0 +1,214 @@
+{
+  "schema": "cuav-scene-package-manifest/1",
+  "role": "观测区域场景数据包的入口清单：区域定义、共享资产引用、各产物哈希与生成命令",
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "name": "北京亚运村周围",
+    "status": {
+      "center": "user_specified",
+      "center_decided_on": "2026-09-03",
+      "extent": "user_confirmed",
+      "extent_decided_on": "2026-09-04",
+      "note": "中心位置与范围大小均由用户决定（决策 D-021、D-024）。原 10 x 10 km 为实施方暂定，2026-09-04 用户定为 20 x 20 km：单站置于中心时轴向到边界 10 公里、角向 14 公里，覆盖包络才由传播条件截断而不是由框子截断。范围变更后须用 scene/fetch_tiles.py --force 重跑，并重做建筑解码。"
+    },
+    "crs": "EPSG:4326",
+    "coord_version": "WGS-84 经纬度（度），与 OpenStreetMap 一致；禁止混入 GCJ-02（CLAUDE.md 铁律 1）",
+    "bbox": [
+      116.288,
+      39.9,
+      116.522,
+      40.08
+    ],
+    "bbox_order": "west, south, east, north",
+    "center": [
+      116.405,
+      39.99
+    ],
+    "extent_km": [
+      19.96,
+      19.97
+    ],
+    "evidence": {
+      "center_method": "2026-09-03 实测：用 pmtiles tile 从 planet.pmtiles 取 z12 / z13 / z14 瓦片，gzip 解压后提取矢量瓦片里的中文串，核对亚运村及周边地名落在候选范围内",
+      "z12_tile": {
+        "x": 3372,
+        "y": 1550,
+        "bounds": [
+          116.3672,
+          39.9771,
+          116.4551,
+          40.0444
+        ]
+      },
+      "names_found": [
+        "亚运村街道",
+        "亚运村全民健身园",
+        "安慧桥",
+        "安慧北里秀园",
+        "奥林匹克公园",
+        "国家奥林匹克体育中心",
+        "大屯",
+        "大屯路",
+        "大屯街道",
+        "慧忠路",
+        "慧忠北里第二社区",
+        "北辰路",
+        "北辰东路",
+        "北辰西路",
+        "安立路",
+        "安贞街道",
+        "望京西路",
+        "清河"
+      ],
+      "extent_method": "2026-09-04 实测：用 scene/probe_buildings.py 对 10 x 10 km 与 20 x 20 km 两个候选范围各解码一遍 z15 buildings 图层，比较代价",
+      "measured": {
+        "10x10km": {
+          "z15_tiles": 132,
+          "features": 15706,
+          "unique_ids": 13564
+        },
+        "20x20km": {
+          "z15_tiles": 529,
+          "features": 58647,
+          "unique_ids": 50201
+        },
+        "note": "面积 4.0 倍，去重后建筑 3.7 倍；底图体积不受影响，因为底图是整份全球文件（D-022）"
+      }
+    },
+    "replaces": "06 备忘录 §4 D0-1 原定的 em-demo 西安范围 108.8805,34.2956,109.0005,34.4056；以及 2026-09-03 暂定的 10 x 10 km 范围 116.345,39.945,116.465,40.035",
+    "replace_when": "阶段 0 正式冻结观测区域，或用户再次调整"
+  },
+  "aoi_definition_file": "scene/aoi/beijing-yayuncun.json",
+  "crs": "EPSG:4326",
+  "coord_version": "交换与文件用 WGS-84 经纬度（度）；瓦片网格为 Web Mercator XYZ；禁止 GCJ-02 混入（铁律 1）",
+  "height_datum": "建筑的 base_m / height_m 是离地高差，不是海拔；禁止与数字高程模型的海拔隐式相加（铁律 2）。首期视距采用显式平地假设",
+  "coverage_bbox": [
+    116.279297,
+    39.89288,
+    116.531982,
+    40.086477
+  ],
+  "shared_assets": {
+    "basemap": {
+      "canonical_path": "data/basemap/planet.pmtiles",
+      "manifest": "data/basemap/planet.manifest.json",
+      "storage": "in_place",
+      "sha256": "b4c4674234ae75c8fea8a10c23f1cce49626155f56a437eda89b006f1e02b2b7",
+      "size_bytes": 137370745450,
+      "index_sha256": null,
+      "planetiler_version": "0.10.2",
+      "osm_replication_time": "2026-08-17T04:00:00Z",
+      "attribution": "<a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">&copy; OpenStreetMap</a>"
+    },
+    "dem": {
+      "canonical_path": "data/basemap/dem",
+      "manifest": "data/basemap/dem.manifest.json",
+      "storage": "in_place",
+      "sha256": null,
+      "size_bytes": 7442617745,
+      "index_sha256": "13b213a4781971e24c1752c5835a1966bd575d90cc951b23d18b41d71dede52d",
+      "attribution": "AWS Terrain Tiles (Mapzen terrarium), https://registry.opendata.aws/terrain-tiles/",
+      "vertical_datum": "OPEN（CLAUDE.md 铁律 2：DEM 垂直基准未决）"
+    }
+  },
+  "products": [
+    {
+      "file": "buildings.geojson",
+      "role": "建筑几何的单一来源，同时驱动三维拉伸渲染与遮挡桶网格（铁律 11）",
+      "in_git": false,
+      "size_bytes": 15909168,
+      "sha256": "269a8674706766e033f05f008b1f751b0ee9b90fab95a608f5f9680aa6077258"
+    },
+    {
+      "file": "buildings.manifest.json",
+      "role": "建筑产物的同构元数据",
+      "in_git": true,
+      "size_bytes": 6748,
+      "sha256": "e00e603907956ebfaa0de020530b39f810e71b190105e864708c22241f24bb40"
+    },
+    {
+      "file": "basemap-slice.pmtiles",
+      "role": "区域底图切片。**只作测试夹具与便携底图**，正式底图是共享的整份全球文件（D-022）",
+      "in_git": false,
+      "size_bytes": 11147792,
+      "sha256": "60691abd6cb206dd9d9020205d877b82bb75a477edd6fbf298d023b294136cd8"
+    },
+    {
+      "file": "basemap-slice.manifest.json",
+      "role": "切片的同构元数据",
+      "in_git": true,
+      "size_bytes": 7510,
+      "sha256": "89d0dda4a3560b03ad4473f2071277dc46f95dab23e9aeb2787cbb82780998e9"
+    },
+    {
+      "file": "osm-buildings-raw.json",
+      "role": "原始 OSM 快照：对拍基准，以及 src 分档与 base_m 的来源",
+      "in_git": false,
+      "size_bytes": 34441515,
+      "sha256": "d5d405e27dd17375e238a1dd17b0436be93b4569392cd74421774e6d0c0a2c6a"
+    },
+    {
+      "file": "osm-buildings-raw.manifest.json",
+      "role": "原始快照的同构元数据",
+      "in_git": true,
+      "size_bytes": 4461,
+      "sha256": "b1d32d7858f003d38c1776c4d28b807025c5a04582bea35ac3ec0d411d359db1"
+    },
+    {
+      "file": "quality-report.md",
+      "role": "质量报告（D0-4 对拍 + D0-7）",
+      "in_git": true,
+      "size_bytes": 4523,
+      "sha256": "15cf65f018849b925c42de0cbdc0bae00a492c610785a4c26eb9c8bb422ac6f9"
+    }
+  ],
+  "provenance": {
+    "osm_snapshot_of_tiles": "2026-08-17T04:00:00Z",
+    "osm_snapshot_of_raw_tags": "2026-09-04T02:57:36Z",
+    "planetiler_version": "0.10.2",
+    "attribution": "<a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">&copy; OpenStreetMap</a>",
+    "license_note": "OpenStreetMap 数据按 ODbL 授权，署名必须随包保留（铁律 13）",
+    "drift_note": "瓦片与原始标签取自不同时刻的 OSM，计数差异首先归因于此，见 quality-report.md 第 2 节"
+  },
+  "buildings_summary": {
+    "features": 47582,
+    "src_distribution": {
+      "osm:height": 828,
+      "osm:levels": 9322,
+      "tile:height": 56,
+      "est:area": 37376
+    },
+    "src_distribution_pct": {
+      "osm:height": 1.7,
+      "osm:levels": 19.6,
+      "tile:height": 0.1,
+      "est:area": 78.6
+    },
+    "height_m": {
+      "min": 1.0,
+      "q10": 5.0,
+      "q50": 20.0,
+      "q90": 38.0,
+      "p99_9": 100.0,
+      "max": 528.0,
+      "over_100m": 47,
+      "over_200m": 16
+    },
+    "base_m_nonzero": 9,
+    "estimated_share_warning": "近八成建筑高度为估算值（src=est:area），不得用于验收指标（铁律 14）"
+  },
+  "reproduce": [
+    "uv run python scene/register_basemap.py --planet data/basemap/planet.pmtiles --dem data/basemap/dem --sha256 <hex>",
+    "uv run python scene/fetch_tiles.py --aoi beijing-yayuncun [--force]",
+    "uv run python scene/fetch_osm_buildings.py --aoi beijing-yayuncun [--force]   # 唯一联网步骤",
+    "uv run --with shapely python scene/decode_buildings.py --aoi beijing-yayuncun --osm-tags data/scene/beijing-yayuncun/osm-buildings-raw.json [--force]",
+    "uv run python scene/quality_report.py --aoi beijing-yayuncun [--force]",
+    "uv run python scene/make_manifest.py --aoi beijing-yayuncun [--force]",
+    "sh scripts/check-ascii.sh data/scene"
+  ],
+  "generated_at_utc": "2026-09-04T03:04:26Z",
+  "generator": {
+    "script": "scene/make_manifest.py",
+    "git_commit": "c0637e5-dirty"
+  }
+}

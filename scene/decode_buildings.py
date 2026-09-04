@@ -18,9 +18,12 @@
    沿瓦片边界的直边，那是假的墙。
 2. **只保留 `kind=building`**。`building_part` 是同一栋楼的子体量，保留会重复计入；`address`
    是点要素不是轮廓。实测抽样：building 与 building_part 是面（几何类型 3），address 是点。
-3. **高度来源不得标 `osm:height`**（D-025）。瓦片的 `height` 字段把真实标注与 planetiler 按
-   `building:levels x 3 + 2` 推导的值混在一起，二者在瓦片里分不开，所以一律标 `tile:height`，
-   真实来源等 D0-4 拉 Overpass 原始标签后再升级（只改 `src` 与高度，不改 id 与几何）。
+3. **高度来源以原始 OSM 标签为准**。瓦片的 `height` 字段把真实标注与 planetiler 按
+   `building:levels x 3 + 2` 推导的值混在一起（D-025），二者在瓦片里分不开。给了 `--osm-tags`
+   时按标签定档：`osm:height`（真实标注）、`osm:levels`（层数折算）；对不上原始标签的退回
+   `tile:height`。不给 `--osm-tags` 时全部标 `tile:height`，不得标 `osm:height`。
+   层数折算用 `层数 x 3 + 2`，与 planetiler 一致（+2 计入女儿墙与屋面构筑物，对绕射是有效遮挡
+   高度）；**这与 em-demo 的 `层数 x 3.0` 有意差 2 米**。层数标注为 0 或负数视为无效，退回面积估算。
 4. **无高度的按占地面积确定性估高**，标 `est:area`（铁律 14：估算值必须可识别）。分档沿用
    em-demo `scripts/fetch-buildings.mjs` 的 `building=yes` 面积档；瓦片没有用途标签
    （实测 `kind_detail` 对 building 全为空），所以用不上它的用途档。
@@ -53,8 +56,11 @@ except ImportError:
     die("需要 shapely：uv run --with shapely python scene/decode_buildings.py ...")
 
 SCHEMA = "cuav-scene-buildings-manifest/1"
+ID_TYPE_SHIFT = 44                      # 瓦片 id = (类型 << 44) | OSM 编号（实测，D-025 之后确认）
+TYPE_CODE = {"way": 2, "relation": 3}
 COORD_DECIMALS = 6          # 约 0.1 m，够建筑轮廓，且显著缩小产物
 LEVEL_HEIGHT_M = 3.0
+ROOF_EXTRA_M = 2.0                      # 女儿墙与屋面构筑物，与 planetiler 的 层数x3+2 一致
 MVT_EXTENT_DEFAULT = 4096
 
 
@@ -229,6 +235,37 @@ def estimate_height(area_m2: float, lon: float, lat: float) -> float:
     return float(round(lo + r * (hi - lo)))
 
 
+def num(v):
+    """把 OSM 标签里的数值解析出来；解析不出返回 None，不猜、不填默认值。"""
+    if v is None:
+        return None
+    try:
+        return float(str(v).replace("m", "").replace(",", ".").strip())
+    except ValueError:
+        return None
+
+
+def height_from_tags(tags: dict):
+    """按原始标签定高度与来源。返回 (高度, src) 或 None。"""
+    h = num(tags.get("height")) or num(tags.get("building:height"))
+    if h is not None and h > 0:
+        return h, "osm:height"
+    lv = num(tags.get("building:levels")) or num(tags.get("levels"))
+    if lv is not None and lv > 0:                    # 0 或负数是错误标注，不认
+        return lv * LEVEL_HEIGHT_M + ROOF_EXTRA_M, "osm:levels"
+    return None
+
+
+def base_from_tags(tags: dict) -> float:
+    b = num(tags.get("min_height"))
+    if b is not None and b >= 0:
+        return b
+    ml = num(tags.get("building:min_level"))
+    if ml is not None and ml > 0:
+        return ml * LEVEL_HEIGHT_M
+    return 0.0
+
+
 def area_m2(geom, lat0: float) -> float:
     """度²面积换算成平方米，用区域中心纬度的局地尺度。"""
     return geom.area * 111320.0 * (111320.0 * math.cos(math.radians(lat0)))
@@ -248,6 +285,7 @@ def main() -> int:
     ap.add_argument("--zoom", type=int, default=15)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--out")
+    ap.add_argument("--osm-tags", help="Overpass 原始快照（scene/fetch_osm_buildings.py 的产物），用于把 src 拆成 osm:height / osm:levels 并补 base_m")
     ap.add_argument("--force", action="store_true", help="覆盖已有产物（否则拒绝，铁律 10）")
     a = ap.parse_args()
 
@@ -261,6 +299,21 @@ def main() -> int:
     if os.path.exists(out) and not a.force:
         die(f"产物已存在：{out}\n  不静默覆盖既有产物（铁律 10）。确认要重做请加 --force。")
     os.makedirs(os.path.dirname(out), exist_ok=True)
+
+    osm_tags, osm_meta = {}, None
+    if a.osm_tags:
+        if not os.path.isfile(a.osm_tags):
+            die(f"原始 OSM 快照不存在：{a.osm_tags}")
+        with open(a.osm_tags, encoding="utf-8") as f:
+            raw = json.load(f)
+        for e in raw.get("elements", []):
+            if e.get("tags"):
+                osm_tags[(TYPE_CODE.get(e.get("type")), e.get("id"))] = e["tags"]
+        osm_meta = {"file": os.path.relpath(os.path.abspath(a.osm_tags), ROOT),
+                    "sha256": sha256_of(a.osm_tags),
+                    "osm_timestamp": (raw.get("osm3s") or {}).get("timestamp_osm_base"),
+                    "elements_with_tags": len(osm_tags)}
+        info(f"已载入原始 OSM 标签 {len(osm_tags)} 条，数据时间戳 {osm_meta['osm_timestamp']}")
 
     z = a.zoom
     x0, y1 = tile_xy(bbox[0], bbox[1], z)
@@ -316,13 +369,23 @@ def main() -> int:
         am2 = area_m2(g, lat0)
         c = g.centroid
         clon, clat = round(c.x, COORD_DECIMALS), round(c.y, COORD_DECIMALS)
-        h = rec["height"]
-        if isinstance(h, (int, float)) and h > 0:
-            height_m, src = float(h), "tile:height"
+        tags = osm_tags.get((fid >> ID_TYPE_SHIFT, fid - ((fid >> ID_TYPE_SHIFT) << ID_TYPE_SHIFT)))
+        picked = height_from_tags(tags) if tags else None
+        if picked:
+            height_m, src = picked
         else:
-            height_m, src = estimate_height(am2, clon, clat), "est:area"
-        base = rec["min_height"]
-        base_m = float(base) if isinstance(base, (int, float)) and base > 0 else 0.0
+            h = rec["height"]
+            if isinstance(h, (int, float)) and h > 0:
+                height_m, src = float(h), "tile:height"
+                if osm_tags:
+                    stats["tile_height_unmatched"] += 1
+            else:
+                height_m, src = estimate_height(am2, clon, clat), "est:area"
+        height_m = round(height_m, 2)
+        base_m = base_from_tags(tags) if tags else 0.0
+        if base_m == 0.0:
+            b = rec["min_height"]
+            base_m = float(b) if isinstance(b, (int, float)) and b > 0 else 0.0
         if base_m >= height_m:                      # 数据自相矛盾，不静默修正
             stats["base_ge_height"] += 1
         stats[src] += 1
@@ -351,7 +414,8 @@ def main() -> int:
         v = sorted(v)
         return round(v[min(len(v) - 1, int(len(v) * p))], 2) if v else None
 
-    src_dist = {k: stats[k] for k in ("tile:height", "est:area") if stats[k]}
+    SRC_ORDER = ("osm:height", "osm:levels", "tile:height", "est:area")
+    src_dist = {k: stats[k] for k in SRC_ORDER if stats[k]}
     hdr = show_header(exe, a.planet)
     manifest = {
         "schema": SCHEMA, "product": "buildings.geojson",
@@ -372,10 +436,12 @@ def main() -> int:
             "kept_kind": "building",
             "dropped_kinds": ["building_part", "address"],
             "merge": "同 id 的各瓦片碎片做并集还原（D-025：z15 要素带稳定 id）",
-            "height_from_tile": "src=tile:height。瓦片 height 字段混合了真实标注与 planetiler 按 building:levels x 3 + 2 推导的值，二者在瓦片里分不开，故不得标 osm:height（D-025）",
+            "height_from_osm": "给了 --osm-tags 时按原始标签定档：src=osm:height（真实标注）或 osm:levels（层数 x 3 + 2，+2 计入女儿墙与屋面构筑物，与 planetiler 一致，与 em-demo 的 x3.0 有意差 2 米）。层数标注为 0 或负数视为无效，退回面积估算",
+            "height_from_tile": "src=tile:height。只在对不上原始标签时才用（数据漂移：瓦片是 OSM 快照，原始标签是拉取当天的实时数据）。不给 --osm-tags 时全部走这一档，此时不得标 osm:height（D-025）",
             "height_estimated": "src=est:area。无高度者按占地面积确定性估高，分档沿用 em-demo fetch-buildings.mjs 的 building=yes 面积档；瓦片无用途标签（实测 kind_detail 对 building 全为空）",
             "estimate_seed": "hash01(质心经纬度)，与 em-demo 同式但种子取质心而非首顶点，使产物不随几何库的顶点顺序变化",
-            "upgrade_path": "D0-4 拉 Overpass 原始标签后只升级 height_m 与 src，不改 id 与几何",
+            "upgrade_path": "拉取更新的 Overpass 标签后只升级 height_m、base_m 与 src，不改 id 与几何",
+            "id_join": "瓦片 id = (类型 << 44) | OSM 编号，类型 2=way / 3=relation；与原始快照按 (类型, 编号) 精确对齐",
         },
         "output": {"file": os.path.basename(out), "size_bytes": os.path.getsize(out),
                    "sha256": sha256_of(out), "features": len(feats),
@@ -394,7 +460,9 @@ def main() -> int:
                                 "over_200m": sum(1 for v in heights if v > 200)},
                    "area_m2": {"q10": q(areas, 0.10), "q50": q(areas, 0.50), "q90": q(areas, 0.90),
                                "total": round(sum(areas))},
-                   "anomalies": {k: stats[k] for k in ("dropped_empty", "dropped_bad_geom", "base_ge_height") if stats[k]}},
+                   "anomalies": {k: stats[k] for k in ("dropped_empty", "dropped_bad_geom", "base_ge_height",
+                                                       "tile_height_unmatched") if stats[k]}},
+        "osm_tags_source": osm_meta,
         "generated_at_utc": utc_now(),
         "generator": {"script": "scene/decode_buildings.py", "pmtiles_cli": pmtiles_version(exe),
                       "git_commit": git_commit(), "shapely": __import__("shapely").__version__},

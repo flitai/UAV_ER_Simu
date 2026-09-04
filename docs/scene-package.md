@@ -22,13 +22,15 @@ data/basemap/                    共享资产，一份供所有观测区域；�
   dem/{z}/{x}/{y}.png            全球 DEM 瓦片，terrarium 编码，zoom 0 至 8，87381 个文件、7442617745 字节。不入 git
   dem.manifest.json              DEM 索引：逐层文件数、字节数、是否完整、索引哈希。入 git
 data/scene/<aoi>/                每个观测区域一个目录
+  manifest.json                  **数据包入口**：区域定义、共享资产引用、各产物哈希、溯源链、复跑命令。入 git
   buildings.geojson              建筑几何，同时驱动三维渲染与遮挡计算（D0-3）
+  buildings.manifest.json        建筑产物的同构元数据。入 git
+  osm-buildings-raw.json         原始 OSM 快照：对拍基准，以及 src 分档与 base_m 的来源。不入 git
+  osm-buildings-raw.manifest.json  原始快照的同构元数据。入 git
+  quality-report.md              质量报告，由脚本现算生成。入 git
   basemap-slice.pmtiles          可选。该区域 zoom 0 至 15 的底图小切片，只作测试夹具与没有全球
                                  文件的机器上的便携底图；区域之外是空白。不入 git
   basemap-slice.manifest.json    切片清单。入 git
-  manifest.json                  区域总清单：观测区域定义、所引用底图与 DEM 的 sha256、各文件哈希、
-                                 生成参数（D0-6，待写）
-  quality-report.md              质量报告（D0-7，待写）
 scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入。入 git
 ```
 
@@ -68,15 +70,20 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 
 | 取值 | 含义 | 北京亚运村实测占比 |
 |---|---|---|
-| `tile:height` | 瓦片 `height` 字段。**注意它混合了真实标注与 planetiler 按 `building:levels x 3 + 2` 推导的值**，两者在瓦片里分不开，所以不叫 `osm:height`（D-025） | 21.4% |
-| `est:area` | 无高度，按占地面积确定性估高，分档沿用 em-demo `fetch-buildings.mjs` 的 `building=yes` 面积档 | 78.6% |
+| `osm:height` | OSM `height` 标签，真实标注 | 1.74% |
+| `osm:levels` | OSM `building:levels` 折算，**层数 × 3 + 2 米**（+2 计入女儿墙与屋面构筑物，与 planetiler 一致；**与 em-demo 的 × 3.0 有意差 2 米**）。层数标注为 0 或负视为无效，退回面积估算 | 19.59% |
+| `tile:height` | 瓦片 `height` 字段，且对不上原始标签。**它混合了真实标注与推导值**，两者在瓦片里分不开，所以不叫 `osm:height`（D-025）。只在数据漂移时出现 | 0.12% |
+| `est:area` | 无高度，按占地面积确定性估高，分档沿用 em-demo `fetch-buildings.mjs` 的 `building=yes` 面积档 | 78.55% |
 
-升级路径：D0-4 拉 Overpass 原始标签后，把 `tile:height` 拆成 `osm:height` 与 `osm:levels`，
-只改 `height_m` 与 `src`，**不改 `id` 与几何**。
+分档依据是 `scene/fetch_osm_buildings.py` 拉来的原始 OSM 标签，与瓦片按 `(类型, 编号)` 精确
+对齐（瓦片 id 编码经实测为 `(类型 << 44) | OSM 编号`，类型 2 = way、3 = relation）。
 
-`base_m` 目前**恒为 0**，这不是缺陷而是规则的结果：瓦片里带 `min_height` 的要素实测 824 个
-**全部**是 `building_part`，而 `building_part` 按规则剔除（它是同一栋楼的子体量，保留会重复
-计入）。真正的架空层高度同样要等 Overpass 标签。
+升级路径：拿到更新的标签或人工数据后，只改 `height_m`、`base_m` 与 `src`，
+**不改 `id` 与几何**。
+
+`base_m` 几乎恒为 0（实测只有 9 栋非零），这不是缺陷而是数据源本身的空缺：瓦片里带
+`min_height` 的 824 个要素**全部**是被剔除的 `building_part`；原始 OSM 在该区域也只有 7 个
+要素带 `min_height`、4 个带 `building:min_level`。架空层信息在数据源里就没有。
 
 ## 3. 渲染与物理同源（已冻结）
 
@@ -133,48 +140,53 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 
 ## 6. 建库脚本（已冻结的调用方式）
 
-建库阶段可以联网，运行阶段不联网（铁律 6）。两个脚本都只用 Python 标准库加 `pmtiles` 命令行。
+建库阶段可以联网，运行阶段不联网（铁律 6）。除 `shapely` 外只用 Python 标准库加 `pmtiles`
+命令行；`shapely` 只在建库阶段用于多边形并集，运行时不依赖。完整复跑顺序也记在每个数据包的
+`manifest.json` 的 `reproduce` 字段里。
 
 ```
-# 登记全球底图与 DEM（--sha256 传入事先用 shasum -a 256 算好的值；资源已在包内时不加 --link）
+# 一次性：登记全球底图与 DEM（--sha256 传入事先用 shasum -a 256 算好的值）
 uv run python scene/register_basemap.py --planet data/basemap/planet.pmtiles --dem data/basemap/dem \
     --sha256 <hex> --origin <来源路径> --dem-origin <来源路径>
 
-# 探测观测区域内的建筑要素、id 与高度来源（只读，不写文件；D0-3 的前置验证与代码底座）
-uv run python scene/probe_buildings.py --aoi <id>
+# 每个观测区域，按顺序
+uv run python scene/fetch_tiles.py --aoi <id> --estimate              # 只估算切片体积
+uv run python scene/fetch_tiles.py --aoi <id> [--force]               # 切片，只作测试夹具
+uv run python scene/fetch_osm_buildings.py --aoi <id> [--force]       # 唯一联网步骤
+uv run --with shapely python scene/decode_buildings.py --aoi <id> \
+    --osm-tags data/scene/<id>/osm-buildings-raw.json [--force]       # 建筑几何与高度
+uv run python scene/quality_report.py --aoi <id> [--force]            # 对拍与质量报告
+uv run python scene/make_manifest.py --aoi <id> [--force]             # 数据包入口清单
+sh scripts/check-ascii.sh data/scene data/basemap scene
 
-# 裁切观测区域切片（可选）
-uv run python scene/fetch_tiles.py --aoi <id> --estimate          只估算
-uv run python scene/fetch_tiles.py --aoi <id> [--force] [--source-sha256 <hex>]
+# 只读探测，不写任何文件
+uv run python scene/probe_buildings.py --aoi <id>
 ```
 
-`fetch_tiles.py` 对已存在的产物默认拒绝覆盖（铁律 10），六项自检任一不过即退出并保留
-`.part` 文件。
+**联网边界**：上面只有 `fetch_osm_buildings.py` 联网，且只允许在建库阶段跑。运行阶段与交付
+环境不联网。
+
+各脚本对已存在的产物默认拒绝覆盖（铁律 10），要重做须显式加 `--force`；`fetch_tiles.py` 的
+六项自检任一不过即退出并保留 `.part` 文件。
 
 ## 7. 已知的数据欠项
 
 国内城市的开放街道地图（OSM）建筑高度覆盖率极低。西安 12 公里见方样本共 13593 栋建筑，
 其中带 `height` 标签的占 1.0%，带 `levels` 标签的占 1.3%，96.1% 只有 `building=yes`。
 
-北京亚运村 20 × 20 km 范围已于 2026-09-04 用 `scene/probe_buildings.py` 实测，共 58647 个
-`buildings` 要素（按 id 去重后 50201 栋）：
+北京亚运村 20 × 20 km 范围的最终结果见第 2.1 节：47582 栋建筑里真实 `height` 标注只有
+1.74%，层数折算 19.59%，其余 78.55% 是按面积估算的。**近八成高度是估算值，不得用于验收指标。**
 
-| 高度来源 | 要素数 | 占比 |
-|---|---|---|
-| 无任何高度信息 | 45103 | 76.9% |
-| 瓦片 `height` 字段，疑似由 `building:levels x 3 + 2` 推导 | 11364 | 19.4% |
-| 瓦片 `height` 字段，其它取值（真实标注的上界） | 2180 | 3.7% |
-
-**瓦片的 `height` 字段把真实标注与推导值混在一起**，判据「不小于 5 的整数且模 3 余 2」只是
-启发式，一栋真高 20 米的楼会被误判成推导值。因此 `src` 的干净取值拿不到，只能在建库阶段拉
-一次 Overpass 原始标签（铁律 6 允许建库联网），这件事与 D0-4 重建对拍基准是同一次动作。
+这个结论经过两步：先用瓦片的启发式判据估出「推导值约 19.4%、真实标注上界 3.7%」（D-025），
+再用原始 OSM 标签验证（D-027），实际是 19.59% 与 1.74%。启发式的方向正确、上界成立，但
+**只有原始标签能给出可用于标注 `src` 的定论**。
 
 这意味着首批场景包里绝大多数建筑高度是估算值，必须带 `est:*` 标记。
 
 ## 8. 待写
 
-- [ ] 区域总清单 `manifest.json` 的字段表（D0-6）
-- [ ] 高度估算的分档规则（参考 em-demo 的 `fetch-buildings.mjs`，按用途与占地面积确定性估高）（D0-3）
-- [ ] 跨瓦片去重的判定规则（D0-3）
+- [x] 区域总清单 `manifest.json`（D0-6，2026-09-04），脚本 `scene/make_manifest.py`
+- [x] 高度估算的分档规则（D0-3）：面积档，见 `scene/decode_buildings.py` 的 `estimate_height`
+- [x] 跨瓦片去重的判定规则（D0-3）：按 id 合并，同 id 碎片做并集还原
+- [x] 数据包的版本与校验方式（D0-6）：各产物 sha256 进总清单，共享资产按 sha256 引用
 - [ ] DEM 的垂直基准（未决事项）
-- [ ] 数据包的版本与校验方式（D0-6）

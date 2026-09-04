@@ -24,8 +24,10 @@
 | `register_basemap.py` | 把整份全球底图与 DEM 登记为共享资产：身份清单（大小、sha256、planetiler 构建、OSM 快照、图层表、存放形态与来源；DEM 逐层索引） | D0-2、D0-5 | 已完成 2026-09-03，2026-09-04 按 D-023 改登记包内自持文件 |
 | `fetch_tiles.py` | 从本地 planet.pmtiles 按观测区域裁切 zoom 0 至 15 的小切片，六项自检，写清单。切片只作测试夹具与便携底图 | D0-2（切片） | 已完成 2026-09-03 |
 | `probe_buildings.py` | 只读探测：统计观测区域内 z15 `buildings` 要素数、id 稳定性与高度来源分布。矢量瓦片的 protobuf 解析写在这里，`decode_buildings` 可直接复用 | D0-3 前置 | 已完成 2026-09-04 |
-| `decode_buildings` | 解码 zoom 15 瓦片的 `buildings` 图层，跨瓦片合并去重，估算缺失高度 | D0-3 | 未写 |
-| `make_manifest.py` | 生成区域总清单，含所引用底图与 DEM 的 sha256 | D0-6 | 未写 |
+| `decode_buildings.py` | 解码 zoom 15 瓦片的 `buildings` 图层，按 id 跨瓦片合并，接原始 OSM 标签定高度来源，缺失的按面积估高 | D0-3 | 已完成 2026-09-04 |
+| `fetch_osm_buildings.py` | 从 Overpass 拉原始 OSM 标签与几何。**本项目唯一的联网脚本**，只允许建库阶段跑 | D0-4 | 已完成 2026-09-04 |
+| `quality_report.py` | 与原始 OSM 逐项对拍，现算生成质量报告 | D0-4、D0-7 | 已完成 2026-09-04 |
+| `make_manifest.py` | 生成区域总清单，含所引用底图与 DEM 的 sha256 与复跑命令 | D0-6 | 已完成 2026-09-04 |
 
 步骤详情见 `06.首期实施备忘录_v1.0.md` §4。
 

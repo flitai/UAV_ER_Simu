@@ -109,28 +109,34 @@
       "address"
     ],
     "merge": "同 id 的各瓦片碎片做并集还原（D-025：z15 要素带稳定 id）",
-    "height_from_tile": "src=tile:height。瓦片 height 字段混合了真实标注与 planetiler 按 building:levels x 3 + 2 推导的值，二者在瓦片里分不开，故不得标 osm:height（D-025）",
+    "height_from_osm": "给了 --osm-tags 时按原始标签定档：src=osm:height（真实标注）或 osm:levels（层数 x 3 + 2，+2 计入女儿墙与屋面构筑物，与 planetiler 一致，与 em-demo 的 x3.0 有意差 2 米）。层数标注为 0 或负数视为无效，退回面积估算",
+    "height_from_tile": "src=tile:height。只在对不上原始标签时才用（数据漂移：瓦片是 OSM 快照，原始标签是拉取当天的实时数据）。不给 --osm-tags 时全部走这一档，此时不得标 osm:height（D-025）",
     "height_estimated": "src=est:area。无高度者按占地面积确定性估高，分档沿用 em-demo fetch-buildings.mjs 的 building=yes 面积档；瓦片无用途标签（实测 kind_detail 对 building 全为空）",
     "estimate_seed": "hash01(质心经纬度)，与 em-demo 同式但种子取质心而非首顶点，使产物不随几何库的顶点顺序变化",
-    "upgrade_path": "D0-4 拉 Overpass 原始标签后只升级 height_m 与 src，不改 id 与几何"
+    "upgrade_path": "拉取更新的 Overpass 标签后只升级 height_m、base_m 与 src，不改 id 与几何",
+    "id_join": "瓦片 id = (类型 << 44) | OSM 编号，类型 2=way / 3=relation；与原始快照按 (类型, 编号) 精确对齐"
   },
   "output": {
     "file": "buildings.geojson",
-    "size_bytes": 15919279,
-    "sha256": "65ae4dce1b9901e4b06c0fc9c83bfdc9cf2834e4eaeb136eef683a9efda7b257",
+    "size_bytes": 15909168,
+    "sha256": "269a8674706766e033f05f008b1f751b0ee9b90fab95a608f5f9680aa6077258",
     "features": 47582,
     "pieces_before_merge": 54735,
     "ids_spanning_tiles": 6447,
     "multipolygon_results": 36,
     "polygons_with_holes": 254,
-    "base_m_nonzero": 0,
+    "base_m_nonzero": 9,
     "vertices_total": 347045,
     "src_distribution": {
-      "tile:height": 10195,
-      "est:area": 37387
+      "osm:height": 828,
+      "osm:levels": 9322,
+      "tile:height": 56,
+      "est:area": 37376
     },
     "src_distribution_pct": {
-      "tile:height": 21.4,
+      "osm:height": 1.7,
+      "osm:levels": 19.6,
+      "tile:height": 0.1,
       "est:area": 78.6
     },
     "height_m": {
@@ -149,13 +155,21 @@
       "q90": 2005.99,
       "total": 49714066
     },
-    "anomalies": {}
+    "anomalies": {
+      "tile_height_unmatched": 56
+    }
   },
-  "generated_at_utc": "2026-09-04T02:08:14Z",
+  "osm_tags_source": {
+    "file": "data/scene/beijing-yayuncun/osm-buildings-raw.json",
+    "sha256": "d5d405e27dd17375e238a1dd17b0436be93b4569392cd74421774e6d0c0a2c6a",
+    "osm_timestamp": "2026-09-04T02:57:36Z",
+    "elements_with_tags": 47572
+  },
+  "generated_at_utc": "2026-09-04T03:01:04Z",
   "generator": {
     "script": "scene/decode_buildings.py",
     "pmtiles_cli": "pmtiles dev, commit none, built at unknown",
-    "git_commit": "2255f89-dirty",
+    "git_commit": "c0637e5-dirty",
     "shapely": "2.1.2"
   }
 }
