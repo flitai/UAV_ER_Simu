@@ -2,7 +2,9 @@
   "schema": "cuav-dem-manifest/1",
   "role": "全球 DEM 瓦片（AWS terrarium 编码，zoom 0 至 8），共享资产，只作山体阴影视觉；不进 LOS 计算（CLAUDE.md 铁律 2）",
   "canonical_path": "data/basemap/dem",
-  "dev_link_target": "/Users/zhiyu/CC/Airports/tiles/dem",
+  "storage": "in_place",
+  "dev_link_target": null,
+  "origin": "/Users/zhiyu/CC/Airports/tiles/dem",
   "encoding": "terrarium: 高程 m = (R * 256 + G + B / 256) - 32768",
   "vertical_datum": "OPEN（CLAUDE.md 铁律 2：DEM 垂直基准未决）",
   "attribution": "AWS Terrain Tiles (Mapzen terrarium), https://registry.opendata.aws/terrain-tiles/",
@@ -56,9 +58,9 @@
   "files_total": 87381,
   "bytes_total": 7442617745,
   "index_sha256": "13b213a4781971e24c1752c5835a1966bd575d90cc951b23d18b41d71dede52d",
-  "generated_at_utc": "2026-09-03T15:57:36Z",
+  "generated_at_utc": "2026-09-04T00:50:31Z",
   "generator": {
     "script": "scene/register_basemap.py",
-    "git_commit": "b759077-dirty"
+    "git_commit": "4cfa441-dirty"
   }
 }

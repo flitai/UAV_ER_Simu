@@ -2,9 +2,12 @@
   "schema": "cuav-basemap-manifest/1",
   "role": "全球底图，共享资产，不按 AOI 裁切；各 AOI 清单按本文件的 sha256 引用（决策 D-022）",
   "canonical_path": "data/basemap/planet.pmtiles",
-  "dev_link_target": "/Users/zhiyu/CC/Airports/tiles/planet.pmtiles",
+  "storage": "in_place",
+  "dev_link_target": null,
+  "origin": "/Users/zhiyu/CC/Airports/tiles/planet.pmtiles",
+  "origin_note": "本项目自持的副本，与来源逐字节相同（sha256 一致即为证）；来源工程只读，不作运行时依赖",
   "size_bytes": 137370745450,
-  "mtime_utc": "2026-08-19T03:45:30Z",
+  "mtime_utc": "2026-09-04T00:45:14Z",
   "header_sha256_first_bytes": 16384,
   "header_sha256": "d8e1473c4a6944e6e4a51bd6ece2723a0d04a60c980c8f91b1895260ab65b84b",
   "sha256": "b4c4674234ae75c8fea8a10c23f1cce49626155f56a437eda89b006f1e02b2b7",
@@ -454,11 +457,11 @@
     }
   ],
   "serving_note": "必须经支持 HTTP Range 的服务提供；Python http.server 对 Range 返回整文件，128 GB 时不可用",
-  "generated_at_utc": "2026-09-03T15:57:36Z",
+  "generated_at_utc": "2026-09-04T00:50:30Z",
   "generator": {
     "script": "scene/register_basemap.py",
     "pmtiles_cli": "pmtiles dev, commit none, built at unknown",
-    "git_commit": "b759077-dirty",
+    "git_commit": "4cfa441-dirty",
     "python": "3.13.1",
     "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O"
   }

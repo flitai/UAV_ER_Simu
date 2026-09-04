@@ -12,14 +12,14 @@
 
 底图与 DEM 是**全球性的共享资产**，只有一份，不按观测区域（AOI，Area of Interest）拆分。
 这是决策 D-022：用户明确"128 GB 没有问题"，直接使用整份全球底图，存储不是约束。观测区域
-目录只放该区域专属的数据。
+目录只放该区域专属的数据。2026-09-04 按决策 D-023，这两份资源已拷入本项目自持，不再是指向
+`/Users/zhiyu/CC/Airports/` 的软链，本项目因此不依赖外部工程的路径。
 
 ```
-data/basemap/                    共享资产，一份供所有观测区域
-  planet.pmtiles                 全球矢量底图，zoom 0 至 15，137.4 GB（128 GiB）。开发机上是指向
-                                 Airports 工程的软链，目标机上放真实文件。不入 git
-  planet.manifest.json           底图身份：大小、全文件 sha256、planetiler 构建、OSM 快照、图层表。入 git
-  dem/{z}/{x}/{y}.png            全球 DEM 瓦片，terrarium 编码，zoom 0 至 8，87381 个文件、7.44 GB。不入 git
+data/basemap/                    共享资产，一份供所有观测区域；本项目自持的真实文件（D-023）
+  planet.pmtiles                 全球矢量底图，zoom 0 至 15，137370745450 字节（约 137.4 GB）。不入 git
+  planet.manifest.json           底图身份：大小、全文件 sha256、planetiler 构建、OSM 快照、图层表、来源与形态。入 git
+  dem/{z}/{x}/{y}.png            全球 DEM 瓦片，terrarium 编码，zoom 0 至 8，87381 个文件、7442617745 字节。不入 git
   dem.manifest.json              DEM 索引：逐层文件数、字节数、是否完整、索引哈希。入 git
 data/scene/<aoi>/                每个观测区域一个目录
   buildings.geojson              建筑几何，同时驱动三维渲染与遮挡计算（D0-3）
@@ -71,6 +71,8 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 
 ## 4. 底图与 DEM 的提供方式（已冻结）
 
+- 底图与 DEM 是本项目自持的真实文件，`scene/fetch_tiles.py` 的默认源即包内 `data/basemap/planet.pmtiles`；
+  引用外部工程路径的写法一律视为错误（D-023）。
 - 底图**必须经支持 HTTP Range 的服务**提供（铁律 7；继承的坑：Python 标准库的 `http.server`
   对 Range 返回整个文件，137 GB 文件下等于不可用）。Airports 的 `serve.py` 已在本机实测可用，
   本项目 `server/src/range.ts` 待实现（D1-1）。2026-09-03 实测：对整份全球文件请求
@@ -85,7 +87,9 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 
 | 字段 | 含义 |
 |---|---|
-| `role`、`canonical_path`、`dev_link_target` | 角色说明；包内规范路径；开发机软链指向 |
+| `role`、`canonical_path` | 角色说明；包内规范路径 |
+| `storage` | 存放形态：`in_place` 包内自持真实文件 / `symlink` 包内路径是软链 / `external` 资源在包外 |
+| `dev_link_target`、`origin`、`origin_note` | 软链指向（`in_place` 时为空）；副本的来源路径与说明 |
 | `size_bytes`、`mtime_utc` | 文件大小与修改时间 |
 | `header_sha256`、`header_sha256_first_bytes` | 文件前 16 KiB 的 sha256，秒级可算的身份 |
 | `sha256`、`sha256_note` | 全文件 sha256 及其来源说明；137 GB 约需 5 分钟 |
@@ -96,7 +100,7 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 | `serving_note`、`generated_at_utc`、`generator` | 提供方式提醒；生成时间；脚本、pmtiles 命令行版本、git 提交、平台 |
 
 `data/basemap/dem.manifest.json`（`schema = cuav-dem-manifest/1`）：`role`、`canonical_path`、
-`dev_link_target`、`encoding`、`vertical_datum`（OPEN）、`attribution`、`per_zoom{files, bytes, complete}`、
+`storage`、`dev_link_target`、`origin`、`encoding`、`vertical_datum`（OPEN）、`attribution`、`per_zoom{files, bytes, complete}`、
 `files_total`、`bytes_total`、`index_sha256`（对"相对路径 + 字节数"有序列表的 sha256，不是内容哈希）、
 `generated_at_utc`、`generator`。
 
@@ -116,8 +120,9 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 建库阶段可以联网，运行阶段不联网（铁律 6）。两个脚本都只用 Python 标准库加 `pmtiles` 命令行。
 
 ```
-# 登记全球底图与 DEM（一次性；--sha256 传入事先用 shasum -a 256 算好的值）
-uv run python scene/register_basemap.py --planet <planet.pmtiles> --dem <dem 目录> --sha256 <hex> --link
+# 登记全球底图与 DEM（--sha256 传入事先用 shasum -a 256 算好的值；资源已在包内时不加 --link）
+uv run python scene/register_basemap.py --planet data/basemap/planet.pmtiles --dem data/basemap/dem \
+    --sha256 <hex> --origin <来源路径> --dem-origin <来源路径>
 
 # 裁切观测区域切片（可选）
 uv run python scene/fetch_tiles.py --aoi <id> --estimate          只估算

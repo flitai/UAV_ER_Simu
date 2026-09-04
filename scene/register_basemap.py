@@ -11,7 +11,13 @@ planetiler 构建字段、图层表），供各 AOI 的清单按 sha256 引用�
 
     --sha256   事先算好的全文件 sha256（128 GB 约 5 分钟，建议后台算好再传入）
     --hash     由本脚本计算全文件 sha256
-    --link     在 data/basemap/ 下建软链指向源文件（开发机用；目标机上应放真实文件）
+    --link     在 data/basemap/ 下建软链指向包外源文件（仅在资源尚未拷入包内时使用）
+    --origin / --dem-origin   副本的来源路径，写入清单备查
+
+2026-09-04 起（决策 D-023）底图与 DEM 是**包内自持的真实文件**，直接登记包内路径即可：
+    uv run python scene/register_basemap.py --planet data/basemap/planet.pmtiles \
+        --dem data/basemap/dem --sha256 <hex> --origin <来源路径> --dem-origin <来源路径>
+清单里的 `storage` 字段记录形态：in_place（包内自持）/ symlink（软链）/ external（在包外）。
 
 产物（入 git 的只有两个清单）
     data/basemap/planet.pmtiles         软链或真实文件（不入 git）
@@ -36,15 +42,23 @@ from fetch_tiles import (ROOT, HEADER_HASH_BYTES, die, info, need_pmtiles, pmtil
 BASEMAP_DIR = os.path.join(ROOT, "data", "basemap")
 
 
-def link_or_note(target: str, link_path: str, do_link: bool) -> str | None:
+def place(target: str, canonical: str, do_link: bool) -> tuple[str, str | None]:
+    """判定资源在包内的存放形态，必要时建软链。返回 (形态, 软链指向)。
+
+    in_place  被登记的就是包内规范路径上的真实文件或目录（D-023 之后的形态）
+    symlink   包内规范路径是指向包外的软链（开发机权宜）
+    external  资源在包外，包内规范路径上什么都没有
+    """
+    if os.path.exists(canonical) and not os.path.islink(canonical) and os.path.samefile(target, canonical):
+        return "in_place", None
+    if os.path.islink(canonical):
+        return "symlink", os.readlink(canonical)
     if not do_link:
-        return None
-    if os.path.islink(link_path) or os.path.exists(link_path):
-        if os.path.islink(link_path) and os.readlink(link_path) == target:
-            return target
-        die(f"{link_path} 已存在且不是指向 {target} 的软链，不覆盖")
-    os.symlink(target, link_path)
-    return target
+        return "external", None
+    if os.path.exists(canonical):
+        die(f"{canonical} 已存在且不是软链，不覆盖")
+    os.symlink(target, canonical)
+    return "symlink", target
 
 
 def dem_index(dem_dir: str) -> dict:
@@ -77,7 +91,9 @@ def main() -> int:
     ap.add_argument("--dem", help="terrarium DEM 目录 {z}/{x}/{y}.png")
     ap.add_argument("--sha256", help="事先算好的 planet 全文件 sha256")
     ap.add_argument("--hash", action="store_true", help="由脚本计算 planet 全文件 sha256")
-    ap.add_argument("--link", action="store_true", help="在 data/basemap/ 下建软链")
+    ap.add_argument("--link", action="store_true", help="在 data/basemap/ 下建软链（资源不在包内时的开发机权宜）")
+    ap.add_argument("--origin", help="底图副本的来源路径，写入清单备查")
+    ap.add_argument("--dem-origin", help="DEM 副本的来源路径，写入清单备查")
     a = ap.parse_args()
 
     planet = os.path.abspath(a.planet)
@@ -96,12 +112,15 @@ def main() -> int:
     else:
         sha, note = None, "未计算"
 
-    link_target = link_or_note(planet, os.path.join(BASEMAP_DIR, "planet.pmtiles"), a.link)
+    storage, link_target = place(planet, os.path.join(BASEMAP_DIR, "planet.pmtiles"), a.link)
     manifest = {
         "schema": "cuav-basemap-manifest/1",
         "role": "全球底图，共享资产，不按 AOI 裁切；各 AOI 清单按本文件的 sha256 引用（决策 D-022）",
         "canonical_path": "data/basemap/planet.pmtiles",
+        "storage": storage,
         "dev_link_target": link_target,
+        "origin": a.origin,
+        "origin_note": "本项目自持的副本，与来源逐字节相同（sha256 一致即为证）；来源工程只读，不作运行时依赖" if a.origin else None,
         "size_bytes": os.path.getsize(planet),
         "mtime_utc": mtime_utc(planet),
         "header_sha256_first_bytes": HEADER_HASH_BYTES,
@@ -138,20 +157,22 @@ def main() -> int:
     with open(p, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
         f.write("\n")
-    info(f"底图登记：{manifest['size_bytes']} 字节  sha256 {(sha or '未算')[:16]}  planetiler {manifest['planetiler_version']}"
+    info(f"底图登记：{storage}  {manifest['size_bytes']} 字节  sha256 {(sha or '未算')[:16]}  planetiler {manifest['planetiler_version']}"
          f"  OSM {manifest['osm_replication_time']}  层 {len(manifest['vector_layers'])}  → {os.path.relpath(p, ROOT)}")
 
     if a.dem:
         dem = os.path.abspath(a.dem)
         if not os.path.isdir(dem):
             die(f"DEM 目录不存在：{dem}")
-        dlink = link_or_note(dem, os.path.join(BASEMAP_DIR, "dem"), a.link)
+        dstorage, dlink = place(dem, os.path.join(BASEMAP_DIR, "dem"), a.link)
         idx = dem_index(dem)
         dm = {
             "schema": "cuav-dem-manifest/1",
             "role": "全球 DEM 瓦片（AWS terrarium 编码，zoom 0 至 8），共享资产，只作山体阴影视觉；不进 LOS 计算（CLAUDE.md 铁律 2）",
             "canonical_path": "data/basemap/dem",
+            "storage": dstorage,
             "dev_link_target": dlink,
+            "origin": a.dem_origin,
             "encoding": "terrarium: 高程 m = (R * 256 + G + B / 256) - 32768",
             "vertical_datum": "OPEN（CLAUDE.md 铁律 2：DEM 垂直基准未决）",
             "attribution": "AWS Terrain Tiles (Mapzen terrarium), https://registry.opendata.aws/terrain-tiles/",
@@ -163,7 +184,7 @@ def main() -> int:
         with open(p, "w", encoding="utf-8") as f:
             json.dump(dm, f, ensure_ascii=False, indent=2)
             f.write("\n")
-        info(f"DEM 登记：{idx['files_total']} 个文件  {idx['bytes_total']} 字节  层 {list(idx['per_zoom'])}  "
+        info(f"DEM 登记：{dstorage}  {idx['files_total']} 个文件  {idx['bytes_total']} 字节  层 {list(idx['per_zoom'])}  "
              f"完整层 {[z for z, v in idx['per_zoom'].items() if v['complete']]}  → {os.path.relpath(p, ROOT)}")
     return 0
 

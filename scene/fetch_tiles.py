@@ -48,7 +48,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 AOI_DIR = os.path.join(HERE, "aoi")
 OUT_ROOT = os.path.join(ROOT, "data", "scene")
-DEFAULT_PLANET = "/Users/zhiyu/CC/Airports/tiles/planet.pmtiles"
+DEFAULT_PLANET = os.path.join(ROOT, "data", "basemap", "planet.pmtiles")
 MANIFEST_SCHEMA = "cuav-scene-basemap-manifest/1"
 HEADER_HASH_BYTES = 16 * 1024
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -305,7 +305,8 @@ def main() -> int:
     ap.add_argument("--aoi", help="scene/aoi/<id>.json 里的 id")
     ap.add_argument("--bbox", help="W,S,E,N（与 --name 同用，不经 AOI 文件）")
     ap.add_argument("--name", help="与 --bbox 同用的区域 id（小写字母、数字、连字符）")
-    ap.add_argument("--planet", default=DEFAULT_PLANET, help=f"本地全球底图（默认 {DEFAULT_PLANET}）")
+    ap.add_argument("--planet", default=DEFAULT_PLANET,
+                    help="本地全球底图（默认包内自持的 data/basemap/planet.pmtiles，决策 D-023）")
     ap.add_argument("--minzoom", type=int, default=0)
     ap.add_argument("--maxzoom", type=int, default=15)
     ap.add_argument("--out", help="输出文件（默认 data/scene/<id>/basemap-slice.pmtiles）")

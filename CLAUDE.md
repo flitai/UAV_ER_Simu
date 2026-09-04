@@ -56,10 +56,10 @@
 | `C-UAV Model Demo/emcore/` | C++14 模型核心（CMake ≥ 3.16，vendored doctest / nlohmann / cpp-httplib，零网络构建） | 可拷：`include/emcore/map/{imap_query,local_scene_adapter}.h`、`models/{occlusion,propagation}`、`core/{types,units,result,random,geo}.h`、`tests/golden/*.json`、`tests/golden_util.h` | 遮挡 148 例 golden；`emsvc` 5 端点 `/api/v1/{health, models/catalog, radar/detect, signal/detect, los/check}` |
 | `C-UAV Model Demo/foundation/` | AFSIM 2.9 抽取：math 347 / io 151 / serialization 22 文件 | 可 vendored（D-004）：`UtEllipsoidalEarth`（WGS-84 LLA↔ECEF↔ENU/NED、UTM、Vincenty）、`UtSphericalEarth::MaskedByHorizon`、`UtCoords`、`UtCovariance*`、`UtAzElTable*`、`UtIntersectMesh`、`UtSpatialTree` | **无建筑遮挡库**；不能独立构建：无顶层 CMakeLists，134 个头引用缺失的 `ModelApi.hpp` / `MODEL_API`；target 实名 `model_math / model_io / model_serialization`；零单测 |
 | `/Users/zhiyu/CC/Airports/` | 本方自有 2.5D 离线地图工程（MapLibre 5.6.1 + PMTiles + Python 标准库 Range 服务器） | 可拷：`serve.py`（Range）、`fetch_tiles.py`、`fetch_levels.py`、`download_offline_maps.py`、`index.html` 中的 `protomapsStyle()`（60 层含机场要素）/ `localglyphs://` / `probePmBldg()` / `window.__probe`；文档 `TILES.md`、`OFFLINE.md` | 无遮挡计算；未开 `setTerrain`；原生 JS 需手工切成 TS 模块 |
-| `/Users/zhiyu/CC/Airports/tiles/planet.pmtiles` | 全球 Protomaps 底图 z0–15，128 GB，planetiler 0.10.2，OSM 2026-08-17；`buildings` 层 z11–15 含 `height / min_height / kind` | 只读；AOI 底图与建筑 GeoJSON 的共同源（D-010） | 缺瓦片渲染为空白不降级，AOI 档案 zoom 必须"满" |
-| `/Users/zhiyu/CC/Airports/tiles/dem/{z}/{x}/{y}.png` | AWS terrarium DEM z0–8，7.1 GB | 只读；hillshade 用 | 百米级/像素，对街区 LOS 无用；高分辨率 DEM OPEN |
+| `/Users/zhiyu/CC/Airports/tiles/planet.pmtiles` | 全球 Protomaps 底图 z0–15，137370745450 B，planetiler 0.10.2，OSM 2026-08-17；`buildings` 层 z11–15 含 `height / min_height / kind` | 只读留档。**2026-09-04 已整份拷入 `data/basemap/planet.pmtiles` 由本项目自持（D-023）**，代码与脚本一律引用包内路径；本行只记来源 | 缺瓦片渲染为空白不降级，AOI 档案 zoom 必须"满" |
+| `/Users/zhiyu/CC/Airports/tiles/dem/{z}/{x}/{y}.png` | AWS terrarium DEM z0–8，87381 文件、7442617745 B | 只读留档；同样已拷入 `data/basemap/dem/`（D-023）。hillshade 用 | 百米级/像素，对街区 LOS 无用；高分辨率 DEM OPEN |
 | `/Users/zhiyu/CC/C-UAV/天津机场_地表材质与建筑数据工作流.md` | 地表材质面层 + 建筑 GeoJSON 的 QGIS 工作流 | 只参考（材质分类与 εr/σ/roughness 默认表） | 双径地面参数将来用 |
-| `data/` | IQ、共享底图与 DEM（`basemap/`）、场景数据包、黄金基准 | 大文件不入 git，只入索引与元数据；开发机上 `data/basemap/{planet.pmtiles, dem}` 是指向 Airports 的软链 | 每个产物挂同构元数据；`data/basemap/*.manifest.json` 已生成（D-022） |
+| `data/` | IQ、共享底图与 DEM（`basemap/`）、场景数据包、黄金基准 | 大文件不入 git，只入索引与元数据；`data/basemap/{planet.pmtiles, dem}` 是包内自持的真实文件，约 145 GB（D-023） | 每个产物挂同构元数据；`data/basemap/*.manifest.json` 已生成（D-022） |
 
 ## 首期边界与架构决策
 
@@ -181,7 +181,7 @@
 | P2 | B/S 框图平台与组件化 | 04 §13.4 / WP2-3-8 | 未开始 | 04 §13.4 六条 + 05 P0 端口命名预留检查 + Windows 单机一体化包在干净 Windows 机上安装运行 | — | — |
 | P3 | 工程等效模型与实测校准 | 04 §13.5 / WP4-7 | 未开始 | 04 §13.5 四条 + 首批跨层一致性算例全部在容差内，M1/M2 校准参数已回写并版本冻结 | — | — |
 | P4 | 试用、整改与交付 | 04 §13.6 / WP8 | 未开始 | 04 §13.6 四条 + 第三方许可合规 | — | — |
-| D0 | 场景数据包 | scene/ | 进行中（D0-1、D0-2、D0-5 完成 2026-09-03） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 底图 137370745450 B、sha256 b4c46742…；DEM 87381 文件；切片 206 瓦片 4342046 B | WORKLOG 2026-09-03「D0-1 / D0-2」 |
+| D0 | 场景数据包 | scene/ | 进行中（D0-1、D0-2、D0-5 完成 2026-09-03；2026-09-04 资源包内自持） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 底图 137370745450 B、sha256 b4c46742…；DEM 87381 文件、索引 13b213a4…；切片 206 瓦片 4342046 B；包内自持合计约 145 GB | WORKLOG 2026-09-03「D0-1 / D0-2」 |
 | D1 | 2.5D 离线底图在 web/ 可显 | web/scene | 未开始 | Range 服务、字形/sprite 随包、ASCII 验收通过；同一 AOI 与 Airports 并排截图，图层与风格一致 | — | — |
 | D2 | 态势图层接 WS 状态流 | web/scene | 未开始 | 无人机图标/航迹/覆盖热力图/包络随状态流刷新 | — | — |
 | D3 | 遮挡库移植与验证 | geo/ | 未开始 | golden 148 例 rel ≤ 1e-9 + 解析锚点；接入 04 §7.3 LOS/NLOS | — | — |
@@ -215,6 +215,7 @@ D0–D4 挂靠 P0 冻结后启动，不进入 P1 退出条件。
 | D-020 | 2026-09-03 | IQ 数据格式定稿（`docs/iq-format.md` 第 3、4 节）：容器用**裸样点文件加旁挂 JSON 清单**（Range 取区间时字节偏移是常数乘法，且与 SigMF 两文件结构同构）；字节序**固定小端且不做自动探测**；单段上限 67108864 复样点；元数据十四个顶层键，另加 `field_sources` 逐字段标注 `measured/paper/derived/assumed/absent`；`not_applicable` 与 `valid` 严格分开，整体状态取八项最差。**正交不平衡判据取安静帧的 I/Q 标准差比，不取整片**——实测 DroneRFa 的不平衡在噪声路径上，整片值随信噪比趋近 1，按整片判会漏掉三片中的两片。直流、标准差比、互相关三项判据取「固定阈值」与「5 倍统计标准差」中较宽者，避免短窗误报 | P1-1 第一批定稿；WORKLOG 2026-09-03 第五条；实现见 `tools/` |
 | D-021 | 2026-09-03 | **AOI = 北京亚运村周围**（用户否决原计划的 em-demo 西安范围）。中心 (116.405, 39.990) 由用户定；范围 `116.345,39.945,116.465,40.035`（约 10 × 10 km）由实施方暂定、标 PROVISIONAL；定义文件 `scene/aoi/beijing-yayuncun.json`，含从底图瓦片解出的地名核实证据。后果：em-demo 的 13,594 栋西安 Overpass 建筑集不再能作 D0-4 对拍基准，需在建库阶段对北京 bbox 重拉 | 用户指示"不放在西安，放在北京亚运村周围"；范围大小待用户确认 |
 | D-022 | 2026-09-03 | **底图与 DEM 直接用整份全球文件，登记为共享资产 `data/basemap/`，不按 AOI 裁切**：`planet.pmtiles` 137370745450 B（sha256 `b4c46742…`，planetiler 0.10.2，OSM 2026-08-17）、terrarium DEM z0–8 共 87381 文件。开发机上软链到 Airports，目标机放真实文件；必须经 Range 服务提供。`scene/fetch_tiles.py` 裁出的 AOI 切片 `basemap-slice.pmtiles` 降为测试夹具与便携底图（AOI 外空白）。缩小到 AOI 之外仍有完整世界图，"AOI 外空白"这一继承的坑随之消失 | 用户指示"我可以用大的呀，128 GB 没有问题"；项目记忆：存储不是约束，不做省空间取舍 |
+| D-023 | 2026-09-04 | **底图与 DEM 整份拷入本项目自持**，`data/basemap/{planet.pmtiles, dem/}` 由软链改为真实文件，合计约 145 GB（底图 137370745450 B、DEM 87381 文件 7442617745 B）；来源 `/Users/zhiyu/CC/Airports/tiles/` 保持只读留档。校验：底图全文件 sha256 与来源一致，DEM 索引哈希 `13b213a4…` 与来源一致，逐层完整。`scene/fetch_tiles.py` 默认源改为包内路径，清单新增 `storage`（`in_place`/`symlink`/`external`）与 `origin` 字段。**此后代码、脚本、配置一律不得引用 `/Users/zhiyu/CC/Airports/` 路径** | 用户指示"也拷贝到本项目目录中，避免后续出现资源路径的问题"；消除对外部工程路径的运行时依赖 |
 
 ## 对上游文档的修正与补充
 
