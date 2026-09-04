@@ -1,0 +1,132 @@
+{
+  "manifest_version": "1.0",
+  "observation_point": "S4",
+  "identity": {
+    "data_id": "dronerfb_897_CH0_S4",
+    "created_utc": "2026-09-04T01:51:29Z",
+    "data_version": "1.0.0",
+    "content_sha256": "3e649dc96921bbd37df812053f8f1ddff6a3316cf7cefca5bd9383684c729144",
+    "producer": "tools/iq_convert.py 0.1.0"
+  },
+  "sampling": {
+    "sample_format": "ci16_le",
+    "sample_rate_Hz": 80000000.0,
+    "sample_count": 4000000,
+    "byte_order": "little",
+    "iq_layout": "interleaved_IQ",
+    "internal_format": "cf32"
+  },
+  "frequency": {
+    "center_frequency_Hz": 2440000000.0,
+    "effective_bandwidth_Hz": 80000000.0
+  },
+  "time": {
+    "start_time": null,
+    "time_basis": "file_acquisition",
+    "continuity": {
+      "flag": "continuous",
+      "note": "片内连续；片间不连续，不得跨片拼接（04 §9.2 连续性标志）"
+    }
+  },
+  "channel": {
+    "station_id": "unknown",
+    "channel_id": "CH0",
+    "antenna": null
+  },
+  "power": {
+    "scale": null,
+    "full_scale": 32768,
+    "gain_dB": null,
+    "agc": "unknown",
+    "absolute_power": "uncalibrated",
+    "reason": "缺馈线损耗与一次功率标定常数，量化码无法换算 dBm"
+  },
+  "quality": {
+    "status": "degraded",
+    "checks": {
+      "length_format_metadata": "valid",
+      "iq_order_endian_range": "valid",
+      "dc_swap_imbalance": "not_applicable",
+      "clip_dropout_zero_gap": "not_applicable",
+      "spectrum_noise_bandwidth": "not_applicable",
+      "multichannel_alignment": "not_applicable",
+      "metadata_required_units": "degraded",
+      "hash_duplicate": "valid"
+    },
+    "reasons": [
+      "源文件内无任何元数据，采样率、中心频率、设备型号取自论文（field_sources 标 paper）",
+      "无绝对功率标定：缺接收增益、天线增益、馈线损耗与标定常数，量化码无法换算 dBm",
+      "片内连续、片间不连续，且发布版无绝对时间戳"
+    ]
+  },
+  "origin": {
+    "kind": "measured",
+    "dataset": "DroneRFb-DIR",
+    "doi": "10.11999/JEIT240804",
+    "source_file": "897.mat",
+    "source_sha256": null,
+    "conversion": {
+      "tool": "tools/iq_convert.py 0.1.0",
+      "lossless": true,
+      "assertion": "每样点为 2^-15 的整数倍，最大量化偏差 0.000e+00 个量化码",
+      "readback_bitexact": true,
+      "peak_code": 2681,
+      "peak_dBFS": -21.743062419536766,
+      "source_channel": "CH0",
+      "elapsed_s": 0.1,
+      "note": "源为 HDF5 分离 I/Q 浮点数组，转复 int16 交织；数值无损，未做任何滤波或重采样"
+    }
+  },
+  "model_trace": {
+    "model_id": "measured:DroneRFb-DIR",
+    "model_version": "dataset-as-published",
+    "model_level": "E4",
+    "model_layer": "M3",
+    "credibility": "V2",
+    "parameter_version": "paper-2026-09-03",
+    "confidence": null,
+    "trace_id": "convert:dronerfb_897_CH0_S4"
+  },
+  "truth": {
+    "class_code": "B",
+    "class_name": "背景（现场无无人机开机）",
+    "individual": null,
+    "visibility": null,
+    "session": null,
+    "slice_index": 12,
+    "split": "test",
+    "original_name": "background_slice_12",
+    "label_in_file": "897",
+    "distance_m": 10.0,
+    "motion": "static"
+  },
+  "permission": {
+    "owner": "浙江大学（公开发布）",
+    "usage_scope": "研发内部使用；能否随交付系统分发待确认",
+    "classification": "unconfirmed",
+    "export_limit": null
+  },
+  "segments": [
+    {
+      "file": "dronerfb_897_CH0_S4.iq",
+      "start_sample": 0,
+      "sample_count": 4000000,
+      "bytes": 16000000,
+      "sha256": "3e649dc96921bbd37df812053f8f1ddff6a3316cf7cefca5bd9383684c729144"
+    }
+  ],
+  "field_sources": {
+    "sampling.sample_rate_Hz": "paper",
+    "frequency.center_frequency_Hz": "paper",
+    "frequency.effective_bandwidth_Hz": "paper",
+    "time.start_time": "absent",
+    "time.time_basis": "derived",
+    "time.continuity.flag": "paper",
+    "channel.station_id": "absent",
+    "channel.channel_id": "derived",
+    "channel.antenna": "absent",
+    "power.scale": "absent",
+    "power.gain_dB": "absent",
+    "power.agc": "absent"
+  }
+}
