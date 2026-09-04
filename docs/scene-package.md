@@ -47,8 +47,10 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 | `evidence` | 位置核实依据（例如从底图瓦片解出的地名） |
 | `replaces`、`replace_when` | 替代了什么、何时该重定 |
 
-当前唯一的观测区域是 `beijing-yayuncun`（北京亚运村周围，决策 D-021）：中心由用户指定，
-约 10 × 10 km 的范围由实施方暂定。
+当前唯一的观测区域是 `beijing-yayuncun`（北京亚运村周围）：中心由用户 2026-09-03 指定
+（D-021），范围由用户 2026-09-04 定为 20 × 20 km（D-024，实测 19.96 × 19.97 km）。取这个
+尺寸的理由是单站置于中心时轴向到边界 10 公里、角向 14 公里，覆盖包络由传播条件截断而不是
+由框子截断。
 
 ## 2. 建筑数据字段（已冻结）
 
@@ -124,6 +126,9 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 uv run python scene/register_basemap.py --planet data/basemap/planet.pmtiles --dem data/basemap/dem \
     --sha256 <hex> --origin <来源路径> --dem-origin <来源路径>
 
+# 探测观测区域内的建筑要素、id 与高度来源（只读，不写文件；D0-3 的前置验证与代码底座）
+uv run python scene/probe_buildings.py --aoi <id>
+
 # 裁切观测区域切片（可选）
 uv run python scene/fetch_tiles.py --aoi <id> --estimate          只估算
 uv run python scene/fetch_tiles.py --aoi <id> [--force] [--source-sha256 <hex>]
@@ -136,7 +141,19 @@ uv run python scene/fetch_tiles.py --aoi <id> [--force] [--source-sha256 <hex>]
 
 国内城市的开放街道地图（OSM）建筑高度覆盖率极低。西安 12 公里见方样本共 13593 栋建筑，
 其中带 `height` 标签的占 1.0%，带 `levels` 标签的占 1.3%，96.1% 只有 `building=yes`。
-北京亚运村范围的覆盖率尚未实测，D0-3 解码后补。
+
+北京亚运村 20 × 20 km 范围已于 2026-09-04 用 `scene/probe_buildings.py` 实测，共 58647 个
+`buildings` 要素（按 id 去重后 50201 栋）：
+
+| 高度来源 | 要素数 | 占比 |
+|---|---|---|
+| 无任何高度信息 | 45103 | 76.9% |
+| 瓦片 `height` 字段，疑似由 `building:levels x 3 + 2` 推导 | 11364 | 19.4% |
+| 瓦片 `height` 字段，其它取值（真实标注的上界） | 2180 | 3.7% |
+
+**瓦片的 `height` 字段把真实标注与推导值混在一起**，判据「不小于 5 的整数且模 3 余 2」只是
+启发式，一栋真高 20 米的楼会被误判成推导值。因此 `src` 的干净取值拿不到，只能在建库阶段拉
+一次 Overpass 原始标签（铁律 6 允许建库联网），这件事与 D0-4 重建对拍基准是同一次动作。
 
 这意味着首批场景包里绝大多数建筑高度是估算值，必须带 `est:*` 标记。
 

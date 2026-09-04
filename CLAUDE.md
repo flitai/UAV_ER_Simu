@@ -76,6 +76,7 @@
 | 数据 | SQLite 单机 / PostgreSQL 内网；IQ 项目二进制 + SigMF 兼容元数据 | 04 §6.3 / §9 |
 | 场景—框图集成 | 三视图 **场景 / 框图 / 结果** + 顶部试验上下文；场景中的站点、无人机航迹、建筑在框图中以"场景绑定"信道/天线组件出现；地理传播几何（LOS/NLOS、附加损耗、多径路径）由服务端 `geo/` C++ 库按 10–100 Hz 计算，经 `SceneParamFrame` / `ChannelPathSet` 端口交 IQ 引擎施加，浏览器只展示 | D-001 / D-013；05 §5.2 |
 | 显示子线优先级 | 显示子线 D0–D4 不进入阶段 1 退出条件，不得挤占 IQ 主链 | D-001 |
+| AOI | 北京亚运村周围 `116.288,39.900,116.522,40.080`，中心 (116.405, 39.990)，19.96 × 19.97 km；定义在 `scene/aoi/beijing-yayuncun.json` | D-021 / D-024 |
 | 常数策略 | 从 emcore 移植的模块保留原常数守 golden（光速 `3e8`；遮挡投影 `110540 / 111320·cosφ`；定位投影 `111320` 双向；TDOA `299792458`）；新写代码统一 `c = 299792458` 与严格 ENU；禁止"顺手统一" | emcore README；D-009 |
 | 交付平台 | 客户端与单机一体化包 **Windows x64 优先**；内网集中服务端 **Windows 或 Linux x64 视情**（`server/`、`engine/`、`geo/` 双平台构建）；浏览器基线须支持 WebGL2（MapLibre GL 5 不支持 WebGL1）；macOS 仅开发 | D-015 / D-016 |
 
@@ -87,7 +88,7 @@
 | 遮挡计算落点 | server 预计算场 + WS 推送 / 浏览器 TS 复算并与 C++ golden 对拍 | D3 设计报告 |
 | 坐标基座实现 | foundation `UtEllipsoidalEarth` vendored / GeographicLib | D3 设计报告 |
 | 高分辨率 DEM 与垂直基准 | Copernicus 30 m / 本地 DSM | D0 |
-| AOI 范围大小（中心已由用户定为北京亚运村，D-021）、首批频段/带宽/机型 | 04 附录 B 清单；当前范围 10 × 10 km 为 PROVISIONAL | 阶段 0 |
+| 首批频段/带宽/机型 | 04 附录 B 清单 | 阶段 0 |
 | 缺失引用文件 | 主界面交互原型 html、两阶段建设方案、signal signature database、实施方案 v1.0、01/02 三张架构图 | 阶段 0（阻塞退出） |
 | 参考快照去留 | 保留 `C-UAV Model Demo/` / 直接引用 EM-C-UAV | 目录建立时 |
 | 跨层一致性容差 δ | 按指标分别冻结，参考 04 §16.3（检出率差 5–10 个百分点、功率统计 10–20%） | 阶段 1 设计报告 |
@@ -100,7 +101,7 @@
 三条路线的决策如下，细节进 `docs/display-route.md`（待写）。
 
 - **2.5D 地理环境（照搬 Airports）**：底图直接用整份全球 `planet.pmtiles`（137 GB，登记为共享资产 `data/basemap/`，D-022），不按 AOI 裁切；`scene/fetch_tiles.py` 裁出的 `data/scene/<aoi>/basemap-slice.pmtiles` 只作测试夹具（z0–15；建筑几何 z ≥ 11；档案必须"满"，AOI 外空白）。**图层顺序与显示风格逐项照搬 Airports `index.html`**：`protomapsStyle()`（810–1092 行，60 层浅色样式与 `PM` 配色表，含机场要素）、hillshade 参数（1218 行）、建筑拉伸外观（`addBldg3d()` 1296 行：`#e6e1da`、minzoom 14、14→14.7 渐显）、相机与控件（`newMap()` 1375 行、pitch 55、`NavigationControl({visualizePitch:true})`）、标签与字形（`localglyphs://` 拉丁 SDF + CJK 交给系统字体）、`probePmBldg()` 探测与 `window.__probe` 探针。只把原生 JS 切成 TS 模块，不改视觉参数；**不采用** em-demo 的 protomaps `black` 深色主题与 `protomaps-themes-base`。AOI 内建筑改用同源 GeoJSON 拉伸，但外观参数与 Airports 瓦片建筑层一致；AOI 外保留 Airports 瓦片建筑层（铁律 11）。任何视觉偏离 Airports 须记决策。
-- **建筑数据（D-010）**：从**同一份** planet.pmtiles 的 z15 瓦片解码 `buildings` 层、跨瓦片合并去重 → `data/scene/<aoi>/buildings.geojson`，字段 `{id, base_m, height_m, src, footprint}`；`height` 缺失时按 em-demo `fetch-buildings.mjs` 的用途/面积分档确定性估高并记 `src=est:*`；缺高度地区后续逐步用 Overpass 全标签或人工数据补齐（只升级 `src` 与高度，不改几何 id）。国内城市 OSM 高度覆盖极低（西安 12×12 km 样本 13,593 栋：height 1.0%、levels 1.3%、`building=yes` 96.1%），这是首个已知数据欠项；北京亚运村范围的覆盖率待 D0-3 实测。
+- **建筑数据（D-010）**：从**同一份** planet.pmtiles 的 z15 瓦片解码 `buildings` 层、跨瓦片合并去重 → `data/scene/<aoi>/buildings.geojson`，字段 `{id, base_m, height_m, src, footprint}`；`height` 缺失时按 em-demo `fetch-buildings.mjs` 的用途/面积分档确定性估高并记 `src=est:*`；缺高度地区后续逐步用 Overpass 全标签或人工数据补齐（只升级 `src` 与高度，不改几何 id）。国内城市 OSM 高度覆盖极低，这是首个已知数据欠项：西安 12×12 km 样本 13,593 栋中 height 1.0%、levels 1.3%、`building=yes` 96.1%；**北京亚运村 20×20 km 实测 58,647 要素（去重 50,201 栋）中 76.9% 无高度、19.4% 由 `levels×3+2` 推导、真实标注上界 3.7%**（D-025）。瓦片 `height` 混合了真实标注与推导值，干净的 `src` 只能靠建库阶段拉 Overpass 原始标签。要素带稳定 id，跨瓦片合并按 id 做。
 - **无人机 / 电磁态势（参考 em-demo）**：图形语义沿用——威胁红/黄/绿、效应染色优先于威胁等级、AOA 与 TDOA 双色区分、覆盖 viridis 5 档 + 值域不透明度、iso-Pd 包络（marching squares，画在楼之上）；PPI 扫描 / 测向线 / 2σ 误差椭圆走 Canvas 叠加层并用 `map.project` 投影；定频 tick（20 Hz）+ 每帧一次状态提交；无人机图标 SVG 光栅化 `source-in` 染色、`icon-rotate` 航向；航迹抽稀。**具体色值须在 Airports 浅色底图上重新标定**（em-demo 的 AOA 橙 `#f97316`、TDOA 青 `#22d3ee` 等是为深色底图调的），标定结果进 `docs/display-route.md`。参考 `em-demo/src/components/{MapView,CoverageControl,SignalPanel}.tsx`、`src/models/coverage.ts`、`src/simulation/engine.ts`。
 - **地理计算与遮挡（D-005）**：`IMapQuery`（`getTerrainHeight / queryBuildings / raycast / getMaterial`）+ `LocalSceneAdapter`（100 m 桶网格 + DDA，命中语义"侵入最深的等效单刀口"）+ `models/occlusion`（ITU-R P.526 刀口衍射）自 emcore 移植到 `geo/`；遮挡是软的：雷达 `SINR − 2·L_diff`、单程 `P_rx − L_diff`，实时与覆盖场同一注入点；移植后必须通过 148 例 golden 对拍（rel ≤ 1e-9）+ 独立解析锚点（如 FSPL@2.4 GHz/1 km ≈ 100.1 dB）才算可信。
 
@@ -163,6 +164,7 @@
 
 - 开发机（2026-09-02 核实）：macOS 26.5 arm64；node 25.8 / npm 11.12；cmake 4.2 / Apple clang 21；GDAL 3.12；`pmtiles` CLI；python 3.13 + uv 0.12；cargo 1.96；java 11。不需要 tilemaker / planetiler / osmium / qgis。
 - 目标机：客户端与单机 Windows x64；集中部署服务端 Windows 或 Linux x64（D-015 / D-016）。MSVC / GCC 构建、Node LTS 版本与验证机待阶段 0 冻结；emcore / foundation 的 CMake 无平台私有 flag 且已链 `ws2_32`，但**只在 macOS 实测过**，MSVC 与 GCC 构建需在 D3 首次验证。
+- 场景脚本（已可用）：`uv run python scene/probe_buildings.py --aoi beijing-yayuncun` 探测建筑要素与高度来源（只读）。
 - 构建与测试命令待代码建立后回填。占位：`web`、`server`：`npm run dev | build | test`；`engine`、`geo`：`cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure`；`scene`：`uv run python scene/fetch_tiles.py --aoi <id> --estimate`（已可用）、`uv run python scene/register_basemap.py --planet <planet.pmtiles> --dem <dem> --sha256 <hex> --link`。
 - 数据工具（已可用，依赖 h5py + numpy，经 uv 拉起，不进交付包）：
   转换 `uv run --quiet --with h5py --with numpy python tools/iq_convert.py <源.mat 或目录> -o data/iq/measured/<batch>/`；
@@ -181,7 +183,7 @@
 | P2 | B/S 框图平台与组件化 | 04 §13.4 / WP2-3-8 | 未开始 | 04 §13.4 六条 + 05 P0 端口命名预留检查 + Windows 单机一体化包在干净 Windows 机上安装运行 | — | — |
 | P3 | 工程等效模型与实测校准 | 04 §13.5 / WP4-7 | 未开始 | 04 §13.5 四条 + 首批跨层一致性算例全部在容差内，M1/M2 校准参数已回写并版本冻结 | — | — |
 | P4 | 试用、整改与交付 | 04 §13.6 / WP8 | 未开始 | 04 §13.6 四条 + 第三方许可合规 | — | — |
-| D0 | 场景数据包 | scene/ | 进行中（D0-1、D0-2、D0-5 完成 2026-09-03；2026-09-04 资源包内自持） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 底图 137370745450 B、sha256 b4c46742…；DEM 87381 文件、索引 13b213a4…；切片 206 瓦片 4342046 B；包内自持合计约 145 GB | WORKLOG 2026-09-03「D0-1 / D0-2」 |
+| D0 | 场景数据包 | scene/ | 进行中（D0-1、D0-2、D0-5 完成；2026-09-04 资源包内自持、AOI 定 20×20 km） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 底图 137370745450 B、sha256 b4c46742…；DEM 87381 文件、索引 13b213a4…；切片 749 瓦片 11147792 B；AOI 内建筑 50201 栋、无高度 76.9%；包内自持合计约 145 GB | WORKLOG 2026-09-03「D0-1 / D0-2」 |
 | D1 | 2.5D 离线底图在 web/ 可显 | web/scene | 未开始 | Range 服务、字形/sprite 随包、ASCII 验收通过；同一 AOI 与 Airports 并排截图，图层与风格一致 | — | — |
 | D2 | 态势图层接 WS 状态流 | web/scene | 未开始 | 无人机图标/航迹/覆盖热力图/包络随状态流刷新 | — | — |
 | D3 | 遮挡库移植与验证 | geo/ | 未开始 | golden 148 例 rel ≤ 1e-9 + 解析锚点；接入 04 §7.3 LOS/NLOS | — | — |
@@ -216,6 +218,8 @@ D0–D4 挂靠 P0 冻结后启动，不进入 P1 退出条件。
 | D-021 | 2026-09-03 | **AOI = 北京亚运村周围**（用户否决原计划的 em-demo 西安范围）。中心 (116.405, 39.990) 由用户定；范围 `116.345,39.945,116.465,40.035`（约 10 × 10 km）由实施方暂定、标 PROVISIONAL；定义文件 `scene/aoi/beijing-yayuncun.json`，含从底图瓦片解出的地名核实证据。后果：em-demo 的 13,594 栋西安 Overpass 建筑集不再能作 D0-4 对拍基准，需在建库阶段对北京 bbox 重拉 | 用户指示"不放在西安，放在北京亚运村周围"；范围大小待用户确认 |
 | D-022 | 2026-09-03 | **底图与 DEM 直接用整份全球文件，登记为共享资产 `data/basemap/`，不按 AOI 裁切**：`planet.pmtiles` 137370745450 B（sha256 `b4c46742…`，planetiler 0.10.2，OSM 2026-08-17）、terrarium DEM z0–8 共 87381 文件。开发机上软链到 Airports，目标机放真实文件；必须经 Range 服务提供。`scene/fetch_tiles.py` 裁出的 AOI 切片 `basemap-slice.pmtiles` 降为测试夹具与便携底图（AOI 外空白）。缩小到 AOI 之外仍有完整世界图，"AOI 外空白"这一继承的坑随之消失 | 用户指示"我可以用大的呀，128 GB 没有问题"；项目记忆：存储不是约束，不做省空间取舍 |
 | D-023 | 2026-09-04 | **底图与 DEM 整份拷入本项目自持**，`data/basemap/{planet.pmtiles, dem/}` 由软链改为真实文件，合计约 145 GB（底图 137370745450 B、DEM 87381 文件 7442617745 B）；来源 `/Users/zhiyu/CC/Airports/tiles/` 保持只读留档。校验：底图全文件 sha256 与来源一致，DEM 索引哈希 `13b213a4…` 与来源一致，逐层完整。`scene/fetch_tiles.py` 默认源改为包内路径，清单新增 `storage`（`in_place`/`symlink`/`external`）与 `origin` 字段。**此后代码、脚本、配置一律不得引用 `/Users/zhiyu/CC/Airports/` 路径** | 用户指示"也拷贝到本项目目录中，避免后续出现资源路径的问题"；消除对外部工程路径的运行时依赖 |
+| D-024 | 2026-09-04 | **AOI 范围定为 20 × 20 km**：`116.288,39.900,116.522,40.080`，实测 19.96 × 19.97 km，中心不变。理由是单站置于中心时轴向到边界 10 km、角向 14 km，覆盖包络由传播条件截断而非由框子截断；10 × 10 km 的 5 km 轴向半径小于 2.4 GHz 图传的可探测距离，会用 AOI 边界冒充物理边界。实测代价次线性：面积 4.0 倍，z15 瓦片 132 → 529，建筑（按 id 去重）13564 → 50201 即 3.7 倍；底图体积不受影响（D-022）；切片 206 → 749 块、4342046 → 11147792 字节。同时定：`buildings.geojson` 估约 25 MB、遮挡桶网格 200×200、覆盖场同分辨率下格点数 4 倍，均在小量级 | 用户 2026-09-04 拍板；实测见 `scene/probe_buildings.py`、WORKLOG 同日条目 |
+| D-025 | 2026-09-04 | **z15 建筑要素带稳定 id**（5.9 万要素无一缺 id，去重后 5.0 万），D0-3 的跨瓦片合并直接按 id 做，不再需要共享边或缓冲相交的启发式判定。**高度来源实测**：北京 20 × 20 km 内 76.9% 无任何高度、19.4% 是 planetiler 按 `building:levels x 3 + 2` 推导、真实标注上界仅 3.7%。**瓦片 `height` 字段把两种来源混在一起**，「不小于 5 的整数且模 3 余 2」只是启发式判据，会把真高 20 m 的楼误判为推导值；干净的 `src` 只能靠建库阶段拉 Overpass 原始标签，与 D0-4 重建对拍基准是同一次动作 | 实测 `scene/probe_buildings.py`；06 §4「首个技术未知点」由此销项 |
 
 ## 对上游文档的修正与补充
 

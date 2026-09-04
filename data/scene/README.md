@@ -9,6 +9,6 @@
 
 | 目录 | 内容 | 状态 |
 |---|---|---|
-| `beijing-yayuncun/` | 北京亚运村周围，`116.345,39.945,116.465,40.035`，约 10 × 10 km | `basemap-slice.pmtiles`（206 块瓦片、4342046 字节，不入 git）与其清单已生成；`buildings.geojson`、总清单、质量报告待 D0-3 至 D0-7 |
+| `beijing-yayuncun/` | 北京亚运村周围，`116.288,39.900,116.522,40.080`，约 19.96 × 19.97 km（D-024） | `basemap-slice.pmtiles`（749 块瓦片、11147792 字节，不入 git）与其清单已生成；`buildings.geojson`、总清单、质量报告待 D0-3 至 D0-7 |
 
 切片只是测试夹具与便携底图，正式底图是 `data/basemap/planet.pmtiles`（决策 D-022）。
