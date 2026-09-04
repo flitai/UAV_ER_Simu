@@ -66,8 +66,10 @@ BANDS = {
     "busiest": ed.Band(-30e6, -20e6),     # 2410–2420 MHz，WiFi 信道 1 跨度内，Λ 均值 43
     "quietest": ed.Band(-10e6, 0.0),      # 2430–2440 MHz，WiFi 信道 6 跨度内，Λ 均值 5.2
 }
-BAND_LABEL = {"busiest": "2410–2420 MHz（DS-6 实测最吵）",
-              "quietest": "2430–2440 MHz（DS-6 实测最静）"}
+# 两个数据集用同一对绝对频段，结果才可直接比较。DS-6 实测的拥挤程度：
+#   2410–2420 MHz：DroneRFb Λ 均值 43.1（最吵）；DroneRFa 的对应频段 Λ 均值 4.36
+#   2430–2440 MHz：DroneRFb Λ 均值 5.2（最静）；DroneRFa 的对应频段 Λ 均值 8.68（其最吵处）
+BAND_LABEL = {"busiest": "2410–2420 MHz", "quietest": "2430–2440 MHz"}
 
 
 def collect_band_bins(products: list[store.Product], band: ed.Band, nfft: int,
@@ -262,7 +264,7 @@ def run(directory: str, limit_products: int | None = None) -> dict:
 
 
 def write_report(res: dict, path: str) -> None:
-    L = ["# DS-7 真实背景加合成目标：检测概率曲线", "",
+    L = [f"# DS-7 真实背景加合成目标：检测概率曲线（{res.get('dataset', '')}）", "",
          f"生成于 {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}，"
          "脚本 `algos/reference/ds7_pd_curves.py`。", "",
          "本报告同时覆盖 04 §15.2 标准算例第 10 项「实测背景加合成目标」与跨层一致性算例 ①", "",
@@ -333,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--report", default=None)
     ap.add_argument("--json", default=None)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--name", default=None, help="数据集名，写进报告标题")
     ap.add_argument("--from-json", default=None,
                     help="不重算，直接用已有结果重新生成报告")
     args = ap.parse_args(argv)
@@ -341,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
             res = json.load(fh)
     else:
         res = run(args.dir, args.limit)
+    res["dataset"] = args.name or res.get("dataset") or os.path.basename(args.dir)
     if args.report:
         write_report(res, args.report)
     if args.json:

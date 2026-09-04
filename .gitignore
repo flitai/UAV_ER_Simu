@@ -14,6 +14,13 @@ data/**
 # 而它正是场景数据包的入口文件（D0-6），漏了会被静默排除在版本控制之外。
 !data/**/manifest.json
 
+# 逐产物 IQ 清单不入库：两个公开数据集共 4714 个产物，逐个入库等于给仓库塞进近五千个
+# 小文件、约 19 MB。改为只入每批的合并索引 index.manifest.json 与冻结清单
+# holdout.manifest.json（D-027）。逐产物清单由 tools/iq_convert.py 确定性重生成，
+# 索引里的 content_sha256 可核对盘上产物与入库时是否一致。
+data/iq/measured/*/*.manifest.json
+!data/iq/measured/*/index.manifest.json
+
 # 公开数据集，永不入库。用通配以覆盖后续新增的数据集目录。
 #   Datasets1-DroneRFb-DIR  64 GB
 #   Datasets2-DroneRFa      全集 560 GB，本地保留子集

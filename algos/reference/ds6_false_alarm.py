@@ -211,8 +211,8 @@ def write_report(results: list[dict], path: str) -> None:
                      f"{row['pfa_measured']:.3e} | **{row['ratio']:.1f}×** | "
                      f"{row['eta_corrected']:.4f} | +{row['eta_ratio_dB']:.2f} dB |")
         L += ["", "### 逐频段（目标虚警率 1e-3）", "",
-              "| 频段（相对中心，MHz） | 绝对频率（MHz） | 频段内已知发射 | Λ 均值 | 实测虚警率 | 超标倍数 |",
-              "|---|---|---|---|---|---|"]
+              "| 频段（相对中心，MHz） | 绝对频率（MHz） | 频段内已知发射 | Λ 均值 | Λ 99 分位 | 实测虚警率 | 超标倍数 |",
+              "|---|---|---|---|---|---|---|"]
         c = r["center_Hz"]
         for b in r["bands"]:
             row = [x for x in b["rows"] if x["pfa_target"] == 1e-3][0]
@@ -220,9 +220,15 @@ def write_report(results: list[dict], path: str) -> None:
             hi_abs = (c + b["hi_Hz"]) / 1e6
             L.append(f"| {b['lo_Hz']/1e6:+.0f} 至 {b['hi_Hz']/1e6:+.0f} | "
                      f"{lo_abs:.0f}–{hi_abs:.0f} | {_known_emitters(lo_abs, hi_abs)} | "
-                     f"{b['mean_lambda']:.2f} | {row['pfa_measured']:.3e} | "
-                     f"{row['ratio']:.1f}× |")
-        L.append("")
+                     f"{b['mean_lambda']:.2f} | {b['p99_lambda']:.2f} | "
+                     f"{row['pfa_measured']:.3e} | {row['ratio']:.1f}× |")
+        L += ["",
+              "**Λ 均值是个脆弱的统计量，不要拿它预测检测代价。** 它会被极少数强事件主导：",
+              "DroneRFa 的 2430–2440 MHz 一格 Λ 均值 8.68，但三个背景文件里有两个只有 1.3 与 2.5，",
+              "全靠第三个文件（22.6）拉高，而那个文件的高值又集中在两段各约 0.1 秒的强发射上",
+              "（该处 Λ 均值 165、峰值 1611，其余时段只有 1.2）。决定检测门限的是分布的高分位，",
+              "不是均值——同一格的 99 分位与虚警率才是可用的量。DS-7 里两个数据集在这两个频段上的",
+              "排序与 Λ 均值给出的排序不同，原因就在这里，两者并不矛盾，只是量的是不同的东西。", ""]
 
     L += ["## 怎么读这些数字", "",
           "**合成对照全部落在目标值附近**（实测比目标差在两成以内），所以检测器实现与门限公式没有问题，",

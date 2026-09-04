@@ -1,0 +1,466 @@
+{
+  "schema": "cuav-batch-index/1",
+  "created_utc": "2026-09-04T03:42:24Z",
+  "producer": "tools/build_batch_index.py 0.1.0",
+  "directory": "data/iq/measured/dronerfa",
+  "product_count": 24,
+  "datasets": {
+    "DroneRFa": 24
+  },
+  "quality_distribution": {
+    "degraded": 24
+  },
+  "note": "逐产物清单 <data_id>.manifest.json 与样点文件 <data_id>.iq 留在盘上不入库；本索引的 content_sha256 用于核对盘上产物与入库时是否一致。重建方式见 tools/iq_convert.py",
+  "products": [
+    {
+      "data_id": "dronerfa_T0000_D00_S0000_RF0_S4",
+      "source_file": "T0000_D00_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "3f71a0c2fb514d32de45ed4dfb43fa4988f9ab1d936c69f9bee17d63f929a55e",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0000",
+        "class_name": "背景(含蓝牙、WiFi)",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0000_D00_S0100_RF0_S4",
+      "source_file": "T0000_D00_S0100.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "de968e7b25fb4e9f0dcd7ec5edcc7df6678bb100fc4fa2b27f4faa3041a463de",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0000",
+        "class_name": "背景(含蓝牙、WiFi)",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0000_D00_S0111_RF0_S4",
+      "source_file": "T0000_D00_S0111.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "4eb8f5eb89f74d014e1637b26792bad9973add6774d914ec527043a375518d6c",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0000",
+        "class_name": "背景(含蓝牙、WiFi)",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D00_S0101_RF0_S4",
+      "source_file": "T0010_D00_S0101.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "2c314ec696e83d04db89228782456ad789a7a2b2a6952877fb0bda01bc8caae3",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D00_S0111_RF0_S4",
+      "source_file": "T0010_D00_S0111.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "71f0f555b3daa5098b8868be57b91395d6afb5f77e1a89e8d32f3d2132065093",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D00_S1000_RF0_S4",
+      "source_file": "T0010_D00_S1000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "a552b5baf426e7549dbf66d4003277909176790d6b87b50fac4060c8c3f88887",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D00_S1111_RF0_S4",
+      "source_file": "T0010_D00_S1111.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "d6fc8d136e9a76bd8f6c2820b92b440125dc429ccbdc756d4e593fedc670349c",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D01_S0001_RF0_S4",
+      "source_file": "T0010_D01_S0001.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "32ee56a0958e3fed42f0445201f479a8bc73875ff5152beada88257c453fe0bc",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D01",
+        "distance_range_m": [
+          40.0,
+          80.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D01_S0011_RF0_S4",
+      "source_file": "T0010_D01_S0011.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "1e3bea27029cb49d4bf08a1d9d7f92cc8d67cc3d8eecd9e6d04b214bd853baed",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D01",
+        "distance_range_m": [
+          40.0,
+          80.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D01_S1010_RF0_S4",
+      "source_file": "T0010_D01_S1010.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 130000000,
+      "segments": 2,
+      "content_sha256": "09d5d458c72abaf477a27619f6a92ff588f17c17c6a27c0a5df4d0d5dc72459d",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D01",
+        "distance_range_m": [
+          40.0,
+          80.0
+        ],
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D01_S1110_RF0_S4",
+      "source_file": "T0010_D01_S1110.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "34fb8f6153af0e5057a39a164027f2a7193fcb36fcb0898eec556fa75d4ed657",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D01",
+        "distance_range_m": [
+          40.0,
+          80.0
+        ],
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D10_S0000_RF0_S4",
+      "source_file": "T0010_D10_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "a76f57fb686e3c85adff80a295d43646fb24eb8daf25d89a0f76a1651473584c",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D10",
+        "distance_range_m": [
+          80.0,
+          150.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D10_S0100_RF0_S4",
+      "source_file": "T0010_D10_S0100.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "a7309f6081d788c0eac7ce24ca5ad5d27a8f247a1a173cb2bd62d0fe6eb8d3ef",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D10",
+        "distance_range_m": [
+          80.0,
+          150.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0010_D10_S1111_RF0_S4",
+      "source_file": "T0010_D10_S1111.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "cac785644f8529f81945bdaeacbaa72ef189e94aae5f429213643f9f580f8d22",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0010",
+        "class_name": "DJI Phantom 4 Pro",
+        "distance_bin": "D10",
+        "distance_range_m": [
+          80.0,
+          150.0
+        ],
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0011_D00_S0000_RF0_S4",
+      "source_file": "T0011_D00_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "7eda724b3d3834b4852dc15c83fda1ad0350b037da276f7cd225429f418aa820",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0011",
+        "class_name": "DJI MATRICE 200",
+        "distance_bin": "D00",
+        "distance_range_m": [
+          20.0,
+          40.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0011_D01_S0000_RF0_S4",
+      "source_file": "T0011_D01_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "dda360ef4a3325e2e1dabda75ab08abfa9506e7cd1493ddb00c2b3eb72eeb931",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0011",
+        "class_name": "DJI MATRICE 200",
+        "distance_bin": "D01",
+        "distance_range_m": [
+          40.0,
+          80.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0011_D10_S0000_RF0_S4",
+      "source_file": "T0011_D10_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "bd9ef69b9517d854496a8705b278b17c746a4abb62149030710f0ee65eb65a1b",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0011",
+        "class_name": "DJI MATRICE 200",
+        "distance_bin": "D10",
+        "distance_range_m": [
+          80.0,
+          150.0
+        ],
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T0011_D10_S1100_RF0_S4",
+      "source_file": "T0011_D10_S1100.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "b22eb61cc5d2bcb8a702513625451d9b670061f9a83f275b6d1ff1f07214a08f",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T0011",
+        "class_name": "DJI MATRICE 200",
+        "distance_bin": "D10",
+        "distance_range_m": [
+          80.0,
+          150.0
+        ],
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0000_RF0_S4",
+      "source_file": "T10010_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "a3d581026b1896c2adebfa90653e22df5eb825dc5289ea1c45907dc49be4e3aa",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0000_RF1_S4",
+      "source_file": "T10010_S0000.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "892e7c89e56a8223d45528b8366d35ea5b5fcbc76195eb33d8a046c39acf76db",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0110_RF0_S4",
+      "source_file": "T10010_S0110.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "503c0b38a42f0ae8c8f50665db6d9e9078d90be693aa3f4a5cd085c09f4fde11",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0110_RF1_S4",
+      "source_file": "T10010_S0110.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "6b887d57783f80c2e32fdb43eb4552b122895d47a116ba27958d66d6b0602535",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10110_S0000_RF0_S4",
+      "source_file": "T10110_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "54ee2ecdcbf4ee37bff973d8aa80b492871c8e2b637f60ecf5b245cde78ada49",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10110",
+        "class_name": "Futaba T14SG 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10110_S1010_RF0_S4",
+      "source_file": "T10110_S1010.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "4f26b0612faa2fc1712d7a21749d6063d605c57d263d8fcc0ed7684a5c5d681c",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10110",
+        "class_name": "Futaba T14SG 飞控器",
+        "band_state": "switched"
+      }
+    }
+  ]
+}
