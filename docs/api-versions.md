@@ -21,21 +21,50 @@
 | 大文件传输 | 分片续传。禁止用 JSON 或 Base64 封装二进制数据 | 铁律 7 |
 | 浏览器不缓存原始 IQ | 同上 | 铁律 7 |
 
-## 3. 端点清单（待写）
+## 3. 端点清单
 
-参考实现：`C-UAV Model Demo/emcore/` 中的 `emsvc` 提供了五个端点，可作为命名与返回结构
-的参考，但本系统的端点集合与之不同。
+### 3.1 已实现（2026-09-04，里程碑 D1-1）
 
-```
-/api/v1/health
-/api/v1/models/catalog
-/api/v1/radar/detect
-/api/v1/signal/detect
-/api/v1/los/check
-```
+| 方法 | 路径 | 返回 | 说明 |
+|---|---|---|---|
+| GET/HEAD | `/api/v1/health` | `{status, service, version}` | 健康检查 |
+| GET/HEAD | `/api/v1/scenes` | `{scenes: [id...]}` | 列出带入口清单的场景数据包 |
+| GET/HEAD | `/api/v1/scenes/<id>/manifest` | 数据包入口清单原文 | 前端据此取底图、高程与建筑的地址，不硬编码路径 |
+| GET/HEAD | `/data/basemap/*` | 文件，支持 Range | 全球底图与高程瓦片 |
+| GET/HEAD | `/data/scene/<aoi>/*` | 文件，支持 Range | 场景数据包产物 |
+| GET/HEAD | 其余路径 | 前端构建产物 `web/dist` | 无扩展名的路径回退到首页 |
 
-**待写**：项目管理、试验管理、任务调度、框图存取、组件目录、运行控制、结果查询、
-文件上传下载、审计日志各自的端点。
+**只有上表列出的目录会被暴露**。`data/iq/` 不在其中（铁律 7：原始 IQ 不进浏览器）。
+
+三条路由规则是有意为之，都有测试守着：
+
+1. `/data/` 与 `/api/` 下的未知路径**一律 404**，绝不回退首页。否则请求 `data/iq/` 会拿到
+   200 与一页 HTML，既掩盖错误又让人误以为该路径存在。
+2. 单页应用回退**只对没有扩展名的路径生效**。缺失的静态资源要 404，不能返回 HTML 让浏览器
+   在解析脚本时才报出莫名其妙的错误。
+3. 解析后落在根目录之外的路径返回 403；实现的安全契约是"要么 null，要么落在根内"。
+
+### 3.2 Range 语义（已冻结）
+
+按 RFC 9110 §14 实现，语义对齐参考实现 Airports `serve.py`：
+
+| 情形 | 应答 |
+|---|---|
+| 无 Range 头 | 200 + 完整内容 |
+| `bytes=start-end` / `bytes=start-` / `bytes=-suffix` | 206 + `Content-Range` |
+| 末端越界 | 截到文件末字节，仍 206 |
+| 起点越界、区间倒置、后缀长度为 0 | 416 + `Content-Range: bytes */size` |
+| 多区间 `bytes=0-9,20-29` | **不支持**，按无 Range 处理返回 200 与完整内容 |
+
+多区间那条是允许的降级（服务端可以忽略 Range），但必须显式写明，不能让调用方以为拿到的是
+部分内容。实现见 `server/src/range.ts`，13 项单元测试加 17 项集成测试。
+
+### 3.3 待写
+
+项目管理、试验管理、任务调度、框图存取、组件目录、运行控制、结果查询、文件上传下载、
+审计日志各自的端点。参考实现：`C-UAV Model Demo/emcore/` 的 `emsvc` 五个端点
+（`/api/v1/{health, models/catalog, radar/detect, signal/detect, los/check}`）可作命名参考，
+但本系统的端点集合与之不同。
 
 ## 4. WebSocket 事件（待写）
 

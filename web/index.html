@@ -7,6 +7,9 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- 离线字形图集（Noto Sans Regular，SIL OFL；署名见 public/vendor/THIRD-PARTY-NOTICES.md）。
+         必须在应用脚本之前加载：它设置 window.GLYPHS，供 localglyphs 协议读取。 -->
+    <script src="/vendor/glyphs.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

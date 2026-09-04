@@ -12,5 +12,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 开发时数据与接口由 server/ 提供（它实现了 PMTiles 需要的 HTTP Range）。
+    // 单机模式下前端产物由同一个服务伺服，届时不需要代理。
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8080', changeOrigin: false },
+      '/data': { target: 'http://127.0.0.1:8080', changeOrigin: false },
+    },
   },
 })

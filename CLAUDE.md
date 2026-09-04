@@ -164,8 +164,13 @@
 
 - 开发机（2026-09-02 核实）：macOS 26.5 arm64；node 25.8 / npm 11.12；cmake 4.2 / Apple clang 21；GDAL 3.12；`pmtiles` CLI；python 3.13 + uv 0.12；cargo 1.96；java 11。不需要 tilemaker / planetiler / osmium / qgis。
 - 目标机：客户端与单机 Windows x64；集中部署服务端 Windows 或 Linux x64（D-015 / D-016）。MSVC / GCC 构建、Node LTS 版本与验证机待阶段 0 冻结；emcore / foundation 的 CMake 无平台私有 flag 且已链 `ws2_32`，但**只在 macOS 实测过**，MSVC 与 GCC 构建需在 D3 首次验证。
+- 前端与服务（已可用）：`cd server && npm run build && node dist/index.js` 起服务（8080），`cd web && npm run build` 出产物，浏览器开 `http://127.0.0.1:8080/`；`npm test` 在 server（30 项）与 web（6 项）各自可跑；端到端 `node tests/e2e/scene-smoke.mjs`。
 - 场景脚本（已可用，复跑顺序见 `data/scene/<aoi>/manifest.json` 的 `reproduce` 字段）：`register_basemap.py` 登记共享底图与 DEM；`fetch_tiles.py` 裁切片；`fetch_osm_buildings.py` 拉原始 OSM 标签（**唯一联网步骤**，只允许建库阶段）；`decode_buildings.py --osm-tags ...` 解码建筑并按 id 合并；`quality_report.py` 对拍并出质量报告；`make_manifest.py` 出区域总清单；`probe_buildings.py` 只读探测。shapely 只在建库阶段用，运行时不依赖。
 - 构建与测试命令待代码建立后回填。占位：`web`、`server`：`npm run dev | build | test`；`engine`、`geo`：`cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure`；`scene`：`uv run python scene/fetch_tiles.py --aoi <id> --estimate`（已可用）、`uv run python scene/register_basemap.py --planet <planet.pmtiles> --dem <dem> --sha256 <hex> --link`。
+- 引擎（已可用）：`cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release && cmake --build engine/build -j && ctest --test-dir engine/build --output-on-failure`。
+  第三方件 vendored 在 `engine/third_party/`（doctest、nlohmann/json，自 emcore 拷入），构建零网络。
+  黄金基准 `engine/tests/golden/energy_detector.json` 由 `algos/reference/gen_engine_golden.py` 生成，
+  两侧从同一种子各自生成输入，因此不入二进制夹具。
 - 数据工具（已可用，依赖 h5py + numpy，经 uv 拉起，不进交付包）：
   转换 `uv run --quiet --with h5py --with numpy python tools/iq_convert.py <源.mat 或目录> -o data/iq/measured/<batch>/`；
   质检 `uv run --quiet --with h5py --with numpy python tools/iq_survey.py data/iq/measured/<batch>/ --report <报告.md>`；
@@ -184,7 +189,7 @@
 | P3 | 工程等效模型与实测校准 | 04 §13.5 / WP4-7 | 未开始 | 04 §13.5 四条 + 首批跨层一致性算例全部在容差内，M1/M2 校准参数已回写并版本冻结 | — | — |
 | P4 | 试用、整改与交付 | 04 §13.6 / WP8 | 未开始 | 04 §13.6 四条 + 第三方许可合规 | — | — |
 | D0 | 场景数据包 | scene/ | **完成 2026-09-04**（D0-1 至 D0-7 七步全过） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 建筑 47582 栋 15909168 B、sha256 269a8674…；来源 `osm:height` 1.74% / `osm:levels` 19.59% / `est:area` 78.55%；与原始 OSM 对齐 99.72%、面积中位差 +0.008%；与瓦片层交并比 0.993–0.999；切片 749 瓦片；共享资产约 145 GB | WORKLOG 2026-09-04「D0-4/D0-6/D0-7」 | WORKLOG 2026-09-03「D0-1 / D0-2」 |
-| D1 | 2.5D 离线底图在 web/ 可显 | web/scene | 未开始 | Range 服务、字形/sprite 随包、ASCII 验收通过；同一 AOI 与 Airports 并排截图，图层与风格一致 | — | — |
+| D1 | 2.5D 离线底图在 web/ 可显 | web/scene | **完成 2026-09-04** | Range 服务、字形随包（底图无 sprite）、ASCII 验收通过；同一 AOI 与 Airports 并排截图，图层与风格一致 | 样式 60 层与 Airports 逐层等价（黄金基准）；并排比对容差 8 内 99.83%、平均绝对差 0.15/255；端到端 14 项、server 30 项、web 6 项测试全过 | WORKLOG 2026-09-04「D1」 |
 | D2 | 态势图层接 WS 状态流 | web/scene | 未开始 | 无人机图标/航迹/覆盖热力图/包络随状态流刷新 | — | — |
 | D3 | 遮挡库移植与验证 | geo/ | 未开始 | golden 148 例 rel ≤ 1e-9 + 解析锚点；接入 04 §7.3 LOS/NLOS | — | — |
 | D4 | 渲染—物理同源验收 | web + geo | 未开始 | 同一 GeoJSON 驱动渲染与遮挡；探针无副作用 | — | — |
@@ -224,6 +229,7 @@ D0–D4 挂靠 P0 冻结后启动，不进入 P1 退出条件。
 | D-027 | 2026-09-04 | **IQ 产物只入合并索引，不入逐产物清单**。两个公开数据集共 4714 个产物，逐个入库等于给仓库塞近五千个小文件、约 19 MB。改为每批入一份 `index.manifest.json`（每产物一行：标识、来源、真值摘要、样点数、`content_sha256`、质量状态）与一份 `holdout.manifest.json`。逐产物清单与 `.iq` 留盘上不入库，由 `tools/iq_convert.py` 确定性重生成，索引里的哈希用于核对一致性。工具 `tools/build_batch_index.py` | CLAUDE.md「大文件不入 git，只入索引与元数据」；WORKLOG 2026-09-04「批量转换与冻结」条目 |
 | D-027 | 2026-09-04 | **D0-4 拉原始 OSM 标签后，建筑高度来源的分档定案**：`osm:height` 1.74%（真实标注）、`osm:levels` 19.59%（层数折算）、`tile:height` 0.12%（对不上原始标签的漂移件）、`est:area` 78.55%（估算）。层数折算固定用 **层数 × 3 + 2 米**（+2 计入女儿墙与屋面构筑物，与 planetiler 一致），**与 em-demo 的 × 3.0 有意差 2 米**；层数标注为 0 或负视为无效，退回面积估算。D-025 的启发式判据（模 3 余 2）经原始标签验证：推导值预估 19.4% 对实际 19.59%，真实标注上界 3.7% 对实际 1.74%，判据方向正确、上界成立。**瓦片与原始标签取自不同时刻的 OSM**（快照 2026-08-17 对实时 2026-09-04），两侧各百余件对不上，计数差异首先归因于漂移 | D0-4 实测；`data/scene/beijing-yayuncun/quality-report.md` |
 | D-028 | 2026-09-04 | **当前处于原型系统阶段，公开数据集只用于验证技术途径、软件架构与功能实现，不作交付指标。** 由此三条：① 已得出的公开数据集量化结论（虚警率超标倍数、环境代价 23.6–38.9 dB、路损指数 n≈2 等）一律标注「原型阶段验证值」，**甲方数据到货后按同样脚本重跑并修订**，任何人不得把它们当作设计指标或验收门槛；② 数据侧不再深挖（DA-7 根因、补数下载、更多频段标定停止投入），已建成的四件工程件（转换器、八项质检、检测器参考实现与解析式、验收集冻结与拦截）保持可用，等真实数据；③ 精力转向 P1 主链，**先打通薄的端到端切片再补厚设计**，顺序为引擎核心 → 服务最小接口 → 前端最小页 → 与场景视图合流 | 用户 2026-09-04 明确定位：「现在主要是验证技术途径和系统的软件架构和功能实现，属于前期的原型系统阶段」 |
+| D-029 | 2026-09-04 | **端到端验收自建调试协议探针，不引入浏览器自动化框架**：`tests/e2e/cdp.mjs` 一百余行，零依赖（只用 Node 内置 `fetch` 与 `WebSocket`），覆盖开页面、轮询只读探针 `window.__probe()`、取截图三件事。理由是交付环境不联网、依赖须随包（铁律 6），为三件事引入一整套框架不划算。同时固化无头截图的三个坑：`load` 事件早于瓦片加载、`--virtual-time-budget` 下瓦片不加载、合成器截图取不到 WebGL 内容 | D1-5 实测；`tests/e2e/README.md` |
 
 ## 对上游文档的修正与补充
 

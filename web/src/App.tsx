@@ -1,11 +1,7 @@
-// 骨架占位。三视图（场景 / 框图 / 结果）加顶部试验上下文的布局尚未实现，
-// 见决策 D-001 与 06 备忘录 §9、§10。
+// 三视图切换（场景 / 框图 / 结果）见 04 §8.1 与决策 D-001。
+// 当前只实现场景视图，框图与结果视图属阶段 2。
+import { SceneView } from './scene/index.js'
 
-export function App() {
-  return (
-    <main>
-      <h1>无人机电子信号侦察仿真系统</h1>
-      <p>工程骨架已建立，功能尚未实现。</p>
-    </main>
-  )
+export default function App() {
+  return <SceneView />
 }
