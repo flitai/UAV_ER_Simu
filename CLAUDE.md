@@ -164,7 +164,7 @@
 
 - 开发机（2026-09-02 核实）：macOS 26.5 arm64；node 25.8 / npm 11.12；cmake 4.2 / Apple clang 21；GDAL 3.12；`pmtiles` CLI；python 3.13 + uv 0.12；cargo 1.96；java 11。不需要 tilemaker / planetiler / osmium / qgis。
 - 目标机：客户端与单机 Windows x64；集中部署服务端 Windows 或 Linux x64（D-015 / D-016）。MSVC / GCC 构建、Node LTS 版本与验证机待阶段 0 冻结；emcore / foundation 的 CMake 无平台私有 flag 且已链 `ws2_32`，但**只在 macOS 实测过**，MSVC 与 GCC 构建需在 D3 首次验证。
-- 场景脚本（已可用）：`uv run python scene/probe_buildings.py --aoi beijing-yayuncun` 探测建筑要素与高度来源（只读）。
+- 场景脚本（已可用）：`uv run python scene/probe_buildings.py --aoi beijing-yayuncun` 探测建筑要素与高度来源（只读）；`uv run --with shapely python scene/decode_buildings.py --aoi beijing-yayuncun [--force]` 解码建筑并按 id 合并，产出 `buildings.geojson`。shapely 只在建库阶段用，运行时不依赖。
 - 构建与测试命令待代码建立后回填。占位：`web`、`server`：`npm run dev | build | test`；`engine`、`geo`：`cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure`；`scene`：`uv run python scene/fetch_tiles.py --aoi <id> --estimate`（已可用）、`uv run python scene/register_basemap.py --planet <planet.pmtiles> --dem <dem> --sha256 <hex> --link`。
 - 数据工具（已可用，依赖 h5py + numpy，经 uv 拉起，不进交付包）：
   转换 `uv run --quiet --with h5py --with numpy python tools/iq_convert.py <源.mat 或目录> -o data/iq/measured/<batch>/`；
@@ -183,7 +183,7 @@
 | P2 | B/S 框图平台与组件化 | 04 §13.4 / WP2-3-8 | 未开始 | 04 §13.4 六条 + 05 P0 端口命名预留检查 + Windows 单机一体化包在干净 Windows 机上安装运行 | — | — |
 | P3 | 工程等效模型与实测校准 | 04 §13.5 / WP4-7 | 未开始 | 04 §13.5 四条 + 首批跨层一致性算例全部在容差内，M1/M2 校准参数已回写并版本冻结 | — | — |
 | P4 | 试用、整改与交付 | 04 §13.6 / WP8 | 未开始 | 04 §13.6 四条 + 第三方许可合规 | — | — |
-| D0 | 场景数据包 | scene/ | 进行中（D0-1、D0-2、D0-5 完成；2026-09-04 资源包内自持、AOI 定 20×20 km） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 底图 137370745450 B、sha256 b4c46742…；DEM 87381 文件、索引 13b213a4…；切片 749 瓦片 11147792 B；AOI 内建筑 50201 栋、无高度 76.9%；包内自持合计约 145 GB | WORKLOG 2026-09-03「D0-1 / D0-2」 |
+| D0 | 场景数据包 | scene/ | 进行中（D0-1、D0-2、D0-3、D0-5 完成；余 D0-4 对拍需联网、D0-6 总清单、D0-7 质量报告） | 共享底图与 DEM 已登记 + AOI buildings.geojson（解码合并，含 src）+ 区域总清单，全离线可加载 | 底图 137370745450 B、sha256 b4c46742…；DEM 87381 文件、索引 13b213a4…；切片 749 瓦片 11147792 B；建筑 47582 栋 15919279 B、sha256 65ae4dce…、`tile:height` 21.4% / `est:area` 78.6%、与瓦片层交并比 0.993–0.999；包内自持合计约 145 GB | WORKLOG 2026-09-03「D0-1 / D0-2」 |
 | D1 | 2.5D 离线底图在 web/ 可显 | web/scene | 未开始 | Range 服务、字形/sprite 随包、ASCII 验收通过；同一 AOI 与 Airports 并排截图，图层与风格一致 | — | — |
 | D2 | 态势图层接 WS 状态流 | web/scene | 未开始 | 无人机图标/航迹/覆盖热力图/包络随状态流刷新 | — | — |
 | D3 | 遮挡库移植与验证 | geo/ | 未开始 | golden 148 例 rel ≤ 1e-9 + 解析锚点；接入 04 §7.3 LOS/NLOS | — | — |

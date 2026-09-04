@@ -1,0 +1,161 @@
+{
+  "schema": "cuav-scene-buildings-manifest/1",
+  "product": "buildings.geojson",
+  "role": "建筑几何的单一来源，同时驱动三维拉伸渲染与遮挡桶网格（铁律 11）",
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "name": "北京亚运村周围",
+    "status": {
+      "center": "user_specified",
+      "center_decided_on": "2026-09-03",
+      "extent": "user_confirmed",
+      "extent_decided_on": "2026-09-04",
+      "note": "中心位置与范围大小均由用户决定（决策 D-021、D-024）。原 10 x 10 km 为实施方暂定，2026-09-04 用户定为 20 x 20 km：单站置于中心时轴向到边界 10 公里、角向 14 公里，覆盖包络才由传播条件截断而不是由框子截断。范围变更后须用 scene/fetch_tiles.py --force 重跑，并重做建筑解码。"
+    },
+    "crs": "EPSG:4326",
+    "coord_version": "WGS-84 经纬度（度），与 OpenStreetMap 一致；禁止混入 GCJ-02（CLAUDE.md 铁律 1）",
+    "bbox": [
+      116.288,
+      39.9,
+      116.522,
+      40.08
+    ],
+    "bbox_order": "west, south, east, north",
+    "center": [
+      116.405,
+      39.99
+    ],
+    "extent_km": [
+      19.96,
+      19.97
+    ],
+    "evidence": {
+      "center_method": "2026-09-03 实测：用 pmtiles tile 从 planet.pmtiles 取 z12 / z13 / z14 瓦片，gzip 解压后提取矢量瓦片里的中文串，核对亚运村及周边地名落在候选范围内",
+      "z12_tile": {
+        "x": 3372,
+        "y": 1550,
+        "bounds": [
+          116.3672,
+          39.9771,
+          116.4551,
+          40.0444
+        ]
+      },
+      "names_found": [
+        "亚运村街道",
+        "亚运村全民健身园",
+        "安慧桥",
+        "安慧北里秀园",
+        "奥林匹克公园",
+        "国家奥林匹克体育中心",
+        "大屯",
+        "大屯路",
+        "大屯街道",
+        "慧忠路",
+        "慧忠北里第二社区",
+        "北辰路",
+        "北辰东路",
+        "北辰西路",
+        "安立路",
+        "安贞街道",
+        "望京西路",
+        "清河"
+      ],
+      "extent_method": "2026-09-04 实测：用 scene/probe_buildings.py 对 10 x 10 km 与 20 x 20 km 两个候选范围各解码一遍 z15 buildings 图层，比较代价",
+      "measured": {
+        "10x10km": {
+          "z15_tiles": 132,
+          "features": 15706,
+          "unique_ids": 13564
+        },
+        "20x20km": {
+          "z15_tiles": 529,
+          "features": 58647,
+          "unique_ids": 50201
+        },
+        "note": "面积 4.0 倍，去重后建筑 3.7 倍；底图体积不受影响，因为底图是整份全球文件（D-022）"
+      }
+    },
+    "replaces": "06 备忘录 §4 D0-1 原定的 em-demo 西安范围 108.8805,34.2956,109.0005,34.4056；以及 2026-09-03 暂定的 10 x 10 km 范围 116.345,39.945,116.465,40.035",
+    "replace_when": "阶段 0 正式冻结观测区域，或用户再次调整"
+  },
+  "aoi_definition_file": "scene/aoi/beijing-yayuncun.json",
+  "crs": "EPSG:4326",
+  "coord_decimals": 6,
+  "coord_version": "WGS-84 经纬度（度）；由 Web Mercator 瓦片坐标反投影而来，铁律 1",
+  "coverage_bbox": [
+    116.279297,
+    39.89288,
+    116.531982,
+    40.086477
+  ],
+  "coverage_note": "瓦片对齐后的实际覆盖范围，略大于 AOI；边界外的建筑保留，供边缘站点的视距计算使用",
+  "source": {
+    "path": "/Users/zhiyu/CC/804 C-UAV/data/basemap/planet.pmtiles",
+    "zoom": 15,
+    "tiles": 529,
+    "empty_tiles": 0,
+    "layer": "buildings",
+    "header_sha256": "d8e1473c4a6944e6e4a51bd6ece2723a0d04a60c980c8f91b1895260ab65b84b",
+    "planetiler_version": "0.10.2",
+    "osm_replication_time": "2026-08-17T04:00:00Z",
+    "osm_replication_seq": "122085",
+    "attribution": "<a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">&copy; OpenStreetMap</a>"
+  },
+  "rules": {
+    "kept_kind": "building",
+    "dropped_kinds": [
+      "building_part",
+      "address"
+    ],
+    "merge": "同 id 的各瓦片碎片做并集还原（D-025：z15 要素带稳定 id）",
+    "height_from_tile": "src=tile:height。瓦片 height 字段混合了真实标注与 planetiler 按 building:levels x 3 + 2 推导的值，二者在瓦片里分不开，故不得标 osm:height（D-025）",
+    "height_estimated": "src=est:area。无高度者按占地面积确定性估高，分档沿用 em-demo fetch-buildings.mjs 的 building=yes 面积档；瓦片无用途标签（实测 kind_detail 对 building 全为空）",
+    "estimate_seed": "hash01(质心经纬度)，与 em-demo 同式但种子取质心而非首顶点，使产物不随几何库的顶点顺序变化",
+    "upgrade_path": "D0-4 拉 Overpass 原始标签后只升级 height_m 与 src，不改 id 与几何"
+  },
+  "output": {
+    "file": "buildings.geojson",
+    "size_bytes": 15919279,
+    "sha256": "65ae4dce1b9901e4b06c0fc9c83bfdc9cf2834e4eaeb136eef683a9efda7b257",
+    "features": 47582,
+    "pieces_before_merge": 54735,
+    "ids_spanning_tiles": 6447,
+    "multipolygon_results": 36,
+    "polygons_with_holes": 254,
+    "base_m_nonzero": 0,
+    "vertices_total": 347045,
+    "src_distribution": {
+      "tile:height": 10195,
+      "est:area": 37387
+    },
+    "src_distribution_pct": {
+      "tile:height": 21.4,
+      "est:area": 78.6
+    },
+    "height_m": {
+      "min": 1.0,
+      "q10": 5.0,
+      "q50": 20.0,
+      "q90": 38.0,
+      "p99_9": 100.0,
+      "max": 528.0,
+      "over_100m": 47,
+      "over_200m": 16
+    },
+    "area_m2": {
+      "q10": 90.22,
+      "q50": 666.77,
+      "q90": 2005.99,
+      "total": 49714066
+    },
+    "anomalies": {}
+  },
+  "generated_at_utc": "2026-09-04T02:08:14Z",
+  "generator": {
+    "script": "scene/decode_buildings.py",
+    "pmtiles_cli": "pmtiles dev, commit none, built at unknown",
+    "git_commit": "2255f89-dirty",
+    "shapely": "2.1.2"
+  }
+}
