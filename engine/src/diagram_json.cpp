@@ -584,6 +584,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
             }
             return false;
         }
+        ++out.edge_count;
     }
 
     // 4. 观测点：在 IQStream 输出口后并联一个 ObservationTap，不改用户的边

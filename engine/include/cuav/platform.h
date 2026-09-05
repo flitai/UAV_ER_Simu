@@ -25,6 +25,9 @@ bool is_little_endian();
 // 拼路径，保证中间只有一个 '/'。
 std::string join(const std::string& a, const std::string& b);
 
+// 当前 UTC 时间，ISO 8601（如 2026-09-05T08:00:00Z）。只用于任务起止的墙钟记录，不进仿真时间（铁律 3）。
+std::string utc_now_iso8601();
+
 }  // namespace platform
 }  // namespace cuav
 

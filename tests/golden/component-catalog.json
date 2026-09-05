@@ -1,0 +1,782 @@
+{
+  "components": [
+    {
+      "category": "source",
+      "description": "两路 IQ 加权相加，用于真实背景加合成目标（04 §15.2 标准算例第 10 项）；两路采样率与中心频率必须一致",
+      "display_name": "加法混合",
+      "implementation": "cpp",
+      "model_id": "AddMixer",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": 1.0,
+          "description": "a 路线性增益",
+          "name": "gain_a",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 1.0,
+          "description": "b 路线性增益",
+          "name": "gain_b",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "a",
+            "type": "IQStream"
+          },
+          {
+            "name": "b",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": false,
+      "type": "AddMixer",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
+      "description": "检测结果的计数与极值摘要",
+      "display_name": "检测汇聚",
+      "implementation": "cpp",
+      "model_id": "DetectionSink",
+      "model_layer": "M2",
+      "model_level": "E1",
+      "params": [],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "DetectionList"
+          }
+        ],
+        "out": []
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "DetectionSink",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
+      "description": "切帧不加窗不重叠，每帧 DFT 后取频段能量，除以逐频点帧维中位数噪声估计，与门限比较；口径与 algos/reference/energy_detector.py 一致（EM-S-02，决策 D-026）",
+      "display_name": "能量检测",
+      "implementation": "cpp",
+      "model_id": "EnergyDetector",
+      "model_layer": "M2",
+      "model_level": "E2",
+      "params": [
+        {
+          "constraint": "2 的幂",
+          "default": 1024.0,
+          "description": "帧长，等于 DFT 点数",
+          "min": 2.0,
+          "name": "nfft",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "description": "检测频段下限，相对中心频率",
+          "name": "band_lo_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "constraint": "band_hi_Hz > band_lo_Hz",
+          "description": "检测频段上限，相对中心频率",
+          "name": "band_hi_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 0.001,
+          "description": "目标虚警率",
+          "max": 1.0,
+          "max_exclusive": true,
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "pfa",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 8192.0,
+          "description": "用于噪声估计的帧数",
+          "min": 1.0,
+          "name": "noise_frames",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "DetectionList"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "EnergyDetector",
+      "version": "0.1.0"
+    },
+    {
+      "category": "data",
+      "description": "读本项目 .iq（复 int16 交织、小端）与旁挂清单，按清单分段顺序回放；04 §15.2 标准算例第 9 项。回放数据不得绑定场景（06 备忘录防线二、三）",
+      "display_name": "文件回放源",
+      "implementation": "cpp",
+      "model_id": "FileReplaySource",
+      "model_layer": "M3",
+      "model_level": "E4",
+      "params": [
+        {
+          "description": "数据索引里的标识（index.manifest.json 的 data_id，如 dronerfb_0_CH0_S4）；服务端据此解析文件位置，浏览器不见路径（04 §8.6，D-037）",
+          "name": "data_id",
+          "required": true,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "旁挂清单路径（docs/iq-format.md 第 4 节），由装载器按 data_id 解析注入；不得出现在框图文件里",
+          "internal": true,
+          "name": "manifest_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "default": 65536.0,
+          "description": "每块样点数",
+          "min": 1.0,
+          "name": "block_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 0.0,
+          "description": "最多读取的样点数；0 表示读到文件末尾",
+          "min": 0.0,
+          "name": "max_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "FileReplaySource",
+      "version": "0.1.0"
+    },
+    {
+      "category": "source",
+      "description": "复高斯白噪声，功率按每样点线性功率给定；04 §15.2 标准算例第 2 项",
+      "display_name": "复高斯噪声源",
+      "implementation": "cpp",
+      "model_id": "NoiseSource",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "description": "复采样率",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "sample_rate_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "description": "输出总样点数",
+          "min": 1.0,
+          "name": "total_samples",
+          "required": true,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 0.0,
+          "description": "写入块元数据的中心频率",
+          "name": "center_frequency_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 1.0,
+          "description": "每样点平均功率 E|x|^2，线性",
+          "min": 0.0,
+          "name": "power",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 65536.0,
+          "description": "每块样点数",
+          "min": 1.0,
+          "name": "block_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": false,
+      "type": "NoiseSource",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
+      "description": "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，dBFS）与包络行（桶内 |x| 的 min、max、rms），定长行二进制加索引（docs/display-products.md）；每行同时交给运行观察者供实时推送。框图里由 observation_points[] 在装载时并联生成（docs/diagram-format.md §5）",
+      "display_name": "观测点",
+      "implementation": "cpp",
+      "model_id": "ObservationTap",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "description": "观测点标识，即 observation_points[].id，也是产品子目录名",
+          "name": "op_id",
+          "required": true,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "产品目录 data/runs/<task_id>/，由运行器注入；不得出现在框图文件里",
+          "internal": true,
+          "name": "out_dir",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "default": true,
+          "description": "是否写功率谱产品",
+          "name": "spectrum",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "default": true,
+          "description": "是否写包络产品",
+          "name": "envelope",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "constraint": "2 的幂",
+          "default": 1024.0,
+          "description": "功率谱每段点数",
+          "min": 8.0,
+          "name": "nfft",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "hann",
+          "description": "周期形式的窗函数",
+          "enum": [
+            "hann",
+            "hamming",
+            "blackman",
+            "rect"
+          ],
+          "name": "window",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "constraint": "nfft × (1 − overlap) 必须是正整数",
+          "default": 0.0,
+          "description": "相邻段重叠比例",
+          "max": 1.0,
+          "max_exclusive": true,
+          "min": 0.0,
+          "name": "overlap",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 1.0,
+          "description": "每行功率谱平均的段数",
+          "min": 1.0,
+          "name": "segments_per_frame",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 4096.0,
+          "description": "包络每桶样点数",
+          "min": 1.0,
+          "name": "bucket_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": []
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "ObservationTap",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
+      "description": "Welch 平均功率谱：每段加周期窗、DFT、|X|²、各段平均、除以 (Σw)²、零频居中；复单音峰值等于其功率，满量程读 0 dBFS；未标定一律 dBFS（D-020）。口径与 algos/reference/gen_spectrum_golden.py、matlab/ref/cuav_welch_power.m 三方互证",
+      "display_name": "频谱分析",
+      "implementation": "cpp",
+      "model_id": "SpectrumAnalyzer",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "constraint": "2 的幂",
+          "default": 1024.0,
+          "description": "每段点数，等于 DFT 点数",
+          "min": 8.0,
+          "name": "nfft",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "hann",
+          "description": "周期形式的窗函数",
+          "enum": [
+            "hann",
+            "hamming",
+            "blackman",
+            "rect"
+          ],
+          "name": "window",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "constraint": "nfft × (1 − overlap) 必须是正整数",
+          "default": 0.0,
+          "description": "相邻段重叠比例",
+          "max": 1.0,
+          "max_exclusive": true,
+          "min": 0.0,
+          "name": "overlap",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 1.0,
+          "description": "每帧平均的段数",
+          "min": 1.0,
+          "name": "segments_per_frame",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "SpectrumFrame"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "SpectrumAnalyzer",
+      "version": "0.1.0"
+    },
+    {
+      "category": "source",
+      "description": "确定型复指数 x[n] = A·exp(j2πfn/Fs + jφ)，带起止样点可作突发开关；04 §15.2 标准算例第 1、3 项",
+      "display_name": "单音源",
+      "implementation": "cpp",
+      "model_id": "ToneSource",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "description": "复采样率",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "sample_rate_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "description": "输出总样点数",
+          "min": 1.0,
+          "name": "total_samples",
+          "required": true,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 0.0,
+          "description": "写入块元数据的中心频率",
+          "name": "center_frequency_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "constraint": "|offset_Hz| < sample_rate_Hz / 2（铁律 4）",
+          "default": 0.0,
+          "description": "相对中心频率的频偏",
+          "name": "offset_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 1.0,
+          "description": "幅度，线性",
+          "min": 0.0,
+          "name": "amplitude",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 0.0,
+          "description": "初相",
+          "name": "phase_rad",
+          "required": false,
+          "type": "number",
+          "unit": "rad"
+        },
+        {
+          "default": 0.0,
+          "description": "起始样点，之前输出零",
+          "min": 0.0,
+          "name": "start_sample",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 0.0,
+          "description": "终止样点，之后输出零；0 表示直到结束",
+          "min": 0.0,
+          "name": "stop_sample",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 65536.0,
+          "description": "每块样点数",
+          "min": 1.0,
+          "name": "block_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": false,
+      "type": "ToneSource",
+      "version": "0.1.0"
+    }
+  ],
+  "engine_version": "0.1.0",
+  "port_compat": [
+    [
+      "IQStream",
+      "IQStream",
+      true
+    ],
+    [
+      "IQStream",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "IQStream",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "IQStream",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "IQStream",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "IQStream",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SceneParamFrame",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SceneParamFrame",
+      "SceneParamFrame",
+      true
+    ],
+    [
+      "SceneParamFrame",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SceneParamFrame",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SceneParamFrame",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SceneParamFrame",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ChannelPathSet",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ChannelPathSet",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ChannelPathSet",
+      "ChannelPathSet",
+      true
+    ],
+    [
+      "ChannelPathSet",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ChannelPathSet",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ChannelPathSet",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SpectrumFrame",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SpectrumFrame",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SpectrumFrame",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SpectrumFrame",
+      "SpectrumFrame",
+      true
+    ],
+    [
+      "SpectrumFrame",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SpectrumFrame",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "DetectionList",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "DetectionList",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "DetectionList",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "DetectionList",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "DetectionList",
+      "DetectionList",
+      true
+    ],
+    [
+      "DetectionList",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "FeatureVector",
+      true
+    ]
+  ],
+  "port_types": [
+    "IQStream",
+    "SceneParamFrame",
+    "ChannelPathSet",
+    "SpectrumFrame",
+    "DetectionList",
+    "FeatureVector"
+  ],
+  "schema_version": "cuav-catalog/1"
+}

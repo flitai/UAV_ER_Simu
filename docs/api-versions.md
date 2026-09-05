@@ -91,6 +91,40 @@
 - 背压：只允许丢弃二进制行帧，丢弃必须发 `dropped{from, to}`；`task.state` 与 `error` 永不丢。
 - 心跳 15 s；客户端重连退避 1 / 2 / 4 / 8 s 封顶，重连后带 `since`。
 
+### 4.1 引擎 stdout 事件与退出码（B-4，2026-09-05，D-041）
+
+`cuav_run` 的 stdout 每行一条 JSON，信封与上面的文本帧完全相同：`{seq, task_id, type, t_s, payload}`。`seq` 每进程从 1
+单调递增；`task_id` 取 `--task-id`，缺省为 `--out` 的末级目录名（运行）或 `diagram_id`（校验）。应用服务转发文本事件前
+只做一件事：把路径替换为 `data_id` 或相对名（04 §8.6）。`--out` 给出时引擎自己把每行原样落 `<out>/events.jsonl`，
+stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
+
+| type | 何时 | payload |
+|---|---|---|
+| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
+| `progress` | 每轮调度，按墙钟节流（`--progress-interval-ms`，默认 100；0 = 每轮） | `round`、`nodes[]`（同上） |
+| `log` | 装载摘要、种子覆盖、组件日志 | `level`、`message` |
+| `product_row` | 观测点每写一行 | `op_id`、`kind ∈ {spectrum, envelope}`、`row_index`、`row_len`。**不带数据**：该行已逐行刷到 `<out>/<op_id>/<kind>.f32`，服务端按 `row_index × row_len × 4` 的偏移读出并转成二进制帧（§4） |
+| `entity`、`link` | 场景运行时（G-2 起） | 字段同 §4 |
+| `error` | 装载失败或运行失败 | `{code, node_id, port, message}`（`docs/diagram-format.md` §4）；运行失败 `code = run_failed`，`node_id` 为出错节点 |
+| `validate` | `--validate` 成功时一条 | `ok`、`diagram_id`、`name`、`nodes[]`、`edges`、`observation_points[]`、`run`、`engine_version` |
+
+`t_s`：`product_row` / `entity` / `link` 为该行或该帧的逻辑时间；`progress`、`log` 与结束的 `task.state` 取此前见过的
+最大逻辑时间；开始的 `task.state` 与 `validate` 为 0。`detection` 事件待 P1-4d 的 `detections.jsonl`。
+
+退出码：
+
+| 码 | 含义 |
+|---|---|
+| 0 | 目录已输出 / 校验通过 / 运行到底（结果四态在 `task.state` 里，不影响退出码） |
+| 1 | 命令行错误，或尚未实现的子命令（`--scenario-track` 待 G-2） |
+| 2 | 框图装载失败（含解析旁挂或数据索引读不到），已发 `error`；运行模式下再发 `task.state failed` |
+| 3 | 运行失败（初始化、处理、收尾、调度停滞、超轮数），已发 `error` 与 `task.state failed` |
+| 4 | 产品目录建不了或 `events.jsonl` 打不开 |
+
+`--seed N` 覆盖框图 `run.seed`：`task.state.seed_source = cli`，并发一条 `log` 写明原值与新值。数据解析入口
+`--resolved <旁挂>`（`cuav-resolved/1`）或 `--data-index <index.manifest.json>...`，二者互斥；都不给而框图有回放节点
+即 `error data_id`。`--catalog` 不走事件信封，直接输出目录 JSON（`docs/component-catalog.md`）。
+
 ## 5. 后置能力的端口命名预留（待写）
 
 05 号方案 P0 定义的八个端口在首期只做命名预留，不实现：`ArrayIQStream`、

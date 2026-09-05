@@ -78,11 +78,11 @@ HTTP Range（30 项测试），端到端 14 项断言全过。下一步是 D2 �
 M MATLAB 四条步骤线与五个纵向切片；P1-5、P1-6 撤销，P1-8 由 M-2 兑现，D2 并入 G-5。四份规范骨架
 已落地（框图、场景、显示产品、组件目录，字段已冻结）。
 
-**当前位置与下一步**（2026-09-05）：切片 ①「一条链到频谱」的引擎侧已完成 B-1 注册表与目录、P1-4a 频谱分析、
-B-3 观察者与观测点产品、**B-2 框图 JSON 装载器**（示例框图装载运行、观测点并联、`data_id` 经解析器注入、内部参数拒绝、
-错误定位到节点与端口；四项口子拍板 D-040）、M-1 `matlab/` 骨架与 M-4 首个三方互证；引擎 50 项单测 12564 项断言全绿。
-下一步是 B-4 `cuav_run`（`--catalog` 生成目录黄金基准、`--validate`、`--run … --resolved / --data-index`，stdout 带 `seq` 的 JSON 事件），
-之后服务侧 B-5 至 B-7 与前端 U-1 / U-3。09 报告已升 v1.3（十三项暂定已拍板 D-038，D-039 修正已落）。B-2 的改动尚未提交。
+**当前位置与下一步**（2026-09-05）：切片 ①「一条链到频谱」的引擎侧已全部完成：B-1 注册表与目录、P1-4a 频谱分析、
+B-3 观察者与观测点产品、B-2 框图 JSON 装载器（D-040）、**B-4 `cuav_run` 可执行**（`--catalog` 生成目录黄金基准、`--validate` 只校验、
+`--run` 跑通切片 ① 框图并输出带序号的 JSON 事件与 `events.jsonl` 镜像，D-041）、M-1 `matlab/` 骨架与 M-4 首个三方互证；
+引擎 57 项单测 27388 项断言 + 3 项可执行冒烟全绿。下一步是服务侧 B-5 任务管理器（`spawn cuav_run`、`data/runs/<task_id>/`、写解析旁挂、
+`POST /api/v1/tasks`、`GET /api/v1/components`），再 B-6 WS 补取、B-7 视窗抽取，然后前端 U-1 / U-3。09 报告已升 v1.3。
 公开数据集这条线已全部做完；**跨层一致性算例 ① 在两批独立数据上都通过**（检出率偏差 0.0016–0.0050，容差 0.05–0.10），
 引擎侧整链复现待切片 ④。待用户出面的事项：甲方实测数据。Coder 产物许可已于 2026-09-04 确认不受限；DS-1 / DA-1 两个公开数据集的
 许可已于 2026-09-05 由用户确认无任何使用与署名约束。
@@ -2179,7 +2179,7 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 
 - [x] B-2 框图 JSON 装载器：按 `docs/diagram-format.md` 装 `Graph`，`observation_points[]` 并联成 `ObservationTap`，
       `IDataResolver` 解析 `data_id`，`internal` 参数出现即拒（2026-09-05 完成，见同日「B-2」条目）。
-- [ ] B-4 `cuav_run`：`--catalog`（生成首版目录黄金基准）、`--validate`、`--run`；stdout JSON 事件带 `seq`。
+- [x] B-4 `cuav_run`：`--catalog`（生成首版目录黄金基准）、`--validate`、`--run`；stdout JSON 事件带 `seq`（2026-09-05 完成，见同日「B-4」条目）。
 - [ ] M-4 余项：能量检测与 ADC 量化的 MATLAB 参考与黄金向量。
 - [ ] 观测点 `iq/` 产品（按 `docs/iq-format.md` 写 `.iq` 与旁挂清单）。
 - [ ] 产品行的 `t_s` 目前只对逻辑时间基准成立；回放源接入后要按块元数据的时间基准写索引。
@@ -2317,8 +2317,64 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 
 #### 5. 本条目产生的待办
 
-- [ ] B-4 `cuav_run`：`--catalog`、`--validate <框图>`、`--run <框图> --out <dir> [--seed N] [--resolved <旁挂> | --data-index <索引>...]`；
-      错误事件直接 `to_json(DiagramError)`；`--seed` 覆盖 `run.seed` 须写进事件；`--catalog` 生成 `tests/golden/component-catalog.json`。
+- [x] B-4 `cuav_run`：`--catalog`、`--validate <框图>`、`--run <框图> --out <dir> [--seed N] [--resolved <旁挂> | --data-index <索引>...]`；
+      错误事件直接 `to_json(DiagramError)`；`--seed` 覆盖 `run.seed` 须写进事件；`--catalog` 生成 `tests/golden/component-catalog.json`。（2026-09-05 完成，见同日「B-4」条目）
 - [ ] 回放节点的时长截断：`FileReplaySource` 的采样率读清单后才知道，`run.duration_s` 对它暂不生效（整片回放或显式 `max_samples`），B-4 或 P1-3 余项补。
 - [ ] B-5：服务端写解析旁挂而不是含内部参数的框图副本（`docs/api-versions.md` 已改）；`docs/schemas/resolved.schema.json` 用到时一并写。
 - [ ] 代码评审关注项：按值返回的容器再取内部指针（本条目踩坑一）。
+
+---
+
+### 2026-09-05 · B-4 `cuav_run` 可执行
+
+#### 1. 本次做了什么
+
+新建 `engine/tools/cuav_run/{runner.h, runner.cpp, main.cpp}`。逻辑放在静态库 `cuav_runner`，`main.cpp` 只做 argv 与进程退出码，
+这样 doctest 能直接驱动 `run()` 检查事件流，不必起子进程。三个子命令：
+
+- `--catalog`：输出 `catalog_json()`（`dump(2)`），先对每个组件跑 `validate_catalog_entry()`，自检不过就不输出。
+  用它首次生成 `tests/golden/component-catalog.json`（8 组件、21763 字节）；新测试 `test_catalog_golden.cpp` 按
+  `docs/component-catalog.md` §5 的「已有条目不变」比对：端口类型与兼容矩阵相同、基准里每个组件的 `type / ports / params` 相同，新增组件允许。
+- `--validate <框图>`：`load_diagram_file()` 只校验模式（不给 `out_dir`，不落盘）；成功一条 `validate` 事件（节点、连线数、观测点、`run`），
+  失败一条 `error` 事件（`to_json(DiagramError)`），退出码 2。
+- `--run <框图> --out <目录> [--task-id] [--seed N] [--resolved <旁挂> | --data-index <索引>...] [--progress-interval-ms N]`：
+  建目录、打开 `events.jsonl`、建解析器、装载、运行。事件依次为 `task.state running`（含种子与来源、节点、观测点、`started_utc`）、
+  `log`、`progress`（墙钟节流，默认 100 ms）、每行一条 `product_row`（不带数据）、结束 `task.state finished`（结果四态、轮数、墙钟、
+  实时因子、逐节点状态、`ended_utc`）；运行失败发 `error {code: run_failed, node_id}` 与 `task.state failed`，退出码 3。
+- 事件信封与 WS 文本帧同构 `{seq, task_id, type, t_s, payload}`；stdout 与 `events.jsonl` 逐行 flush、逐字节相同。诊断走 stderr。
+- 配套改动：`ObservationTap` 每写一行就 `fflush`（此前只在每 64 行更新索引时刷），服务端才能按 `product_row` 事件的 `row_index`
+  立刻从文件读到这一行；`platform::utc_now_iso8601()`（`gmtime_s` / `gmtime_r` 放在平台层）；`LoadedDiagram.edge_count`。
+- ctest 新增三项可执行冒烟：`cuav_run --catalog`、`--validate` 切片 ① 框图、`--run` 切片 ① 框图到构建目录。
+
+#### 2. 核实到的事实与踩到的坑
+
+- 三个测试写错、运行器本身没改：`--catalog` 的输出是多行目录 JSON 不是事件流，测试助手按行解析当然炸；把回放源塞进示例框图时
+  没清掉单音的参数，装载器按键名顺序先撞到未知参数 `amplitude` 报 `param`，轮不到 `manifest_path` 的 `internal_param`；
+  观测点用的是自己的 `nfft`（缺省 1024）不是下游分析器的 256，3000 样点只有 2 行谱。三处都改测试的预期。
+- `progress` 回调每轮一次，运行 2 MS 样点默认块长约 31 轮，默认 100 ms 节流后只剩 1 到 2 条；`--progress-interval-ms 0` 时条数 ≥ 轮数
+  （收尾轮也算）。因为节流按墙钟，**事件流不承诺逐字节复现，产品文件才承诺**（D-041 ③）。
+- 运行失败的报文以节点名开头（`graph.cpp` 的「X 初始化失败 / 处理失败 / 收尾失败」），运行器据此把 `node_id` 找回来给画布高亮；
+  匹配要求名字后紧跟空格，避免 `mix` 撞上 `mix2`。
+- `task_id` 缺省取 `--out` 的末级目录名，与 `data/runs/<task_id>/` 的约定吻合；校验模式取 `diagram_id`，装载失败时取文件名主干。
+
+#### 3. 约定（D-041）
+
+事件信封与 `events.jsonl` 镜像、`product_row` 不带数据 + 观测点逐行刷盘、`progress` 墙钟节流、退出码 0–4 与结果四态正交、
+`--seed` 覆盖须写来源、`--catalog` 不加 `generated_at`、`--scenario-track` 留 G-2。全文见 CLAUDE.md D-041 与 `docs/api-versions.md` §4.1。
+
+#### 4. 量化结果（原型阶段验证值）
+
+- 引擎单测 50 → 57 个用例，12564 → 27388 项断言，全绿；ctest 4 项（单测 + 3 冒烟）全过；`scripts/build-all.sh`、路径与 ASCII 检查全过。
+- 切片 ① 框图 `--run`：2442 条 `product_row`（谱 1953 + 包络 489），`events.jsonl` 与 stdout 逐字节相同，序号 1 起连续，
+  `task_id` 取目录名；同种子两次运行 `spectrum.f32` 逐字节相同；`--seed 7` 时 `seed_source = cli` 并有覆盖日志。
+- 回放框图经 `--data-index` 与 `--resolved` 两种入口产品逐字节相同；两者都不给时 `error data_id` + `task.state failed`，退出码 2，
+  失败也镜像到 `events.jsonl`。
+- 目录黄金基准 `tests/golden/component-catalog.json`：8 组件、6 端口类型、36 行兼容矩阵、21763 字节。
+
+#### 5. 本条目产生的待办
+
+- [ ] B-5 服务任务管理器：`spawn('cuav_run', [...])` 数组参数不走 shell；任务目录 `data/runs/<task_id>/`；提交时写解析旁挂
+      `diagram.resolved.json` 并以 `--resolved` 传入；读 stdout 事件转 WS，`product_row` 按偏移读文件转二进制帧；
+      `GET /api/v1/components` 缓存 `--catalog` 输出；Windows 上路径含空格与中文、子进程 stdout 编码、孤儿进程三项风险（06 §9E）要专门验。
+- [ ] `cuav_run` 的取消：目前没有信号处理，服务端取消只能杀进程；产品索引 `rows` 最后一次更新可能落后不到 64 行，B-5 收尾时按文件长度修正或让引擎收 SIGTERM 后写索引。
+- [ ] `--scenario-track`（G-2）；`detection` 事件（P1-4d）；回放节点的时长截断（B-2 遗留）。

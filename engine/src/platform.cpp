@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -86,6 +87,19 @@ std::string join(const std::string& a, const std::string& b) {
     if (a_sep && b_sep) return a + b.substr(1);
     if (!a_sep && !b_sep) return a + "/" + b;
     return a + b;
+}
+
+std::string utc_now_iso8601() {
+    const std::time_t t = std::time(nullptr);
+    std::tm tm;
+#ifdef _WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+    char buf[32];
+    std::strftime(buf, sizeof buf, "%Y-%m-%dT%H:%M:%SZ", &tm);
+    return buf;
 }
 
 }  // namespace platform

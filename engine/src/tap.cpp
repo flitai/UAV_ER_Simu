@@ -201,6 +201,7 @@ bool ObservationTap::write_spectrum_row(const std::vector<double>& power, std::u
         if (std::fwrite(row.data(), sizeof(float), row.size(), spec_file_) != row.size()) {
             err = "写 spectrum.f32 失败"; return false;
         }
+        std::fflush(spec_file_);   // 逐行落盘：运行器随即发 product_row 事件，服务端按事件读这一行（B-4）
     }
     const double t_s = sample_rate_Hz_ > 0 ? static_cast<double>(first_sample) / sample_rate_Hz_ : 0.0;
     if (obs_) obs_->on_product_row(op_id_, "spectrum", spec_rows_, row.data(), row.size(), t_s);
@@ -218,6 +219,7 @@ bool ObservationTap::write_envelope_row(std::string& err) {
     row[1] = static_cast<float>(bucket_max_);
     row[2] = static_cast<float>(std::sqrt(bucket_sumsq_ / static_cast<double>(bucket_count_)));
     if (env_file_ && std::fwrite(row, sizeof(float), 3, env_file_) != 3) { err = "写 envelope.f32 失败"; return false; }
+    if (env_file_) std::fflush(env_file_);   // 逐行落盘，同 spectrum
     const double t_s = sample_rate_Hz_ > 0 ? static_cast<double>(bucket_start_sample_) / sample_rate_Hz_ : 0.0;
     if (obs_) obs_->on_product_row(op_id_, "envelope", env_rows_, row, 3, t_s);
     ++env_rows_;

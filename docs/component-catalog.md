@@ -1,7 +1,8 @@
 # 组件目录格式
 
-**状态**：骨架，字段已冻结（2026-09-04，决策 D-030、D-036）。目录由引擎 `cuav_run --catalog`
-生成（B-1、B-4），黄金基准 `tests/golden/component-catalog.json` 在 B-4 首次生成。
+**状态**：字段已冻结（2026-09-04，决策 D-030、D-036）。目录由引擎 `cuav_run --catalog` 生成（B-1、B-4），
+黄金基准 `tests/golden/component-catalog.json` 已于 2026-09-05 由它首次生成（八个组件），
+`engine/tests/test_catalog_golden.cpp` 按第 5 节规则比对。
 
 **依据**：04 §8.1（组件库六类）、§8.4（组件至少声明的字段）；决策 D-013（连线规则）、
 D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
@@ -20,7 +21,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 |---|---|
 | `schema_version` | 固定 `cuav-catalog/1` |
 | `engine_version` | 引擎版本 |
-| `generated_at` | 生成时间 |
+| `generated_at` | 生成时间。**引擎库与 `cuav_run --catalog` 都不写它**（输出确定性，黄金基准才能逐字节比较）；应用服务缓存目录时自行记录取得时间 |
 | `port_types[]` | 端口类型名清单，与 `engine/include/cuav/types.h` 的 `PortType` 一致 |
 | `port_compat[]` | `[from_type, to_type, ok, reason?]` 全枚举 |
 | `components[]` | 见第 3 节 |
@@ -91,5 +92,5 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 
 ## 7. 待写
 
-- [ ] 首版目录黄金基准 `tests/golden/component-catalog.json`（B-4 `cuav_run --catalog` 生成）
+- [x] 首版目录黄金基准 `tests/golden/component-catalog.json`（2026-09-05，`cuav_run --catalog` 生成，21763 字节）
 - [ ] Coder 产物组件的 `source_ref` 填写示例（M-2）

@@ -14,7 +14,7 @@ JSON / Base64 封装二进制）；04 §6.4（展示数据五类）、§8.3（�
 ```
 data/runs/<task_id>/
 ├── task.json                    任务摘要：框图哈希、场景哈希、种子、状态四态、起止、实时因子、引擎版本、溯源
-├── events.jsonl                 引擎 stdout 事件原样落盘，每行带 seq
+├── events.jsonl                 引擎 stdout 事件原样落盘，每行带 seq；由 cuav_run 自己写，与 stdout 逐字节相同（B-4）
 ├── track.jsonl                  实体状态，每行一个 EntityState（见 docs/scenario-format.md §7）
 ├── links.jsonl                  链路帧读数，每行一条链路一帧（字段同 WS link 事件，docs/api-versions.md §4）
 ├── detections.jsonl             检测列表，每行一个 Detection
@@ -96,8 +96,13 @@ data/runs/<task_id>/
 回看与缩放走第 3 节端点。量级：20 Hz × 1024 bin × 4 B ≈ 80 KB/s。允许丢帧，但必须以
 `dropped{from, to}` 告知，`task.state` 与 `error` 事件永不丢。
 
+引擎侧的来源（B-4）：`ObservationTap` 每写一行就 `fflush`，随即经运行器在 stdout 发一条不带数据的 `product_row`
+事件 `{op_id, kind, row_index, row_len}`（`docs/api-versions.md` §4.1）；应用服务据此从 `<op_id>/<kind>.f32` 的
+`row_index × row_len × 4` 偏移读出该行并转成二进制帧。索引里的 `rows` 仍每 64 行更新一次，它服务的是回看端点，
+实时推送不等它。
+
 ## 5. 待写
 
-- [ ] 观测点组件 `ObservationTap` 的参数（nfft、窗、桶长）与目录条目（B-3）
+- [x] 观测点组件 `ObservationTap` 的参数（nfft、窗、桶长）与目录条目（B-3，2026-09-05）
 - [ ] 抽取端点的测试夹具（B-7）
 - [ ] 瀑布瓦片缓存键 `(op_id, t 桶, f 段, px)` 的前端约定（U-3）

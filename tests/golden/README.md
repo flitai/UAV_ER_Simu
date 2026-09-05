@@ -4,6 +4,7 @@
 
 | 文件 | 内容 | 由谁比对 |
 |---|---|---|
+| `component-catalog.json` | 引擎组件目录 `cuav-catalog/1`（`docs/component-catalog.md`），2026-09-05 由 `engine/build/cuav_run --catalog` 首次生成，八个组件。比较规则「已有条目不变」：基准里每个组件的 `type`、`ports`、`params` 与端口兼容矩阵必须与当前目录相同；新增组件允许。再生成：`engine/build/cuav_run --catalog > tests/golden/component-catalog.json`，并在 WORKLOG 记一条；已有条目变了先记决策 | `engine/tests/test_catalog_golden.cpp` |
 | `airports-basemap-style.json` | Airports 工程 `index.html` 的 `protomapsStyle()` 在 2026-09-04 求值得到的完整样式对象（60 层）。本项目的 `web/src/scene/style/protomaps.ts` 是它的 TypeScript 移植，必须逐层等价 | `web/src/scene/style/protomaps.test.ts` |
 
 ## `airports-basemap-style.json` 的来源与再生成

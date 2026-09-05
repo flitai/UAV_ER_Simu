@@ -109,6 +109,7 @@ struct LoadedDiagram {
     std::map<std::string, NodeId> node_ids;        // 框图节点 id → Graph 编号（不含观测点节点）
     std::vector<std::string> node_names;           // Graph 编号 → 名字（观测点节点为 "op:<id>"）
     std::vector<TapBinding> taps;
+    std::size_t edge_count = 0;                    // 用户连线数（不含观测点并联的边）
     RunSpec run;
     bool has_scenario_ref = false;                 // 场景文件哈希核对由运行器做（需要读文件）
     std::string scenario_id;

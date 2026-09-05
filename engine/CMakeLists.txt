@@ -46,6 +46,20 @@ else()
   target_compile_options(cuav_engine PRIVATE -Wall -Wextra)
 endif()
 
+# 运行器（B-4，D-031）：逻辑在静态库 cuav_runner 里，可执行入口只做 argv；测试直接驱动库检查事件流
+add_library(cuav_runner STATIC tools/cuav_run/runner.cpp)
+target_link_libraries(cuav_runner PUBLIC cuav_engine)
+target_include_directories(cuav_runner PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tools/cuav_run)
+add_executable(cuav_run tools/cuav_run/main.cpp)
+target_link_libraries(cuav_run PRIVATE cuav_runner)
+if(MSVC)
+  target_compile_options(cuav_runner PRIVATE /W4)
+  target_compile_options(cuav_run PRIVATE /W4)
+else()
+  target_compile_options(cuav_runner PRIVATE -Wall -Wextra)
+  target_compile_options(cuav_run PRIVATE -Wall -Wextra)
+endif()
+
 enable_testing()
 
 add_executable(cuav_engine_tests
@@ -58,9 +72,19 @@ add_executable(cuav_engine_tests
   tests/test_spectrum.cpp
   tests/test_tap.cpp
   tests/test_diagram_json.cpp
+  tests/test_runner.cpp
+  tests/test_catalog_golden.cpp
 )
-target_link_libraries(cuav_engine_tests PRIVATE cuav_engine)
+target_link_libraries(cuav_engine_tests PRIVATE cuav_runner)
 # 黄金基准放源码树里，测试要按源码目录找它，不能依赖运行时工作目录
 target_compile_definitions(cuav_engine_tests PRIVATE
   CUAV_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 add_test(NAME cuav_engine_unit COMMAND cuav_engine_tests)
+
+# 可执行文件的冒烟：目录、只校验、运行切片 ① 框图（产品写到构建目录）
+add_test(NAME cuav_run_catalog COMMAND cuav_run --catalog)
+add_test(NAME cuav_run_validate_slice1
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice1_tone_noise_psd.json")
+add_test(NAME cuav_run_run_slice1
+  COMMAND cuav_run --run "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice1_tone_noise_psd.json"
+          --out "${CMAKE_CURRENT_BINARY_DIR}/runs/slice1" --seed 20260904)
