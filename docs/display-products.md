@@ -13,8 +13,10 @@ JSON / Base64 封装二进制）；04 §6.4（展示数据五类）、§8.3（�
 
 ```
 data/runs/<task_id>/
-├── task.json                    任务摘要：框图哈希、场景哈希、种子、状态四态、起止、实时因子、引擎版本、溯源
-├── events.jsonl                 引擎 stdout 事件原样落盘，每行带 seq；由 cuav_run 自己写，与 stdout 逐字节相同（B-4）
+├── task.json                    任务摘要（cuav-task/1，服务端写，字段见 §1.1）：框图哈希、场景哈希、种子、运行态与结果四态、起止、实时因子、引擎版本
+├── diagram.json                 框图副本，服务端落盘，永不含内部参数（B-5）
+├── diagram.resolved.json        解析旁挂 cuav-resolved/1，只在有回放节点时写（docs/diagram-format.md §9）
+├── events.jsonl                 引擎 stdout 事件原样落盘，每行带 seq；由 cuav_run 自己写，与 stdout 逐字节相同（B-4）；服务端不改它，也不对外暴露
 ├── track.jsonl                  实体状态，每行一个 EntityState（见 docs/scenario-format.md §7）
 ├── links.jsonl                  链路帧读数，每行一条链路一帧（字段同 WS link 事件，docs/api-versions.md §4）
 ├── detections.jsonl             检测列表，每行一个 Detection
@@ -27,6 +29,32 @@ data/runs/<task_id>/
 ```
 
 `data/runs/` 不入 git。应用服务只经第 3 节的抽取端点提供数据，不把目录挂成静态文件。
+
+### 1.1 `task.json`（`cuav-task/1`，B-5，2026-09-05）
+
+服务端在每次状态变化时原子写（写临时文件再改名）。路径类字段只有任务目录内的相对文件名，没有服务器路径。
+
+| 字段 | 说明 |
+|---|---|
+| `schema_version` | 固定 `cuav-task/1` |
+| `task_id` | `t<YYYYMMDD>-<HHMMSS>-<4 hex>`，即目录名，也是引擎事件里的 `task_id` |
+| `diagram_id`、`name`、`diagram_sha256` | 取自框图；哈希对 `diagram.json` 的文本 |
+| `scenario_sha256` | 有 `scenario_ref` 时取其哈希 |
+| `seed`、`seed_source` | 种子与来源 `diagram / cli`（开始事件后才有来源） |
+| `run_state` | `queued / running / finished / failed / cancelled` |
+| `result`、`reasons[]` | 结果四态与原因；排队与运行中为 `not_applicable`；取消 → `not_applicable`，失败 → `invalid` |
+| `created_utc`、`started_utc`、`ended_utc` | 起止时间；`started_utc` 以引擎 `task.state running` 的为准 |
+| `wall_s`、`realtime_factor`、`rounds`、`engine_version` | 取自引擎结束事件 |
+| `exit_code`、`signal` | 进程关闭后才有；与四态正交（D-041） |
+| `cancel_requested` | 服务端是否收到过取消 |
+| `error` | `{code, node_id, port, message}`，引擎 `error` 事件或服务端归类的 `engine` 码 |
+| `observation_points[]` | `{op_id, node, port, products, rows_seen{spectrum?, envelope?}}`。`rows_seen` 按 `product_row` 事件计数，是**下界**：引擎先刷盘再发事件，被杀时文件可能多一行、索引 `rows` 可能落后不到 64 行。**读端一律以文件长度 `floor(size / (row_len × 4))` 为准**（B-7） |
+| `data_refs[]` | `{node_id, data_id, holdout}`，回放节点引用的数据 |
+| `warnings[]` | 验收集片段用于回放的提示（D-038）、重启对账说明等 |
+| `idempotency_key` | 提交时的 `Idempotency-Key`，重启后据此重建幂等表 |
+| `last_seq` | 已折入本记录的最大事件序号 |
+| `stderr_tail` | 引擎 stderr 尾部（≤ 8 KB，已脱敏），只在进程结束后有 |
+| `files` | `{diagram, resolved?, events}` 三个相对文件名 |
 
 ## 2. 索引文件（已冻结）
 

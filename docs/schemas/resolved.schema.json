@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CUAV resolved data sidecar (cuav-resolved/1)",
+  "description": "data_id 解析旁挂。由应用服务在提交时写到 data/runs/<task_id>/diagram.resolved.json，引擎经 cuav_run --resolved 读入。路径相对引擎工作目录（仓库根）、用 / 分隔、纯 ASCII。见 docs/diagram-format.md §9，决策 D-040 / D-042。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "data"],
+  "properties": {
+    "schema_version": { "const": "cuav-resolved/1" },
+    "diagram_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "data": {
+      "type": "object",
+      "description": "data_id 到清单文件相对路径",
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$" },
+      "additionalProperties": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_./-]*\\.manifest\\.json$" }
+    }
+  }
+}

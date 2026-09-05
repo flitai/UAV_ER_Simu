@@ -81,8 +81,10 @@ M MATLAB 四条步骤线与五个纵向切片；P1-5、P1-6 撤销，P1-8 由 M-
 **当前位置与下一步**（2026-09-05）：切片 ①「一条链到频谱」的引擎侧已全部完成：B-1 注册表与目录、P1-4a 频谱分析、
 B-3 观察者与观测点产品、B-2 框图 JSON 装载器（D-040）、**B-4 `cuav_run` 可执行**（`--catalog` 生成目录黄金基准、`--validate` 只校验、
 `--run` 跑通切片 ① 框图并输出带序号的 JSON 事件与 `events.jsonl` 镜像，D-041）、M-1 `matlab/` 骨架与 M-4 首个三方互证；
-引擎 57 项单测 27388 项断言 + 3 项可执行冒烟全绿。下一步是服务侧 B-5 任务管理器（`spawn cuav_run`、`data/runs/<task_id>/`、写解析旁挂、
-`POST /api/v1/tasks`、`GET /api/v1/components`），再 B-6 WS 补取、B-7 视窗抽取，然后前端 U-1 / U-3。09 报告已升 v1.3。
+引擎 57 项单测 27388 项断言 + 3 项可执行冒烟全绿。**服务侧 B-5 任务管理器已完成**（同日「B-5」条目，D-042）：`POST /api/v1/tasks` 提交框图 →
+同步 `cuav_run --validate`（约 9 ms，不过即 400）→ 串行队列 → 子进程运行 → 终态；取消、服务退出收尾、重启对账、路径脱敏都有测试守着，
+服务 58 项测试全绿，真服务冒烟（切片 ①、真实片段回放、取消、杀服务、重启恢复）全过。下一步是 B-6 WS 服务端与补取、B-7 视窗抽取，
+然后前端 U-1 / U-3。09 报告已升 v1.3。
 公开数据集这条线已全部做完；**跨层一致性算例 ① 在两批独立数据上都通过**（检出率偏差 0.0016–0.0050，容差 0.05–0.10），
 引擎侧整链复现待切片 ④。待用户出面的事项：甲方实测数据。Coder 产物许可已于 2026-09-04 确认不受限；DS-1 / DA-1 两个公开数据集的
 许可已于 2026-09-05 由用户确认无任何使用与署名约束。
@@ -2405,3 +2407,65 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 §14 探针去掉 `badges.synthetic`），06 §9C G-5 验收项、§9E 切片 ② 与风险摘要、§13「不做」第 5 条改为「不把合成结果当实测
 结论写进文档」，`docs/scenario-format.md` 的 `synthetic` 字段说明，CLAUDE.md 定位段、G 行与 D-043。代码尚未写到 G-5，无代码改动。
 至此界面上不再有任何「向用户解释数据有多不完美」的元素；后续这类元素默认不做，除非用户点名要。
+
+### 2026-09-05 · B-5 服务任务管理器
+
+#### 1. 本次做了什么
+
+新建 `server/src/tasks/{engine,resolve,store,manager,routes}.ts`（06 §9A 原写 `{manager,runner,store}`，按职责收成五个）与测试夹具
+`fake_engine.mjs`、`testkit.ts`；`index.ts` 接入任务路由并在 `start()` 里做任务扫描、对账与退出处理器。端点按
+`docs/api-versions.md` §3.1a：`GET /api/v1/components`（缓存 `--catalog`，附 `generated_at`）、`POST /api/v1/tasks`、
+`GET /api/v1/tasks[/{id}]`、`POST /api/v1/tasks/{id}/cancel`；健康检查加 `engine: {available, version?}`。
+
+提交流程：JSON 与限长（1 MB）→ 最小结构检查 → 节点与观测点里出现 `internal` 参数即 400（D-037）→ 回放节点 `data_id` 按
+`data/iq/*/*/index.manifest.json` 解析成相对清单路径写旁挂 `diagram.resolved.json`（命中验收集只记 `warnings[]`，D-038）→
+落盘 `diagram.json` 并算哈希 → **同步 `cuav_run --validate --task-id <id> [--resolved …]`**，失败删目录、400 带引擎四字段 → FIFO 入队。
+`Idempotency-Key` 同键同框图 200 返回同一任务，同键不同框图 409。
+
+运行与终态：`spawn` 数组参数、cwd = 仓库根、所有路径仓库相对纯 ASCII 字面 `/`；stdout 按字节切行去 `\r`；每行先整行脱敏
+（清单路径 → `data_id`，剥仓库根前缀含 JSON 转义的 Windows 形式）再解析，折进 `task.json` 与每任务 4096 条环形缓冲，
+`subscribe()` / `events(since, limit)` 留给 B-6 加传输。引擎给了 `task.state` 终态就信它；没给则已请求取消 → `cancelled / not_applicable`，
+其余 → `failed / invalid` 带 `stderr_tail`，并由服务端补一条 `task.state`（`source = server`）接在引擎序号之后。取消 = SIGTERM → 3 s → SIGKILL。
+服务收 SIGINT / SIGTERM 同步杀引擎并把运行中任务标 `failed`「服务停止时任务被中止」；启动扫 `data/runs/*/task.json`，遗留的
+`queued / running` 按 `events.jsonl` 尾部最后一条 `task.state` 对账，没有就 `failed`「服务重启时任务未结束」。
+
+规范同步：`docs/api-versions.md` §3.1a（新）、§3.3、§4、§6；`docs/diagram-format.md` §1、§9、§10；`docs/display-products.md` §1、§1.1（新，`task.json` 字段）；
+新建 `docs/schemas/resolved.schema.json`；`server/README.md`。
+
+#### 2. 核实到的事实与踩到的坑
+
+- **相对路径 + cwd 是可行的**：核实 `runner.cpp` / `platform.cpp` / `diagram_json.cpp` / `sources.cpp`，`--out`、框图、旁挂、清单、`.iq` 段全部经
+  窄字符相对路径打开，`basename_of("data/runs/<id>")` 得 `<id>`；`platform::make_dirs` 只按 `/` 切分，所以引擎参数禁止用 `path.join` 拼。
+  这一条把「Windows 上路径含空格与中文」的风险在源头消掉：引擎永远见不到根目录，Unicode 的 cwd 由 Node 处理。
+- **真引擎抓到一个假引擎放过的缺陷**：首版把检查用的「精简视图」序列化落盘，观测点丢了 `node / port / products`，真 `--validate` 报
+  `schema: 观测点 s4 缺必填字段 node`；同一根因让幂等哈希对不上。改为落盘与哈希都用原始框图。教训：夹具只能守状态机，格式正确性必须靠真引擎的集成测试。
+- **终态与退出码之间有几毫秒**：`run_state` 在引擎最后一条 stdout 事件时就成终态，`exit_code` 要等进程关闭。语义上前者才是界面要的，
+  所以只改测试等两者都齐。
+- `--validate` 缺省 `task_id` 取文件名主干，不显式传会落成 `diagram`；两处都恒传 `--task-id`。
+- 只脱敏 `payload.message` 有漏洞：`task.state.reasons[]` 与 `nodes[].notes[]` 复制同一段文字，改为整行替换后再 `JSON.parse`。
+- 取消时 `rows_seen` 可能比文件少一行（引擎先刷盘再发事件，杀在两者之间），B-7 读端一律以文件长度为准；`task.json` 只记下界。
+- 假引擎写 stdout 必须用 `writeSync`：管道上的 `process.stdout.write` 在部分平台异步，`crash` 模式会丢事件。
+
+#### 3. 约定（D-042）
+
+同步校验即 400、相对 ASCII 路径与 cwd、整行脱敏唯一入口、串行队列、终态判定与服务端补发、退出收尾与对账、服务端不复刻 schema。
+全文见 CLAUDE.md D-042 与 `docs/api-versions.md` §3.1a。
+
+#### 4. 量化结果（macOS 开发机，原型阶段验证值）
+
+- 服务测试 30 → 58 项全绿（引擎封装 6、解析与脱敏 4、任务管理器 13、HTTP 端点 4、真引擎集成 1）；`npm run typecheck`、`scripts/build-all.sh`、
+  路径与 ASCII 检查全过；引擎 ctest 4 项不变。
+- 真引擎经任务管理器：`--validate` 约 9 ms；切片 ① 框图 `rows_seen` 谱 1953 / 包络 489（与 B-4 命令行一致），`events.jsonl` 序号 1 起连续且行数 = `last_seq`，
+  墙钟 0.14–0.19 s、实时因子 11–15；事件里无仓库根路径。
+- 真服务冒烟（`dist/index.js`，端口 8091）：8 组件目录；幂等 200；真实片段 `dronerfb_0_CH0_S4`（4 M 样点）回放 `finished / degraded`，谱 3906 / 包络 977 行，
+  4888 条事件，旁挂写相对路径，`events.jsonl` 与 `task.json` 都不含 `/Users/`；`internal_param`、`input_occupied`（来自引擎）、`data_id` 三种 400 不留目录；
+  120 s 长任务跑出 704 行后取消 → `cancelled / not_applicable / SIGTERM`，再取消 409；运行中 SIGTERM 服务 → 退出码 143、任务 `failed`「服务停止时任务被中止」、
+  引擎已死（`events.jsonl` 不再增长）；重启后 4 个任务状态如前、幂等键恢复。
+
+#### 5. 本条目产生的待办
+
+- [ ] B-6 WS 服务端与补取：`ws` vendored；`/ws` 订阅 `{subscribe, since}`；`GET /api/v1/tasks/{id}/events?since&limit`（缓冲内走 `events()`，缓冲外读
+      `events.jsonl` 经同一脱敏入口）；`product_row` 按 `row_index × row_len × 4` 读 `<op_id>/<kind>.f32` 转二进制帧；心跳与 `dropped`。
+- [ ] B-7 视窗抽取：读端以文件长度定行数，不信 `rows_seen` 与索引 `rows`。
+- [ ] Windows 原生验证（阶段 0 交付平台基线冻结后）：`\r\n` 切行、TerminateProcess 取消、含中文与空格的仓库根。
+- [ ] 引擎侧（B-4 遗留）：`cuav_run` 收 SIGTERM 后写索引再退出；回放节点的时长截断。

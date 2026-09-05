@@ -15,7 +15,7 @@
 | 消费者 | 动作 |
 |---|---|
 | 框图画布（U-2） | 保存 / 载入 / 提交；连线合法性查组件目录的 `port_compat`（`docs/component-catalog.md`），不手抄规则 |
-| 应用服务（B-5） | `POST /api/v1/tasks` 的载荷；只做 schema 校验与落盘，不解释语义 |
+| 应用服务（B-5） | `POST /api/v1/tasks` 的载荷；只做最小结构检查、内部参数拒绝、`data_id` 解析与落盘，随后同步调 `cuav_run --validate`，不解释语义（`docs/api-versions.md` §3.1a） |
 | 引擎 `cuav_run --validate` / `--run`（B-2、B-4） | 装成 `Graph`，执行连线校验、拓扑排序与运行；错误定位到 `node_id + port` |
 | 回归测试（P1-7） | 算例框图入 `tests/regression/diagrams/`，与黄金结果配对 |
 
@@ -174,12 +174,16 @@
 ```json
 { "schema_version": "cuav-resolved/1",
   "diagram_sha256": "<所配框图文件的 sha256，可选>",
-  "data": { "dronerfb_0_CH0_S4": "<manifest_path>" } }
+  "data": { "dronerfb_0_CH0_S4": "data/iq/measured/dronerfb/dronerfb_0_CH0_S4.manifest.json" } }
 ```
+
+机器可读版本 `docs/schemas/resolved.schema.json`。**路径相对引擎的工作目录、`/` 分隔、纯 ASCII**（B-5，决策 D-042）：应用服务以仓库根为
+cwd 拉起 `cuav_run`，旁挂里写 `<索引所在目录>/<data_id>.manifest.json` 的仓库相对形式，与 `IndexDataResolver` 的定位规则相同；
+引擎的窄字符 `main()` 因此永远见不到可能含中文或空格的绝对根目录。单机手工运行时 cwd 也应是仓库根。
 
 | 消费者 | 动作 |
 |---|---|
-| 应用服务（B-5） | 提交时按 `index.manifest.json` 解析，写 `data/runs/<task_id>/diagram.resolved.json`；框图副本原样落盘 |
+| 应用服务（B-5） | 提交时按 `index.manifest.json` 解析，写 `data/runs/<task_id>/diagram.resolved.json`；框图副本 `diagram.json` 原样落盘（缩进 2 重排）；随后同步 `cuav_run --validate --resolved` 校验，失败即 400 并删目录 |
 | 引擎 `cuav_run --run … --resolved <旁挂>`（B-4） | `MapDataResolver::load_file()` 读入 |
 | 引擎单机 / 回归 `cuav_run --run … --data-index <索引>...` | `IndexDataResolver` 直接读索引，按 `<索引目录>/<data_id>.manifest.json` 定位并核对存在 |
 
@@ -190,6 +194,6 @@ D-037 的「引擎装载器同样拒绝」没有例外。
 
 - [x] 示例参数名与现有组件目录逐一核对（B-2，2026-09-05：示例逐字作装载器夹具
       `engine/tests/diagrams/slice1_tone_noise_psd.json`，装载运行通过）；目录黄金基准 `tests/golden/component-catalog.json` 仍待 B-4
-- [ ] `docs/schemas/resolved.schema.json`（`cuav-resolved/1`），B-5 用到时一并写
+- [x] `docs/schemas/resolved.schema.json`（`cuav-resolved/1`），2026-09-05 随 B-5 写出
 - [ ] 画布序列化的黄金基准 `tests/golden/diagram-slice1.json`（U-2）
 - [ ] 子系统封装与模板（04 §8.2，P2）

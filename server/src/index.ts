@@ -1,10 +1,13 @@
 // 应用服务入口。
 //
-// 当前实现的是显示子线 D1 需要的最小集合：健康检查、场景数据包的只读接口、支持 Range 的
-// 静态文件服务。项目、试验、任务、审计的 REST 端点与 WebSocket 事件推送尚未实现，
-// 见 docs/api-versions.md。
+// 已实现：健康检查、场景数据包的只读接口、支持 Range 的静态文件服务（D1）；组件目录与任务管理
+// （B-5：提交框图 → 拉起 cuav_run 子进程 → 状态机 → 任务列表，见 src/tasks/）。WebSocket 事件推送（B-6）
+// 与视窗抽取端点（B-7）尚未实现，见 docs/api-versions.md。
 //
-// 依赖策略：零运行时依赖，只用 Node 内置模块。Web 框架选型推迟到 P2 阶段的框图平台设计报告。
+// 依赖策略：零运行时依赖，只用 Node 内置模块（B-6 起只加 ws，D-032）。
+//
+// 环境变量：PORT、HOST；CUAV_RUN（引擎二进制，缺省 engine/build/cuav_run）；
+// CUAV_MAX_CONCURRENT_TASKS（同时运行的任务数，缺省 1）。
 //
 // 三条硬约束：
 //   1. 底图必须经 Range 下发（铁律 7）。整份全球底图 137 GB，不支持 Range 等于不可用。
@@ -16,6 +19,9 @@ import { promises as fsp } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { resolveWithin, sendFile, sendJson } from './static.js'
+import { Engine, defaultEngineBinary } from './tasks/engine.js'
+import { createTaskManager } from './tasks/manager.js'
+import { handleTaskRoutes } from './tasks/routes.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..', '..')            // 仓库根目录
@@ -29,6 +35,14 @@ const ROOTS: ReadonlyArray<{ prefix: string; dir: string }> = [
 ]
 /** 前端构建产物；开发时由 Vite 自己伺服，这里是单机模式下的成品目录。 */
 const WEB_DIST = join(ROOT, 'web', 'dist')
+
+/** 引擎与任务管理器。构造无副作用（不 spawn、不读盘），扫描与对账在 start() 里的 init() 做。 */
+export const engine = new Engine({ bin: defaultEngineBinary(ROOT), cwd: ROOT })
+export const tasks = createTaskManager({
+  root: ROOT,
+  engine,
+  maxConcurrent: Number(process.env.CUAV_MAX_CONCURRENT_TASKS ?? 1) || 1,
+})
 
 async function sceneManifest(aoi: string): Promise<unknown | null> {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(aoi)) return null
@@ -68,15 +82,26 @@ export const server = createServer((req, res) => {
 
 async function handle(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
   const method = req.method ?? 'GET'
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
+  const path = url.pathname
+
+  // 任务与组件目录路由自己管方法（POST 只在这里放行）
+  if (path === '/api/v1/components' || path === '/api/v1/tasks' || path.startsWith('/api/v1/tasks/')) {
+    if (await handleTaskRoutes(req, res, url, { mgr: tasks, engine })) return
+  }
   if (method !== 'GET' && method !== 'HEAD') {
     res.writeHead(405, { allow: 'GET, HEAD' })
     return res.end()
   }
-  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
-  const path = url.pathname
 
   if (path === '/api/v1/health') {
-    return sendJson(res, 200, { status: 'ok', service: 'cuav-server', version: '0.0.0' })
+    const cat = await engine.cachedCatalog()
+    return sendJson(res, 200, {
+      status: 'ok',
+      service: 'cuav-server',
+      version: '0.0.0',
+      engine: { available: await engine.available(), ...(cat ? { version: cat.engine_version } : {}) },
+    })
   }
   if (path === '/api/v1/scenes') {
     return sendJson(res, 200, { scenes: await listScenes() })
@@ -114,15 +139,25 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   return sendJson(res, 404, { error: 'not_found', path })
 }
 
-export function start(): void {
+export async function start(): Promise<void> {
+  await tasks.init()
+  tasks.installShutdownHandlers()
+  const engineOk = await engine.available()
   server.listen(PORT, HOST, () => {
     console.log(`cuav-server 监听 http://${HOST}:${PORT}`)
     console.log(`  仓库根目录 ${ROOT}`)
     console.log(`  暴露的数据目录：${ROOTS.map((r) => r.prefix).join('  ')}`)
     console.log(`  前端产物 ${WEB_DIST}`)
+    console.log(`  引擎 ${engine.cfg.bin}${engineOk ? '' : '（不存在或不可执行：任务提交将返回 503）'}`)
+    console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.list(1000).length} 个`)
   })
 }
 
 // 入口判定必须用 pathToFileURL 而不是字符串拼接：仓库根目录名里有空格，
 // import.meta.url 会把它编码成 %20，直接比较字符串永远不相等，服务会静默不启动。
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) start()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  start().catch((e) => {
+    console.error(`cuav-server 启动失败：${String(e)}`)
+    process.exit(1)
+  })
+}
