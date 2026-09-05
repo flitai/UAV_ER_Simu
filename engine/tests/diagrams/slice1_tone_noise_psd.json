@@ -1,0 +1,20 @@
+{
+  "schema_version": "cuav-diagram/1",
+  "diagram_id": "slice1-tone-noise-psd",
+  "name": "单音加噪声到功率谱",
+  "nodes": [
+    { "id": "tone",  "type": "ToneSource",  "params": { "sample_rate_Hz": 1e6, "offset_Hz": 100e3, "amplitude": 0.5 } },
+    { "id": "noise", "type": "NoiseSource", "params": { "sample_rate_Hz": 1e6, "power": 1.0 } },
+    { "id": "mix",   "type": "AddMixer",    "params": {} },
+    { "id": "psd",   "type": "SpectrumAnalyzer", "params": { "nfft": 1024, "window": "hann" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": { "node": "tone",  "port": "out" }, "to": { "node": "mix", "port": "a" } },
+    { "id": "e2", "from": { "node": "noise", "port": "out" }, "to": { "node": "mix", "port": "b" } },
+    { "id": "e3", "from": { "node": "mix",   "port": "out" }, "to": { "node": "psd", "port": "in" } }
+  ],
+  "observation_points": [
+    { "id": "s4", "node": "mix", "port": "out", "products": ["spectrum", "envelope"], "label": "S4 观测点" }
+  ],
+  "run": { "seed": 20260904, "duration_s": 2.0, "time_basis": "LogicalSim" }
+}

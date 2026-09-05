@@ -64,7 +64,7 @@
 | 方法 | 路径 | 说明 | 步骤 |
 |---|---|---|---|
 | GET | `/api/v1/components` | 组件目录，缓存 `cuav_run --catalog` 的输出；格式见 `docs/component-catalog.md` | B-5 |
-| POST | `/api/v1/tasks` | 提交框图 JSON（`docs/diagram-format.md`），返回 `{task_id, state}`；请求头 `Idempotency-Key` 防重（04 §8.6）。服务端在装载前把回放节点的 `data_id` 按数据索引解析成 `manifest_path`，注入服务端副本 `data/runs/<task>/diagram.resolved.json`；提交的框图里出现任何 `internal` 参数即 400（D-037） | B-5 |
+| POST | `/api/v1/tasks` | 提交框图 JSON（`docs/diagram-format.md`），返回 `{task_id, state}`；请求头 `Idempotency-Key` 防重（04 §8.6）。服务端在装载前把回放节点的 `data_id` 按数据索引解析成 `manifest_path`，写成**解析旁挂** `data/runs/<task>/diagram.resolved.json`（`cuav-resolved/1`，`docs/diagram-format.md` §9），引擎经 `cuav_run --resolved` 读入；框图副本本身不含内部参数；提交的框图里出现任何 `internal` 参数即 400（D-037、D-040） | B-5 |
 | GET | `/api/v1/tasks`、`/api/v1/tasks/{id}` | 任务列表；单任务状态与摘要（`task.json`） | B-5 |
 | POST | `/api/v1/tasks/{id}/cancel` | 取消运行中的任务 | B-5 |
 | GET | `/api/v1/tasks/{id}/events?since&limit` | 按序号补取事件 | B-6 |

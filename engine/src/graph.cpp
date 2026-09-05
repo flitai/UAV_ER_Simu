@@ -25,12 +25,21 @@ const PortSpec* Graph::find_port(const std::vector<PortSpec>& v,
 
 bool Graph::connect(NodeId from, const std::string& from_port,
                     NodeId to, const std::string& to_port, std::string& err) {
+    LinkFault fault = LinkFault::None;
+    return connect(from, from_port, to, to_port, err, fault);
+}
+
+bool Graph::connect(NodeId from, const std::string& from_port,
+                    NodeId to, const std::string& to_port, std::string& err, LinkFault& fault) {
+    fault = LinkFault::None;
     if (from >= nodes_.size() || to >= nodes_.size()) {
         err = "连线的节点编号越界";
+        fault = LinkFault::BadNode;
         return false;
     }
     if (from == to) {
         err = "不允许自环：节点 " + nodes_[from].name;
+        fault = LinkFault::SelfLoop;
         return false;
     }
     const auto outs = nodes_[from].comp->outputs();
@@ -39,10 +48,12 @@ bool Graph::connect(NodeId from, const std::string& from_port,
     const PortSpec* i = find_port(ins, to_port);
     if (!o) {
         err = nodes_[from].name + " 没有输出口 " + from_port;
+        fault = LinkFault::NoOutputPort;
         return false;
     }
     if (!i) {
         err = nodes_[to].name + " 没有输入口 " + to_port;
+        fault = LinkFault::NoInputPort;
         return false;
     }
     if (!can_connect(o->type, i->type)) {
@@ -51,11 +62,13 @@ bool Graph::connect(NodeId from, const std::string& from_port,
         err = std::string("端口类型不允许直连：") + to_string(o->type) + " → "
             + to_string(i->type) + "（" + nodes_[from].name + "." + from_port + " → "
             + nodes_[to].name + "." + to_port + "）";
+        fault = LinkFault::Incompatible;
         return false;
     }
     for (const auto& e : edges_) {
         if (e.to == to && e.to_port == to_port) {
             err = nodes_[to].name + " 的输入口 " + to_port + " 已被占用，一个输入口只能连一条边";
+            fault = LinkFault::InputOccupied;
             return false;
         }
     }
@@ -67,6 +80,16 @@ bool Graph::connect(NodeId from, const std::string& from_port,
 }
 
 bool Graph::validate(std::string& err) {
+    GraphFault fault = GraphFault::None;
+    NodeId node = 0;
+    std::string port;
+    return validate(err, fault, node, port);
+}
+
+bool Graph::validate(std::string& err, GraphFault& fault, NodeId& node, std::string& port) {
+    fault = GraphFault::None;
+    node = 0;
+    port.clear();
     // Kahn 拓扑排序
     std::vector<int> indeg(nodes_.size(), 0);
     std::vector<std::vector<NodeId>> adj(nodes_.size());
@@ -89,6 +112,7 @@ bool Graph::validate(std::string& err) {
     }
     if (order_.size() != nodes_.size()) {
         err = "框图里有环，无法拓扑排序";
+        fault = GraphFault::Cycle;
         return false;
     }
     // 输入口必须全部连上：留空口会让组件收到空输入而静默产出错误结果
@@ -100,6 +124,9 @@ bool Graph::validate(std::string& err) {
             }
             if (!linked) {
                 err = nodes_[i].name + " 的输入口 " + p.name + " 没有连线";
+                fault = GraphFault::InputUnconnected;
+                node = i;
+                port = p.name;
                 return false;
             }
         }

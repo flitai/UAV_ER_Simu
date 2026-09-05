@@ -1,7 +1,8 @@
 # 框图文件格式
 
-**状态**：骨架，字段已冻结（2026-09-04，决策 D-030、D-032）。引擎装载器（B-2）与框图画布（U-2）
-尚未实现，实现时以本文为准；要改字段先改本文并记决策。机器可读版本：`docs/schemas/diagram.schema.json`。
+**状态**：字段已冻结（2026-09-04，决策 D-030、D-032）。**引擎装载器 B-2 已实现**（2026-09-05，
+`engine/include/cuav/diagram_json.h`，四项口子见决策 D-040）；框图画布（U-2）尚未实现，实现时以本文为准；
+要改字段先改本文并记决策。机器可读版本：`docs/schemas/diagram.schema.json`。
 
 **依据**：04 §8.2（框图能力：端口兼容性检查、中间观测点、错误定位到模型与端口）、§8.4（组件
 声明）、§8.6（错误码映射到框图、模型、端口）；决策 D-013（连线校验）、D-030、D-032；
@@ -51,13 +52,16 @@
 数组与嵌套对象不允许；需要时拆成多个参数，或用版本号引用随组件包走的外部数据（如 FIR
 系数用 `fir_version`）。
 
-源组件的 `total_samples` 若未写，由装载器按 `run.duration_s × sample_rate_Hz` 补；显式写了以
-显式值为准，且不得超过全局时长。
+源组件的 `total_samples` 若未写，由装载器按 `run.duration_s × sample_rate_Hz` 补（四舍五入到整数样点，
+不足一个样点即错 `duration`）；显式写了以显式值为准，且不得超过全局时长（超过即错 `duration`）。
+`run.block_size` 若给，则作为所有带 `block_samples` 参数且框图未写该参数的节点的块长。回放源的采样率要读
+清单后才知道，`run.duration_s` 对回放节点暂不生效（整片回放或显式 `max_samples`），B-4 / P1-3 余项补。
 
 **参数值不得是服务器路径**（04 §8.6；决策 D-037）。对实测数据的引用一律用数据索引里的标识
 `data_id`（`data/iq/measured/<batch>/index.manifest.json`，如 `dronerfb_0_CH0_S4`），由服务端在任务装载时
 解析成文件位置并以**内部参数**（目录里 `internal: true`，如 `manifest_path`）注入组件；框图文件里出现
-任何内部参数即校验失败。回放节点写法：
+任何内部参数即校验失败（错误码 `internal_param`，引擎与服务都拒，没有「信任副本」的例外）。解析结果如何交给
+引擎见第 9 节。回放节点写法：
 
 ```json
 { "id": "replay", "type": "FileReplaySource", "params": { "data_id": "dronerfb_0_CH0_S4" } }
@@ -78,7 +82,31 @@
 3. `IQStream` 与 `SceneParamFrame` / `ChannelPathSet` 不得直连，中间必须经"施加"类组件（D-013）。
 4. 有环拒绝。
 
-错误报文 `{code, node_id, port, message}`，画布据此高亮节点与端口。
+错误报文 `{code, node_id, port, message}`，画布据此高亮节点与端口。`node_id` 是出错的框图节点 id；观测点
+自身的错误填观测点 id；与节点无关时为空。错误码首版（引擎 `DiagramError.code`，D-040）：
+
+| code | 含义 | 定位 |
+|---|---|---|
+| `json_parse` | 文件打不开或不是合法 JSON | — |
+| `schema` | 结构错误：缺必填、未知键、类型或正则不符、id 重复、`run` 取值越界、`products` 非法 | 有节点或观测点时给 id |
+| `unknown_type` | `type` 不在组件目录 | 节点 |
+| `internal_param` | 框图里出现内部参数（D-037） | 节点或观测点 |
+| `param` | 参数未知、类型错位、越界、缺必填、跨参数约束不满足（组件 `configure()` 的报文原样携带） | 节点或观测点 |
+| `data_id` | 没有数据解析器、`data_id` 解析不到、或引用数据的组件构造失败（清单打不开等） | 节点 |
+| `duration` | `total_samples` 与 `run.duration_s × sample_rate_Hz` 的关系不成立 | 节点 |
+| `scene_binding` | 组件不可绑定场景，或带 `scene_binding` 却无 `scenario_ref` | 节点 |
+| `node_missing` | 连线或观测点引用的节点不存在 | 被引用的 id 与端口 |
+| `port_missing` | 节点没有该输出口 / 输入口 | 节点与端口 |
+| `port_incompatible` | 端口类型不允许直连（D-013，`can_connect()`） | 起点节点与输出口，报文含两端 |
+| `input_occupied` | 一个输入口连了两条边 | 终点节点与输入口 |
+| `input_unconnected` | 输入口悬空 | 节点与输入口 |
+| `cycle` | 有环（含自环） | 自环时给节点 |
+| `observation_port` | 观测点不在 `IQStream` 输出口上 | 节点与端口 |
+| `product_unsupported` | 观测点要求本版本未实现的产品（`iq`） | 观测点 |
+| `graph` | 兜底：引擎内部一致性错误，正常路径不可达 | — |
+
+规则只在引擎 `Graph::connect / validate` 一处解释；装载器拿它们的失败分类（`LinkFault` / `GraphFault`）映射成
+上表的码，不猜报文。
 
 ## 5. 观测点 `observation_points[]`
 
@@ -90,8 +118,11 @@
 | `label` | string | 否 | 显示名 |
 | `params` | object | 否 | 观测点组件 `ObservationTap` 的参数（nfft、窗、桶长），缺省由目录补 |
 
-引擎装载时在该输出口后并联一个 `ObservationTap` 节点，不改用户的边。产品格式见
-`docs/display-products.md`。
+引擎装载时在该输出口后并联一个 `ObservationTap` 节点（图内名字 `op:<id>`），不改用户的边。产品格式见
+`docs/display-products.md`。`products` 映射到 `ObservationTap` 的 `spectrum` / `envelope` 开关；**`iq` 本版本明确
+拒绝**（`product_unsupported`），不静默忽略（铁律 15），观测点 IQ 产品实现后放开。`params` 里不得写 `op_id`、
+`spectrum`、`envelope`（由观测点字段派生，写了即 `schema`）与 `out_dir`（内部参数，运行器注入，写了即
+`internal_param`）。只校验（`cuav_run --validate`）时不注入 `out_dir`，观测点照常构造并校验参数，不落盘。
 
 ## 6. 运行参数 `run`
 
@@ -136,8 +167,29 @@
 }
 ```
 
-## 9. 待写
+## 9. 数据解析旁挂 `cuav-resolved/1`（D-040）
 
-- [ ] 首版组件目录生成后，把示例里的参数名与目录逐一核对（B-4）
+`data_id` 的解析结果**不写进框图副本**，而是另存一份解析旁挂，引擎装载时经 `IDataResolver` 注入：
+
+```json
+{ "schema_version": "cuav-resolved/1",
+  "diagram_sha256": "<所配框图文件的 sha256，可选>",
+  "data": { "dronerfb_0_CH0_S4": "<manifest_path>" } }
+```
+
+| 消费者 | 动作 |
+|---|---|
+| 应用服务（B-5） | 提交时按 `index.manifest.json` 解析，写 `data/runs/<task_id>/diagram.resolved.json`；框图副本原样落盘 |
+| 引擎 `cuav_run --run … --resolved <旁挂>`（B-4） | `MapDataResolver::load_file()` 读入 |
+| 引擎单机 / 回归 `cuav_run --run … --data-index <索引>...` | `IndexDataResolver` 直接读索引，按 `<索引目录>/<data_id>.manifest.json` 定位并核对存在 |
+
+这样框图文件永远只含 `data_id`，路径只在服务端、旁挂与引擎进程里出现；引擎对框图里的内部参数无条件拒绝，
+D-037 的「引擎装载器同样拒绝」没有例外。
+
+## 10. 待写
+
+- [x] 示例参数名与现有组件目录逐一核对（B-2，2026-09-05：示例逐字作装载器夹具
+      `engine/tests/diagrams/slice1_tone_noise_psd.json`，装载运行通过）；目录黄金基准 `tests/golden/component-catalog.json` 仍待 B-4
+- [ ] `docs/schemas/resolved.schema.json`（`cuav-resolved/1`），B-5 用到时一并写
 - [ ] 画布序列化的黄金基准 `tests/golden/diagram-slice1.json`（U-2）
 - [ ] 子系统封装与模板（04 §8.2，P2）

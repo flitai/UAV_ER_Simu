@@ -35,6 +35,25 @@ struct RunReport {
     std::vector<std::string> node_names;
 };
 
+// 连线失败的原因分类。报文仍在 err 里；分类给框图装载器（B-2）映射成带定位的错误码，
+// 免得装载器去猜报文——规则只在 Graph 一处解释（docs/diagram-format.md §1）。
+enum class LinkFault {
+    None = 0,
+    BadNode,          // 节点编号越界
+    SelfLoop,
+    NoOutputPort,
+    NoInputPort,
+    Incompatible,     // can_connect() 拒绝（D-013）
+    InputOccupied,    // 一个输入口只能连一条边
+};
+
+// 校验失败的原因分类：有环，或某个输入口悬空。
+enum class GraphFault {
+    None = 0,
+    Cycle,
+    InputUnconnected,
+};
+
 class Graph {
 public:
     NodeId add(std::unique_ptr<IComponent> comp, const std::string& name);
@@ -42,9 +61,16 @@ public:
     // 连线。类型不匹配、端口不存在、重复连同一输入口，都在这里挡住并写明理由。
     bool connect(NodeId from, const std::string& from_port,
                  NodeId to, const std::string& to_port, std::string& err);
+    // 同上，另给出失败分类。
+    bool connect(NodeId from, const std::string& from_port,
+                 NodeId to, const std::string& to_port, std::string& err, LinkFault& fault);
 
     // 拓扑排序加环检测。有环即报错，不静默丢边。
     bool validate(std::string& err);
+    // 同上，另给出失败分类与位置：悬空输入口时 node / port 指出是谁的哪个口。
+    bool validate(std::string& err, GraphFault& fault, NodeId& node, std::string& port);
+
+    const std::string& name(NodeId id) const { return nodes_.at(id).name; }
 
     // 单线程按拓扑序轮转，直到所有源结束且下游排空。
     RunReport run(IRandom& rng, std::uint64_t max_rounds = 1000000);

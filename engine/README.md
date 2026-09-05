@@ -17,7 +17,7 @@ C++ 分块流 IQ 引擎与组件软件开发包。
 cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure
 ```
 
-## 现状（2026-09-04）
+## 现状（2026-09-05）
 
 | 头文件 | 内容 | 落地步骤 |
 |---|---|---|
@@ -34,12 +34,13 @@ cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on
 | `cuav/components/tap.h` | `ObservationTap`：谱行与包络行定长二进制加索引，回调观察者 | B-3 |
 | `cuav/observer.h` | `IRunObserver`、`ProgressInfo`、`EntityState`、`LinkFrame` | B-3 |
 | `cuav/platform.h` | 目录、原子替换、字节序、路径拼接；唯一允许出现 `#ifdef _WIN32` 的模块 | B-3 |
+| `cuav/diagram_json.h` | 框图 JSON 装载器：`load_diagram()` 按 `docs/diagram-format.md` 装成 `Graph`、观测点并联、`IDataResolver`（`MapDataResolver` 读解析旁挂 / `IndexDataResolver` 读数据索引）、`DiagramError{code, node_id, port, message}`；只校验模式不落盘 | B-2 |
 
-测试：doctest（`third_party/doctest`，自 emcore 拷入），`tests/` 七个文件 37 个用例；黄金基准
+测试：doctest（`third_party/doctest`，自 emcore 拷入），`tests/` 八个文件 50 个用例；框图夹具 `tests/diagrams/`（切片 ① 示例的逐字副本）；黄金基准
 `tests/golden/energy_detector.json` 由 `algos/reference/gen_engine_golden.py` 生成，两侧从同一种子各自生成
 输入；`tests/golden/spectrum_welch.json`（Python 端，含 float32 精确输入）与 `spectrum_welch.matlab.json`
 （MATLAB `pwelch`）供频谱分析三方互证。JSON 用 `third_party/nlohmann/json.hpp`，构建零网络。
 
-尚未有的：可执行入口 `cuav_run`（B-4）、框图 JSON 装载器（B-2）、观测点的 `iq/` 产品、背压与多线程、
+尚未有的：可执行入口 `cuav_run`（B-4）、观测点的 `iq/` 产品、背压与多线程、
 共享内存抽象、`SceneParamFrame` 的施加类组件（G-3）、Coder 产物组件（M-2、M-3）。规范见
 `docs/{component-catalog,diagram-format,display-products}.md`，步骤见 06 备忘录 §9A。

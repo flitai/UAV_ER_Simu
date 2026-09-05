@@ -211,12 +211,15 @@ TEST_CASE("观测点：同种子两次运行，产品文件逐字节相同") {
     CHECK(read_bytes(d1 + "/s4/spectrum.f32") != read_bytes(temp_root() + "/run_b3/s4/spectrum.f32"));
 }
 
-TEST_CASE("观测点参数：缺 op_id、缺 out_dir、op_id 含非法字符、两种产品都关掉，都被拒") {
+TEST_CASE("观测点参数：缺 op_id、op_id 含非法字符、两种产品都关掉在 configure 被拒；缺 out_dir 到 init 才拒") {
     ObservationTap t;
     std::string err;
     CHECK(!t.configure({}, {{"out_dir", "x"}}, err));
     CHECK(err.find("op_id") != std::string::npos);
-    CHECK(!t.configure({}, {{"op_id", "s4"}}, err));
+    // 缺 out_dir：configure 放行（只校验模式要能构造观测点，D-040），init 开文件前拒并点名
+    REQUIRE(t.configure({}, {{"op_id", "s4"}}, err));
+    Xoshiro256pp rng(1);
+    CHECK(!t.init(rng, err));
     CHECK(err.find("out_dir") != std::string::npos);
     CHECK(!t.configure({}, {{"op_id", "S4/../x"}, {"out_dir", "x"}}, err));
     CHECK(err.find("op_id") != std::string::npos);

@@ -7,7 +7,7 @@
 
 ---
 
-## 当前状态快照（更新于 2026-09-04）
+## 当前状态快照（更新于 2026-09-05）
 
 **所处阶段**：P0「需求冻结与数据摸底」，进行中。**整体处于原型系统阶段**（D-028）：
 公开数据集只用于验证技术途径、软件架构与功能实现，**其量化结论一律不作交付指标**，
@@ -79,12 +79,13 @@ M MATLAB 四条步骤线与五个纵向切片；P1-5、P1-6 撤销，P1-8 由 M-
 已落地（框图、场景、显示产品、组件目录，字段已冻结）。
 
 **当前位置与下一步**（2026-09-05）：切片 ①「一条链到频谱」的引擎侧已完成 B-1 注册表与目录、P1-4a 频谱分析、
-B-3 观察者与观测点产品、M-1 `matlab/` 骨架与 M-4 首个三方互证（引擎 37 项单测全绿）。下一步是 B-2 框图 JSON
-装载器（`docs/diagram-format.md`，观测点并联、`data_id` 解析、`internal` 参数拒绝），再到 B-4 `cuav_run`，
-之后服务侧 B-5 至 B-7 与前端 U-1 / U-3。09 报告前半已升 v1.1，其 §15 的十三项 PROVISIONAL 待用户确认。
-**工作树有约 50 个文件未提交**（路线图修订、四份规范、09 报告、引擎新组件与测试、MATLAB 骨架）。公开数据集这条线除 DS-1 与 DA-1 的许可确认外已全部做完；**跨层一致性算例 ①
-在两批独立数据上都通过**（检出率偏差 0.0016–0.0050，容差 0.05–0.10），引擎侧整链复现待切片 ④。
-待用户出面的事项：甲方实测数据；09 报告 §15 的十三项假设。Coder 产物许可已于 2026-09-04 确认不受限；DS-1 / DA-1 两个公开数据集的许可已于 2026-09-05 由用户确认无任何使用与署名约束。
+B-3 观察者与观测点产品、**B-2 框图 JSON 装载器**（示例框图装载运行、观测点并联、`data_id` 经解析器注入、内部参数拒绝、
+错误定位到节点与端口；四项口子拍板 D-040）、M-1 `matlab/` 骨架与 M-4 首个三方互证；引擎 50 项单测 12564 项断言全绿。
+下一步是 B-4 `cuav_run`（`--catalog` 生成目录黄金基准、`--validate`、`--run … --resolved / --data-index`，stdout 带 `seq` 的 JSON 事件），
+之后服务侧 B-5 至 B-7 与前端 U-1 / U-3。09 报告已升 v1.3（十三项暂定已拍板 D-038，D-039 修正已落）。B-2 的改动尚未提交。
+公开数据集这条线已全部做完；**跨层一致性算例 ① 在两批独立数据上都通过**（检出率偏差 0.0016–0.0050，容差 0.05–0.10），
+引擎侧整链复现待切片 ④。待用户出面的事项：甲方实测数据。Coder 产物许可已于 2026-09-04 确认不受限；DS-1 / DA-1 两个公开数据集的
+许可已于 2026-09-05 由用户确认无任何使用与署名约束。
 
 ---
 
@@ -2109,7 +2110,7 @@ v1.0 立住了应用壳（三视图不卸载、上下文单例、目录驱动组
 #### 5. 本条目产生的待办
 
 - [ ] 09 §15 的十三项 PROVISIONAL 待用户确认，尤其瀑布方向、`dBFS（未标定）` 一刀切、验收集片段允许回放。
-- [ ] B-2 装载器实现 `IDataResolver` 与 `internal` 参数拒绝；B-5 服务端解析 `data_id`。
+- [x] B-2 装载器实现 `IDataResolver` 与 `internal` 参数拒绝（2026-09-05，见同日「B-2」条目）；B-5 服务端解析 `data_id` 待做。
 - [ ] G-2 观察者加 `on_link`；`links.jsonl` 产品与 `/links` 端点进 B-3、B-7。
 - [ ] 切片 ① 继续：P1-4a `SpectrumAnalyzer`、B-3 `ObservationTap`、M-1。
 
@@ -2176,8 +2177,8 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 
 #### 7. 本条目产生的待办
 
-- [ ] B-2 框图 JSON 装载器：按 `docs/diagram-format.md` 装 `Graph`，`observation_points[]` 并联成 `ObservationTap`，
-      `IDataResolver` 解析 `data_id`，`internal` 参数出现即拒。
+- [x] B-2 框图 JSON 装载器：按 `docs/diagram-format.md` 装 `Graph`，`observation_points[]` 并联成 `ObservationTap`，
+      `IDataResolver` 解析 `data_id`，`internal` 参数出现即拒（2026-09-05 完成，见同日「B-2」条目）。
 - [ ] B-4 `cuav_run`：`--catalog`（生成首版目录黄金基准）、`--validate`、`--run`；stdout JSON 事件带 `seq`。
 - [ ] M-4 余项：能量检测与 ADC 量化的 MATLAB 参考与黄金向量。
 - [ ] 观测点 `iq/` 产品（按 `docs/iq-format.md` 写 `.iq` 与旁挂清单）。
@@ -2251,3 +2252,73 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 的小字，估算高度比例改为默认折叠的数据包属性，铁律 14、15 的「显式标注、不静默」仍满足，只是呈现强度降低。
 09 报告升 v1.3，CLAUDE.md 开头与 D-039 ②③ 相应改写（上一提交 `879da99` 只含 CLAUDE.md，其说明所述的
 09 与 06 改动由本提交补上），06 §0.1 与 G-5 行同步。
+
+---
+
+### 2026-09-05 · B-2 框图 JSON 装载器
+
+#### 1. 本次做了什么
+
+新建 `engine/include/cuav/diagram_json.h`（130 行）与 `engine/src/diagram_json.cpp`（735 行），把 `docs/diagram-format.md`
+定义的框图文件（`cuav-diagram/1`）装成可运行的 `Graph`：
+
+- **结构校验**手写等价于 `docs/schemas/diagram.schema.json`：未知键在顶层、节点、连线、观测点、`run`、`scenario_ref`、`trace`
+  七处一律拒绝；id 与端口名按正则；参数值只许 number / string / bool；`run` 的种子、时长、时间基准按规范取值。
+- **节点**按注册表 `describe()` 分流参数（bool → 数值表 0/1，enum/string → 文本表），内部参数出现即拒（D-037）；
+  `total_samples` 按 `run.duration_s × sample_rate_Hz` 四舍五入补齐、显式值超时长即拒；`run.block_size` 给未写块长的节点；
+  `data_id` 经 `IDataResolver` 换成 `manifest_path` 注入；然后 `Registry::create_configured()` 构造。
+- **连线**交给 `Graph::connect`；`graph.h` 新增 `LinkFault` / `GraphFault` 失败分类与两个重载，装载器据此把失败映射成带
+  `{code, node_id, port, message}` 的 `DiagramError`，连线规则仍只在 Graph 一处解释，装载器不猜报文。
+- **观测点**在 `IQStream` 输出口后并联 `ObservationTap`（图内名字 `op:<id>`），不改用户的边；`products` 映射到
+  `spectrum` / `envelope` 开关，`iq` 明确拒绝。
+- **两种解析器**：`MapDataResolver`（内存表或解析旁挂 `cuav-resolved/1`）、`IndexDataResolver`（读 `index.manifest.json`，
+  按 `<索引目录>/<data_id>.manifest.json` 定位并核对存在，多份索引里同一 `data_id` 位置不同即拒）。
+- `ObservationTap` 缺 `out_dir` 的检查从 `configure()` 挪到 `init()`：装载器不给 `out_dir` 即「只校验」模式，观测点照常构造
+  并校验参数，运行到 `init` 才拒且报文含 `out_dir`。`test_tap.cpp` 相应改一处断言。
+- 夹具 `engine/tests/diagrams/slice1_tone_noise_psd.json`：`docs/diagram-format.md` §8 示例的逐字副本。测试
+  `engine/tests/test_diagram_json.cpp`（620 行，13 个用例）。
+
+#### 2. 核实到的事实与踩到的坑
+
+- 示例框图的参数名与端口名（`ToneSource.offset_Hz`、`AddMixer.a/b`、`SpectrumAnalyzer.in`、`window` 枚举）与现有目录一致，
+  装载运行通过；`docs/diagram-format.md` §10 第一条待办的引擎侧一半销项，目录黄金基准仍待 B-4。
+- **踩坑一（悬空指针）**：`IComponent::outputs()` 按值返回，`find_port(node->outputs(), port)` 拿到的是临时对象里的指针，
+  表达式结束即失效。后果是观测点挂在 `SpectrumFrame` 口上没被 `observation_port` 拦住，读到垃圾类型后一路走到并联连线才被
+  Graph 拒成 `graph` 兜底码。首轮测试抓到，改为先落局部变量再取指针。C++14 对「按值返回容器再取内部指针」没有语言级保护，
+  后续评审要专门盯这一类写法。
+- **踩坑二（检查顺序）**：`Graph::connect` 先查自环再查端口与占用，所以 `mix.out → mix.a` 报 `cycle` 而非 `input_occupied`。
+  顺序本身合理（自环是更根本的错误），测试按引擎实际顺序改写，`input_occupied` 用 `noise.out → mix.a` 触发。
+- 首批组件里没有 `SceneParamFrame` 输入口的组件，D-013 拒连测试用测试专用 `FakeApplier` 注册进临时 `Registry`；场景绑定
+  分支用 `FakeBindable`。这也证明装载器只读注册表、不硬编码组件清单（D-030）。
+- 数据索引记录里没有路径字段，`data_id → 旁挂清单` 的规则只由索引顶层 `directory` 与 `note` 的命名约定隐式给出；
+  `IndexDataResolver` 把它写成代码并核对文件存在。
+- 工作树在开工时是干净的（`git status` 0 项），快照里「约 50 个文件未提交」是过时描述，已删。
+
+#### 3. 拍板（D-040，用户批准 B-2 计划即拍板）
+
+| # | 口子 | 处置 |
+|---|---|---|
+| a | `data_id` 解析结果怎么到引擎 | 解析旁挂 `diagram.resolved.json`（`cuav-resolved/1`），框图副本永远不含内部参数；引擎对内部参数无条件拒绝 |
+| b | `--validate` 时观测点缺 `out_dir` | `out_dir` 检查挪到 `init()`；装载器不给 `out_dir` 即只校验模式，不落盘 |
+| c | `products` 含 `iq` | 本版本拒绝（`product_unsupported`），不静默忽略 |
+| d | 错误码 | 首版 17 个，表进 `docs/diagram-format.md` §4；`Graph` 增加失败分类供映射 |
+
+连带改动：`docs/diagram-format.md`（状态行、§3 补齐规则、§4 错误码表、§5 `iq` 与禁写参数、新 §9 解析旁挂、§10 待办）；
+`docs/api-versions.md` B-5 行改为「写解析旁挂」；06 §0.3、§9A B-2 `[x]`、B-4 加 `--resolved / --data-index`、B-5 措辞、§14 记修正；
+`engine/README.md` 现状表；CLAUDE.md 里程碑 B 行与 D-040。
+
+#### 4. 量化结果（原型阶段验证值）
+
+- 引擎单测 37 → 50 个用例，12157 → 12564 项断言，全绿；`scripts/build-all.sh`、`check-paths.sh`、`check-ascii.sh` 全过。
+- 新增 13 个用例覆盖 17 个错误码中的 16 个（`graph` 是兜底码，正常路径不可达）。
+- 示例框图：`total_samples` 补齐 2000000；谱 1953 行（1024 点一段，尾巴 448 样点记备注）、包络 489 行（4096 样点一桶）；
+  只校验模式运行到 `init` 被拒，报文含 `out_dir` 与 `op:s4`。
+- 回放夹具 5000 样点经 `MapDataResolver` 装载运行，产品索引 `trace_id = FileReplaySource:fx_replay_1`，谱 4 行。
+
+#### 5. 本条目产生的待办
+
+- [ ] B-4 `cuav_run`：`--catalog`、`--validate <框图>`、`--run <框图> --out <dir> [--seed N] [--resolved <旁挂> | --data-index <索引>...]`；
+      错误事件直接 `to_json(DiagramError)`；`--seed` 覆盖 `run.seed` 须写进事件；`--catalog` 生成 `tests/golden/component-catalog.json`。
+- [ ] 回放节点的时长截断：`FileReplaySource` 的采样率读清单后才知道，`run.duration_s` 对它暂不生效（整片回放或显式 `max_samples`），B-4 或 P1-3 余项补。
+- [ ] B-5：服务端写解析旁挂而不是含内部参数的框图副本（`docs/api-versions.md` 已改）；`docs/schemas/resolved.schema.json` 用到时一并写。
+- [ ] 代码评审关注项：按值返回的容器再取内部指针（本条目踩坑一）。

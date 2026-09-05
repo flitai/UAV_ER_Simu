@@ -76,11 +76,10 @@ bool ObservationTap::configure(const std::map<std::string, double>& params,
             return false;
         }
     }
+    // out_dir 是内部参数，由运行器注入。这里只收下不查空：框图装载器的「只校验」模式
+    // （cuav_run --validate）没有产品目录，也要能把观测点构造出来核对其余参数；
+    // 缺 out_dir 到 init() 开文件时才拒（决策 D-040）。
     out_dir_ = text(text_params, "out_dir", "");
-    if (out_dir_.empty()) {
-        err = "ObservationTap 缺 out_dir（内部参数，应由运行器注入；框图文件里不写）";
-        return false;
-    }
     want_spectrum_ = get(params, "spectrum", 1.0) != 0.0;
     want_envelope_ = get(params, "envelope", 1.0) != 0.0;
     if (!want_spectrum_ && !want_envelope_) { err = "ObservationTap 至少要写一种产品"; return false; }
@@ -101,6 +100,10 @@ bool ObservationTap::configure(const std::map<std::string, double>& params,
 
 bool ObservationTap::init(IRandom&, std::string& err) {
     reset();
+    if (out_dir_.empty()) {
+        err = "ObservationTap 缺 out_dir（内部参数，应由运行器注入；框图文件里不写）";
+        return false;
+    }
     return open_files(err);
 }
 
