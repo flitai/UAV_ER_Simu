@@ -19,10 +19,6 @@ body {
 .scene-stats td { padding: 1px 0; }
 .scene-stats td:first-child { color: #7b7367; }
 .scene-stats td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-.scene-warn {
-  margin-top: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.45;
-  background: #fdf6e3; border-left: 3px solid #dfbe83; color: #6b5a33;
-}
 .scene-src { margin-top: 6px; font-size: 11px; color: #8b8173; }
 .scene-src span { margin-right: 8px; white-space: nowrap; }
 .scene-attrib { margin-top: 6px; font-size: 11px; color: #8b8173; }

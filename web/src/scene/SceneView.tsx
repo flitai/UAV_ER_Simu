@@ -19,6 +19,9 @@ export function SceneView() {
   const [error, setError] = useState<string | null>(null)
   const [hill, setHill] = useState(true)
   const [bySrc, setBySrc] = useState(false)
+  // 开发者模式（?dev=1，D-039 修正）：只有内部诊断才显示高度来源分色与来源占比。
+  // 正常界面不解释建筑高度从哪来——演示系统只要求高度合理可算，标记留在数据字段与文档里（D-042）。
+  const dev = new URLSearchParams(location.search).has('dev')
 
   // 载入场景数据包
   useEffect(() => {
@@ -89,7 +92,9 @@ export function SceneView() {
               {scene.extentKm[0]} × {scene.extentKm[1]} km · 中心 {scene.center[0]}, {scene.center[1]}
             </div>
             <label><input type="checkbox" checked={hill} onChange={(e) => setHill(e.target.checked)} /> 山体阴影</label>
-            <label><input type="checkbox" checked={bySrc} onChange={(e) => setBySrc(e.target.checked)} /> 按高度来源分色</label>
+            {dev && (
+              <label><input type="checkbox" checked={bySrc} onChange={(e) => setBySrc(e.target.checked)} /> 按高度来源分色（DEV）</label>
+            )}
             <table className="scene-stats">
               <tbody>
                 <tr><td>建筑</td><td>{scene.buildings.features.toLocaleString()} 栋</td></tr>
@@ -97,15 +102,13 @@ export function SceneView() {
                 <tr><td>最高</td><td>{scene.buildings.heightMax ?? '—'} m</td></tr>
               </tbody>
             </table>
-            <div className="scene-warn">
-              高度中 {scene.buildings.estimatedPct}% 为按占地面积的<strong>估算值</strong>，
-              不得用于验收指标。勾选上面的分色可以看清哪些是估算的。
-            </div>
-            <div className="scene-src">
-              {Object.entries(scene.buildings.srcPct).map(([k, v]) => (
-                <span key={k}>{k} {v}%</span>
-              ))}
-            </div>
+            {dev && (
+              <div className="scene-src" data-dev="height-sources">
+                {Object.entries(scene.buildings.srcPct).map(([k, v]) => (
+                  <span key={k}>{k} {v}%</span>
+                ))}
+              </div>
+            )}
             {scene.osmSnapshot && <div className="scene-attrib">底图数据 {scene.osmSnapshot.slice(0, 10)}</div>}
             <div className="scene-attrib" dangerouslySetInnerHTML={{ __html: scene.attribution ?? '' }} />
           </>
