@@ -70,7 +70,7 @@
 | GET | `/api/v1/tasks/{id}/events?since&limit` | 按序号补取事件 | B-6 |
 | GET | `/api/v1/results/{task}/{op}/spectrum`、`.../envelope`、`.../scatter`；`/api/v1/results/{task}/track`、`.../detections` | 按视窗抽取的展示数据；参数与响应见 `docs/display-products.md` §3 | B-7 |
 | GET / PUT | `/api/v1/scenarios/{id}` | 场景文件读写，按 `docs/schemas/scenario.schema.json` 校验 | G-4 |
-| GET | `/api/v1/datasets` | 各批数据索引的非路径字段：`data_id`、数据集、通道、中心频率、样点数、分段数、质量四态与原因、`holdout` 标记；不暴露 `.iq`，不暴露任何路径 | U-4 |
+| GET | `/api/v1/datasets` | 各批数据索引的非路径字段：`data_id`、数据集、通道、中心频率、样点数、分段数、质量四态与原因、`holdout` 标记、`calibration{offset_dB, source}`（若有）；不暴露 `.iq`，不暴露任何路径 | U-4 |
 | GET | `/api/v1/datasets/{data_id}` | 单条索引详情（非路径字段）与真值摘要 | U-4 |
 
 项目管理、审计日志、分片上传、模型包留 P2。参考实现 `C-UAV Model Demo/emcore/` 的 `emsvc`

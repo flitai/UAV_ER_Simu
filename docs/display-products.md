@@ -45,7 +45,8 @@ data/runs/<task_id>/
 | `frame_hop_samples` | 相邻两行的样点间隔 |
 | `start_sample`、`t0_s` | 第一行对应的样点序号与逻辑时间 |
 | `nfft`、`segments_per_frame`、`window` | 谱参数；`frame_hop_samples = hop × segments_per_frame` |
-| `scale` | `dBFS`（相对满量程）或 `dB_rel`（相对参考功率）；绝对 dBm 只在有标定时出现 |
+| `scale` | `dBm` 或 `dBFS`。有 `calibration` 即为 `dBm`（行值已加上 `offset_dB`）；没有任何标定常数才写 `dBFS`。界面显示 dBm 时必须带 `calibration.source` 徽标（09 §7.2；用户 2026-09-05 拍板） |
+| `calibration` | `{offset_dB, source ∈ {measured, paper, assumed, model}, note}`：回放数据取自数据索引（公开数据集先按论文参数估算，标 `paper`），合成链取自引擎内部功率约定（标 `model`）；缺失即无此字段 |
 | `floor_dB` | 零功率频点的下限（−300 dB），读端据此识别精确零 |
 | `state`、`state_reasons` | 四态与原因，取自被观测信号的块元数据；**末行段数不足、末桶样点不足、丢弃尾样点是流结束的自然结果，不降级** |
 | `notes` | 说明性备注：`末行只有 m/K 段`、`末桶只有 n/N 个样点`、`收尾丢弃不满一段的 k 个样点` |
