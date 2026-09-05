@@ -20,6 +20,7 @@ public:
     std::vector<PortSpec> outputs() const override {
         return {PortSpec{"out", PortType::IQStream}};
     }
+    ComponentInfo describe() const override;
     bool configure(const std::map<std::string, double>& params,
                    const std::map<std::string, std::string>& text_params,
                    std::string& err) override;
@@ -53,6 +54,7 @@ public:
     std::vector<PortSpec> outputs() const override {
         return {PortSpec{"out", PortType::IQStream}};
     }
+    ComponentInfo describe() const override;
     bool configure(const std::map<std::string, double>& params,
                    const std::map<std::string, std::string>& text_params,
                    std::string& err) override;
@@ -82,6 +84,7 @@ public:
     std::vector<PortSpec> outputs() const override {
         return {PortSpec{"out", PortType::IQStream}};
     }
+    ComponentInfo describe() const override;
     bool configure(const std::map<std::string, double>& params,
                    const std::map<std::string, std::string>& text_params,
                    std::string& err) override;
@@ -92,7 +95,8 @@ public:
 
 private:
     std::string path_;             // .iq 路径；分段文件按清单顺序读
-    std::string manifest_path_;
+    std::string manifest_path_;    // 由装载器按 data_id 解析注入（internal 参数）
+    std::string data_id_;          // 数据索引里的标识，进溯源
     double sample_rate_Hz_ = 0.0;
     double center_frequency_Hz_ = 0.0;
     double full_scale_ = 32768.0;

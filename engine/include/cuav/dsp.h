@@ -7,6 +7,7 @@
 #ifndef CUAV_DSP_H
 #define CUAV_DSP_H
 
+#include <complex>
 #include <cstddef>
 #include <vector>
 
@@ -20,6 +21,13 @@ void fft_inplace(std::vector<Complex>& x);
 
 // 把零频移到中间，与 numpy.fft.fftshift 一致。
 void fftshift(std::vector<Complex>& x);
+
+// double 版本，供频谱分析（P1-4a）与观测点产品（B-3）使用：显示用的谱要与 MATLAB / numpy 的
+// double 结果对到 1e-9，float 版本做不到。旋转因子按频点直接求值，不做递推累积。
+// float 版本保持不变，能量检测的黄金基准依赖它（铁律 10）。
+void fft_inplace(std::vector<std::complex<double>>& x);
+void fftshift(std::vector<std::complex<double>>& x);
+void fftshift(std::vector<double>& x);
 
 // 正则化上不完全伽马函数 Q(a,x)=Γ(a,x)/Γ(a)。
 // 与 algos/reference/energy_detector.py 的 regularized_gamma_q 同算法同分支条件。

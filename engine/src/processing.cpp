@@ -302,4 +302,67 @@ Step DetectionSink::process(PortMap& in, PortMap& out, std::string& err) {
     return Step::Produced;
 }
 
+// ------------------------------------------------------------------ describe()
+
+ComponentInfo AddMixer::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Source;
+    i.display_name = "加法混合";
+    i.description = "两路 IQ 加权相加，用于真实背景加合成目标（04 §15.2 标准算例第 10 项）；"
+                    "两路采样率与中心频率必须一致";
+    i.model_layer = "M3";
+    i.model_level = "E2";
+    i.model_id = "AddMixer";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.params = {
+        ParamSpec::number("gain_a", "", "a 路线性增益").def(1.0),
+        ParamSpec::number("gain_b", "", "b 路线性增益").def(1.0),
+    };
+    return i;
+}
+
+ComponentInfo EnergyDetector::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Algorithm;
+    i.display_name = "能量检测";
+    i.description = "切帧不加窗不重叠，每帧 DFT 后取频段能量，除以逐频点帧维中位数噪声估计，与门限比较；"
+                    "口径与 algos/reference/energy_detector.py 一致（EM-S-02，决策 D-026）";
+    i.model_layer = "M2";
+    i.model_level = "E2";
+    i.model_id = "EnergyDetector";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.stateful = true;
+    i.params = {
+        ParamSpec::number("nfft", "", "帧长，等于 DFT 点数").def(1024.0).at_least(2.0).constrained("2 的幂"),
+        ParamSpec::number("band_lo_Hz", "Hz", "检测频段下限，相对中心频率").req(),
+        ParamSpec::number("band_hi_Hz", "Hz", "检测频段上限，相对中心频率").req()
+            .constrained("band_hi_Hz > band_lo_Hz"),
+        ParamSpec::number("pfa", "", "目标虚警率").def(1e-3).at_least(0.0, true).at_most(1.0, true),
+        ParamSpec::number("noise_frames", "", "用于噪声估计的帧数").def(8192.0).at_least(1.0),
+    };
+    return i;
+}
+
+ComponentInfo DetectionSink::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Algorithm;
+    i.display_name = "检测汇聚";
+    i.description = "检测结果的计数与极值摘要";
+    i.model_layer = "M2";
+    i.model_level = "E1";
+    i.model_id = "DetectionSink";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.stateful = true;
+    return i;
+}
+
 }  // namespace cuav

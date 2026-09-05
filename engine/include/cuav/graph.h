@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "cuav/component.h"
+#include "cuav/observer.h"
 
 namespace cuav {
 
@@ -47,6 +48,8 @@ public:
 
     // 单线程按拓扑序轮转，直到所有源结束且下游排空。
     RunReport run(IRandom& rng, std::uint64_t max_rounds = 1000000);
+    // 带观察者的版本：init 前把观察者挂到每个节点，每轮结束回调 on_progress（B-3）。
+    RunReport run(IRandom& rng, IRunObserver& observer, std::uint64_t max_rounds = 1000000);
 
     IComponent* node(NodeId id) { return nodes_.at(id).comp.get(); }
     std::size_t size() const { return nodes_.size(); }
@@ -63,6 +66,7 @@ private:
     bool validated_ = false;
 
     const PortSpec* find_port(const std::vector<PortSpec>& v, const std::string& name) const;
+    RunReport run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t max_rounds);
 };
 
 }  // namespace cuav

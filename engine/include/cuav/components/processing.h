@@ -28,6 +28,7 @@ public:
     std::vector<PortSpec> outputs() const override {
         return {PortSpec{"out", PortType::IQStream}};
     }
+    ComponentInfo describe() const override;
     bool configure(const std::map<std::string, double>& params,
                    const std::map<std::string, std::string>& text_params,
                    std::string& err) override;
@@ -52,6 +53,7 @@ public:
     std::vector<PortSpec> outputs() const override {
         return {PortSpec{"out", PortType::DetectionList}};
     }
+    ComponentInfo describe() const override;
     bool configure(const std::map<std::string, double>& params,
                    const std::map<std::string, std::string>& text_params,
                    std::string& err) override;
@@ -105,6 +107,7 @@ public:
         return {PortSpec{"in", PortType::DetectionList}};
     }
     std::vector<PortSpec> outputs() const override { return {}; }
+    ComponentInfo describe() const override;
     bool configure(const std::map<std::string, double>&,
                    const std::map<std::string, std::string>&, std::string&) override {
         return true;

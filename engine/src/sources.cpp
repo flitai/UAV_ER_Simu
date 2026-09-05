@@ -164,9 +164,14 @@ void NoiseSource::reset() { produced_ = 0; status_ = ComponentStatus(); }
 bool FileReplaySource::configure(const std::map<std::string, double>& params,
                                  const std::map<std::string, std::string>& text_params,
                                  std::string& err) {
+    // 框图文件里只写 data_id；manifest_path 是内部参数，由装载器按 data_id 解析后注入
+    // （04 §8.6：浏览器不见服务器路径；决策 D-037）。这里两者都收：直接构造（测试、工具）给
+    // manifest_path 即可，经框图装载则两者都有。
+    auto did = text_params.find("data_id");
+    if (did != text_params.end()) data_id_ = did->second;
     auto it = text_params.find("manifest_path");
     if (it == text_params.end()) {
-        err = "FileReplaySource 缺必填参数 manifest_path";
+        err = "FileReplaySource 缺 manifest_path（内部参数，应由装载器按 data_id 解析注入；框图文件里只写 data_id）";
         return false;
     }
     manifest_path_ = it->second;
@@ -290,6 +295,7 @@ Step FileReplaySource::process(PortMap&, PortMap& out, std::string& err) {
     d.iq.meta.full_scale = full_scale_;
     d.iq.meta.scale = -1.0;   // 未标定，不拿 1.0 顶替
     d.iq.meta.trace = make_trace("FileReplaySource", "M3", "E4", "V2");
+    if (!data_id_.empty()) d.iq.meta.trace.trace_id = "FileReplaySource:" + data_id_;   // 数据标识进溯源（铁律 8）
     if (file_state_ != State::Valid) {
         for (const auto& r : file_reasons_) d.iq.meta.degrade(r);
     }
@@ -307,6 +313,88 @@ void FileReplaySource::reset() {
     offset_in_segment_ = 0;
     produced_ = 0;
     status_ = ComponentStatus();
+}
+
+// ------------------------------------------------------------------ describe()
+//
+// 参数描述与上面各 configure() 的规则一一对应：必填项、默认值、范围都以这里为准写进目录；
+// configure() 里保留的检查是第二道闸（跨参数约束）。改任何一处都要同步另一处，
+// test_registry.cpp 里有一致性测试守着。
+
+ComponentInfo ToneSource::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Source;
+    i.display_name = "单音源";
+    i.description = "确定型复指数 x[n] = A·exp(j2πfn/Fs + jφ)，带起止样点可作突发开关；"
+                    "04 §15.2 标准算例第 1、3 项";
+    i.model_layer = "M3";
+    i.model_level = "E2";
+    i.model_id = "ToneSource";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.params = {
+        ParamSpec::number("sample_rate_Hz", "Hz", "复采样率").req().at_least(0.0, true),
+        ParamSpec::number("total_samples", "", "输出总样点数").req().at_least(1.0),
+        ParamSpec::number("center_frequency_Hz", "Hz", "写入块元数据的中心频率").def(0.0),
+        ParamSpec::number("offset_Hz", "Hz", "相对中心频率的频偏").def(0.0)
+            .constrained("|offset_Hz| < sample_rate_Hz / 2（铁律 4）"),
+        ParamSpec::number("amplitude", "", "幅度，线性").def(1.0).at_least(0.0),
+        ParamSpec::number("phase_rad", "rad", "初相").def(0.0),
+        ParamSpec::number("start_sample", "", "起始样点，之前输出零").def(0.0).at_least(0.0),
+        ParamSpec::number("stop_sample", "", "终止样点，之后输出零；0 表示直到结束").def(0.0).at_least(0.0),
+        ParamSpec::number("block_samples", "", "每块样点数").def(65536.0).at_least(1.0),
+    };
+    return i;
+}
+
+ComponentInfo NoiseSource::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Source;
+    i.display_name = "复高斯噪声源";
+    i.description = "复高斯白噪声，功率按每样点线性功率给定；04 §15.2 标准算例第 2 项";
+    i.model_layer = "M3";
+    i.model_level = "E2";
+    i.model_id = "NoiseSource";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.params = {
+        ParamSpec::number("sample_rate_Hz", "Hz", "复采样率").req().at_least(0.0, true),
+        ParamSpec::number("total_samples", "", "输出总样点数").req().at_least(1.0),
+        ParamSpec::number("center_frequency_Hz", "Hz", "写入块元数据的中心频率").def(0.0),
+        ParamSpec::number("power", "", "每样点平均功率 E|x|^2，线性").def(1.0).at_least(0.0),
+        ParamSpec::number("block_samples", "", "每块样点数").def(65536.0).at_least(1.0),
+    };
+    return i;
+}
+
+ComponentInfo FileReplaySource::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Data;
+    i.display_name = "文件回放源";
+    i.description = "读本项目 .iq（复 int16 交织、小端）与旁挂清单，按清单分段顺序回放；"
+                    "04 §15.2 标准算例第 9 项。回放数据不得绑定场景（06 备忘录防线二、三）";
+    i.model_layer = "M3";
+    i.model_level = "E4";
+    i.model_id = "FileReplaySource";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.scene_bindable = false;
+    i.stateful = true;
+    i.params = {
+        ParamSpec::text("data_id", "数据索引里的标识（index.manifest.json 的 data_id，如 dronerfb_0_CH0_S4）；"
+                                   "服务端据此解析文件位置，浏览器不见路径（04 §8.6，D-037）").req(),
+        ParamSpec::text("manifest_path", "旁挂清单路径（docs/iq-format.md 第 4 节），由装载器按 data_id 解析注入；"
+                                         "不得出现在框图文件里").internal_only(),
+        ParamSpec::number("block_samples", "", "每块样点数").def(65536.0).at_least(1.0),
+        ParamSpec::number("max_samples", "", "最多读取的样点数；0 表示读到文件末尾").def(0.0).at_least(0.0),
+    };
+    return i;
 }
 
 }  // namespace cuav

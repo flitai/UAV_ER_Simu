@@ -109,6 +109,14 @@ bool Graph::validate(std::string& err) {
 }
 
 RunReport Graph::run(IRandom& rng, std::uint64_t max_rounds) {
+    return run_impl(rng, nullptr, max_rounds);
+}
+
+RunReport Graph::run(IRandom& rng, IRunObserver& observer, std::uint64_t max_rounds) {
+    return run_impl(rng, &observer, max_rounds);
+}
+
+RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t max_rounds) {
     RunReport rep;
     if (!validated_) {
         std::string err;
@@ -117,6 +125,7 @@ RunReport Graph::run(IRandom& rng, std::uint64_t max_rounds) {
     for (const auto& n : nodes_) rep.node_names.push_back(n.name);
 
     std::string err;
+    for (auto& n : nodes_) n.comp->attach(observer);
     for (auto& n : nodes_) {
         if (!n.comp->init(rng, err)) {
             rep.error = n.name + " 初始化失败：" + err;
@@ -212,6 +221,13 @@ RunReport Graph::run(IRandom& rng, std::uint64_t max_rounds) {
                 }
             }
             if (st == Step::Produced) any_progress = true;
+        }
+        if (observer) {
+            ProgressInfo info;
+            info.round = round;
+            info.node_names = rep.node_names;
+            for (auto& n : nodes_) info.node_status.push_back(n.comp->status());
+            observer->on_progress(info);
         }
         bool all_done = true;
         for (std::size_t i = 0; i < nodes_.size(); ++i) {

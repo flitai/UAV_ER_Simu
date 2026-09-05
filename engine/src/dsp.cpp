@@ -39,6 +39,48 @@ void fftshift(std::vector<Complex>& x) {
     std::rotate(x.begin(), x.begin() + static_cast<long>((n + 1) / 2), x.end());
 }
 
+void fft_inplace(std::vector<std::complex<double>>& x) {
+    const std::size_t n = x.size();
+    if (n == 0) return;
+    if ((n & (n - 1)) != 0) throw std::invalid_argument("FFT 长度必须是 2 的幂");
+    for (std::size_t i = 1, j = 0; i < n; ++i) {
+        std::size_t bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) std::swap(x[i], x[j]);
+    }
+    const double kTwoPi = 6.28318530717958647692;
+    for (std::size_t len = 2; len <= n; len <<= 1) {
+        const std::size_t half = len / 2;
+        // 旋转因子逐点直接求值：递推乘法在 double 里也会积累 1e-13 量级的误差
+        std::vector<std::complex<double>> tw(half);
+        for (std::size_t k = 0; k < half; ++k) {
+            const double ang = -kTwoPi * static_cast<double>(k) / static_cast<double>(len);
+            tw[k] = std::complex<double>(std::cos(ang), std::sin(ang));
+        }
+        for (std::size_t i = 0; i < n; i += len) {
+            for (std::size_t k = 0; k < half; ++k) {
+                const std::complex<double> u = x[i + k];
+                const std::complex<double> v = x[i + k + half] * tw[k];
+                x[i + k] = u + v;
+                x[i + k + half] = u - v;
+            }
+        }
+    }
+}
+
+void fftshift(std::vector<std::complex<double>>& x) {
+    const std::size_t n = x.size();
+    if (n < 2) return;
+    std::rotate(x.begin(), x.begin() + static_cast<long>((n + 1) / 2), x.end());
+}
+
+void fftshift(std::vector<double>& x) {
+    const std::size_t n = x.size();
+    if (n < 2) return;
+    std::rotate(x.begin(), x.begin() + static_cast<long>((n + 1) / 2), x.end());
+}
+
 double regularized_gamma_q(double a, double x) {
     if (x < 0 || a <= 0) throw std::invalid_argument("参数越界");
     if (x == 0) return 1.0;

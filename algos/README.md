@@ -4,6 +4,15 @@
 
 用户算法插件的处理流程是 04 §15.2 十二项标准算例的第 12 项，必须可验证。
 
-## 现状
+## 现状（2026-09-05）
 
-空。
+`reference/` 是参考实现与黄金向量生成器，Python numpy，作为 MATLAB 之外的独立第二实现（D-036）：
+
+| 文件 | 作用 |
+|---|---|
+| `energy_detector.py` | 能量检测器参考实现与检测概率解析式；引擎 C++ 版须复现且不共用代码 |
+| `gen_engine_golden.py` | 复刻引擎随机源，生成 `engine/tests/golden/energy_detector.json` |
+| `gen_spectrum_golden.py` | 闭式确定性信号 + Welch 功率谱，生成 `engine/tests/golden/spectrum_welch.json`（三方互证的 Python 一方） |
+| `ds6_false_alarm.py`、`ds7_pd_curves.py` | 真实背景虚警率标定与检测概率曲线（原型阶段验证值，D-028） |
+
+用户插件接口与评价基线（04 §15.2 第 12 项）尚未开始。
