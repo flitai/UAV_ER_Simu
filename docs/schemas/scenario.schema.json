@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CUAV scenario (cuav-scenario/1)",
+  "description": "合成场景文件。字段冻结见 docs/scenario-format.md。未知键一律拒绝。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scenario_id", "name", "synthetic", "aoi", "coordinate", "time", "seed", "sites", "emitters", "routes"],
+  "properties": {
+    "schema_version": { "const": "cuav-scenario/1" },
+    "scenario_id": { "$ref": "#/$defs/id" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "synthetic": { "const": true },
+    "aoi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "manifest_sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "manifest_sha256": { "type": "string", "pattern": "^([0-9a-f]{64}|<[^>]+>)$" }
+      }
+    },
+    "coordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["crs", "alt_ref", "terrainHeight_m", "coord_version"],
+      "properties": {
+        "crs": { "const": "EPSG:4326" },
+        "alt_ref": { "enum": ["AGL", "MSL"] },
+        "terrainHeight_m": { "type": "number" },
+        "coord_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basis", "duration_s"],
+      "properties": {
+        "basis": { "const": "LogicalSim" },
+        "duration_s": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "seed": { "type": "integer", "minimum": 0 },
+    "sites": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/site" } },
+    "emitters": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/emitter" } },
+    "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
+    "activities": { "type": "array", "items": { "$ref": "#/$defs/activity" } },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "created_by": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_-]{1,64}$" },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lon", "lat", "alt_m"],
+      "properties": {
+        "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "alt_m": { "type": "number" }
+      }
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "position", "antenna", "receiver"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "position": { "$ref": "#/$defs/position" },
+        "antenna": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gain_dBi", "pattern"],
+          "properties": { "gain_dBi": { "type": "number" }, "pattern": { "const": "omni" } }
+        },
+        "receiver": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fs_Hz", "center_Hz", "bw_Hz", "nf_dB"],
+          "properties": {
+            "fs_Hz": { "type": "number", "exclusiveMinimum": 0 },
+            "center_Hz": { "type": "number", "exclusiveMinimum": 0 },
+            "bw_Hz": { "type": "number", "exclusiveMinimum": 0 },
+            "nf_dB": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "waveform": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        { "additionalProperties": false, "properties": { "type": { "const": "tone" }, "offset_Hz": { "type": "number" } }, "required": ["type", "offset_Hz"] },
+        { "additionalProperties": false, "properties": { "type": { "const": "noise" } }, "required": ["type"] },
+        { "additionalProperties": false, "properties": { "type": { "const": "burst" }, "period_s": { "type": "number", "exclusiveMinimum": 0 }, "duty": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "offset_Hz": { "type": "number" } }, "required": ["type", "period_s", "duty", "offset_Hz"] }
+      ]
+    },
+    "emitter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "platform_type", "position", "emission"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "platform_type": { "enum": ["multirotor", "fixed_wing", "racing", "medium"] },
+        "position": { "$ref": "#/$defs/position" },
+        "emission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["center_Hz", "bw_Hz", "tx_power_dBm", "antenna_gain_dBi", "waveform"],
+          "properties": {
+            "center_Hz": { "type": "number", "exclusiveMinimum": 0 },
+            "bw_Hz": { "type": "number", "exclusiveMinimum": 0 },
+            "tx_power_dBm": { "type": "number" },
+            "antenna_gain_dBi": { "type": "number" },
+            "waveform": { "$ref": "#/$defs/waveform" }
+          }
+        }
+      }
+    },
+    "waypoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "speed_mps"],
+      "properties": {
+        "position": { "$ref": "#/$defs/position" },
+        "speed_mps": { "type": "number", "exclusiveMinimum": 0 },
+        "loiter_s": { "type": "number", "minimum": 0 }
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["emitter_id", "waypoints"],
+      "properties": {
+        "emitter_id": { "$ref": "#/$defs/id" },
+        "waypoints": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/waypoint" } },
+        "loop": { "type": "boolean", "default": false }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["emitter_id", "t_s", "event"],
+      "properties": {
+        "emitter_id": { "$ref": "#/$defs/id" },
+        "t_s": { "type": "number", "minimum": 0 },
+        "event": { "enum": ["takeoff", "cruise", "hover", "land", "tx_on", "tx_off", "hop"] },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "center_Hz": { "type": "number", "exclusiveMinimum": 0 },
+            "sequence": { "type": "array", "minItems": 1, "items": { "type": "number", "exclusiveMinimum": 0 } },
+            "dwell_s": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

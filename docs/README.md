@@ -15,11 +15,16 @@
 | 文件 | 内容 | 现状 |
 |---|---|---|
 | `iq-format.md` | IQ 文件容器、样点编码、元数据字段、功率与时间口径 | 骨架，多数章节待写 |
-| `api-versions.md` | 应用服务的 REST 端点、WebSocket 事件、版本策略 | 骨架，待写 |
+| `api-versions.md` | 应用服务的 REST 端点、WebSocket 事件、版本策略 | 3.1 已实现；3.3 端点与第 4 节 WS 事件已冻结待实现（2026-09-04）；版本策略待写 |
 | `scene-package.md` | 场景数据包 `data/scene/<aoi>/` 的目录布局与字段 | 骨架，待写 |
 | `display-route.md` | 地图与态势显示的技术路线、照搬清单、色值标定 | 骨架，已定部分已填 |
 | `concept-model-layers.md` | 60 份概念模型的 M 层归属 | 骨架，族级已填，逐份待确认 |
 | `concept-model-extensions.md` | 对既有概念模型的 IQ 相关字段扩展 | 骨架，待写 |
+| `diagram-format.md` | 框图文件：节点、端口、连线、参数、观测点、场景绑定、运行参数 | 骨架，字段已冻结（2026-09-04，D-030） |
+| `scenario-format.md` | 合成场景文件：站点、辐射源、航线、活动时间线，以及到 `SceneParamFrame` 的契约 | 骨架，字段已冻结（2026-09-04，D-030 / D-033） |
+| `display-products.md` | 任务产品目录、定长行二进制与索引、按视窗抽取端点、WS 二进制帧 | 骨架，字段已冻结（2026-09-04，D-031） |
+| `component-catalog.md` | 引擎导出的组件目录：六类、端口兼容矩阵、参数描述、实现形态 | 骨架，字段已冻结（2026-09-04，D-036） |
+| `schemas/` | `diagram.schema.json`、`scenario.schema.json`，与上两份规范同步 | 已建 |
 | `decisions/` | 需要展开论证的决策记录 | 空，格式见其 README |
 
 ## 写作要求
