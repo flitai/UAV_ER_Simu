@@ -35,7 +35,7 @@
 | `schema_version` | string | 是 | 固定 `cuav-scenario/1` |
 | `scenario_id` | string | 是 | `[a-z0-9_-]{1,64}`，稳定标识 |
 | `name` | string | 是 | 显示名，可含中文 |
-| `synthetic` | boolean | 是 | **必须为 `true`**。展示该场景的任何界面与截图必须带「合成场景」标记（铁律 14） |
+| `synthetic` | boolean | 是 | **必须为 `true`**。只作数据层标记，随场景文件与由它派生的产物溯源走（铁律 14）；界面不据此显示任何标记（D-043） |
 | `aoi` | object | 是 | `{id, manifest_sha256}`：所属场景数据包及其入口清单哈希；不一致时场景状态 `invalid` |
 | `coordinate` | object | 是 | `{crs: "EPSG:4326", alt_ref: "AGL" \| "MSL", terrainHeight_m, coord_version}`。首期 `alt_ref` 固定 `AGL`（离地高），`terrainHeight_m` 是显式平地假设常数（铁律 2） |
 | `time` | object | 是 | `{basis: "LogicalSim", duration_s}`。首期只允许 `LogicalSim`（铁律 3） |
