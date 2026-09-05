@@ -23,7 +23,8 @@ PATTERN='/Users/|/home/[a-z]|[A-Za-z]:\\Users\\'
 FILES='*.py *.ts *.tsx *.js *.mjs *.sh *.json *.toml *.cmake *.cpp *.h *.hpp *.txt *.bat'
 
 # shellcheck disable=SC2086
-hits=$(git grep -nE "$PATTERN" -- $FILES 2>/dev/null \
+# 排除本脚本自身：它的注释与判据里必然出现被查的字样。
+hits=$(git grep -nE "$PATTERN" -- $FILES ":(exclude)scripts/check-paths.sh" 2>/dev/null \
   | grep -vE '^data/[^:]*\.manifest\.json:[0-9]+: *"(origin|origin_note|dev_link_target)"' \
   || true)
 
