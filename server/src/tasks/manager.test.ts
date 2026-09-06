@@ -63,7 +63,7 @@ test('提交→运行→完成：状态机、行计数、task.json 落盘、日�
   const onDisk = await readTask(mgr.storeConfig, rec.task_id)
   assert.deepEqual(onDisk, rec)
   const files = (await fsp.readdir(taskDirAbs(mgr.storeConfig, rec.task_id))).sort()
-  assert.deepEqual(files, ['diagram.json', 'events.jsonl', 'task.json'])
+  assert.deepEqual(files, ['diagram.json', 'events.jsonl', 's4', 'task.json']) // s4/ 是假引擎写的产品目录（B-6 起与真引擎同形）
   const evs = mgr.events(rec.task_id)!
   assert.equal(evs.length, 9)
   assert.deepEqual(evs.map((e) => e.seq), [1, 2, 3, 4, 5, 6, 7, 8, 9])

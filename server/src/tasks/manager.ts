@@ -5,9 +5,10 @@
 // （不过即 400 并删目录）→ 入队。队列 FIFO，缺省同时只跑一个；「关浏览器任务不停」天然成立，因为子进程
 // 归本服务进程而不归 HTTP 连接。
 //
-// 事件：引擎 stdout 每行经脱敏器（resolve.ts）后解析，折进任务记录并放入每任务的环形缓冲；B-6 只需在
-// subscribe() / events() 上加 WebSocket 传输。服务端自己决定的终态（取消、进程异常退出）以一条
-// `task.state` 事件追加到缓冲末尾（payload.source = "server"），序号接在引擎之后，事件流对读端仍然完整。
+// 事件：引擎 stdout 每行经脱敏器（resolve.ts）后解析，折进任务记录并放入每任务的环形缓冲；WebSocket 传输
+// （src/ws/）挂在 subscribe() 上，补取走 readEvents()：缓冲内直接切片，缓冲外顺序读 events.jsonl（B-6）。
+// 服务端自己决定的终态（取消、进程异常退出）以一条 `task.state` 事件追加到缓冲末尾（payload.source = "server"），
+// 序号接在引擎之后，事件流对读端仍然完整；它不在 events.jsonl 里，重启后由 task.json 合成同一条。
 //
 // 取消：引擎没有信号处理（B-4 待办），只能杀——先 SIGTERM，宽限后 SIGKILL；Windows 上两者都是 TerminateProcess。
 // 服务退出：同步杀掉全部运行中子进程并把它们标成 failed，否则 tsx watch 重启与 Windows 关窗会留下孤儿。
@@ -37,8 +38,10 @@ import {
   newTaskId,
   readSidecarData,
   reconcile,
+  readEventLines,
   removeTaskDir,
   scanTasks,
+  serverStateEvent,
   sha256Hex,
   taskDirAbs,
   taskDirRel,
@@ -161,7 +164,7 @@ export class TaskManager {
     return this.tasks.get(taskId)?.rec ?? null
   }
 
-  /** 缓冲里序号大于 since 的事件，最多 limit 条；任务不存在返回 null。缓冲之外的补取（读 events.jsonl）留 B-6。 */
+  /** 缓冲里序号大于 since 的事件，最多 limit 条；任务不存在返回 null。缓冲之外的补取见 readEvents()。 */
   events(taskId: string, since = 0, limit = 1000): EngineEvent[] | null {
     const live = this.tasks.get(taskId)
     if (!live) return null
@@ -180,6 +183,44 @@ export class TaskManager {
     const b = this.tasks.get(taskId)?.buffer
     if (!b || !b.length) return null
     return { first: b[0].seq, last: b[b.length - 1].seq }
+  }
+
+  /**
+   * 补取：序号大于 since 的事件，最多 limit 条，按序号升序、无缺号；任务不存在返回 null（B-6）。
+   *   1. since 落在缓冲内 → 直接切缓冲；
+   *   2. 否则从头顺序读 events.jsonl（经同一脱敏器）；
+   *   3. 文件读完仍不足 limit 且缓冲紧接文件末尾 → 追加缓冲里更新的事件（含服务端补发的终态）；
+   *      缓冲与文件之间若有空洞则不拼接，返回已有的，调用方下一轮再读文件（那时文件已含空洞里的行）；
+   *   4. 缓冲为空（服务重启过）、任务已终态、文件末序号小于 rec.last_seq → 合成服务端终态事件。
+   * 返回空数组表示暂时没有新事件；调用方以「空批次」而不是「不足 limit」判断追平。
+   */
+  async readEvents(taskId: string, since = 0, limit = 1000): Promise<EngineEvent[] | null> {
+    const live = this.tasks.get(taskId)
+    if (!live) return null
+    const cap = Math.max(1, limit)
+    const b = live.buffer
+    if (b.length && b[0].seq <= since + 1) return this.events(taskId, since, cap)
+
+    const out = await readEventLines(join(taskDirAbs(this.store, taskId), FILE_EVENTS), since, cap, live.redact)
+    let last = out.length ? out[out.length - 1].seq : since
+    if (out.length < cap) {
+      if (b.length) {
+        if (b[0].seq <= last + 1) {
+          for (const e of b) {
+            if (e.seq > last) {
+              out.push(e)
+              last = e.seq
+              if (out.length >= cap) break
+            }
+          }
+        }
+      } else {
+        const rec = live.rec
+        const terminal = rec.run_state === 'finished' || rec.run_state === 'failed' || rec.run_state === 'cancelled'
+        if (terminal && last < rec.last_seq) out.push(serverStateEvent(rec, rec.last_seq))
+      }
+    }
+    return out
   }
 
   subscribe(taskId: string, listener: EventListener): () => void {
@@ -382,22 +423,7 @@ export class TaskManager {
 
   /** 服务端决定的终态以一条 task.state 事件追加到缓冲，序号接在引擎之后，B-6 的读端因此总能收到终态。 */
   private emitServerState(live: Live): void {
-    const rec = live.rec
-    this.push(live, {
-      seq: rec.last_seq + 1,
-      task_id: rec.task_id,
-      type: 'task.state',
-      t_s: 0,
-      payload: {
-        run_state: rec.run_state,
-        result: rec.result,
-        reasons: rec.reasons,
-        source: 'server',
-        ended_utc: rec.ended_utc,
-        exit_code: rec.exit_code ?? null,
-        signal: rec.signal ?? null,
-      },
-    })
+    this.push(live, serverStateEvent(live.rec, live.rec.last_seq + 1))
   }
 
   private finish(live: Live, exit: EngineExit): void {
@@ -519,10 +545,18 @@ export class TaskManager {
     this.queue.length = 0
   }
 
-  installShutdownHandlers(): void {
+  /**
+   * 收到 SIGINT / SIGTERM：同步杀引擎并落盘，然后退出。给了 beforeExit（B-6 用来关 WebSocket 连接、让客户端收到
+   * 1001 而不是连接被硬断）就等它，但最多 graceMs，防止关闭挂住。
+   */
+  installShutdownHandlers(beforeExit?: () => Promise<void>, graceMs = 1500): void {
     const onSignal = (sig: NodeJS.Signals) => {
       this.shutdownSync()
-      process.exit(sig === 'SIGINT' ? 130 : 143)
+      const code = sig === 'SIGINT' ? 130 : 143
+      if (!beforeExit) process.exit(code)
+      const t = setTimeout(() => process.exit(code), graceMs)
+      t.unref()
+      beforeExit().finally(() => process.exit(code))
     }
     process.once('SIGINT', onSignal)
     process.once('SIGTERM', onSignal)

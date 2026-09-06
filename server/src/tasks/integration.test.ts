@@ -3,10 +3,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, promises as fsp } from 'node:fs'
 import { join } from 'node:path'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { Engine, defaultEngineBinary } from './engine.js'
 import { HttpError, createTaskManager } from './manager.js'
 import { taskDirAbs, type TaskRecord } from './store.js'
 import { REPO_ROOT, makeRoot, rmrf, slice1, waitFor } from './testkit.js'
+import { WsHub } from '../ws/hub.js'
+import { decodeRowFrame } from '../ws/events.js'
 
 const BIN = defaultEngineBinary(REPO_ROOT)
 const skip = existsSync(BIN) ? false : `没有引擎二进制 ${BIN}，先 cmake --build engine/build`
@@ -44,6 +48,53 @@ test('真引擎：目录与黄金基准同组件集；切片 ① 提交→完成
     assert.equal(evs.length, rec.last_seq)
     for (const e of evs) assert.ok(!JSON.stringify(e).includes(root), '事件里漏出了仓库根')
     console.log(`真引擎：--validate 约 ${validateMs} ms，运行 wall ${rec.wall_s} s，实时因子 ${rec.realtime_factor}`)
+
+    // B-6：WS 回放已完成的任务——二进制帧数 = 谱行 + 包络行，末帧字节与文件末行相同，序号连续到 last_seq，回环上无 dropped
+    const srv = createServer((_req, res) => {
+      res.writeHead(404)
+      res.end()
+    })
+    const hub = new WsHub({ mgr, log: () => undefined })
+    hub.attach(srv)
+    await new Promise<void>((x) => srv.listen(0, '127.0.0.1', x))
+    const sock = new WebSocket(`ws://127.0.0.1:${(srv.address() as AddressInfo).port}/ws`)
+    sock.binaryType = 'arraybuffer'
+    const seqs: number[] = []
+    let bins = 0
+    let dropped = 0
+    let finished = false
+    let lastSpec: ReturnType<typeof decodeRowFrame> | null = null
+    sock.addEventListener('message', (e: MessageEvent) => {
+      if (typeof e.data === 'string') {
+        const ev = JSON.parse(e.data) as { seq: number; type: string; payload: Record<string, unknown> }
+        if (ev.seq > 0) seqs.push(ev.seq)
+        if (ev.type === 'dropped') dropped++
+        if (ev.type === 'task.state' && ev.payload.run_state === 'finished') finished = true
+      } else {
+        const d = decodeRowFrame(e.data as ArrayBuffer)
+        bins++
+        seqs.push(d.header.seq)
+        if (d.header.kind === 'spectrum') lastSpec = d
+      }
+    })
+    await new Promise<void>((x) => sock.addEventListener('open', () => x()))
+    const t1 = Date.now()
+    sock.send(JSON.stringify({ subscribe: rec.task_id, since: 0 }))
+    await waitFor(() => (finished ? true : undefined), 'WS 回放到终态', 60000, 20)
+    const replayMs = Date.now() - t1
+    assert.equal(bins, 1953 + 489)
+    assert.equal(dropped, 0)
+    assert.equal(seqs.length, rec.last_seq)
+    seqs.forEach((s, i) => assert.equal(s, i + 1))
+    const spec = await fsp.readFile(join(dir, 's4', 'spectrum.f32'))
+    const got = lastSpec!.data
+    assert.equal(got.length, 1024)
+    assert.ok(Buffer.from(got.buffer, got.byteOffset, got.byteLength).equals(spec.subarray(spec.length - 1024 * 4)))
+    console.log(`真引擎：WS 回放 ${seqs.length} 条事件（${bins} 帧二进制）用时 ${replayMs} ms`)
+    sock.close()
+    await new Promise<void>((x) => sock.addEventListener('close', () => x()))
+    await hub.close()
+    await new Promise<void>((x) => srv.close(() => x()))
 
     const withInternal = await slice1()
     ;(withInternal.nodes as Array<Record<string, unknown>>)[0] = { id: 'tone', type: 'FileReplaySource', params: { data_id: 'x', manifest_path: '/srv/x' } }

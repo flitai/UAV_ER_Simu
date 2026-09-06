@@ -5,6 +5,8 @@
 //   GET  /api/v1/tasks[?limit=N]       任务列表（created_utc 降序）
 //   GET  /api/v1/tasks/{id}            任务摘要（task.json 内容）
 //   POST /api/v1/tasks/{id}/cancel     取消：排队中立即；运行中杀进程；已结束 409
+//   GET  /api/v1/tasks/{id}/events?since&limit   按序号补取事件（B-6）：缓冲内切片、缓冲外读 events.jsonl，
+//                                      product_row 在这里永远是文本（无数据），数据走 WS 二进制帧或 B-7 端点
 //
 // 这里只做 HTTP：读体、限长、状态码映射。业务在 manager.ts。
 
@@ -23,6 +25,9 @@ export const MAX_BODY_BYTES = 1024 * 1024
 
 const RE_TASK = /^\/api\/v1\/tasks\/([^/]+)$/
 const RE_CANCEL = /^\/api\/v1\/tasks\/([^/]+)\/cancel$/
+const RE_EVENTS = /^\/api\/v1\/tasks\/([^/]+)\/events$/
+export const EVENTS_LIMIT_DEFAULT = 1000
+export const EVENTS_LIMIT_MAX = 5000
 
 /** 命中任务路由返回 true（含 405）；不是任务路由返回 false，交回主路由。 */
 export async function handleTaskRoutes(req: IncomingMessage, res: ServerResponse, url: URL, deps: TaskRouteDeps): Promise<boolean> {
@@ -58,6 +63,22 @@ export async function handleTaskRoutes(req: IncomingMessage, res: ServerResponse
       sendJson(res, 200, await deps.mgr.cancel(id))
       return true
     }
+    const me = RE_EVENTS.exec(path)
+    if (me) {
+      if (method !== 'GET' && method !== 'HEAD') return methodNotAllowed(res, 'GET, HEAD')
+      const id = decodeURIComponent(me[1])
+      const rec = isTaskId(id) ? deps.mgr.get(id) : null
+      if (!rec) return notFound(res, id)
+      const since = parseSince(url.searchParams.get('since'))
+      if (since === null) {
+        sendJson(res, 400, { error: 'bad_request', message: 'since 必须是不小于 0 的整数' })
+        return true
+      }
+      const limit = parseEventsLimit(url.searchParams.get('limit'))
+      const events = (await deps.mgr.readEvents(id, since, limit)) ?? []
+      sendJson(res, 200, { task_id: id, since, events, last_seq: rec.last_seq, run_state: rec.run_state })
+      return true
+    }
     const mt = RE_TASK.exec(path)
     if (mt) {
       if (method !== 'GET' && method !== 'HEAD') return methodNotAllowed(res, 'GET, HEAD')
@@ -90,6 +111,19 @@ function methodNotAllowed(res: ServerResponse, allow: string): true {
 function notFound(res: ServerResponse, id: string): true {
   sendJson(res, 404, { error: 'not_found', task_id: id })
   return true
+}
+
+/** since 缺省 0；非整数或负数返回 null（→ 400）。 */
+function parseSince(v: string | null): number | null {
+  if (v === null || v === '') return 0
+  if (!/^\d{1,15}$/.test(v)) return null
+  return Number(v)
+}
+
+function parseEventsLimit(v: string | null): number {
+  const n = v === null ? NaN : Number(v)
+  if (!Number.isFinite(n) || n < 1) return EVENTS_LIMIT_DEFAULT
+  return Math.min(EVENTS_LIMIT_MAX, Math.floor(n))
 }
 
 function parseLimit(v: string | null): number {

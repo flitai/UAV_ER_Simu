@@ -1,10 +1,11 @@
 // 应用服务入口。
 //
 // 已实现：健康检查、场景数据包的只读接口、支持 Range 的静态文件服务（D1）；组件目录与任务管理
-// （B-5：提交框图 → 拉起 cuav_run 子进程 → 状态机 → 任务列表，见 src/tasks/）。WebSocket 事件推送（B-6）
-// 与视窗抽取端点（B-7）尚未实现，见 docs/api-versions.md。
+// （B-5：提交框图 → 拉起 cuav_run 子进程 → 状态机 → 任务列表，见 src/tasks/）；WebSocket 事件推送与
+// 按序号补取（B-6：/ws 订阅、GET /api/v1/tasks/{id}/events、product_row 转二进制帧，见 src/ws/）。
+// 视窗抽取端点（B-7）尚未实现，见 docs/api-versions.md。
 //
-// 依赖策略：零运行时依赖，只用 Node 内置模块（B-6 起只加 ws，D-032）。
+// 依赖策略：运行时只加 ws 一个包（锁版本、进 THIRD-PARTY-NOTICES，D-032），其余只用 Node 内置模块。
 //
 // 环境变量：PORT、HOST；CUAV_RUN（引擎二进制，缺省 engine/build/cuav_run）；
 // CUAV_MAX_CONCURRENT_TASKS（同时运行的任务数，缺省 1）。
@@ -22,6 +23,7 @@ import { resolveWithin, sendFile, sendJson } from './static.js'
 import { Engine, defaultEngineBinary } from './tasks/engine.js'
 import { createTaskManager } from './tasks/manager.js'
 import { handleTaskRoutes } from './tasks/routes.js'
+import { WsHub } from './ws/hub.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..', '..')            // 仓库根目录
@@ -79,6 +81,10 @@ export const server = createServer((req, res) => {
     else res.end()
   })
 })
+
+/** WebSocket 事件推送。挂在 upgrade 事件上，没有连接时不占任何句柄。 */
+export const hub = new WsHub({ mgr: tasks })
+hub.attach(server)
 
 async function handle(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
   const method = req.method ?? 'GET'
@@ -141,7 +147,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
 
 export async function start(): Promise<void> {
   await tasks.init()
-  tasks.installShutdownHandlers()
+  tasks.installShutdownHandlers(() => hub.close()) // 先关 WS 连接（1001）再退出
   const engineOk = await engine.available()
   server.listen(PORT, HOST, () => {
     console.log(`cuav-server 监听 http://${HOST}:${PORT}`)
@@ -150,6 +156,7 @@ export async function start(): Promise<void> {
     console.log(`  前端产物 ${WEB_DIST}`)
     console.log(`  引擎 ${engine.cfg.bin}${engineOk ? '' : '（不存在或不可执行：任务提交将返回 503）'}`)
     console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.list(1000).length} 个`)
+    console.log(`  WebSocket ws://${HOST}:${PORT}${hub.path}（订阅 {subscribe, since}；补取 GET /api/v1/tasks/{id}/events?since）`)
   })
 }
 

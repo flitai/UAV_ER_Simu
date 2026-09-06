@@ -48,8 +48,8 @@ try {
   const panel = await page.evaluate(
     "({title: document.querySelector('.scene-panel h1')?.textContent, text: document.querySelector('.scene-panel')?.textContent ?? '', devBits: document.querySelectorAll('[data-dev]').length})")
   check('侧栏显示观测区域名称', !!panel.title, panel.title ?? '')
-  // D-042：正常界面不解释建筑高度来源；来源分色与占比只在 ?dev=1 出现
-  check('界面不解释估算高度（D-042）', !/估算|est:|osm:/.test(panel.text) && panel.devBits === 0,
+  // D-042b：正常界面不解释建筑高度来源；来源分色与占比只在 ?dev=1 出现
+  check('界面不解释估算高度（D-042b）', !/估算|est:|osm:/.test(panel.text) && panel.devBits === 0,
     panel.devBits ? `有 ${panel.devBits} 个开发者元素` : '')
 
   await page.screenshot(OUT)

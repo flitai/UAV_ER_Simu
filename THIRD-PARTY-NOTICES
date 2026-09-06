@@ -1,0 +1,35 @@
+第三方件与许可（随包署名）
+==========================
+
+本文件列出随交付包分发的第三方软件及其许可证。依据：CLAUDE.md 铁律 6（运行不联网、依赖随包）、
+铁律 13（第三方代码边界）、决策 D-032（随包依赖锁版本并进本文件）。文件名纯 ASCII（铁律 15）。
+各包的完整许可证文本随 node_modules/<pkg>/LICENSE 进包；离线字形、底图与地形数据的署名见
+web/public/vendor/THIRD-PARTY-NOTICES.md。新增随包件时在此追加一条。
+
+应用服务（server/，运行时）
+---------------------------
+ws 8.21.3 -- MIT
+  Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
+  Copyright (c) 2013 Arnout Kazemier and contributors
+  Copyright (c) 2016 Luigi Pinca and contributors
+  https://github.com/websockets/ws
+  用途：WebSocket 服务端（/ws 事件推送与二进制行帧，B-6）。应用服务唯一的运行时第三方依赖。
+
+前端（web/，打进构建产物）
+--------------------------
+maplibre-gl 5.24.0 -- BSD-3-Clause
+  Copyright (c) 2023, MapLibre contributors
+  https://github.com/maplibre/maplibre-gl-js
+pmtiles 4.4.1 -- BSD-3-Clause（据包内 package.json 的 license 字段；包内未附 LICENSE 文件，出包时自上游仓库补全文）
+  Copyright (c) Protomaps LLC
+  https://github.com/protomaps/PMTiles
+react 19.2.8、react-dom 19.2.8 -- MIT
+  Copyright (c) Meta Platforms, Inc. and affiliates
+  https://github.com/facebook/react
+后续随包件（React Flow 等）按 D-032 在此追加。
+
+引擎（engine/third_party/，构建期 vendored）
+--------------------------------------------
+nlohmann/json 3.11.3 -- MIT，编译进 cuav_run（框图 JSON 装载与事件序列化）
+doctest 2.4.11 -- MIT，只用于单元测试，不进交付包
+两者自 emcore 拷入，来源头与许可证文本见各自目录。

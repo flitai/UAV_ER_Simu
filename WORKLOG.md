@@ -13,13 +13,12 @@
 公开数据集只用于验证技术途径、软件架构与功能实现，**其量化结论一律不作交付指标**，
 甲方数据到货后按同样脚本重跑修订。
 
-**代码进度**：工程骨架已建立（06 备忘录 §2 的 S-1 至 S-7 全部完成），`web`、`server`、
-`engine`、`geo`、`scene` 五个子工程均可空跑，`scripts/build-all.sh` 全绿（2026-09-04 路线图修订后实测：web、server、
-engine 单测、geo 冒烟、路径与 ASCII 检查全部通过；D1 条目记录的那项引擎组件测试失败已不复现），主链仍无业务功能。
-**已有实际功能的代码**：`tools/` 的 IQ 转换脚本与摸底工具（DS-2/DA-2、DS-5/DA-5）、
-`algos/reference/` 的能量检测器参考实现（含检测概率解析式）与 DS-6、DS-7 两个标定脚本，
-合计 49 项单测全绿，均已在两个数据集的真实文件上跑通。骨架提交 `8fe8e85` 时纳入版本控制的文件
-75 个、470 KB（此前快照写的"692 KB"有误，已按 `git ls-tree -r -l` 更正）。
+**代码进度**（更新于 2026-09-05）：工程骨架（06 §2 S-1 至 S-7）之上，切片 ①「一条链到频谱」已打通到服务侧。
+引擎 `engine/`：组件注册表与目录、框图 JSON 装载器、观察者与观测点产品、`SpectrumAnalyzer`（与 Python 与 MATLAB `pwelch` 三方互证）、
+`cuav_run` 可执行（B-1 至 B-4、P1-4a），57 项单测 + 3 项冒烟全绿。服务 `server/`：任务管理器（提交→同步校验→排队→子进程→终态，取消、
+退出收尾、重启对账，B-5）与 WebSocket 推送 / 补取（`/ws` 订阅、`GET .../events?since`、`product_row` 二进制帧，B-6），72 项测试全绿，
+运行时依赖只有 `ws`。前端 `web/`：2.5D 离线底图（D1）；框图画布与信号视图待 U 线。`tools/` 的 IQ 转换与质检、`algos/reference/` 的
+能量检测参考实现与两个标定脚本 49 项单测全绿。`scripts/build-all.sh`（web、server、engine、geo、路径与 ASCII 检查）全过。
 
 **数据进度**：已获得两个公开数据集，均已完成摸底核实，但都尚未转换格式、尚未入库、
 许可条款尚未确认。
@@ -78,13 +77,10 @@ HTTP Range（30 项测试），端到端 14 项断言全过。下一步是 D2 �
 M MATLAB 四条步骤线与五个纵向切片；P1-5、P1-6 撤销，P1-8 由 M-2 兑现，D2 并入 G-5。四份规范骨架
 已落地（框图、场景、显示产品、组件目录，字段已冻结）。
 
-**当前位置与下一步**（2026-09-05）：切片 ①「一条链到频谱」的引擎侧已全部完成：B-1 注册表与目录、P1-4a 频谱分析、
-B-3 观察者与观测点产品、B-2 框图 JSON 装载器（D-040）、**B-4 `cuav_run` 可执行**（`--catalog` 生成目录黄金基准、`--validate` 只校验、
-`--run` 跑通切片 ① 框图并输出带序号的 JSON 事件与 `events.jsonl` 镜像，D-041）、M-1 `matlab/` 骨架与 M-4 首个三方互证；
-引擎 57 项单测 27388 项断言 + 3 项可执行冒烟全绿。**服务侧 B-5 任务管理器已完成**（同日「B-5」条目，D-042）：`POST /api/v1/tasks` 提交框图 →
-同步 `cuav_run --validate`（约 9 ms，不过即 400）→ 串行队列 → 子进程运行 → 终态；取消、服务退出收尾、重启对账、路径脱敏都有测试守着，
-服务 58 项测试全绿，真服务冒烟（切片 ①、真实片段回放、取消、杀服务、重启恢复）全过。下一步是 B-6 WS 服务端与补取、B-7 视窗抽取，
-然后前端 U-1 / U-3。09 报告已升 v1.3。
+**当前位置与下一步**（2026-09-05）：切片 ①「一条链到频谱」的引擎侧（B-1 至 B-4、P1-4a、M-1、M-4）与服务侧（B-5 任务管理器、
+**B-6 WebSocket 服务端与补取**，同日两条日志，D-042、D-044）已全部完成：框图经 `POST /api/v1/tasks` 提交、同步校验、串行运行，事件经 `/ws`
+按序号推送（谱行与包络行是二进制帧），断线以 `since` 重连或 `GET .../events?since` 补取无缺号；真引擎切片 ① 2447 条事件回放 82 ms。
+下一步是 B-7 视窗抽取，然后前端 U-1 三视图壳（含 `web/src/api/ws.ts` 客户端）与 U-3 信号视图。09 报告已升 v1.5。
 公开数据集这条线已全部做完；**跨层一致性算例 ① 在两批独立数据上都通过**（检出率偏差 0.0016–0.0050，容差 0.05–0.10），
 引擎侧整链复现待切片 ④。待用户出面的事项：甲方实测数据。Coder 产物许可已于 2026-09-04 确认不受限；DS-1 / DA-1 两个公开数据集的
 许可已于 2026-09-05 由用户确认无任何使用与署名约束。
@@ -2383,7 +2379,7 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 
 ---
 
-### 2026-09-05 · D-042：界面不解释建筑高度来源与估算
+### 2026-09-05 · D-042b：界面不解释建筑高度来源与估算（原编号 D-042 与 B-5 条目重号，改为 D-042b）
 
 用户看到当前场景视图后指出：本系统本来就是演示系统，并不保证建筑物高度是实际值，用户与本方都不关心，
 没必要在界面上过多解释；只要有比较合理的数据可用于后续计算即可。
@@ -2402,7 +2398,7 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 ### 2026-09-05 · D-043：去掉「合成场景」小字署名
 
 用户问清「合成场景的小字署名」是什么（09 报告为切片 ② 预留的、底图署名旁的三个字，`synthetic = true` 时出现）后指示去掉。
-这是 D-042 的延伸：演示系统不必向用户解释站点与航迹是编的还是录的。落法：场景文件的 `synthetic` 字段保留并随产物走
+这是 D-042b 的延伸：演示系统不必向用户解释站点与航迹是编的还是录的。落法：场景文件的 `synthetic` 字段保留并随产物走
 （数据层，铁律 14）；界面不做任何标记。改动全在文档：09 报告 v1.5（§0 第 9 条、§3 试验详情、§5 示意图与 §5.3、§12、
 §14 探针去掉 `badges.synthetic`），06 §9C G-5 验收项、§9E 切片 ② 与风险摘要、§13「不做」第 5 条改为「不把合成结果当实测
 结论写进文档」，`docs/scenario-format.md` 的 `synthetic` 字段说明，CLAUDE.md 定位段、G 行与 D-043。代码尚未写到 G-5，无代码改动。
@@ -2464,8 +2460,66 @@ float32 精确值的十进制表示；MATLAB 结果写到 `spectrum_welch.matlab
 
 #### 5. 本条目产生的待办
 
-- [ ] B-6 WS 服务端与补取：`ws` vendored；`/ws` 订阅 `{subscribe, since}`；`GET /api/v1/tasks/{id}/events?since&limit`（缓冲内走 `events()`，缓冲外读
+- [x] B-6 WS 服务端与补取（2026-09-05 完成，见同日「B-6」条目）：`ws` vendored；`/ws` 订阅 `{subscribe, since}`；`GET /api/v1/tasks/{id}/events?since&limit`（缓冲内走 `events()`，缓冲外读
       `events.jsonl` 经同一脱敏入口）；`product_row` 按 `row_index × row_len × 4` 读 `<op_id>/<kind>.f32` 转二进制帧；心跳与 `dropped`。
 - [ ] B-7 视窗抽取：读端以文件长度定行数，不信 `rows_seen` 与索引 `rows`。
 - [ ] Windows 原生验证（阶段 0 交付平台基线冻结后）：`\r\n` 切行、TerminateProcess 取消、含中文与空格的仓库根。
 - [ ] 引擎侧（B-4 遗留）：`cuav_run` 收 SIGTERM 后写索引再退出；回放节点的时长截断。
+
+### 2026-09-05 · B-6 WebSocket 服务端与补取
+
+#### 1. 本次做了什么
+
+随包 `ws 8.21.3`（MIT，精确锁版；`@types/ws 8.18.1` 只在开发期），新建仓库根 `THIRD-PARTY-NOTICES`（D-032）。新建 `server/src/ws/{events,hub}.ts`：
+`events.ts` 是二进制帧编解码、连接级报文与按偏移读产品行的 `RowReader`；`hub.ts` 把 `WebSocketServer({noServer})` 挂到 http 服务的 `upgrade` 上，
+每个连接一个会话：收 `{subscribe: task_id, since}` → 先 `mgr.subscribe()` 再应答 `subscribed{since, last_seq, run_state}` → 用 `readEvents()` 分批回放
+到空批次 → 转实时抽队列（`seq ≤ cursor` 即重复跳过）。`product_row` 在 WS 上一律转二进制帧（`[u32 LE header_len][JSON 帧头补齐到 4 字节][Float32 原字节]`，
+帧头 `{seq, task_id, op_id, kind, row_index, row_len, t_s}`），读不到行退回文本事件。背压只丢二进制帧：`bufferedAmount` 超 1 MiB 时不读文件、把序号并进
+待告知区间，在发送下一帧之前先发 `dropped{from, to, count}`；文本事件永不丢；超 16 MiB 以 4013 断开。心跳 15 s 一条 `heartbeat{last_seq}` 加 `ping`，
+两轮没 `pong` 即 `terminate`。
+
+管理器新增 `readEvents(taskId, since, limit)`：缓冲内切片；缓冲外 `store.readEventLines()` 顺序读 `events.jsonl`（复用 `splitLines`、经同一脱敏器、丢末尾半行）；
+文件与缓冲紧接时才拼接；重启后按 `task.json` 合成服务端终态。HTTP 端点 `GET /api/v1/tasks/{id}/events?since&limit` 直接用它，`product_row` 在这里恒为文本。
+`reconcile()` 服务端定终态时把 `last_seq` 推到文件末序号 + 1，与进程内 `emitServerState()` 同规则。服务收 SIGINT / SIGTERM 改为先关 WS 连接（1001）再退出。
+假引擎每行 `product_row` 前先写 `<op_id>/<kind>.f32`（值 = 行号 × 1000 + 列号），新增 `many`（40 行）与 `norows` 两种模式。
+
+规范同步：`docs/api-versions.md` §3.1a、§3.3、§4（新增 §4.0 实现约定）、§6；`docs/display-products.md` §4；06 §9A B-6、§0.3、§14；`server/README.md`；
+CLAUDE.md B 行、环境与命令、D-044。顺手把决策日志里与 B-5 重号的第二条 D-042（界面不解释建筑高度）改为 D-042b（先例 D-027b），09 报告、`SceneView.tsx`、
+e2e、本日志与项目记忆里的引用同步改。
+
+#### 2. 核实到的事实与踩到的坑
+
+- `readline` 会把文件末尾没有换行的半行当整行吐出（实测 `['a','b','partial']`），而引擎可能正在写那一行；改用字节级 `splitLines` 并丢弃残片。
+- `ws.send()` 不能逐条 `await`：等回调会让 `bufferedAmount` 始终接近 0，积压只是转移到本进程的队列，背压判据失效。一律 fire-and-forget，按 `bufferedAmount` 判断。
+- 回放循环要以「空批次」收口而不是「不足 limit」：文件与缓冲之间可能暂时有空洞（缓冲已淘汰、文件尚未含那几行的极短窗口），`readEvents` 遇空洞不拼接、
+  返回已有的，下一轮再读文件即可；按「不足 limit」收口会拼出缺号。
+- `slow` 模式只有 16 条事件，测不出缓冲淘汰；加 `many` 模式并把测试用的深度压到下限 16。
+- `WebSocketServer.close()` 在 `noServer` 模式下不关客户端连接，`http.Server.close()` 也不管已 upgrade 的 socket，必须自己遍历关，测试进程才能退出。
+- 服务端补发的终态事件不在 `events.jsonl` 里（那是引擎的文件），重启后缓冲为空，补取必须按 `task.json` 合成；为此对账时要把 `last_seq` 推到文件末序号 + 1，
+  否则合成事件的序号与进程内的不一致。
+- Node 内置 `WebSocket`（undici）作测试客户端够用：`binaryType = 'arraybuffer'`、`close` 事件带 44xx 码与原因；它自动回 `pong`，漏 pong 断开那项用 `ws`
+  客户端的 `autoPong: false`。
+- 非 `/ws` 路径的 upgrade 直接写 `HTTP/1.1 404` 并销毁 socket，浏览器侧表现为 1006；普通 HTTP `GET /ws` 仍由路由 404。
+- 服务退出时若直接 `process.exit`，客户端只会看到 1006；`installShutdownHandlers` 加了「先等 hub 关连接、最多 1.5 s」的口子，冒烟里客户端收到 1001。
+
+#### 3. 约定（D-044）
+
+帧布局与补齐、`seq = 0` 连接级报文、WS 上 `product_row` 恒二进制 / HTTP 上恒文本、`dropped` 连续且先于下一帧、关闭码、已结束任务的订阅建议。
+全文见 CLAUDE.md D-044 与 `docs/api-versions.md` §4.0。
+
+#### 4. 量化结果（macOS 开发机，原型阶段验证值）
+
+- 服务测试 58 → 72 项全绿（WS 帧与读取 4、WS 服务端 9、HTTP 端点 4 → 5）；`npm run typecheck` 过；`scripts/build-all.sh`（含路径与 ASCII 检查）全过；
+  端到端 `scene-smoke.mjs` 14 项不受影响。
+- 真引擎集成：切片 ① 完成后 WS 从 `since = 0` 回放 2447 条事件（2442 帧二进制 = 谱 1953 + 包络 489）用时 82 ms，序号 1..2447 连续，本机回环无 `dropped`，
+  末帧字节与 `spectrum.f32` 末行相同；`--validate` 约 4 ms。
+- 真服务冒烟（`dist/index.js`，端口 18086）：提交切片 ① 201；连接 A 订阅时任务已跑到 `last_seq = 66`，收 300 帧后主动断开（最大序号 303）；连接 B 以
+  `since = 303` 重连，首条正是 304，收 2142 帧 + 2 条文本到终态用时 126 ms；两段并集 1..2447 无缺号无重复，等于 `task.json.last_seq`；
+  `GET .../events?since=303&limit=100` 首条 304、`product_row` 为文本；保持一个订阅连接时向服务发 SIGINT，客户端收到关闭码 1001，服务退出码 130。
+
+#### 5. 本条目产生的待办
+
+- [ ] B-7 视窗抽取：读端以文件长度定行数；`readEventLines` 每批从头扫（O(n)），文件超过十万行时加字节偏移记忆。
+- [ ] U-1 `web/src/api/ws.ts`：按 §4.0 实现客户端（`seq = 0` 不推进 `lastSeq`、`dropped → lastSeq = to`、缺号即 HTTP 补取、退避重连带 `since`）；
+      已结束任务用 `since = last_seq` 订阅、历史走 B-7。
+- [ ] Windows 原生验证追加：引擎追加 `.f32` 时服务端并发读同一文件（共享模式）、`terminate()` 后句柄释放。

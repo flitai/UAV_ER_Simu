@@ -112,6 +112,34 @@ test('提交、列表、单任务、幂等、取消、404 / 405 / 409', async ()
   assert.equal(lim.tasks.length, 1)
 })
 
+test('GET /api/v1/tasks/{id}/events：since / limit 补取、product_row 为文本、参数校验 400、404 / 405、HEAD', async () => {
+  const r = await post('/api/v1/tasks', await slice1())
+  const t = (await r.json()) as TaskRecord
+  await waitFor(() => (mgr.get(t.task_id)!.run_state === 'finished' ? true : undefined), '任务结束')
+  const url = `${base}/api/v1/tasks/${t.task_id}/events`
+  type Resp = { task_id: string; since: number; events: Array<{ seq: number; type: string; payload: Record<string, unknown> }>; last_seq: number; run_state: string }
+  const a = (await (await fetch(`${url}?since=3&limit=2`)).json()) as Resp
+  assert.equal(a.task_id, t.task_id)
+  assert.equal(a.since, 3)
+  assert.deepEqual(a.events.map((e) => e.seq), [4, 5])
+  assert.equal(a.last_seq, 9)
+  assert.equal(a.run_state, 'finished')
+  assert.equal(a.events[0].type, 'product_row')
+  assert.deepEqual(Object.keys(a.events[0].payload).sort(), ['kind', 'op_id', 'row_index', 'row_len'])
+  const all = (await (await fetch(url)).json()) as Resp
+  assert.deepEqual(all.events.map((e) => e.seq), [1, 2, 3, 4, 5, 6, 7, 8, 9])
+  assert.equal(all.since, 0)
+  const big = (await (await fetch(`${url}?since=0&limit=99999`)).json()) as Resp
+  assert.equal(big.events.length, 9)
+  assert.deepEqual(((await (await fetch(`${url}?since=9`)).json()) as Resp).events, [])
+  for (const bad of ['-1', 'x', '1.5', '1e3']) assert.equal((await fetch(`${url}?since=${bad}`)).status, 400, `since=${bad}`)
+  assert.equal((await fetch(`${base}/api/v1/tasks/t00000000-000000-0000/events`)).status, 404)
+  const p = await fetch(url, { method: 'POST' })
+  assert.equal(p.status, 405)
+  assert.equal(p.headers.get('allow'), 'GET, HEAD')
+  assert.equal((await fetch(url, { method: 'HEAD' })).status, 200)
+})
+
 // ---------------------------------------------------------------------------
 // 真正的应用服务：接线正确、import 无副作用（不 spawn、不扫盘）、其它路径 POST 仍 405
 import { server as appServer } from '../index.js'
@@ -125,7 +153,12 @@ after(async () => {
   await new Promise<void>((r) => appServer.close(() => r()))
 })
 
-test('index.ts：任务路由已挂，未 init 时列表为空；健康检查带 engine 字段；其它路径 POST 405', async () => {
+test('index.ts：任务路由已挂，未 init 时列表为空；健康检查带 engine 字段；其它路径 POST 405；/ws 已挂 upgrade', async () => {
+  const sock = new WebSocket(`${appBase.replace('http', 'ws')}/ws`)
+  await new Promise<void>((x) => sock.addEventListener('open', () => x()))
+  sock.send(JSON.stringify({ subscribe: 't00000000-000000-0000', since: 0 }))
+  const code = await new Promise<number>((x) => sock.addEventListener('close', (e: CloseEvent) => x(e.code)))
+  assert.equal(code, 4404)
   const l = await fetch(`${appBase}/api/v1/tasks`)
   assert.equal(l.status, 200)
   assert.deepEqual(await l.json(), { tasks: [] })

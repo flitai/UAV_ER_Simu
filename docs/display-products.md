@@ -119,15 +119,16 @@ data/runs/<task_id>/
 
 ## 4. 实时推送
 
-运行中的新行经 WebSocket **二进制帧**推送（`docs/api-versions.md` §4）：帧头
-`{seq, task_id, op_id, kind, row_index, row_len}` 加 Float32 载荷。浏览器只追加显示不保存；
-回看与缩放走第 3 节端点。量级：20 Hz × 1024 bin × 4 B ≈ 80 KB/s。允许丢帧，但必须以
-`dropped{from, to}` 告知，`task.state` 与 `error` 事件永不丢。
+运行中的新行经 WebSocket **二进制帧**推送（`docs/api-versions.md` §4，字节布局见 §4.0，B-6 已实现，D-044）：
+`[u32 LE header_len][JSON 帧头 {seq, task_id, op_id, kind, row_index, row_len, t_s} 补齐到 4 字节][Float32 LE 载荷]`，
+载荷就是 `.f32` 该行的原字节。浏览器只追加显示不保存；回看与缩放走第 3 节端点。量级：20 Hz × 1024 bin × 4 B ≈ 80 KB/s。
+允许丢帧，但必须以 `dropped{from, to, count}` 告知（区间连续、先于下一帧），`task.state` 与 `error` 事件永不丢。
+断线后的补取端点 `GET /api/v1/tasks/{id}/events?since` 里 `product_row` 只是文本（无数据）。
 
 引擎侧的来源（B-4）：`ObservationTap` 每写一行就 `fflush`，随即经运行器在 stdout 发一条不带数据的 `product_row`
 事件 `{op_id, kind, row_index, row_len}`（`docs/api-versions.md` §4.1）；应用服务据此从 `<op_id>/<kind>.f32` 的
 `row_index × row_len × 4` 偏移读出该行并转成二进制帧。索引里的 `rows` 仍每 64 行更新一次，它服务的是回看端点，
-实时推送不等它。
+实时推送不等它——这是第 2 节「读端只读 `rows` 以内的行」的**有意例外**，靠引擎逐行 `fflush` 保证；行尚未落盘（短读）时服务端退回发文本事件，不发半行。
 
 ## 5. 待写
 

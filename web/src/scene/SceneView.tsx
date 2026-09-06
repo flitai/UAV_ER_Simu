@@ -20,7 +20,7 @@ export function SceneView() {
   const [hill, setHill] = useState(true)
   const [bySrc, setBySrc] = useState(false)
   // 开发者模式（?dev=1，D-039 修正）：只有内部诊断才显示高度来源分色与来源占比。
-  // 正常界面不解释建筑高度从哪来——演示系统只要求高度合理可算，标记留在数据字段与文档里（D-042）。
+  // 正常界面不解释建筑高度从哪来——演示系统只要求高度合理可算，标记留在数据字段与文档里（D-042b）。
   const dev = new URLSearchParams(location.search).has('dev')
 
   // 载入场景数据包

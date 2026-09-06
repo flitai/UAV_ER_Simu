@@ -10,10 +10,14 @@
 //   io4     stderr 一句话、不发事件，退出 4
 //   hang    running 后每 100 ms 一行 product_row，直到被杀
 //   slow    running 后每 50 ms 一行，共 12 行，再 finished
+//   many    running 后一口气 40 行谱（不延时），再 finished；用于缓冲溢出与回放测试
+//   norows  不写 .f32 产品文件，只发 product_row 事件；用于测服务端「行读不到退回文本」（B-6）
 //   crash   running 后两行产品，然后 SIGKILL 自杀
 //   crlf    事件行以 \r\n 结尾，并把一条含多字节字符的 log 拆成两次写、中间停 20 ms
 //   __bad__ 名字里含它时 --validate 发 error 退 2（模拟校验失败）
 // 所有写 stdout 用 writeSync：管道上的 process.stdout.write 在部分平台是异步的，crash 模式会丢事件。
+// 每行 product_row 事件之前先把该行写进 <out>/<op_id>/<kind>.f32（Float32 LE，值 = row_index × 1000 + 列号），
+// 与真引擎「先 fflush 再发事件」同序，B-6 的二进制帧测试据此核对载荷。
 
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs'
 
@@ -188,9 +192,20 @@ emit('progress', 0, { round: 1, nodes: nodeStatus })
 
 const op = taps.length ? taps[0].op_id : 's4'
 let rows = 0
+const rowFds = {}
 function productRow(kind, i, t) {
   rows++
-  emit('product_row', t, { op_id: op, kind, row_index: i, row_len: kind === 'spectrum' ? 1024 : 3 })
+  const rowLen = kind === 'spectrum' ? 1024 : 3
+  if (!modes.has('norows')) {
+    if (rowFds[kind] === undefined) {
+      mkdirSync(outDir + '/' + op, { recursive: true })
+      rowFds[kind] = openSync(`${outDir}/${op}/${kind}.f32`, 'w')
+    }
+    const buf = Buffer.alloc(rowLen * 4)
+    for (let k = 0; k < rowLen; k++) buf.writeFloatLE(i * 1000 + k, k * 4)
+    writeSync(rowFds[kind], buf)
+  }
+  emit('product_row', t, { op_id: op, kind, row_index: i, row_len: rowLen })
 }
 function finish(result) {
   const ended = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
@@ -217,6 +232,9 @@ if (modes.has('crash')) {
 if (modes.has('hang')) {
   let i = 0
   setInterval(() => productRow('spectrum', i++, i * 0.1), 100)
+} else if (modes.has('many')) {
+  for (let i = 0; i < 40; i++) productRow('spectrum', i, i * 0.05)
+  finish('valid')
 } else if (modes.has('slow')) {
   let i = 0
   const timer = setInterval(() => {

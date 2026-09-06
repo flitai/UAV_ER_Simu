@@ -11,9 +11,12 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
-  "dependencies": {},
+  "dependencies": {
+    "ws": "8.21.3"
+  },
   "devDependencies": {
     "@types/node": "26.4.1",
+    "@types/ws": "8.18.1",
     "tsx": "4.23.13",
     "typescript": "6.0.3"
   }

@@ -7,11 +7,14 @@
 // 持久化 = 内存表 + 每任务一份 task.json（原型阶段；SQLite 留 P2）。task.json 用「写临时文件再改名」
 // 的方式落盘，读端不会读到半个文件。启动时扫描目录重建内存表；上一世代遗留的 queued / running 任务按
 // events.jsonl 尾部的最后一条 task.state 对账，没有终态就标 failed。
+//
+// events.jsonl 的两种读法都在这里：启动期倒着读尾部（对账），以及 B-6 补取时从头顺序读（缓冲之外的事件）。
+// 服务端自己决定的终态不在 events.jsonl 里（那是引擎的文件），重启后由 task.json 合成，序号 = last_seq。
 
 import { createHash, randomBytes } from 'node:crypto'
-import { promises as fsp, writeFileSync, renameSync, openSync, readSync, closeSync, fstatSync } from 'node:fs'
+import { createReadStream, promises as fsp, writeFileSync, renameSync, openSync, readSync, closeSync, fstatSync } from 'node:fs'
 import { join } from 'node:path'
-import { asDiagramError, parseEvent, type DiagramError, type EngineEvent } from './engine.js'
+import { asDiagramError, parseEvent, splitLines, type DiagramError, type EngineEvent } from './engine.js'
 
 export const TASK_SCHEMA = 'cuav-task/1'
 export const DEFAULT_RUNS_REL = 'data/runs'
@@ -254,6 +257,37 @@ function asResult(v: unknown, fallback: ResultState): ResultState {
   return v === 'valid' || v === 'degraded' || v === 'invalid' || v === 'not_applicable' ? v : fallback
 }
 
+/**
+ * 服务端自己决定终态时补发的 task.state 载荷（payload.source = "server"）。管理器在进程退出时用它造事件推给订阅者；
+ * 重启后缓冲为空，readEvents 用同一个函数按 task.json 合成同一条事件，两条路径的读端看到的东西一样。
+ */
+export function serverStatePayload(rec: TaskRecord): Record<string, unknown> {
+  return {
+    run_state: rec.run_state,
+    result: rec.result,
+    reasons: rec.reasons,
+    source: 'server',
+    ended_utc: rec.ended_utc,
+    exit_code: rec.exit_code ?? null,
+    signal: rec.signal ?? null,
+  }
+}
+
+/** 造出服务端终态事件本身；序号由调用方给（进程内 = 引擎最后序号 + 1；重启后 = rec.last_seq）。 */
+export function serverStateEvent(rec: TaskRecord, seq: number): EngineEvent {
+  return { seq, task_id: rec.task_id, type: 'task.state', t_s: 0, payload: serverStatePayload(rec) }
+}
+
+/** 一组（未脱敏的）事件行里可解析事件的最大序号；没有可解析的行返回 0。 */
+export function lastSeqInLines(lines: string[], redact: (line: string) => string): number {
+  let max = 0
+  for (const l of lines) {
+    const ev = parseEvent(redact(l))
+    if (ev && ev.seq > max) max = ev.seq
+  }
+  return max
+}
+
 /** 读文件末尾至多 `bytes` 字节里的完整行（丢掉可能被截断的首行与没有换行的末行）。同步，启动期用。 */
 export function readTailLines(path: string, bytes = 65536): string[] {
   let fd = -1
@@ -310,5 +344,46 @@ export function reconcile(cfg: StoreConfig, rec: TaskRecord, redact: (line: stri
     rec.reasons = ['服务重启时任务未结束']
   }
   rec.ended_utc = utcNow()
+  // 这条终态是服务端定的，序号接在引擎最后一条之后（与进程内 emitServerState 同规则）。task.json 里的
+  // last_seq 只在状态事件时落盘、通常落后，所以以文件尾部为准。B-6 的补取据此合成同序号的 task.state。
+  rec.last_seq = Math.max(rec.last_seq, lastSeqInLines(lines, redact)) + 1
   return true
+}
+
+/**
+ * 从头顺序读 events.jsonl，返回序号大于 since 的事件，最多 limit 条（B-6 补取，缓冲之外的路径）。
+ * 每行先经脱敏器再解析（与实时路径同一入口）；字节级切行复用 splitLines（去尾 `\r`，多字节字符可跨 chunk）；
+ * **末尾没有换行的残片一律丢弃**——引擎可能正在写这一行。文件不存在返回空数组。够 limit 条即销毁流，不再读。
+ */
+export function readEventLines(path: string, since: number, limit: number, redact: (line: string) => string): Promise<EngineEvent[]> {
+  return new Promise((resolve) => {
+    const out: EngineEvent[] = []
+    if (limit <= 0) return resolve(out)
+    let carry: Buffer = Buffer.alloc(0)
+    let settled = false
+    const stream = createReadStream(path)
+    const finish = () => {
+      if (settled) return
+      settled = true
+      resolve(out)
+    }
+    stream.on('data', (chunk) => {
+      const r = splitLines(chunk as Buffer, carry)
+      carry = r.carry
+      for (const line of r.lines) {
+        if (!line.length) continue
+        const ev = parseEvent(redact(line))
+        if (!ev || ev.seq <= since) continue
+        out.push(ev)
+        if (out.length >= limit) {
+          stream.destroy()
+          finish()
+          return
+        }
+      }
+    })
+    stream.on('end', finish)
+    stream.on('close', finish)
+    stream.on('error', finish) // ENOENT 等：当作没有事件
+  })
 }
