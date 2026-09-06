@@ -92,6 +92,7 @@
 | `unknown_type` | `type` 不在组件目录 | 节点 |
 | `internal_param` | 框图里出现内部参数（D-037） | 节点或观测点 |
 | `param` | 参数未知、类型错位、越界、缺必填、跨参数约束不满足（组件 `configure()` 的报文原样携带） | 节点或观测点 |
+| `param_conflict` | 互斥参数同时给出（目录 `excludes[]`，如 `level_dBm` 与 `amplitude`）；判据是注册表报文里的「只能给一个」 | 节点 |
 | `data_id` | 没有数据解析器、`data_id` 解析不到、或引用数据的组件构造失败（清单打不开等） | 节点 |
 | `duration` | `total_samples` 与 `run.duration_s × sample_rate_Hz` 的关系不成立 | 节点 |
 | `scene_binding` | 组件不可绑定场景，或带 `scene_binding` 却无 `scenario_ref` | 节点 |

@@ -1,11 +1,20 @@
 {
   "schema": "cuav-batch-index/1",
-  "created_utc": "2026-09-04T03:42:24Z",
+  "created_utc": "2026-09-06T04:18:53Z",
   "producer": "tools/build_batch_index.py 0.1.0",
   "directory": "data/iq/measured/dronerfb",
   "product_count": 4690,
   "datasets": {
     "DroneRFb-DIR": 4690
+  },
+  "calibration": {
+    "DroneRFb-DIR": {
+      "full_scale_dBm": -1.6,
+      "source": "model",
+      "status": "prototype",
+      "estimated_utc": "2026-09-06T04:16:45Z",
+      "product_count": 4690
+    }
   },
   "quality_distribution": {
     "degraded": 4690

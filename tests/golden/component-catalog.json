@@ -149,7 +149,7 @@
     },
     {
       "category": "data",
-      "description": "读本项目 .iq（复 int16 交织、小端）与旁挂清单，按清单分段顺序回放；04 §15.2 标准算例第 9 项。回放数据不得绑定场景（06 备忘录防线二、三）",
+      "description": "读本项目 .iq（复 int16 交织、小端）与旁挂清单，按清单分段顺序回放；量化码按清单 power.calibration 换算到引擎功率单位（D-047），无常数则只除满量程并标未标定；04 §15.2 标准算例第 9 项。回放数据不得绑定场景（06 备忘录防线二、三）",
       "display_name": "文件回放源",
       "implementation": "cpp",
       "model_id": "FileReplaySource",
@@ -248,6 +248,16 @@
           "unit": ""
         },
         {
+          "description": "采样带宽内总功率，引擎内部功率单位为 mW（D-047）；给出时代替 power",
+          "excludes": [
+            "power"
+          ],
+          "name": "power_dBm",
+          "required": false,
+          "type": "number",
+          "unit": "dBm"
+        },
+        {
           "default": 65536.0,
           "description": "每块样点数",
           "min": 1.0,
@@ -273,7 +283,7 @@
     },
     {
       "category": "algorithm",
-      "description": "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，dBFS）与包络行（桶内 |x| 的 min、max、rms），定长行二进制加索引（docs/display-products.md）；每行同时交给运行观察者供实时推送。框图里由 observation_points[] 在装载时并联生成（docs/diagram-format.md §5）",
+      "description": "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，已标定为 dBm、未标定为 dBFS）与包络行（桶内 |x| 的 min、max、rms），定长行二进制加索引（docs/display-products.md）；每行同时交给运行观察者供实时推送。框图里由 observation_points[] 在装载时并联生成（docs/diagram-format.md §5）",
       "display_name": "观测点",
       "implementation": "cpp",
       "model_id": "ObservationTap",
@@ -505,6 +515,16 @@
           "required": false,
           "type": "number",
           "unit": ""
+        },
+        {
+          "description": "单音功率，引擎内部功率单位为 mW（D-047）；给出时代替 amplitude，A = sqrt(10^(L/10))",
+          "excludes": [
+            "amplitude"
+          ],
+          "name": "level_dBm",
+          "required": false,
+          "type": "number",
+          "unit": "dBm"
         },
         {
           "default": 0.0,

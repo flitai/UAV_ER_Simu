@@ -41,6 +41,9 @@ struct ParamSpec {
     // 内部参数：由装载器解析注入（如按 data_id 解析出的文件位置），不进画布，
     // 不得出现在框图文件里（04 §8.6 不向浏览器暴露服务器路径；决策 D-037）。
     bool internal = false;
+    // 互斥参数：与本参数不能同时给出（如 level_dBm 与 amplitude）。registry 的参数校验先拒，
+    // 组件 configure() 再守一道；装载器把这类错误映射为 param_conflict（docs/diagram-format.md §4）。
+    std::vector<std::string> excludes;
 
     // 链式构造，让组件的 describe() 读起来像一张表。
     static ParamSpec number(const std::string& name, const std::string& unit,
@@ -58,6 +61,7 @@ struct ParamSpec {
     ParamSpec& at_most(double v, bool exclusive = false);
     ParamSpec& constrained(const std::string& c);
     ParamSpec& internal_only();
+    ParamSpec& exclusive_with(const std::string& other);
 };
 
 }  // namespace cuav

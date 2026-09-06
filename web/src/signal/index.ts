@@ -1,3 +1,2 @@
-// 信号视图：频谱、瀑布图、时域波形。只接收按视窗抽取后的展示数据，不接收原始 IQ（铁律 7）。
-// 骨架占位，尚无实现。
-export {}
+export { SignalBuffer, signalBuffer, peakBinOf } from './buffer.js'
+export { SignalPlaceholder } from './SignalPlaceholder.js'

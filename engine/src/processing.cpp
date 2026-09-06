@@ -77,6 +77,20 @@ Step AddMixer::process(PortMap& in, PortMap& out, std::string& err) {
     d.iq.meta.state = worst(a.meta.state, b.meta.state);
     d.iq.meta.state_reasons = a.meta.state_reasons;
     for (const auto& r : b.meta.state_reasons) d.iq.meta.state_reasons.push_back(r);
+    // 功率标定（D-047 ⑤）：两路都标定才算标定，来源取较弱的一路；任一路未标定则整体未标定，
+    // 未标定的那一路自带的降级理由已经并进来了，这里不再重复
+    PowerCalibration c;
+    if (a.meta.calibration.calibrated && b.meta.calibration.calibrated) {
+        const PowerCalibration& ca = a.meta.calibration;
+        const PowerCalibration& cb = b.meta.calibration;
+        c.calibrated = true;
+        const std::string weak = weaker_source(ca.source, cb.source);
+        const PowerCalibration& w = (weak == cb.source && weak != ca.source) ? cb : ca;
+        c.offset_dB = w.offset_dB;
+        c.source = weak;
+        c.note = "混合：a 路 " + ca.source + "，b 路 " + cb.source + "，取较弱来源；各路已在源端换算到 mW";
+    }
+    d.iq.meta.calibration = c;
     if (a.size() != b.size()) {
         d.iq.meta.degrade("两路块长不同，按较短的一路截断");
     }

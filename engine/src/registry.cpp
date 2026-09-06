@@ -70,6 +70,7 @@ ParamSpec& ParamSpec::at_most(double v, bool exclusive) {
 }
 ParamSpec& ParamSpec::constrained(const std::string& c) { constraint = c; return *this; }
 ParamSpec& ParamSpec::internal_only() { internal = true; return *this; }
+ParamSpec& ParamSpec::exclusive_with(const std::string& other) { excludes.push_back(other); return *this; }
 
 // ------------------------------------------------------------ validate_params
 
@@ -137,6 +138,19 @@ bool validate_params(const ComponentInfo& info,
         const bool numeric = (s.type == ParamType::Number || s.type == ParamType::Bool);
         const bool present = numeric ? params.count(s.name) > 0 : text_params.count(s.name) > 0;
         if (!present) { err = who + " 缺必填参数 " + s.name; return false; }
+    }
+
+    // 互斥参数：两个都给了就拒，不猜哪个优先（铁律 15）。报文里的「只能给一个」是装载器映射
+    // param_conflict 的判据，改措辞要同步 diagram_json.cpp。
+    for (const auto& s : info.params) {
+        const bool present = params.count(s.name) > 0 || text_params.count(s.name) > 0;
+        if (!present) continue;
+        for (const auto& other : s.excludes) {
+            if (params.count(other) > 0 || text_params.count(other) > 0) {
+                err = who + " 参数 " + s.name + " 与 " + other + " 只能给一个";
+                return false;
+            }
+        }
     }
     return true;
 }

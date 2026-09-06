@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(_ROOT, "tools"))
 
 import iq_convert                                  # noqa: E402
 import iq_survey                                   # noqa: E402
+from iq_format import calibration as CAL           # noqa: E402
 from iq_format import manifest as M                # noqa: E402
 from iq_format import readers, writer              # noqa: E402
 
@@ -287,6 +288,84 @@ class TestConvert(unittest.TestCase):
             name = man["identity"]["data_id"]
             self.assertTrue(name.endswith("_RF0_S4"))
             writer.check_ascii_name(name + ".iq")
+
+
+def _table(source="model", fs_dBm=-1.6) -> dict:
+    return {"schema": CAL.SCHEMA, "status": "prototype", "estimated_utc": "2026-09-06T00:00:00Z",
+            "datasets": {"DroneRFb-DIR": {"dataset": "DroneRFb-DIR", "full_scale_dBm": fs_dBm,
+                                          "source": source, "note": "测试"}}}
+
+
+class TestCalibration(unittest.TestCase):
+    """功率标定常数落进清单（D-047）：估算常数标 estimated 不冒充 calibrated，幂等，校验自洽。"""
+
+    def test_apply_writes_estimated_and_validates(self):
+        man = _minimal_valid_manifest()
+        man["origin"]["dataset"] = "DroneRFb-DIR"
+        self.assertTrue(CAL.apply(man, _table()))
+        self.assertEqual(M.validate(man), [])
+        self.assertEqual(man["power"]["absolute_power"], "estimated")
+        self.assertAlmostEqual(man["power"]["calibration"]["full_scale_dBm"], -1.6)
+        self.assertEqual(man["power"]["calibration"]["source"], "model")
+        self.assertAlmostEqual(CAL.scale_to_dBm(man["power"]["scale"]), -1.6, places=9)
+        self.assertEqual(man["field_sources"]["power.scale"], "derived")     # model → derived（枚举无 model）
+        self.assertEqual(man["quality"]["status"], M.DEGRADED)                # 估算常数 = 降级
+        self.assertEqual(man["quality"]["checks"]["metadata_required_units"], M.DEGRADED)
+        self.assertIn("功率标定常数为估算值（来源：model）", man["quality"]["reasons"])
+
+    def test_apply_is_idempotent_and_skips_unknown_dataset(self):
+        man = _minimal_valid_manifest()
+        man["origin"]["dataset"] = "DroneRFb-DIR"
+        CAL.apply(man, _table())
+        once = json.dumps(man, sort_keys=True)
+        CAL.apply(man, _table())
+        self.assertEqual(json.dumps(man, sort_keys=True), once)
+        other = _minimal_valid_manifest()
+        other["origin"]["dataset"] = "SomethingElse"
+        before = json.dumps(other, sort_keys=True)
+        self.assertFalse(CAL.apply(other, _table()))
+        self.assertEqual(json.dumps(other, sort_keys=True), before)
+        self.assertEqual(other["power"]["absolute_power"], "uncalibrated")
+
+    def test_validate_rejects_inconsistent_or_bare_estimated(self):
+        man = _minimal_valid_manifest()
+        man["origin"]["dataset"] = "DroneRFb-DIR"
+        CAL.apply(man, _table("paper", -50.0))
+        self.assertEqual(man["field_sources"]["power.scale"], "paper")
+        man["power"]["scale"] = 1e-3                      # 改一头不改另一头
+        self.assertTrue(any("不自洽" in p for p in M.validate(man)))
+        man["power"].pop("calibration")
+        self.assertTrue(any("必须带 power.calibration" in p for p in M.validate(man)))
+        man["power"]["absolute_power"] = "guessed"
+        self.assertTrue(any("absolute_power 必须是" in p for p in M.validate(man)))
+
+    def test_load_table_checks_schema_and_sources(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "calibration.json")
+            bad = _table(); bad["datasets"]["DroneRFb-DIR"]["source"] = "guess"
+            json.dump(bad, open(path, "w", encoding="utf-8"))
+            with self.assertRaises(ValueError):
+                CAL.load_table(path)
+            json.dump(_table(), open(path, "w", encoding="utf-8"))
+            self.assertEqual(CAL.load_table(path)["datasets"]["DroneRFb-DIR"]["full_scale_dBm"], -1.6)
+
+    def test_convert_with_table_equals_refresh(self):
+        """新转换带表 与 先转换再刷新 两条路径产出的清单逐字节相同（D-027 确定性重生成）。"""
+        import apply_calibration
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "A1_IN_S0_slice_1.mat")
+            _write_dronerfb(src)
+            out1 = os.path.join(d, "o1"); out2 = os.path.join(d, "o2")
+            table = _table()
+            m1 = iq_convert.convert_one(src, out1, verbose=False, calibration=table)[0]
+            m2 = iq_convert.convert_one(src, out2, verbose=False)[0]
+            counts = apply_calibration.refresh(out2, table)
+            self.assertEqual(counts["applied"], 1)
+            a = json.load(open(m1, encoding="utf-8")); b = json.load(open(m2, encoding="utf-8"))
+            for k in ("power", "quality", "field_sources"):
+                self.assertEqual(a[k], b[k])
+            self.assertEqual(a["power"]["absolute_power"], "estimated")
+            self.assertEqual(apply_calibration.refresh(out2, table)["unchanged"], 1)   # 幂等
 
 
 class TestSurvey(unittest.TestCase):

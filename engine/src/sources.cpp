@@ -39,6 +39,27 @@ ModelTrace make_trace(const std::string& id, const std::string& layer,
     return t;
 }
 
+// 合成源的功率标定：引擎内部功率单位就是 mW，常数为 0 dB，来源标 model（D-047）。
+PowerCalibration model_calibration() {
+    PowerCalibration c;
+    c.calibrated = true;
+    c.offset_dB = 0.0;
+    c.source = "model";
+    c.note = "引擎内部功率约定：|x|^2 为 mW（D-047）";
+    return c;
+}
+
+// dBm 与线性参数互斥：两个都给就拒，不猜优先级（铁律 15）。registry 已按 excludes 先拒一次，
+// 这里是直接构造（测试、工具）时的第二道闸。措辞与 registry 一致，装载器据此映射 param_conflict。
+bool exclusive(const std::map<std::string, double>& p, const char* a, const char* b,
+               const std::string& who, std::string& err) {
+    if (p.count(a) && p.count(b)) {
+        err = who + " 参数 " + a + " 与 " + b + " 只能给一个";
+        return false;
+    }
+    return true;
+}
+
 }  // namespace
 
 // ------------------------------------------------------------------ ToneSource
@@ -52,7 +73,12 @@ bool ToneSource::configure(const std::map<std::string, double>& params,
     total_samples_ = static_cast<std::uint64_t>(total);
     center_frequency_Hz_ = get(params, "center_frequency_Hz", 0.0);
     offset_Hz_ = get(params, "offset_Hz", 0.0);
+    if (!exclusive(params, "level_dBm", "amplitude", "ToneSource", err)) return false;
     amplitude_ = get(params, "amplitude", 1.0);
+    if (params.count("level_dBm")) {
+        // 单音功率 P = A^2（mW），A = sqrt(10^(L/10))；引擎内部功率单位 mW（D-047）
+        amplitude_ = std::sqrt(std::pow(10.0, params.at("level_dBm") / 10.0));
+    }
     phase_rad_ = get(params, "phase_rad", 0.0);
     start_sample_ = static_cast<std::uint64_t>(get(params, "start_sample", 0.0));
     stop_sample_ = static_cast<std::uint64_t>(get(params, "stop_sample", 0.0));
@@ -98,6 +124,7 @@ Step ToneSource::process(PortMap&, PortMap& out, std::string&) {
     d.iq.meta.center_frequency_Hz = center_frequency_Hz_;
     d.iq.meta.start_sample = produced_;
     d.iq.meta.time_basis = TimeBasis::LogicalSim;
+    d.iq.meta.calibration = model_calibration();
     d.iq.meta.trace = make_trace("ToneSource", "M3", "E2", "V3");
     out["out"] = d;
     produced_ += n;
@@ -117,7 +144,12 @@ bool NoiseSource::configure(const std::map<std::string, double>& params,
     total_samples_ = static_cast<std::uint64_t>(get(params, "total_samples", 0.0));
     if (total_samples_ == 0) { err = "NoiseSource 缺必填参数 total_samples"; return false; }
     center_frequency_Hz_ = get(params, "center_frequency_Hz", 0.0);
+    if (!exclusive(params, "power_dBm", "power", "NoiseSource", err)) return false;
     power_ = get(params, "power", 1.0);
+    if (params.count("power_dBm")) {
+        // 采样带宽内的总功率（每样点 E|x|^2），mW（D-047）
+        power_ = std::pow(10.0, params.at("power_dBm") / 10.0);
+    }
     block_samples_ = static_cast<std::size_t>(get(params, "block_samples", 65536.0));
     if (power_ < 0.0) { err = "NoiseSource 功率不能为负"; return false; }
     return true;
@@ -149,6 +181,7 @@ Step NoiseSource::process(PortMap&, PortMap& out, std::string& err) {
     d.iq.meta.center_frequency_Hz = center_frequency_Hz_;
     d.iq.meta.start_sample = produced_;
     d.iq.meta.time_basis = TimeBasis::LogicalSim;
+    d.iq.meta.calibration = model_calibration();
     d.iq.meta.trace = make_trace("NoiseSource", "M3", "E2", "V3");
     out["out"] = d;
     produced_ += n;
@@ -194,6 +227,25 @@ bool FileReplaySource::load_manifest(std::string& err) {
         sample_rate_Hz_ = j.at("sampling").at("sample_rate_Hz").get<double>();
         center_frequency_Hz_ = j.at("frequency").at("center_frequency_Hz").get<double>();
         full_scale_ = j.at("power").at("full_scale").get<double>();
+        if (full_scale_ <= 0.0) { err = "清单 power.full_scale 必须大于 0"; return false; }
+        // 功率标定常数（D-047；docs/iq-format.md §4.2）：有就把量化码换算到 |x|^2 = mW，
+        // 没有就只除满量程，块元数据标未标定
+        calibration_ = PowerCalibration();
+        code_scale_ = 1.0 / full_scale_;
+        const nlohmann::json& pw = j.at("power");
+        if (pw.contains("calibration") && !pw["calibration"].is_null()) {
+            const nlohmann::json& c = pw["calibration"];
+            if (!c.is_object() || !c.contains("full_scale_dBm") || !c["full_scale_dBm"].is_number() ||
+                !c.contains("source") || !c["source"].is_string()) {
+                err = "清单 power.calibration 必须带数值 full_scale_dBm 与文本 source";
+                return false;
+            }
+            calibration_.calibrated = true;
+            calibration_.offset_dB = c["full_scale_dBm"].get<double>();
+            calibration_.source = c["source"].get<std::string>();
+            if (c.contains("note") && c["note"].is_string()) calibration_.note = c["note"].get<std::string>();
+            code_scale_ = std::pow(10.0, calibration_.offset_dB / 20.0) / full_scale_;
+        }
         const std::string fmt = j.at("sampling").at("sample_format").get<std::string>();
         const std::string order = j.at("sampling").at("byte_order").get<std::string>();
         if (fmt != "ci16_le" || order != "little") {
@@ -284,22 +336,25 @@ Step FileReplaySource::process(PortMap&, PortMap& out, std::string& err) {
     d.type = PortType::IQStream;
     d.has_data = true;
     d.iq.samples.resize(got);
+    // 量化码先除满量程再乘标定常数（D-047）。此前量化码直接进流，谱值比 dBFS 高 20·log10(32768) = 90.31 dB，
+    // 2026-09-06 发现并修正；回放样点没有 golden 依赖，不是基准变更。
+    const float k = static_cast<float>(code_scale_);
     for (std::size_t i = 0; i < got; ++i) {
-        d.iq.samples[i] = Complex(static_cast<float>(raw[2 * i]),
-                                  static_cast<float>(raw[2 * i + 1]));
+        d.iq.samples[i] = Complex(static_cast<float>(raw[2 * i]) * k,
+                                  static_cast<float>(raw[2 * i + 1]) * k);
     }
     d.iq.meta.sample_rate_Hz = sample_rate_Hz_;
     d.iq.meta.center_frequency_Hz = center_frequency_Hz_;
     d.iq.meta.start_sample = produced_;
     d.iq.meta.time_basis = TimeBasis::FileAcquisition;
     d.iq.meta.full_scale = full_scale_;
-    d.iq.meta.scale = -1.0;   // 未标定，不拿 1.0 顶替
+    d.iq.meta.calibration = calibration_;
     d.iq.meta.trace = make_trace("FileReplaySource", "M3", "E4", "V2");
     if (!data_id_.empty()) d.iq.meta.trace.trace_id = "FileReplaySource:" + data_id_;   // 数据标识进溯源（铁律 8）
     if (file_state_ != State::Valid) {
         for (const auto& r : file_reasons_) d.iq.meta.degrade(r);
     }
-    d.iq.meta.degrade("量化码未标定，不能换算 dBm");
+    if (!calibration_.calibrated) d.iq.meta.degrade("量化码未标定，不能换算 dBm");
     out["out"] = d;
     produced_ += got;
     status_.blocks_out++;
@@ -341,6 +396,8 @@ ComponentInfo ToneSource::describe() const {
         ParamSpec::number("offset_Hz", "Hz", "相对中心频率的频偏").def(0.0)
             .constrained("|offset_Hz| < sample_rate_Hz / 2（铁律 4）"),
         ParamSpec::number("amplitude", "", "幅度，线性").def(1.0).at_least(0.0),
+        ParamSpec::number("level_dBm", "dBm", "单音功率，引擎内部功率单位为 mW（D-047）；给出时代替 amplitude，A = sqrt(10^(L/10))")
+            .exclusive_with("amplitude"),
         ParamSpec::number("phase_rad", "rad", "初相").def(0.0),
         ParamSpec::number("start_sample", "", "起始样点，之前输出零").def(0.0).at_least(0.0),
         ParamSpec::number("stop_sample", "", "终止样点，之后输出零；0 表示直到结束").def(0.0).at_least(0.0),
@@ -366,6 +423,8 @@ ComponentInfo NoiseSource::describe() const {
         ParamSpec::number("total_samples", "", "输出总样点数").req().at_least(1.0),
         ParamSpec::number("center_frequency_Hz", "Hz", "写入块元数据的中心频率").def(0.0),
         ParamSpec::number("power", "", "每样点平均功率 E|x|^2，线性").def(1.0).at_least(0.0),
+        ParamSpec::number("power_dBm", "dBm", "采样带宽内总功率，引擎内部功率单位为 mW（D-047）；给出时代替 power")
+            .exclusive_with("power"),
         ParamSpec::number("block_samples", "", "每块样点数").def(65536.0).at_least(1.0),
     };
     return i;
@@ -376,7 +435,8 @@ ComponentInfo FileReplaySource::describe() const {
     i.type = type_name();
     i.category = category::Data;
     i.display_name = "文件回放源";
-    i.description = "读本项目 .iq（复 int16 交织、小端）与旁挂清单，按清单分段顺序回放；"
+    i.description = "读本项目 .iq（复 int16 交织、小端）与旁挂清单，按清单分段顺序回放；量化码按清单 power.calibration "
+                    "换算到引擎功率单位（D-047），无常数则只除满量程并标未标定；"
                     "04 §15.2 标准算例第 9 项。回放数据不得绑定场景（06 备忘录防线二、三）";
     i.model_layer = "M3";
     i.model_level = "E4";

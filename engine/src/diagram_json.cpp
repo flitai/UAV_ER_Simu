@@ -531,8 +531,10 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
 
         std::unique_ptr<IComponent> comp = registry.create_configured(type, num, txt, e);
         if (!comp) {
-            // 引用数据的组件，构造失败多半出在数据上（清单打不开、格式不对），归到 data_id 便于定位
+            // 引用数据的组件，构造失败多半出在数据上（清单打不开、格式不对），归到 data_id 便于定位；
+            // 互斥参数同时给出（registry 校验的「只能给一个」）单独归 param_conflict，画布能据此高亮两个字段
             const char* code = find_spec(info, "data_id") ? "data_id" : "param";
+            if (e.find("只能给一个") != std::string::npos) code = "param_conflict";
             err = fail(code, id, "", who + "：" + e);
             return false;
         }

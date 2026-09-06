@@ -19,6 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from iq_format import calibration as C   # noqa: E402
 from iq_format import manifest as M      # noqa: E402
 from iq_format import store              # noqa: E402
 
@@ -29,6 +30,7 @@ def build(directory: str) -> dict:
     rows = []
     quality = {}
     datasets = {}
+    calibration = {}
     for p in store.list_products(directory):
         man = p.manifest or {}
         t = p.truth or {}
@@ -36,6 +38,11 @@ def build(directory: str) -> dict:
         quality[q] = quality.get(q, 0) + 1
         ds = man.get("origin", {}).get("dataset")
         datasets[ds] = datasets.get(ds, 0) + 1
+        # 功率标定常数按数据集汇总（D-047）：同一数据集一个常数，这里记常数与带常数的产物数
+        cal = C.summary(man)
+        if cal is not None:
+            entry = calibration.setdefault(ds, dict(cal, product_count=0))
+            entry["product_count"] += 1
         rows.append({
             "data_id": p.stem,
             "source_file": man.get("origin", {}).get("source_file"),
@@ -60,6 +67,7 @@ def build(directory: str) -> dict:
             os.path.abspath(__file__)))),
         "product_count": len(rows),
         "datasets": datasets,
+        "calibration": calibration,
         "quality_distribution": quality,
         "note": "逐产物清单 <data_id>.manifest.json 与样点文件 <data_id>.iq 留在盘上不入库；"
                 "本索引的 content_sha256 用于核对盘上产物与入库时是否一致。"

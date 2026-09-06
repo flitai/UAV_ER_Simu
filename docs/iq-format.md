@@ -140,12 +140,13 @@
 | `channel.station_id` | 字符串 | 是 | 无站点概念时填 `unknown` 并在 `field_sources` 标 `absent` |
 | `channel.channel_id` | 字符串 | 是 | 如 `RF0` |
 | `channel.antenna` | 字符串或 `null` | 是 | 天线说明 |
-| `power.scale` | 数值或 `null` | 是 | 量化码到工程单位的换算系数；未标定时 `null` |
+| `power.scale` | 数值或 `null` | 是 | 量化码到 sqrt(mW) 的换算系数 `10^(full_scale_dBm/20) / 32768`；未标定时 `null`（第 5 节） |
 | `power.full_scale` | 数值 | 是 | 固定 32768 |
 | `power.gain_dB` | 数值或 `null` | 是 | 接收增益设置 |
 | `power.agc` | 字符串 | 是 | `on` / `off` / `unknown` |
-| `power.absolute_power` | 字符串 | 是 | `calibrated` / `uncalibrated` |
-| `power.reason` | 字符串 | 否 | `uncalibrated` 时必填原因 |
+| `power.absolute_power` | 字符串 | 是 | `calibrated`（设备标定记录）/ `estimated`（按论文参数或链路预算估算的常数，2026-09-06 增，D-047）/ `uncalibrated` |
+| `power.reason` | 字符串 | 否 | `uncalibrated` 与 `estimated` 时必填原因 |
+| `power.calibration` | 对象 | `estimated` / `calibrated` 时是 | `{full_scale_dBm, source ∈ {measured, paper, assumed, model}, note, status, estimated_utc, table}`；引擎回放只读前三个键；与 `power.scale` 必须自洽（校验器核对） |
 | `quality.status` | 字符串 | 是 | 四态之一（第 7 节） |
 | `quality.checks` | 对象 | 是 | 八项质检各自的四态结论，键名见 4.4 |
 | `quality.reasons` | 字符串数组 | 是 | 非 `valid` 时不得为空 |
@@ -211,13 +212,33 @@
 | `identity.content_sha256` | `core:sha512` 的同位物（算法不同，两者都记） |
 | 其余各类 | `cuav:` 命名空间 |
 
-## 5. 功率与标定口径（待写，被数据阻塞）
+## 5. 功率与标定口径（首版 2026-09-06，D-047；常数为原型阶段验证值，甲方数据到货后定稿）
 
-需要回答的问题：量化码如何换算为分贝毫瓦；需要哪些标定量（天线增益、馈线损耗、接收机
-增益设置、标定常数）；未标定数据如何标记，以及未标定数据允许参与哪些验证、禁止参与
-哪些验证。
+**换算**。引擎内部功率单位是 mW：任一观测点的复样点满足 `|x|² = 功率 / mW`，`10·log10(|x|²)` 直接是
+dBm。回放时 `x = code / 32768 × 10^(full_scale_dBm / 20)`，其中 `full_scale_dBm` 是量化码满量程
+（|code| = 32768）对应的接收功率，参考面是接收机天线端口（天线增益不计入，它是场景侧的量）。这个常数
+就是清单 `power.calibration.full_scale_dBm`，`power.scale` 是它的线性形式。没有常数时只除 32768，
+样点是相对满量程的比例（dBFS），块元数据标未标定并降级，观测点索引写 `scale = dBFS`。
 
-本节在甲方实测数据与八项摸底问题得到回答之前无法定稿。
+**需要的标定量**。设备标定记录（`measured`）应给出：接收增益设置、馈线损耗、以及一次注入已知功率
+的满量程标定；缺其一都只能估算。估算的两种方法与取舍规则在 `scripts/ds8_calibration.py` 文件头：
+论文法 `P_fs0 − gain_dB`（论文给了增益才可用，且按该常数换算的底噪相对热噪声的等效噪声系数须落在
+0–15 dB 内）；链路预算反推 `EIRP + G_rx − FSPL − P_sig_dBFS`（需要距离标注与发射功率假设）。
+
+**两个公开数据集（原型阶段验证值，D-028）**：
+
+| 数据集 | `full_scale_dBm` | 来源 | 依据 | 隐含噪声系数 |
+|---|---|---|---|---|
+| DroneRFa | −50.0 | `paper` | 论文接收增益 50 dB，满量程 0 dB 增益时 0 dBm（假定）；链路预算法给 −9.8 dBm、差 40 dB，但其隐含噪声系数 41 dB 不合理，故取论文法 | 1.1 dB |
+| DroneRFb-DIR | −1.6 | `model` | 论文无增益；10 m 视距自由空间链路预算（EIRP 20 dBm、3 dBi 均为假定）反推，24 片 12 型突发功率中位 −35.6 dBFS | 42 dB（近零增益录制） |
+
+常数表 `data/iq/measured/calibration.json`（含全部输入与推导），落进逐文件清单与批索引 `calibration` 块的命令见
+CLAUDE.md「环境与命令」。估算常数的产物 `absolute_power = estimated`、质量四态保持 `degraded`，索引里的谱产品
+是 dBm 但溯源里带 `calibration.source`；界面只标 dBm，来源只在开发者模式。
+
+**参与边界**。估算常数的数据可以参与：显示、检测与识别（相对量）、路损指数等相对标定、跨层算例里以比值
+或差值表达的项。不得参与：绝对灵敏度与绝对接收功率的验收指标、噪声系数标定、任何写成 dBm 绝对值的交付
+数字。这些留给甲方带标定记录的数据。
 
 ## 6. 时间基准（已冻结）
 

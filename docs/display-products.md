@@ -74,8 +74,8 @@ data/runs/<task_id>/
 | `frame_hop_samples` | 相邻两行的样点间隔 |
 | `start_sample`、`t0_s` | 第一行对应的样点序号与逻辑时间 |
 | `nfft`、`segments_per_frame`、`window` | 谱参数；`frame_hop_samples = hop × segments_per_frame` |
-| `scale` | `dBm` 或 `dBFS`。有 `calibration` 即为 `dBm`（行值已加上 `offset_dB`）；没有任何标定常数才写 `dBFS`。界面显示 dBm 时必须带 `calibration.source` 徽标（09 §7.2；用户 2026-09-05 拍板） |
-| `calibration` | `{offset_dB, source ∈ {measured, paper, assumed, model}, note}`：回放数据取自数据索引（公开数据集先按论文参数估算，标 `paper`），合成链取自引擎内部功率约定（标 `model`）；缺失即无此字段 |
+| `scale` | `dBm` 或 `dBFS`。有 `calibration` 即为 `dBm`：引擎内部功率单位是 mW（`|x|² = 功率 / mW`，D-047），样点在**源端**已换算，观测点不再加偏移，行值直接是 dBm；没有任何标定常数才写 `dBFS`。界面对用户只标 `dBm`，来源徽标、常数与出处只在开发者模式 `?dev=1` 显示（D-047 ④，修正 D-038 的显示层） |
+| `calibration` | `{offset_dB, source ∈ {measured, paper, assumed, model}, note}`：`offset_dB` 是源端用过的常数——回放源为清单 `power.calibration.full_scale_dBm`（满量程对应的 dBm，2026-09-06 估算：DroneRFb-DIR −1.6 `model`、DroneRFa −50.0 `paper`，原型阶段验证值），合成源为 0（`model`）；`AddMixer` 两路都标定才标定、来源取较弱者（`measured > paper > model > assumed`）；缺失即无此字段 |
 | `floor_dB` | 零功率频点的下限（−300 dB），读端据此识别精确零 |
 | `state`、`state_reasons` | 四态与原因，取自被观测信号的块元数据；**末行段数不足、末桶样点不足、丢弃尾样点是流结束的自然结果，不降级** |
 | `notes` | 说明性备注：`末行只有 m/K 段`、`末桶只有 n/N 个样点`、`收尾丢弃不满一段的 k 个样点` |
@@ -83,7 +83,7 @@ data/runs/<task_id>/
 | `producer` | `{component: ObservationTap, version, engine_version}` |
 
 `envelope.index.json` 同上，`kind = envelope`，`row_len = 3`，`columns = [min_abs, max_abs, rms_abs]`（桶内 |x| 的最小、最大、均方根，线性、相对满量程），
-`scale = linear_FS`，另有 `bucket_samples`（每桶样点数）与 `last_bucket_samples`（末桶实际样点数）。
+`scale = sqrt_mW`（已标定：|x| 的单位是 sqrt(mW)，D-047）或 `linear_FS`（未标定），已标定时同样带 `calibration`；另有 `bucket_samples`（每桶样点数）与 `last_bucket_samples`（末桶实际样点数）。
 
 写入约定：行定长追加；索引在**写完第一行**时刷一次，此后每 64 行一次，收尾时最后更新（首行那次是给
 读端的：没有索引就不知道 nfft 与采样率，抽取端点只能回 409，B-7 / D-046）。

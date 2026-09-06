@@ -8,6 +8,7 @@
 
 #include "nlohmann/json.hpp"
 
+#include "cuav/components/processing.h"
 #include "cuav/components/sources.h"
 #include "cuav/components/spectrum.h"
 #include "cuav/graph.h"
@@ -231,4 +232,78 @@ TEST_CASE("参数校验：非 2 的幂、重叠导致非整数步进、未知窗
     CHECK(!sa.configure({{"nfft", 256}}, {{"window", "kaiser"}}, err));
     CHECK(err.find("kaiser") != std::string::npos);
     CHECK(sa.configure({{"nfft", 256}, {"overlap", 0.75}}, {{"window", "hamming"}}, err));
+}
+
+// 解析锚点（D-047）：引擎内部功率单位 mW，单音 level_dBm 的峰值 bin 读同一个数；
+// 复高斯噪声 power_dBm 为采样带宽内总功率，hann 窗 nfft 点的每 bin 均值 = P − 10·log10(N) + 10·log10(1.5)
+// （Σw²/(Σw)² = 1.5/N）。均值在线性域取（铁律 5）；单帧每 bin 是指数分布，中位数比均值低 1.59 dB，所以不用中位数。
+TEST_CASE("dBm 锚点：-70 dBm 单音峰值读 -70.00 dBm，-104 dBm 噪声在 1024 点 hann 下底噪均值 -132.34 dBm") {
+    Graph g;
+    std::string err;
+    const double fs = 1e6;
+    const std::size_t nfft = 1024;
+    const std::uint64_t frames = 200;
+    const double total = static_cast<double>(frames * nfft);
+    const double bin_hz = fs / static_cast<double>(nfft);
+    std::unique_ptr<ToneSource> tone(new ToneSource());
+    REQUIRE_MESSAGE(tone->configure({{"sample_rate_Hz", fs}, {"total_samples", total}, {"offset_Hz", 100.0 * bin_hz},
+                                     {"level_dBm", -70.0}, {"block_samples", 4096}}, {}, err), err);
+    std::unique_ptr<NoiseSource> noise(new NoiseSource());
+    REQUIRE_MESSAGE(noise->configure({{"sample_rate_Hz", fs}, {"total_samples", total}, {"power_dBm", -104.0},
+                                      {"block_samples", 4096}}, {}, err), err);
+    std::unique_ptr<AddMixer> mix(new AddMixer());
+    REQUIRE(mix->configure({}, {}, err));
+    std::unique_ptr<SpectrumAnalyzer> sa(new SpectrumAnalyzer());
+    REQUIRE(sa->configure({{"nfft", double(nfft)}}, {{"window", "hann"}}, err));
+    struct Sink : IComponent {
+        std::vector<SpectrumFrame> got;
+        std::string type_name() const override { return "SpecSink"; }
+        std::vector<PortSpec> inputs() const override { return {PortSpec{"in", PortType::SpectrumFrame}}; }
+        std::vector<PortSpec> outputs() const override { return {}; }
+        bool configure(const std::map<std::string, double>&, const std::map<std::string, std::string>&, std::string&) override { return true; }
+        bool init(IRandom&, std::string&) override { return true; }
+        Step process(PortMap& in, PortMap&, std::string&) override { for (const auto& f : in["in"].spectra) got.push_back(f); return Step::Produced; }
+        void reset() override {}
+        ComponentStatus status() const override { return ComponentStatus(); }
+    };
+    std::unique_ptr<Sink> sink(new Sink());
+    Sink* sp = sink.get();
+    NodeId a = g.add(std::move(tone), "tone");
+    NodeId b = g.add(std::move(noise), "noise");
+    NodeId m = g.add(std::move(mix), "mix");
+    NodeId s = g.add(std::move(sa), "sa");
+    NodeId k = g.add(std::move(sink), "sink");
+    REQUIRE(g.connect(a, "out", m, "a", err));
+    REQUIRE(g.connect(b, "out", m, "b", err));
+    REQUIRE(g.connect(m, "out", s, "in", err));
+    REQUIRE(g.connect(s, "out", k, "in", err));
+    REQUIRE(g.validate(err));
+    Xoshiro256pp rng(20260906);
+    RunReport rep = g.run(rng);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+    REQUIRE(sp->got.size() == frames);
+
+    const std::size_t peak_bin = nfft / 2 + 100;
+    double peak_acc = 0.0;
+    double floor_acc = 0.0;
+    std::uint64_t floor_n = 0;
+    for (const auto& f : sp->got) {
+        CHECK(f.scale == "dBm");
+        CHECK(f.meta.calibration.source == "model");
+        std::size_t pk = 0;
+        for (std::size_t i = 1; i < nfft; ++i) if (f.psd_dB[i] > f.psd_dB[pk]) pk = i;
+        CHECK(pk == peak_bin);
+        peak_acc += std::pow(10.0, f.psd_dB[peak_bin] / 10.0);
+        for (std::size_t i = 0; i < nfft; ++i) {
+            if (i + 8 >= peak_bin && i <= peak_bin + 8) continue;   // 主瓣与旁瓣之外才是底噪
+            floor_acc += std::pow(10.0, f.psd_dB[i] / 10.0);
+            ++floor_n;
+        }
+    }
+    const double peak_dBm = 10.0 * std::log10(peak_acc / static_cast<double>(frames));
+    const double floor_dBm = 10.0 * std::log10(floor_acc / static_cast<double>(floor_n));
+    CHECK(std::fabs(peak_dBm - (-70.0)) < 0.05);
+    const double expect_floor = -104.0 - 10.0 * std::log10(static_cast<double>(nfft)) + 10.0 * std::log10(1.5);
+    CHECK(std::fabs(floor_dBm - expect_floor) < 0.1);
+    MESSAGE("峰值 " << peak_dBm << " dBm，底噪均值 " << floor_dBm << " dBm（期望 " << expect_floor << "）");
 }

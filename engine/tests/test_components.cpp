@@ -24,7 +24,7 @@ std::string temp_dir() {
 
 // 写一份最小但合规的产物：.iq 加旁挂清单（docs/iq-format.md 第 3、4 节）
 void write_fixture(const std::string& stem, const std::vector<std::int16_t>& interleaved,
-                   double fs, double fc) {
+                   double fs, double fc, const std::string& calibration_json = "") {
     const std::string iq = temp_dir() + stem + ".iq";
     std::ofstream f(iq.c_str(), std::ios::binary);
     f.write(reinterpret_cast<const char*>(interleaved.data()),
@@ -41,7 +41,8 @@ void write_fixture(const std::string& stem, const std::vector<std::int16_t>& int
       << interleaved.size() / 2 << "},\n"
       << "  \"frequency\": {\"center_frequency_Hz\": " << fc
       << ", \"effective_bandwidth_Hz\": " << fs << "},\n"
-      << "  \"power\": {\"full_scale\": 32768, \"scale\": null},\n"
+      << "  \"power\": {\"full_scale\": 32768, \"scale\": null"
+      << (calibration_json.empty() ? "" : ", \"calibration\": " + calibration_json) << "},\n"
       << "  \"quality\": {\"status\": \"degraded\", \"reasons\": [\"测试夹具\"]},\n"
       << "  \"segments\": []\n"
       << "}\n";
@@ -236,12 +237,130 @@ TEST_CASE("文件回放源：读得出样点，并把源的质量状态传下去
     CHECK(b.meta.sample_rate_Hz == doctest::Approx(fs));
     CHECK(b.meta.center_frequency_Hz == doctest::Approx(fc));
     CHECK(b.meta.time_basis == TimeBasis::FileAcquisition);
-    CHECK(b.samples[0].real() == doctest::Approx(-50.0f));
-    CHECK(b.samples[1].real() == doctest::Approx(-49.0f));
+    // 量化码除满量程（D-047）：此前量化码直接进流，谱值比 dBFS 高 90.31 dB，这里把换算锁死
+    CHECK(b.samples[0].real() == doctest::Approx(-50.0f / 32768.0f));
+    CHECK(b.samples[1].real() == doctest::Approx(-49.0f / 32768.0f));
     // 清单里质量是 degraded，且量化码未标定：两条理由都要传下来（铁律 15）
     CHECK(b.meta.state == State::Degraded);
     CHECK(b.meta.state_reasons.size() >= 2u);
-    CHECK(b.meta.scale < 0.0);
+    CHECK_FALSE(b.meta.calibration.calibrated);
+    CHECK(b.meta.calibration.source.empty());
+}
+
+TEST_CASE("文件回放源：清单带 power.calibration 时按常数换算到 mW，块元数据标已标定（D-047）") {
+    const double fs = 2e6, fc = 2.44e9;
+    std::vector<std::int16_t> data;
+    for (int i = 0; i < 1024; ++i) {
+        data.push_back(static_cast<std::int16_t>(i - 50));
+        data.push_back(static_cast<std::int16_t>(7));
+    }
+    write_fixture("cuav_engine_fixture_cal", data, fs, fc,
+                  "{\"full_scale_dBm\": -40.0, \"source\": \"paper\", \"note\": \"测试常数\"}");
+
+    FileReplaySource src;
+    std::string err;
+    std::map<std::string, std::string> tp{
+        {"manifest_path", temp_dir() + "cuav_engine_fixture_cal.manifest.json"}};
+    std::map<std::string, double> p{{"block_samples", 256.0}};
+    REQUIRE_MESSAGE(src.configure(p, tp, err), err);
+    Xoshiro256pp rng(1);
+    REQUIRE(src.init(rng, err));
+    PortMap in, out;
+    REQUIRE(src.process(in, out, err) == Step::Produced);
+    const Block& b = out["out"].iq;
+    // -40 dBm 满量程：k = 10^(-40/20) / 32768 = 0.01 / 32768
+    const float k = 0.01f / 32768.0f;
+    CHECK(b.samples[0].real() == doctest::Approx(-50.0f * k));
+    CHECK(b.samples[0].imag() == doctest::Approx(7.0f * k));
+    CHECK(b.meta.calibration.calibrated);
+    CHECK(b.meta.calibration.offset_dB == doctest::Approx(-40.0));
+    CHECK(b.meta.calibration.source == "paper");
+    CHECK(b.meta.calibration.note == "测试常数");
+    // 只剩清单质量 degraded 这一条理由，「未标定」不再出现
+    CHECK(b.meta.state == State::Degraded);
+    REQUIRE(b.meta.state_reasons.size() == 1u);
+    CHECK(b.meta.state_reasons[0].find("未标定") == std::string::npos);
+
+    // 常数格式不对要拒，不许猜
+    write_fixture("cuav_engine_fixture_badcal", data, fs, fc, "{\"source\": \"paper\"}");
+    FileReplaySource bad;
+    std::map<std::string, std::string> tb{
+        {"manifest_path", temp_dir() + "cuav_engine_fixture_badcal.manifest.json"}};
+    CHECK_FALSE(bad.configure(p, tb, err));
+    CHECK(err.find("full_scale_dBm") != std::string::npos);
+}
+
+TEST_CASE("合成源按 dBm 给功率：level_dBm / power_dBm 与线性参数互斥，块元数据标 model（D-047）") {
+    ToneSource t;
+    std::string err;
+    std::map<std::string, double> both{{"sample_rate_Hz", 1e6}, {"total_samples", 16.0},
+                                       {"amplitude", 0.5}, {"level_dBm", -70.0}};
+    CHECK_FALSE(t.configure(both, {}, err));
+    CHECK(err.find("只能给一个") != std::string::npos);
+
+    std::map<std::string, double> lv{{"sample_rate_Hz", 1e6}, {"total_samples", 16.0}, {"level_dBm", -70.0}};
+    REQUIRE_MESSAGE(t.configure(lv, {}, err), err);
+    Xoshiro256pp rng(1);
+    REQUIRE(t.init(rng, err));
+    PortMap in, out;
+    REQUIRE(t.process(in, out, err) == Step::Produced);
+    const Block& b = out["out"].iq;
+    // -70 dBm = 1e-7 mW → |x| = sqrt(1e-7) = 3.1623e-4
+    CHECK(std::abs(b.samples[3]) == doctest::Approx(3.16227766e-4).epsilon(1e-6));
+    CHECK(b.meta.calibration.calibrated);
+    CHECK(b.meta.calibration.source == "model");
+    CHECK(b.meta.calibration.offset_dB == 0.0);
+
+    NoiseSource n;
+    std::map<std::string, double> nboth{{"sample_rate_Hz", 1e6}, {"total_samples", 16.0},
+                                        {"power", 1.0}, {"power_dBm", -100.0}};
+    CHECK_FALSE(n.configure(nboth, {}, err));
+    CHECK(err.find("只能给一个") != std::string::npos);
+    std::map<std::string, double> np{{"sample_rate_Hz", 1e6}, {"total_samples", 200000.0}, {"power_dBm", -100.0},
+                                     {"block_samples", 200000.0}};
+    REQUIRE(n.configure(np, {}, err));
+    REQUIRE(n.init(rng, err));
+    PortMap nin, nout;
+    REQUIRE(n.process(nin, nout, err) == Step::Produced);
+    const Block& nb = nout["out"].iq;
+    double acc = 0.0;
+    for (const auto& x : nb.samples) acc += std::norm(x);
+    // 每样点功率 1e-10 mW；20 万样点的均值相对误差约 1/sqrt(2e5)
+    CHECK(10.0 * std::log10(acc / static_cast<double>(nb.size())) == doctest::Approx(-100.0).epsilon(0.02));
+    CHECK(nb.meta.calibration.source == "model");
+}
+
+TEST_CASE("加法混合器合并功率标定：两路都标定取较弱来源，任一路未标定则整体未标定（D-047）") {
+    AddMixer m;
+    std::string err;
+    REQUIRE(m.configure({}, {}, err));
+    Xoshiro256pp rng(1);
+    REQUIRE(m.init(rng, err));
+    PortMap in, out;
+    PortData a, b;
+    a.has_data = b.has_data = true;
+    a.iq.samples.resize(4); b.iq.samples.resize(4);
+    a.iq.meta.sample_rate_Hz = b.iq.meta.sample_rate_Hz = 1e6;
+    a.iq.meta.calibration.calibrated = true; a.iq.meta.calibration.source = "model"; a.iq.meta.calibration.offset_dB = 0.0;
+    b.iq.meta.calibration.calibrated = true; b.iq.meta.calibration.source = "paper"; b.iq.meta.calibration.offset_dB = -45.0;
+    in["a"] = a; in["b"] = b;
+    REQUIRE(m.process(in, out, err) == Step::Produced);
+    CHECK(out["out"].iq.meta.calibration.calibrated);
+    CHECK(out["out"].iq.meta.calibration.source == "model");     // model 弱于 paper
+    CHECK(out["out"].iq.meta.calibration.offset_dB == 0.0);
+
+    b.iq.meta.calibration.source = "assumed";
+    in["b"] = b;
+    REQUIRE(m.process(in, out, err) == Step::Produced);
+    CHECK(out["out"].iq.meta.calibration.source == "assumed");
+    CHECK(out["out"].iq.meta.calibration.offset_dB == doctest::Approx(-45.0));
+
+    b.iq.meta.calibration = PowerCalibration();
+    b.iq.meta.degrade("量化码未标定，不能换算 dBm");
+    in["b"] = b;
+    REQUIRE(m.process(in, out, err) == Step::Produced);
+    CHECK_FALSE(out["out"].iq.meta.calibration.calibrated);
+    CHECK(out["out"].iq.meta.state == State::Degraded);
 }
 
 TEST_CASE("文件回放源：清单缺失或字节序不对都要报错，不许猜") {

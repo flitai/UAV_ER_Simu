@@ -64,6 +64,16 @@ bool ModelTrace::complete() const {
         && !trace_id.empty();
 }
 
+std::string weaker_source(const std::string& a, const std::string& b) {
+    auto rank = [](const std::string& s) {
+        if (s == "measured") return 4;
+        if (s == "paper") return 3;
+        if (s == "model") return 2;
+        return 1;   // assumed 与未知
+    };
+    return rank(a) <= rank(b) ? a : b;
+}
+
 void BlockMeta::degrade(const std::string& why) {
     state = worst(state, State::Degraded);
     state_reasons.push_back(why);

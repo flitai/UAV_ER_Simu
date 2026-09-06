@@ -20,6 +20,8 @@ data/**
 # 索引里的 content_sha256 可核对盘上产物与入库时是否一致。
 data/iq/measured/*/*.manifest.json
 !data/iq/measured/*/index.manifest.json
+# 功率标定常数表（D-047）：小文件，入库；由 scripts/ds8_calibration.py 生成
+!data/iq/measured/calibration.json
 
 # 公开数据集，永不入库。用通配以覆盖后续新增的数据集目录。
 #   Datasets1-DroneRFb-DIR  64 GB

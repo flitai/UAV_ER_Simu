@@ -3,8 +3,8 @@
   "diagram_id": "slice1-tone-noise-psd",
   "name": "单音加噪声到功率谱",
   "nodes": [
-    { "id": "tone",  "type": "ToneSource",  "params": { "sample_rate_Hz": 1e6, "offset_Hz": 100e3, "amplitude": 0.5 } },
-    { "id": "noise", "type": "NoiseSource", "params": { "sample_rate_Hz": 1e6, "power": 1.0 } },
+    { "id": "tone",  "type": "ToneSource",  "params": { "sample_rate_Hz": 1e6, "center_frequency_Hz": 2.44e9, "offset_Hz": 100e3, "level_dBm": -70 } },
+    { "id": "noise", "type": "NoiseSource", "params": { "sample_rate_Hz": 1e6, "center_frequency_Hz": 2.44e9, "power_dBm": -104 } },
     { "id": "mix",   "type": "AddMixer",    "params": {} },
     { "id": "psd",   "type": "SpectrumAnalyzer", "params": { "nfft": 1024, "window": "hann" } }
   ],

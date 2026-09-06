@@ -33,6 +33,9 @@ CHECK_KEYS = (
 FIELD_SOURCES = ("measured", "paper", "derived", "assumed", "absent")
 
 TIME_BASES = ("logical_sim", "file_acquisition", "device_hw", "external")
+# 绝对功率状态（docs/iq-format.md §4.2、§5；D-047）：estimated = 按论文参数或链路预算估算的常数，不冒充 calibrated
+ABSOLUTE_POWER_STATES = ("calibrated", "estimated", "uncalibrated")
+CALIBRATION_SOURCES = ("measured", "paper", "assumed", "model")
 CONTINUITY_FLAGS = ("continuous", "segmented", "damaged", "unknown")
 OBSERVATION_POINTS = tuple(f"S{i}" for i in range(7))
 
@@ -194,8 +197,22 @@ def validate(man: dict) -> list[str]:
     except KeyError:
         pass
     try:
-        if get_path(man, "power.absolute_power") == "uncalibrated" and not man["power"].get("reason"):
+        ap = get_path(man, "power.absolute_power")
+        if ap not in ABSOLUTE_POWER_STATES:
+            problems.append(f"power.absolute_power 必须是 {ABSOLUTE_POWER_STATES} 之一，实为 {ap!r}")
+        if ap == "uncalibrated" and not man["power"].get("reason"):
             problems.append("power.absolute_power 为 uncalibrated 时必须填 power.reason")
+        if ap == "estimated":
+            # 估算常数（D-047）：必须带 calibration 与来源，scale 与 full_scale_dBm 要自洽，不许只改一头
+            c = man["power"].get("calibration")
+            if not isinstance(c, dict) or not isinstance(c.get("full_scale_dBm"), (int, float)) \
+                    or isinstance(c.get("full_scale_dBm"), bool) or c.get("source") not in CALIBRATION_SOURCES:
+                problems.append("power.absolute_power 为 estimated 时必须带 power.calibration{full_scale_dBm, source}")
+            else:
+                sc = man["power"].get("scale")
+                want = 10 ** (float(c["full_scale_dBm"]) / 20.0) / 32768
+                if not isinstance(sc, (int, float)) or isinstance(sc, bool) or abs(sc - want) > 1e-9 * abs(want):
+                    problems.append("power.scale 与 power.calibration.full_scale_dBm 不自洽")
     except KeyError:
         pass
 

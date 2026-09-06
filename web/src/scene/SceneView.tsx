@@ -1,6 +1,8 @@
-// 地理场景视图：离线底图 + 山体阴影 + 观测区域建筑的三维拉伸。
+// 地理场景视图：离线底图 + 山体阴影 + 观测区域建筑的三维拉伸 + 区域边界。
 //
 // 数据全部来自本地服务，运行时不联网（铁律 6）。底图经 HTTP Range 按需取瓦片（铁律 7）。
+// 地图只建一次：视图切换只是隐藏容器（visibility），本组件不卸载；显示时 map.resize() 一次（09 §4.2）。
+// 场景数据包与开发者模式都来自 store，这里不再读 location.search。
 
 import { useEffect, useRef, useState } from 'react'
 import type { Map as MLMap } from 'maplibre-gl'
@@ -9,39 +11,25 @@ import { protomapsStyle } from './style/protomaps.js'
 import { registerProtocols, newMap } from './init.js'
 import { addHillshade, removeHillshade } from './layers/hillshade.js'
 import { addBuildings3d, setBuildingsColorBySrc } from './layers/buildings3d.js'
+import { addAoiBoundary, bboxContains } from './layers/aoiBoundary.js'
 import { installProbe } from './probe.js'
-import { listScenes, loadScene, type SceneSummary } from './scenePackage.js'
+import { ScenePackagePanel } from './ScenePackagePanel.js'
+import { MapToolbar } from './MapToolbar.js'
+import { ColumnLayout } from '../shell/ColumnLayout.js'
+import { cursorStore } from '../shell/cursorStore.js'
+import { useAppState } from '../state/store.js'
 
-export function SceneView() {
+export function SceneView({ active }: { active: boolean }) {
+  const s = useAppState()
+  const scene = s.scene.summary
+  const dev = s.ui.devMode
   const box = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
-  const [scene, setScene] = useState<SceneSummary | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [hill, setHill] = useState(true)
   const [bySrc, setBySrc] = useState(false)
-  // 开发者模式（?dev=1，D-039 修正）：只有内部诊断才显示高度来源分色与来源占比。
-  // 正常界面不解释建筑高度从哪来——演示系统只要求高度合理可算，标记留在数据字段与文档里（D-042b）。
-  const dev = new URLSearchParams(location.search).has('dev')
+  const [flat, setFlat] = useState(false)
 
-  // 载入场景数据包
-  useEffect(() => {
-    let alive = true
-    void (async () => {
-      try {
-        const want = new URLSearchParams(location.search).get('aoi')
-        const ids = await listScenes()
-        if (ids.length === 0) throw new Error('服务端没有任何场景数据包，先跑 scene/ 下的建库脚本')
-        const id = want && ids.includes(want) ? want : ids[0]
-        const s = await loadScene(id)
-        if (alive) setScene(s)
-      } catch (e) {
-        if (alive) setError(String(e))
-      }
-    })()
-    return () => { alive = false }
-  }, [])
-
-  // 建图
+  // 建图：只在场景摘要就绪且尚无地图时建一次
   useEffect(() => {
     if (!scene || !box.current || mapRef.current) return
     registerProtocols()
@@ -57,10 +45,32 @@ export function SceneView() {
       if (!map.isStyleLoaded()) return
       addBuildings3d(map, { data: scene.buildingsUrl })
       if (hill) addHillshade(map, { tiles: scene.demTiles })
+      addAoiBoundary(map, scene.bbox)
     }
     map.on('style.load', mount)
     map.on('idle', mount)
+    // 鼠标经纬度：节流 100 ms 进独立的小 store，不经主 store
+    let last = 0
+    let pending: { lng: number; lat: number } | null = null
+    let timer: number | null = null
+    const flush = () => {
+      timer = null
+      if (pending) { cursorStore.set({ lng: pending.lng, lat: pending.lat, insideAoi: bboxContains(scene.bbox, pending.lng, pending.lat) }); pending = null }
+      last = performance.now()
+    }
+    const onMove = (e: { lngLat: { lng: number; lat: number } }) => {
+      pending = { lng: e.lngLat.lng, lat: e.lngLat.lat }
+      const wait = 100 - (performance.now() - last)
+      if (timer === null) timer = window.setTimeout(flush, Math.max(0, wait))
+    }
+    const onOut = () => { pending = null; cursorStore.set(null) }
+    map.on('mousemove', onMove)
+    map.on('mouseout', onOut)
     return () => {
+      // 只在真正卸载或换场景时走到这里；视图切换不会触发（09 §4.2）
+      if (timer !== null) window.clearTimeout(timer)
+      map.off('mousemove', onMove)
+      map.off('mouseout', onOut)
       uninstall()
       map.remove()
       mapRef.current = null
@@ -80,40 +90,32 @@ export function SceneView() {
     if (mapRef.current) setBuildingsColorBySrc(mapRef.current, bySrc)
   }, [bySrc])
 
+  // 显示时补一次尺寸：隐藏期间栏宽可能变了
+  useEffect(() => {
+    if (active && mapRef.current) mapRef.current.resize()
+  }, [active])
+
+  const onFlat = () => {
+    const map = mapRef.current
+    if (!map) return
+    const next = !flat
+    setFlat(next)
+    map.easeTo({ pitch: next ? 0 : 55, duration: 400 })
+  }
+
   return (
-    <div className="scene">
-      <div ref={box} className="scene-map" />
-      <div className="scene-panel">
-        {error && <div className="scene-error">{error}</div>}
-        {scene && (
-          <>
-            <h1>{scene.name}</h1>
-            <div className="scene-sub">
-              {scene.extentKm[0]} × {scene.extentKm[1]} km · 中心 {scene.center[0]}, {scene.center[1]}
-            </div>
-            <label><input type="checkbox" checked={hill} onChange={(e) => setHill(e.target.checked)} /> 山体阴影</label>
-            {dev && (
-              <label><input type="checkbox" checked={bySrc} onChange={(e) => setBySrc(e.target.checked)} /> 按高度来源分色（DEV）</label>
-            )}
-            <table className="scene-stats">
-              <tbody>
-                <tr><td>建筑</td><td>{scene.buildings.features.toLocaleString()} 栋</td></tr>
-                <tr><td>高度中位</td><td>{scene.buildings.heightQ50 ?? '—'} m</td></tr>
-                <tr><td>最高</td><td>{scene.buildings.heightMax ?? '—'} m</td></tr>
-              </tbody>
-            </table>
-            {dev && (
-              <div className="scene-src" data-dev="height-sources">
-                {Object.entries(scene.buildings.srcPct).map(([k, v]) => (
-                  <span key={k}>{k} {v}%</span>
-                ))}
-              </div>
-            )}
-            {scene.osmSnapshot && <div className="scene-attrib">底图数据 {scene.osmSnapshot.slice(0, 10)}</div>}
-            <div className="scene-attrib" dangerouslySetInnerHTML={{ __html: scene.attribution ?? '' }} />
-          </>
-        )}
-      </div>
-    </div>
+    <ColumnLayout
+      left={<>
+        <ScenePackagePanel scene={scene} error={s.scene.error} dev={dev} />
+        <div className="group placeholder">场景对象树（切片 ② 启用）</div>
+      </>}
+      center={
+        <div className="scene">
+          <div ref={box} className="scene-map" />
+          <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat} />
+        </div>
+      }
+      right={<div className="group placeholder">链路读数（切片 ② 启用）</div>}
+    />
   )
 }

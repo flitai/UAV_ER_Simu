@@ -147,7 +147,10 @@ TEST_CASE("观测点：产品文件、索引字段、与 SpectrumAnalyzer 同源
     CHECK(idx["rows"] == 40);
     CHECK(idx["row_len"] == 256);
     CHECK(idx["byte_order"] == "little");
-    CHECK(idx["scale"] == "dBFS");
+    // 合成链两路都标 model：行值就是 dBm，索引带常数与来源（D-047）
+    CHECK(idx["scale"] == "dBm");
+    CHECK(idx["calibration"]["source"] == "model");
+    CHECK(idx["calibration"]["offset_dB"].get<double>() == 0.0);
     CHECK(idx["window"] == "hann");
     CHECK(idx["sample_rate_Hz"].get<double>() == 1e6);
     CHECK(idx["bin_width_Hz"].get<double>() == doctest::Approx(1e6 / 256));
@@ -177,6 +180,8 @@ TEST_CASE("观测点：产品文件、索引字段、与 SpectrumAnalyzer 同源
     CHECK(eidx["row_len"] == 3);
     CHECK(eidx["bucket_samples"] == 500);
     CHECK(eidx["last_bucket_samples"] == 340);
+    CHECK(eidx["scale"] == "sqrt_mW");                   // 已标定：包络列是 |x|，单位 sqrt(mW)（D-047）
+    CHECK(eidx["calibration"]["source"] == "model");
     CHECK(eidx["state"] == "valid");                     // 末桶不满是流结束的自然结果：记备注，不降级
     CHECK(eidx["state_reasons"].empty());
     bool noted = false;

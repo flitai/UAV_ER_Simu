@@ -24,7 +24,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from iq_format import manifest as M          # noqa: E402
+from iq_format import manifest as M
+from iq_format import calibration as CAL          # noqa: E402
 from iq_format import readers, writer        # noqa: E402
 
 VERSION = "0.1.0"
@@ -33,8 +34,13 @@ PRODUCER = f"tools/iq_convert.py {VERSION}"
 
 def convert_one(src_path: str, out_dir: str, channel: str | None = None,
                 segment_samples: int = writer.DEFAULT_SEGMENT_SAMPLES,
-                overwrite: bool = False, verbose: bool = True) -> list[str]:
-    """转换一个源文件的一条或多条通道。返回写出的清单路径列表。"""
+                overwrite: bool = False, verbose: bool = True,
+                calibration: dict | None = None) -> list[str]:
+    """转换一个源文件的一条或多条通道。返回写出的清单路径列表。
+
+    calibration 是 iq_format.calibration.load_table() 读出的常数表；给了就把估算常数写进清单（D-047），
+    不给则清单标 uncalibrated。标准命令带 --calibration data/iq/measured/calibration.json。
+    """
     written: list[str] = []
     for src in readers.open_source(src_path, channel=channel):
         man_path = os.path.join(out_dir, f"{src.stem}.manifest.json")
@@ -72,6 +78,8 @@ def convert_one(src_path: str, out_dir: str, channel: str | None = None,
             raise RuntimeError(f"逐段回读对拍失败：{src.stem}，已写文件保留供排查")
 
         man = _build_manifest(src, w, peak_code, max_dev, ok, time.time() - t0)
+        if calibration is not None:
+            CAL.apply(man, calibration)
         problems = M.validate(man)
         if problems:
             raise RuntimeError("清单未通过 docs/iq-format.md 第 4 节校验：\n  - "
@@ -185,7 +193,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--segment-samples", type=int, default=writer.DEFAULT_SEGMENT_SAMPLES)
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--limit", type=int, default=None, help="只转前 N 个文件")
+    ap.add_argument("--calibration", default=None,
+                    help="功率标定常数表（data/iq/measured/calibration.json）；给了就写估算常数进清单（D-047）")
     args = ap.parse_args(argv)
+    table = CAL.load_table(args.calibration) if args.calibration else None
 
     if os.path.isdir(args.source):
         import glob as _glob
@@ -204,7 +215,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[{i}/{len(srcs)}] {os.path.basename(s)}")
         try:
             convert_one(s, args.out, channel=args.channel,
-                        segment_samples=args.segment_samples, overwrite=args.overwrite)
+                        segment_samples=args.segment_samples, overwrite=args.overwrite,
+                        calibration=table)
             n_ok += 1
         except (writer.LossyConversionError, ValueError, RuntimeError) as e:
             print(f"  失败：{e}", file=sys.stderr)

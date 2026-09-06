@@ -1,3 +1,2 @@
-// 框图画布与组件编辑。画布库选型未定（React Flow 或 AntV X6），决策时点是阶段 2 设计报告。
-// 骨架占位，尚无实现。
-export {}
+export { DiagramJsonView } from './DiagramJsonView.js'
+export { EXAMPLES, type Example } from './examples/index.js'

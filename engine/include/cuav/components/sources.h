@@ -100,6 +100,10 @@ private:
     double sample_rate_Hz_ = 0.0;
     double center_frequency_Hz_ = 0.0;
     double full_scale_ = 32768.0;
+    // 量化码到引擎内部单位（|x|^2 = mW）的换算：有清单 power.calibration 时为
+    // 10^(full_scale_dBm/20) / full_scale，没有时只除 full_scale（得到相对满量程的比例，D-047）。
+    double code_scale_ = 1.0 / 32768.0;
+    PowerCalibration calibration_;
     std::size_t block_samples_ = 65536;
     std::uint64_t max_samples_ = 0;      // 0 表示读到文件末尾
 

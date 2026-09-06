@@ -201,7 +201,7 @@ SpectrumFrame SpectrumAnalyzer::make_frame(const std::vector<double>& power, std
     }
     f.bin_width_Hz = sample_rate_Hz_ / static_cast<double>(nfft_);
     f.segments = segments;
-    f.scale = "dBFS";
+    f.scale = last_meta_.calibration.calibrated ? "dBm" : "dBFS";   // D-047：源端已换算到 mW 时就是 dBm
     f.window = window_;
     f.meta = last_meta_;
     f.meta.start_sample = first_sample;

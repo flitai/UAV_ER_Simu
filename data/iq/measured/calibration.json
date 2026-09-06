@@ -1,0 +1,140 @@
+{
+  "schema": "cuav-calibration/1",
+  "status": "prototype",
+  "estimated_utc": "2026-09-06T04:16:45Z",
+  "producer": "scripts/ds8_calibration.py 0.1.0",
+  "definition": "full_scale_dBm = 量化码满量程 |x| = 32768 对应的接收功率（dBm，天线端口）；引擎回放按 x = code / 32768 × 10^(full_scale_dBm/20) 换算到 |x|^2 = mW（D-047）",
+  "note": "两个公开数据集都没有设备标定记录，本表是按论文参数与链路预算估算的原型阶段验证值（D-028），只用于让显示与计算落在物理合理的量级；甲方数据到货后按本脚本重估并替换。",
+  "datasets": {
+    "DroneRFb-DIR": {
+      "dataset": "DroneRFb-DIR",
+      "receiver": "USRP-2955",
+      "full_scale_dBm": -1.6,
+      "source": "model",
+      "note": "由 10 m 视距自由空间链路预算反推：P_rx = 20 dBm(EIRP，假定) + 3 dBi(假定) − FSPL(2.44 GHz, 10 m) = -37.2 dBm；实测突发功率中位 -35.6 dBFS（24 片、12 型）。隐含等效噪声系数 42 dB，对应近零增益录制（10 m 强信号避免削顶），论文无增益记录无法核对。原型阶段验证值（D-028）",
+      "derived_from": {
+        "method": "B_link_budget",
+        "EIRP_dBm": {
+          "value": 20.0,
+          "source": "assumed",
+          "note": "2.4 GHz 图传国内上限"
+        },
+        "G_rx_dBi": {
+          "value": 3.0,
+          "source": "assumed"
+        },
+        "distance_m": {
+          "value": 10.0,
+          "source": "paper"
+        },
+        "frequency_Hz": 2440000000.0,
+        "fspl_dB": 60.2,
+        "p_rx_pred_dBm": -37.2,
+        "sig_dBFS_median": -35.57,
+        "sig_dBFS_min": -39.45,
+        "sig_dBFS_max": -31.35,
+        "sig_dBFS_per_class_median": {
+          "A1": -33.67,
+          "A2": -34.07,
+          "C1": -35.14,
+          "C2": -35.1,
+          "D1": -36.12,
+          "D2": -32.23,
+          "E1": -35.39,
+          "E2": -36.31,
+          "F1": -37.04,
+          "F2": -37.76,
+          "G1": -36.14,
+          "G2": -31.52
+        },
+        "floor_dBFS_median": -51.75,
+        "implied_noise_figure_dB": 41.6,
+        "pieces": [
+          "dronerfb_A1_IN_S0_slice_10_CH0_S4",
+          "dronerfb_A1_IN_S0_slice_11_CH0_S4",
+          "dronerfb_A2_IN_S0_slice_12_CH0_S4",
+          "dronerfb_A2_IN_S0_slice_14_CH0_S4",
+          "dronerfb_C1_IN_S0_slice_11_CH0_S4",
+          "dronerfb_C1_IN_S0_slice_12_CH0_S4",
+          "dronerfb_C2_IN_S0_slice_10_CH0_S4",
+          "dronerfb_C2_IN_S0_slice_11_CH0_S4",
+          "dronerfb_D1_IN_S0_slice_11_CH0_S4",
+          "dronerfb_D1_IN_S0_slice_12_CH0_S4",
+          "dronerfb_D2_IN_S0_slice_11_CH0_S4",
+          "dronerfb_D2_IN_S0_slice_12_CH0_S4",
+          "dronerfb_E1_IN_S0_slice_10_CH0_S4",
+          "dronerfb_E1_IN_S0_slice_11_CH0_S4",
+          "dronerfb_E2_IN_S0_slice_10_CH0_S4",
+          "dronerfb_E2_IN_S0_slice_11_CH0_S4",
+          "dronerfb_F1_IN_S0_slice_12_CH0_S4",
+          "dronerfb_F1_IN_S0_slice_13_CH0_S4",
+          "dronerfb_F2_IN_S0_slice_100_CH0_S4",
+          "dronerfb_F2_IN_S0_slice_101_CH0_S4",
+          "dronerfb_G1_IN_S0_slice_13_CH0_S4",
+          "dronerfb_G1_IN_S0_slice_14_CH0_S4",
+          "dronerfb_G2_IN_S0_slice_10_CH0_S4",
+          "dronerfb_G2_IN_S0_slice_11_CH0_S4"
+        ],
+        "selection": "出版方训练集视距片，每型前 2 片，已排除验收集",
+        "on_threshold_dB": 6.0,
+        "nfft": 1024
+      }
+    },
+    "DroneRFa": {
+      "dataset": "DroneRFa",
+      "receiver": "USRP-2955",
+      "full_scale_dBm": -50.0,
+      "source": "paper",
+      "note": "方法 A（论文法）：P_fs0 0 dBm(假定) − 接收增益 50 dB(论文) = -50.0 dBm，隐含等效噪声系数 1.1 dB；方法 B（链路预算，D00 取区间中点 30 m）：-46.7 dBm − 实测突发功率中位 -37.0 dBFS = -9.8 dBm，隐含噪声系数 41.3 dB；两法差 40.2 dB。取方法 A：噪声系数落在物理合理区间，链路预算一侧的 EIRP 或距离标注不可靠。原型阶段验证值（D-028）",
+      "derived_from": {
+        "method": "A_paper",
+        "rule": "论文有增益时优先方法 A，条件是隐含噪声系数在 (0.0, 15.0) dB 内",
+        "implied_noise_figure_dB": {
+          "method_A": 1.1,
+          "method_B": 41.3
+        },
+        "method_A": {
+          "p_fs0_dBm": {
+            "value": 0.0,
+            "source": "assumed"
+          },
+          "gain_dB": {
+            "value": 50.0,
+            "source": "paper"
+          },
+          "result_dBm": -50.0
+        },
+        "method_B": {
+          "EIRP_dBm": {
+            "value": 20.0,
+            "source": "assumed"
+          },
+          "G_rx_dBi": {
+            "value": 3.0,
+            "source": "paper"
+          },
+          "distance_m": {
+            "value": 30.0,
+            "source": "assumed",
+            "note": "D00 区间 (20.0, 40.0) 取中点，同 DA-6"
+          },
+          "fspl_dB": 69.74,
+          "p_rx_pred_dBm": -46.74,
+          "sig_dBFS_median": -36.97,
+          "sig_dBFS_min": -40.65,
+          "sig_dBFS_max": -35.94,
+          "result_dBm": -9.77
+        },
+        "disagreement_dB": 40.23,
+        "floor_dBFS_mean": -42.89,
+        "pieces": [
+          "dronerfa_T0010_D00_S0101_RF0_S4",
+          "dronerfa_T0010_D00_S0111_RF0_S4",
+          "dronerfa_T0011_D00_S0000_RF0_S4"
+        ],
+        "selection": "D00 档、2.4 GHz 初始频段状态、非背景；每片 6 个偏移 × 200 万点（同 DA-6）",
+        "nfft": 1024
+      }
+    }
+  }
+}

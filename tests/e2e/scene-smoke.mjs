@@ -31,7 +31,8 @@ try {
 
   check('探针可用且无副作用接口', st.ready === true)
   check('WebGL2 可用（MapLibre GL 5 不支持 WebGL1）', st.webgl2 === true)
-  check('样式图层齐全（底图 60 层 + 建筑 + 山体阴影 = 62）', st.layers.length === 62,
+  // U-1 起多一层观测区域边界 aoi-boundary（09 §5.2、§10）：60 + 建筑 + 山体阴影 + 边界 = 63
+  check('样式图层齐全（底图 60 层 + 建筑 + 山体阴影 + AOI 边界 = 63）', st.layers.length === 63,
     `实际 ${st.layers.length} 层`)
   check('底图数据源已挂载', st.sources.includes('pm'))
   check('高程数据源已挂载', st.sources.includes('dem'))

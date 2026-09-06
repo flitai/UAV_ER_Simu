@@ -40,7 +40,7 @@ ComponentInfo ObservationTap::describe() const {
     i.type = type_name();
     i.category = category::Algorithm;
     i.display_name = "观测点";
-    i.description = "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，dBFS）与包络行（桶内 |x| 的 min、max、rms），"
+    i.description = "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，已标定为 dBm、未标定为 dBFS）与包络行（桶内 |x| 的 min、max、rms），"
                     "定长行二进制加索引（docs/display-products.md）；每行同时交给运行观察者供实时推送。"
                     "框图里由 observation_points[] 在装载时并联生成（docs/diagram-format.md §5）";
     i.model_layer = "M3";
@@ -153,19 +153,25 @@ bool ObservationTap::write_index(const char* kind, std::string& err) {
     j["center_Hz"] = center_frequency_Hz_;
     j["start_sample"] = spectrum ? spec_first_sample_ : first_sample_;
     j["t0_s"] = sample_rate_Hz_ > 0 ? static_cast<double>(spectrum ? spec_first_sample_ : first_sample_) / sample_rate_Hz_ : 0.0;
+    // 功率标度（D-047）：被观测信号的块元数据说已标定，行值就是 dBm（源端换算，这里不加偏移），
+    // calibration 记源端用过的常数与来源；未标定只写 dBFS / linear_FS，不写 calibration 字段。
+    const PowerCalibration& cal = last_meta_.calibration;
     if (spectrum) {
         j["bin_width_Hz"] = sample_rate_Hz_ > 0 ? sample_rate_Hz_ / static_cast<double>(nfft_) : 0.0;
         j["frame_hop_samples"] = acc_.hop() * segments_per_frame_;
         j["nfft"] = nfft_;
         j["segments_per_frame"] = segments_per_frame_;
         j["window"] = window_;
-        j["scale"] = "dBFS";
+        j["scale"] = cal.calibrated ? "dBm" : "dBFS";
         j["floor_dB"] = -300.0;
     } else {
         j["bucket_samples"] = bucket_samples_;
         j["last_bucket_samples"] = last_bucket_samples_;
         j["columns"] = {"min_abs", "max_abs", "rms_abs"};
-        j["scale"] = "linear_FS";
+        j["scale"] = cal.calibrated ? "sqrt_mW" : "linear_FS";
+    }
+    if (cal.calibrated) {
+        j["calibration"] = {{"offset_dB", cal.offset_dB}, {"source", cal.source}, {"note", cal.note}};
     }
     State st = worst(last_meta_.state, status_.state);
     j["state"] = to_string(st);

@@ -58,8 +58,11 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 | `description` | 说明 |
 | `constraint` | 可选，跨参数约束的文本描述（如 `|offset_Hz| + bw_Hz/2 < fs_Hz/2`），校验在引擎实现 |
 | `internal` | 可选，`true` 表示内部参数：由装载器解析注入（如按 `data_id` 解析出的 `manifest_path`），画布不显示，框图文件里出现即拒绝（04 §8.6，D-037） |
+| `excludes[]` | 可选，互斥参数名：与本参数不能同时给出（如 `level_dBm` 与 `amplitude`）。注册表校验先拒，组件 `configure()` 再守一道，装载器映射为 `param_conflict`（2026-09-06，D-047） |
 
 单位在目录不在框图；画布右侧参数面板显示 `unit`、`min`、`max`、`description` 与校验状态。
+
+功率类参数的单位约定（D-047）：引擎内部 `|x|² = 功率 / mW`，`ToneSource.amplitude` 与 `NoiseSource.power` 是线性值（1.0 = 0 dBm），同组件另有 `level_dBm` / `power_dBm` 直接按 dBm 给，二者互斥。
 
 ## 5. 黄金基准规则
 

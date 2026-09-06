@@ -7,7 +7,7 @@
 
 ---
 
-## 当前状态快照（更新于 2026-09-06）
+## 当前状态快照（更新于 2026-09-06，U-1 后）
 
 **所处阶段**：P0「需求冻结与数据摸底」，进行中。**整体处于原型系统阶段**（D-028）：
 公开数据集只用于验证技术途径、软件架构与功能实现，**其量化结论一律不作交付指标**，
@@ -19,7 +19,7 @@
 `cuav_run` 可执行（B-1 至 B-4、P1-4a），58 项单测 + 3 项冒烟全绿。服务 `server/`：任务管理器（提交→同步校验→排队→子进程→终态，取消、
 退出收尾、重启对账，B-5）、WebSocket 推送 / 补取（`/ws` 订阅、`GET .../events?since`、`product_row` 二进制帧，B-6）与**视窗抽取端点**
 （`GET /api/v1/results/...` 按时间窗、频段、像素与统计量归约产品文件，B-7），102 项测试全绿，运行时依赖只有 `ws`。
-前端 `web/`：2.5D 离线底图（D1）；框图画布与信号视图待 U 线。`tools/` 的 IQ 转换与质检、`algos/reference/` 的
+前端 `web/`：2.5D 离线底图（D1）；**U-1 三视图壳完成（2026-09-06）**：hash 路由、`useReducer` store、REST / WS 客户端（退避重连、`since` 补取、二进制行帧）、顶栏面包屑与两正交徽标、运行组、底部抽屉日志与状态条、框图 JSON 页、结果页信号页头（纵轴 `dBm`）、探针 `app`；43 项单测、两条 e2e（14 + 23 项）全绿。**dBm 纵轴链已打通（D-047）**：引擎内部功率单位 mW，两个公开数据集的标定常数已估出并刷进 4714 份清单（DroneRFb-DIR −1.6 dBm model、DroneRFa −50.0 dBm paper，原型阶段验证值）；界面只标 dBm，来源只在 `?dev=1`。信号视图 U-3 是切片 ① 的最后一步。`tools/` 的 IQ 转换与质检、`algos/reference/` 的
 能量检测参考实现与两个标定脚本 49 项单测全绿。`scripts/build-all.sh`（web、server、engine、geo、路径与 ASCII 检查）全过。
 **辐射源模板线（T，D-045，2026-09-05）**：用户问「现有数据集能否作为将来模拟特定无人机信号的基础」，核实为 04 §7.2 的既定路线、代码一件未做；
 定三种模式（首选特征等效再生）、供给边界（数据集未记录的量都是场景配置项）与回放模式的信噪比上限；规范草案 `docs/emitter-template.md`，
@@ -2678,3 +2678,72 @@ macOS libm 在这批数据上给出同一个 float64。测试里仍保留 1 个 
 **新增待办**。Windows 原生验证时加一项：引擎写索引用的 `platform::atomic_replace`（`MoveFileExA`）
 没有重试，若服务端恰在那一瞬打开着 `index.json`，替换会失败并让任务进 `Step::Error`。读端现在只用
 `readFile`（开—读—关，毫秒级），撞上的概率很低，但 Windows 上必须实测确认，必要时给引擎侧加重试。
+
+### 2026-09-06 · U-1 三视图壳与 dBm 纵轴链（D-047）：界面像交付系统，电平像真实接收机
+
+**任务**。用户指示「进行下一步 U-1 三视图壳，并且纵轴以 dBm 显示，标定来源徽标不给用户显示，体现真实性」。
+开工前探查（三路并行）核实到三件事：前端只有场景视图，路由、store、REST / WS 客户端、信号代码一件没有，
+但 09 报告附录 A 与 §10 已把 store 形状、数据流与探针字段写死；**dBm 目前不可达**——引擎 `tap.cpp` 无条件写
+`scale = "dBFS"`、不写 `calibration`，两批数据索引与逐文件清单都没有标定常数（DS-8 / DA-8 未做）；以及
+**一处缺陷**：`FileReplaySource` 把 int16 量化码直接当样点、未除满量程，回放产物的谱值比真正的 dBFS 高
+`20·log10(32768) = 90.31 dB`（盘上 `t20260905-143440-ae58` 的谱最大 +55.7 dB）。没有 golden 依赖回放样点，
+按铁律 10 记发现、修正，不算基准变更。
+
+**决策 D-047**（写入 CLAUDE.md）：引擎内部功率单位 = mW，样点 `|x|² = 功率 / mW`，`10·log10` 直接是 dBm；
+合成源新增 `level_dBm` / `power_dBm`（与线性参数互斥，目录 `excludes[]`，装载错误码 `param_conflict`）；回放源
+在源端按清单 `power.calibration.full_scale_dBm` 换算，无常数只除满量程并保持降级；`AddMixer` 取较弱来源；
+观测点索引谱 `scale = dBm` + `calibration`、包络 `sqrt_mW`；**界面只标 `dBm`，来源徽标、常数与出处只在
+`?dev=1`**——这是对 D-038「带来源徽标」显示层的修正，与 D-042b / D-043 同向，数据层「绝不产生不带来源的
+dBm」不变。示例框图改成真实量级：−70 dBm 单音、−104 dBm 噪声（热噪声 @1 MHz −114 dBm + 噪声系数 10 dB）、
+中心 2.44 GHz。
+
+**引擎（实测得到）**。新增解析锚点单测：−70 dBm 单音在 bin 中心的峰值读 −69.9997 dBm；−104 dBm 复高斯噪声在
+1024 点 hann 下每 bin 均值 −132.349 dBm，解析值 `−104 − 10·log10(1024) + 10·log10(1.5) = −132.342`（Σw²/(Σw)² =
+1.5/N；均值在线性域取，单帧每 bin 是指数分布、中位数比均值低 1.59 dB，所以锚点不用中位数）。示例框图经
+`cuav_run` 跑出 1953 行：底噪均值 −132.34 dBm，峰 −70.9 dBm——100 kHz 偏移落在 0.4 bin 处，hann 扇贝损耗
+0.9 dB，是物理不是缺陷，示例保留整数频偏。回放夹具修正后谱最大 −34.6 dB（此前 +55.7）。组件目录黄金基准
+只增两个参数条目、既有条目逐字节不变，按「已有条目不变」规则重生成。引擎 62 项单测 + 3 项冒烟全绿。
+
+**数据常数 DS-8 / DA-8（原型阶段验证值，D-028）**。脚本 `scripts/ds8_calibration.py`，两种估法：论文法
+`P_fs0 − gain_dB`（满量程 0 dB 增益时 0 dBm 是假定值，USRP-2955 规格只给最大输入 +10 dBm 与增益 0–93 dB）与
+链路预算反推 `EIRP + G_rx − FSPL − P_sig_dBFS`（EIRP 取 2.4 GHz 图传国内上限 20 dBm、G_rx 3 dBi 均为假定，
+距离取论文标注）。结果：
+
+| 数据集 | 常数 | 来源 | 实测依据 |
+|---|---|---|---|
+| DroneRFb-DIR | −1.6 dBm | model | 出版方训练集视距片每型 2 片共 24 片 12 型（与验收集无交集），突发功率中位 −35.6 dBFS（极差 −39.5 ~ −31.4），底噪中位 −51.7 dBFS；10 m 自由空间预测 −37.2 dBm |
+| DroneRFa | −50.0 dBm | paper | D00 档 3 片突发功率中位 −37.0 dBFS，底噪 −42 dBFS；论文法 −50.0 dBm，链路预算法 −9.8 dBm，**两法差 40.2 dB** |
+
+计划里的取舍规则（两法差 10 dB 内取论文法）被这个 40 dB 的分歧否定，改用物理一致性判据：按常数换算的底噪
+相对热噪声（−174 dBm/Hz + 10·log10(B)）得出的等效噪声系数必须落在 0–15 dB——论文法隐含 1.1 dB（合理），
+链路预算法隐含 41.3 dB（不合理，说明 EIRP 或距离标注不可靠），故 DroneRFa 取论文法。DroneRFb 只有链路预算法，
+隐含噪声系数 42 dB，对应近零增益录制（10 m 强信号避免削顶），论文无增益记录无法核对。常数表
+`data/iq/measured/calibration.json` 记全部输入与推导；`tools/apply_calibration.py` 把常数刷进 4714 份清单
+（`absolute_power = estimated`、`power.calibration`、`field_sources["power.scale"]`，质量保持 degraded，
+幂等；与新转换加 `--calibration` 的产物逐字节相同），`tools/build_batch_index.py` 加 `calibration` 块；校验器
+加 `estimated` 状态与 scale / 常数自洽检查；工具单测 37 项全绿。标定后的 DroneRFb 回放：每 bin 底噪 −83 dBm
+（RBW 78 kHz）、帧峰值 p50 −49.5 / p99 −39.0 dBm——像一台看着 10 m 外无人机的频谱仪。
+
+**前端 U-1**。`web/src/state/{types,reducer,logRing,selectors,store}`、`api/{client,frames,seq,hash,ws}`、
+`shell/{route,Router,hotkeys,useHotkeys,badges,format,layout,cursorStore,ColumnLayout,TopBar,ExperimentContext,
+RunGroup,ViewSwitch,Drawer,LogPanel,StatusBar,Toasts,AppShell,actions,useTaskStream,useProductIndex}`、
+`diagram/{DiagramJsonView,examples}`、`results/ResultsView`、`signal/{buffer,SignalPlaceholder}`、`data/DataCenter`，
+`SceneView` 重构为只建一次地图（视图切换用 `visibility` 隐藏 + `inert`，显示时 `resize()`），探针改模块级注册表
+并加 `app` 子对象与 `mapInstanceId`。三条实现中发现并修掉的问题：① `npm test` 的 glob 未加引号，一旦出现
+`src/state/*.test.ts`，`/bin/sh` 展开 `**` 会漏掉两层深的 `protomaps.test.ts`；② 带 `#/results` 打开时，Router
+的 hash 同步 effect 用初始状态 `scene` 把地址栏覆盖回 `#/scene`——改为初始状态按 hash 建、只在解析结果与状态
+不一致时才写；③ 采用已结束的任务时折叠历史 `task.state` 事件会弹出过时的「任务完成」提示——加 `silent`
+批次。web 43 项单测全绿；`scene-smoke.mjs` 14 项通过（唯一改动：图层 62 → 63，新增 `aoi-boundary`）；新
+`slice1-smoke.mjs` 23 项全过：切换视图 `mapInstanceId` 恒为 1，界面提交示例框图后任务 `finished / valid`，
+`?dev=1` 钩子断开 WS 后重连、客户端 `lastSeq` 与服务端 `last_seq` 同为 2448、日志无缺号，探针 `scaleLabel`
+默认为 `dBm`、开发者模式为 `dBm · 标定：模型`，默认 DOM 无 `[data-dev]` 与「标定：」文字，全部请求都在回环
+地址。`scripts/build-all.sh`（含路径与 ASCII 检查）通过。
+
+**一处顺手的文档更正**。09 §10 写「`scene-smoke.mjs` 不改」又要求 `layers` 含 `aoi-boundary`，两条本就冲突；
+取后者，报告升 v1.6。
+
+**下一步**。切片 ① 只剩 U-3 信号视图：频谱在上瀑布在下共用频率轴、最新行在顶，实时行走 `signalBuffer`
+里的 WS 二进制帧、回看走 B-7 端点，纵轴按索引 `scale` 标 `dBm`。之后切片 ②（G 线）。
+
+**新增待办**。① 前端打开已结束任务时日志面板是空的（以 `since = last_seq` 订阅不回放历史），U-4 结果页
+可按需从 `GET .../events` 拉一段历史日志；② `useProductIndex` 只轮询谱索引，包络索引待 U-3 一并接。

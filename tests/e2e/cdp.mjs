@@ -41,7 +41,7 @@ export async function launchChrome({ port = 9333, userDataDir, windowSize = '140
 }
 
 export class Page {
-  #ws; #id = 0; #pending = new Map(); #targetId
+  #ws; #id = 0; #pending = new Map(); #targetId; #listeners = new Map()
 
   static async open(port, url) {
     const r = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })
@@ -58,8 +58,22 @@ export class Page {
       const m = JSON.parse(ev.data)
       const w = p.#pending.get(m.id)
       if (w) { p.#pending.delete(m.id); m.error ? w.rej(new Error(JSON.stringify(m.error))) : w.res(m.result) }
+      if (m.method) for (const f of p.#listeners.get(m.method) ?? []) f(m.params)
     })
     return p
+  }
+
+  /** 订阅调试协议事件（如 Network.requestWillBeSent）；先 send('Network.enable') 才有事件。 */
+  on(method, fn) {
+    if (!this.#listeners.has(method)) this.#listeners.set(method, [])
+    this.#listeners.get(method).push(fn)
+  }
+
+  /** 按键：Alt = modifiers 1，Ctrl = 2，Meta = 4，Shift = 8。 */
+  async pressKey({ key, code, vk, modifiers = 0 }) {
+    const base = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers }
+    await this.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base })
+    await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base })
   }
 
   send(method, params = {}) {
@@ -74,6 +88,16 @@ export class Page {
   async evaluate(expr) {
     const r = await this.send('Runtime.evaluate', {
       expression: `JSON.stringify(${expr})`, awaitPromise: true, returnByValue: true,
+    })
+    if (r.exceptionDetails) throw new Error(`页面求值出错：${JSON.stringify(r.exceptionDetails)}`)
+    const v = r.result?.value
+    return v === undefined ? undefined : JSON.parse(v)
+  }
+
+  /** 求值一个返回 Promise 的表达式，等它落定后取 JSON 化的结果。 */
+  async evaluateAsync(expr) {
+    const r = await this.send('Runtime.evaluate', {
+      expression: `Promise.resolve(${expr}).then((v) => JSON.stringify(v))`, awaitPromise: true, returnByValue: true,
     })
     if (r.exceptionDetails) throw new Error(`页面求值出错：${JSON.stringify(r.exceptionDetails)}`)
     const v = r.result?.value

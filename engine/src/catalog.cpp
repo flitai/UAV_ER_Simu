@@ -34,6 +34,7 @@ nlohmann::json param_json(const ParamSpec& p) {
     if (p.type == ParamType::Enum) j["enum"] = p.enum_values;
     if (!p.constraint.empty()) j["constraint"] = p.constraint;
     if (p.internal) j["internal"] = true;
+    if (!p.excludes.empty()) j["excludes"] = p.excludes;
     return j;
 }
 

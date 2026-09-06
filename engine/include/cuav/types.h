@@ -78,6 +78,17 @@ enum class TimeBasis {
 
 const char* to_string(TimeBasis b);
 
+// 功率标定常数与来源（D-047）。
+struct PowerCalibration {
+    bool calibrated = false;
+    double offset_dB = 0.0;
+    std::string source;      // measured / paper / model / assumed；未标定为空
+    std::string note;
+};
+
+// 来源可信度排序 measured > paper > model > assumed；未知当 assumed。返回较弱的那个。
+std::string weaker_source(const std::string& a, const std::string& b);
+
 // 块元数据。样点自身不带单位，全部解释都在这里。
 struct BlockMeta {
     double sample_rate_Hz = 0.0;
@@ -88,9 +99,12 @@ struct BlockMeta {
     TimeBasis time_basis = TimeBasis::LogicalSim;
     bool continuous_with_previous = true;
 
-    // 功率标度。未标定时 scale 取负值并把 state 标 Degraded，不拿 1.0 顶替。
-    double scale = -1.0;
-    double full_scale = 32768.0;
+    // 功率标定（决策 D-047）。引擎内部功率单位是 mW：|x|^2 就是功率，10·log10 直接得 dBm。
+    // calibrated 为真表示本块样点已经在源端换算到这一约定；offset_dB 是源端用过的常数
+    // （回放 = 满量程对应的 dBm，合成 = 0），source 是常数的来源（measured / paper / model / assumed）。
+    // 未标定时 calibrated 为假、state 标 Degraded，样点只是相对满量程的比例，不拿 0 dB 顶替。
+    PowerCalibration calibration;
+    double full_scale = 32768.0;   // 回放源的量化码满量程；合成源不用
 
     State state = State::Valid;
     std::vector<std::string> state_reasons;
