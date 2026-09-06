@@ -67,7 +67,7 @@
 | `platform_type` | enum | 是 | `multirotor` / `fixed_wing` / `racing` / `medium`（沿用 em-demo 分类）；只作显示与默认参数，不进物理 |
 | `position` | object | 是 | 初始位置 `{lon, lat, alt_m}`；有航线时以航线第一个航点为准 |
 | `emission` | object | 是 | `{center_Hz, bw_Hz, tx_power_dBm, antenna_gain_dBi, waveform}` |
-| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst", ...}`：`tone` 带 `offset_Hz`；`noise` 无附加字段；`burst` 带 `period_s, duty, offset_Hz`。P3 再扩 `ofdm` / `fhss` |
+| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst", ...}`：`tone` 带 `offset_Hz`；`noise` 无附加字段；`burst` 带 `period_s, duty, offset_Hz`。P3 再扩 `ofdm` / `fhss`；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
 
 ## 5. 航线 `routes[]`
 
@@ -154,3 +154,5 @@ line_of_sight, doppler_Hz, delay_s, state, trace}`。
 - [ ] 示例文件 `data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json` 与 schema 的一致性测试（G-0）
 - [ ] 多站、阵列与设备字段（05 P0，只作命名预留）
 - [ ] P3 波形类型 `ofdm` / `fhss` 的字段
+- [ ] 波形类型 `template`（`template_id`；模板文件路径是内部参数，画布只见标识，与 D-037 同法；`docs/emitter-template.md` §7；D-045）
+- [ ] `emission.tx_power_dBm` 的来源字段 `tx_power_source ∈ {measured, paper, assumed}`：数据层记账随产物走，界面不显示（铁律 8、14；D-042；D-045）

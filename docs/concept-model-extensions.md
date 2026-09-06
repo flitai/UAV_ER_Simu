@@ -31,7 +31,9 @@
 | 影响到的下游产物 | |
 | 提出日期与提出人 | |
 
-目前没有已登记的扩展。
+| 被扩展的模型编号 | 新增字段名与类型 | 语义与单位 | 依据 | 影响到的下游产物 | 提出日期与提出人 |
+|---|---|---|---|---|---|
+| EM-B-09 信号抽象、EM-T-03 辐射源特性 | 不新增字段；允许既有参数 `psd_shape_template`、`duty_cycle_profile`、`hop_set_summary`、`nominal_power_level`（EM-B-09）与 `frequency_plan_profile`、`temporal_pattern_profile`、`tx_power_profile`（EM-T-03）的**来源为实测模板** `cuav-emitter-template/1`（`docs/emitter-template.md` §4 给出逐字段对应） | 单位不变（Hz、s、比例、dBm）；模板归一化到单位功率，`tx_power_profile` 只作默认值并带来源 `measured / paper / assumed` | 02 §8 第 1 条（保持「不生成 IQ」边界：模板是参数，生成在 M3 组件 `TemplateSource`）；04 §7.2 之 ③；D-045 | `data/iq/templates/*.template.json`；`TemplateSource` 的再生波形；再生产物的 `trace_id` 带 `template_id` | 2026-09-05，实施方（用户 2026-09-05 确认路线） |
 
 ## 4. 待写清单
 

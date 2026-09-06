@@ -251,3 +251,4 @@
 - [ ] 第 5 节：功率与标定口径（被甲方数据阻塞，两个公开数据集都无标定常数与馈线损耗）
 - [ ] 与 04 §15.2 十二项标准算例的对应关系
 - [ ] 分片续传的 HTTP Range 约定（与 `docs/api-versions.md` 一并定；原 P1-5 已于 2026-09-04 撤销，此项改归 P2 分片上传）
+- [ ] 模板再生产物的元数据：进 `data/iq/synthetic`（纯合成）或 `data/iq/mixed`（叠了实测背景）时 `origin` 引 `template_id`，`model_trace.trace_id` 带 `template_id`（`docs/emitter-template.md` §7；D-045）
