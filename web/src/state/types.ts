@@ -28,6 +28,11 @@ export interface LogLine {
 
 export interface Toast { id: number; kind: LogLevel; text: string; sticky: boolean }
 
+/** 视窗：时间相对索引 t0_s（秒），频率相对 center_Hz（Hz）；与 signal/viewport.ts 的 Viewport 同构 */
+export interface SignalViewport { t0: number; t1: number; f0: number; f1: number; stat: 'max' | 'mean' | 'min' }
+export type TraceMode = 'single' | 'avg' | 'maxhold' | 'minhold'
+export interface MarkerDef { id: 'M1' | 'M2'; freq_Hz: number | null; auto: boolean }
+
 export interface UndoStack<T> { past: T[]; future: T[] }
 
 /** 产品索引端点的返回（docs/display-products.md §2 加 §3.1 的三个附加字段） */
@@ -41,6 +46,7 @@ export interface ProductIndex {
   bin_width_Hz?: number
   frame_hop_samples?: number
   bucket_samples?: number
+  last_bucket_samples?: number
   t0_s: number
   nfft?: number
   window?: string
@@ -158,21 +164,24 @@ export interface AppState {
   links: { byId: Record<string, never> }
   signal: {
     opId: string | null
-    compareOpId: null
+    /** 对比观测点（切片 ③），本期恒 null */
+    compareOpId: string | null
     index: ProductIndex | null
-    viewport: { t0: number; t1: number; f0: number; f1: number; stat: 'max' | 'mean' | 'min' }
+    envelopeIndex: ProductIndex | null
+    viewport: SignalViewport
     display: {
       refLevel_dB: number
       range_dB: number
       auto: boolean
-      trace: 'single'
+      trace: TraceMode
       avgN: number
-      freqAxis: 'rf'
+      freqAxis: 'rf' | 'offset'
       overlayDetections: boolean
       unit: 'dBm' | 'dBFS'
       calibration: { offset_dB: number; source: CalibrationSource } | null
     }
-    markers: never[]
+    /** M1 自动峰值恒在（freq_Hz 为 null 表示跟踪峰值）；M2 手动放置时才有 */
+    markers: MarkerDef[]
     follow: boolean
     cursor_t_s: number | null
   }
@@ -225,5 +234,12 @@ export type Action =
   | { type: 'log/followTail'; on: boolean }
   | { type: 'log/client'; level: LogLevel; message: string }
   | { type: 'signal/index'; opId: string; index: ProductIndex }
+  | { type: 'signal/envelopeIndex'; opId: string; index: ProductIndex }
   | { type: 'signal/selectOp'; opId: string }
   | { type: 'signal/follow'; on: boolean }
+  /** 任何视窗变化都转回看（follow = false）；有索引时夹到数据范围 */
+  | { type: 'signal/viewport'; viewport: Partial<SignalViewport> }
+  | { type: 'signal/display'; patch: Partial<AppState['signal']['display']> }
+  /** M2：freq_Hz 为 null 即删除 */
+  | { type: 'signal/marker'; id: 'M2'; freq_Hz: number | null }
+  | { type: 'signal/cursor'; t_s: number | null }

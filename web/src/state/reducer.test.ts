@@ -66,7 +66,8 @@ test('signal/index：dBm 带常数 → dBm；dBFS 或缺常数 → dBFS 并记�
   const idx: ProductIndex = { kind: 'spectrum', op_id: 's4', row_len: 1024, rows: 10, sample_rate_Hz: 1e6, center_Hz: 2.44e9, bin_width_Hz: 976.5625, frame_hop_samples: 1024, t0_s: 0, nfft: 1024, window: 'hann', scale: 'dBm', calibration: { offset_dB: 0, source: 'model' as const }, state: 'valid' as const, state_reasons: [], rows_available: 10, index_final: false, run_state: 'running' as const }
   const a = reducer(base, { type: 'signal/index', opId: 's4', index: idx })
   assert.equal(a.signal.display.unit, 'dBm'); assert.deepEqual(a.signal.display.calibration, { offset_dB: 0, source: 'model' })
-  assert.deepEqual(a.signal.viewport, { t0: 0, t1: 10 * 1024 / 1e6, f0: -5e5, f1: 5e5, stat: 'max' })
+  // 全窗按列边界（半格）：f0 = (−512 − 0.5)·bw，f1 = (1024 − 512 − 0.5)·bw
+  assert.deepEqual(a.signal.viewport, { t0: 0, t1: 10 * (1024 / 1e6), f0: -512.5 * 976.5625, f1: 511.5 * 976.5625, stat: 'max' })
   const b = reducer(base, { type: 'signal/index', opId: 's4', index: { ...idx, scale: 'dBFS', calibration: undefined } as ProductIndex })
   assert.equal(b.signal.display.unit, 'dBFS'); assert.equal(b.signal.display.calibration, null)
   const c = reducer(base, { type: 'signal/index', opId: 's4', index: { ...idx, calibration: undefined } as ProductIndex })
@@ -89,4 +90,44 @@ test('ws/status 关闭只在运行中任务上提示一次', () => {
   const n = s.ui.toasts.filter((t) => /断开/.test(t.text)).length
   s = reducer(s, { type: 'ws/status', ws: { status: 'closed', lastSeq: 1, reconnects: 0, dropped: 0, attempt: 0, nextRetryMs: 0 } })
   assert.equal(n, 1); assert.equal(s.ui.toasts.filter((t) => /断开/.test(t.text)).length, 1)
+})
+
+test('signal/viewport 转回看并夹到数据内；signal/follow on 复位全带清游标；marker 与 cursor；selectOp 重置保留 follow', () => {
+  const base = reducer(s0(), { type: 'task/created', record: rec() })
+  const idx: ProductIndex = { kind: 'spectrum', op_id: 's4', row_len: 1024, rows: 10, sample_rate_Hz: 1e6, center_Hz: 2.44e9, bin_width_Hz: 976.5625, frame_hop_samples: 1024, t0_s: 0, nfft: 1024, window: 'hann', scale: 'dBm', calibration: { offset_dB: 0, source: 'model' as const }, state: 'valid' as const, state_reasons: [], rows_available: 1000, index_final: false, run_state: 'running' as const }
+  let s = reducer(base, { type: 'signal/index', opId: 's4', index: idx })
+  assert.equal(s.signal.follow, true)
+  assert.deepEqual(s.signal.markers, [{ id: 'M1', freq_Hz: null, auto: true }])
+  s = reducer(s, { type: 'signal/viewport', viewport: { t0: 0.4, t1: 9, f0: -2e5, f1: 2e5 } })
+  assert.equal(s.signal.follow, false)
+  assert.ok(Math.abs(s.signal.viewport.t1 - 1000 * 1024 / 1e6) < 1e-12)      // 夹到 rowsAvail·dt
+  assert.equal(s.signal.viewport.f0, -2e5)
+  s = reducer(s, { type: 'signal/cursor', t_s: 0.5 })
+  s = reducer(s, { type: 'signal/marker', id: 'M2', freq_Hz: 2.4401e9 })
+  assert.equal(s.signal.markers.length, 2)
+  assert.deepEqual(s.signal.markers[1], { id: 'M2', freq_Hz: 2.4401e9, auto: false })
+  s = reducer(s, { type: 'signal/marker', id: 'M2', freq_Hz: 2.4402e9 })
+  assert.equal(s.signal.markers.length, 2)
+  s = reducer(s, { type: 'signal/marker', id: 'M2', freq_Hz: null })
+  assert.equal(s.signal.markers.length, 1)
+  s = reducer(s, { type: 'signal/display', patch: { trace: 'maxhold', auto: false, refLevel_dB: -30 } })
+  assert.equal(s.signal.display.trace, 'maxhold'); assert.equal(s.signal.display.refLevel_dB, -30)
+  s = reducer(s, { type: 'signal/follow', on: true })
+  assert.equal(s.signal.follow, true); assert.equal(s.signal.cursor_t_s, null)
+  assert.equal(s.signal.viewport.f0, -512.5 * 976.5625)
+  s = reducer(s, { type: 'signal/envelopeIndex', opId: 's4', index: { ...idx, kind: 'envelope', row_len: 3, bucket_samples: 4096 } })
+  assert.equal(s.signal.envelopeIndex?.kind, 'envelope')
+  assert.equal(reducer(s, { type: 'signal/envelopeIndex', opId: 'other', index: idx }).signal.envelopeIndex, s.signal.envelopeIndex)
+  s = reducer(s, { type: 'signal/follow', on: false })
+  s = reducer(s, { type: 'signal/selectOp', opId: 's0' })
+  assert.equal(s.signal.opId, 's0'); assert.equal(s.signal.follow, false); assert.equal(s.signal.index, null); assert.equal(s.signal.envelopeIndex, null)
+  const again = reducer(s, { type: 'task/created', record: rec() })
+  assert.equal(again.signal.follow, true)                      // 新任务回到跟随
+})
+
+test('task/adopt：采用已结束的任务直接进回看（没有实时行可跟随），采用运行中的任务保持跟随', () => {
+  const done = reducer(s0(), { type: 'task/adopt', record: { ...rec(), run_state: 'finished', result: 'valid', last_seq: 42 } })
+  assert.equal(done.signal.follow, false)
+  const running = reducer(s0(), { type: 'task/adopt', record: { ...rec(), run_state: 'running', last_seq: 5 } })
+  assert.equal(running.signal.follow, true)
 })

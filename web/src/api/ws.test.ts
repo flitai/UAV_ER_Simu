@@ -50,14 +50,15 @@ function make(fetchEvents?: (id: string, since: number) => Promise<{ events: WsT
   const rows: number[] = []
   const logs: string[] = []
   const statuses: string[] = []
+  const seqs: number[] = []
   const c = new WsClient({
     url: 'ws://x/ws',
     fetchEvents: fetchEvents ?? (async () => ({ events: [], last_seq: 0 })),
     onEvent: (e) => got.push(e), onRow: (h) => rows.push(h.seq),
-    onStatus: (s) => statuses.push(s.status), onClientLog: (_l, m) => logs.push(m),
+    onStatus: (s) => { statuses.push(s.status); seqs.push(s.lastSeq) }, onClientLog: (_l, m) => logs.push(m),
     WebSocketImpl: FakeWs, setTimeout: timers.set, clearTimeout: timers.clear,
   })
-  return { c, timers, got, rows, logs, statuses, ws: () => FakeWs.instances.at(-1)! }
+  return { c, timers, got, rows, logs, statuses, seqs, ws: () => FakeWs.instances.at(-1)! }
 }
 
 test('打开即发订阅报文，带 since；同任务二次订阅不建新连接', () => {
@@ -159,4 +160,27 @@ test('二进制行帧走 onRow，序号也参与校验', () => {
   new Float32Array(buf, 4 + json.length + pad, 2).set([1, 2])
   m.ws().onmessage?.({ data: buf })
   assert.deepEqual(m.rows, [1]); assert.equal(m.c.state.lastSeq, 1)
+})
+
+test('序号推进后节流上报状态：不断线也能让界面的 lastSeq 跟上，每 250 ms 至多一次', () => {
+  const m = make()
+  m.c.subscribe('t', 0)
+  m.ws().open()
+  const before = m.seqs.length
+  for (let i = 1; i <= 5; i++) m.ws().text({ seq: i, task_id: 't', type: 'log', t_s: 0, payload: { message: `l${i}` } })
+  assert.equal(m.seqs.length, before, '节流窗口内不上报')
+  m.timers.advance(250)
+  assert.equal(m.seqs.length, before + 1, '一个窗口只上报一次')
+  assert.equal(m.seqs.at(-1), 5)
+  for (let i = 6; i <= 8; i++) m.ws().text({ seq: i, task_id: 't', type: 'log', t_s: 0, payload: { message: `l${i}` } })
+  m.timers.advance(250)
+  assert.equal(m.seqs.at(-1), 8)
+  assert.equal(m.c.state.lastSeq, 8)
+  // 关闭后不再有滞留的上报（close 自己的状态迁移照常）
+  m.ws().text({ seq: 9, task_id: 't', type: 'log', t_s: 0, payload: { message: 'l9' } })
+  m.c.close()
+  const n = m.seqs.length
+  assert.equal(m.statuses.at(-1), 'closed')
+  m.timers.advance(1000)
+  assert.equal(m.seqs.length, n, '关闭后没有滞留的节流上报')
 })

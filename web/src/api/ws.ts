@@ -31,6 +31,7 @@ export interface WsClientOptions {
 
 const BACKOFF_MS = [1000, 2000, 4000, 8000]
 const WATCHDOG_MS = 35000          // 两个 15 s 心跳加余量
+const STATUS_MS = 250              // 序号读数的上报节流：突发下每秒最多四次状态提交
 const CLOSE_MANUAL = 4000
 const CLOSE_WATCHDOG = 4998
 const CLOSE_DROP_TEST = 4999
@@ -44,6 +45,7 @@ export class WsClient {
   private retryTimer: unknown = null
   private watchdog: unknown = null
   private catchingUp = false
+  private statusTimer: unknown = null
   private held: Array<{ kind: 'text'; ev: WsTextEvent } | { kind: 'row'; header: RowHeader; data: Float32Array }> = []
   private readonly o: WsClientOptions
   readonly state: WsState = { status: 'closed', lastSeq: 0, reconnects: 0, dropped: 0, attempt: 0, nextRetryMs: 0 }
@@ -131,6 +133,7 @@ export class WsClient {
     if (v === 'gap') { void this.catchUp({ kind: 'text', ev }); return }
     if (this.catchingUp) { this.held.push({ kind: 'text', ev }); return }
     this.state.lastSeq = this.tracker.lastSeq
+    this.scheduleStatus()
     this.o.onEvent(ev)
   }
 
@@ -140,6 +143,7 @@ export class WsClient {
     if (v === 'gap') { void this.catchUp({ kind: 'row', header, data }); return }
     if (this.catchingUp) { this.held.push({ kind: 'row', header, data }); return }
     this.state.lastSeq = this.tracker.lastSeq
+    this.scheduleStatus()
     this.o.onRow(header, data)
   }
 
@@ -165,6 +169,7 @@ export class WsClient {
             this.tracker.lastSeq = ev.seq
           }
           this.state.lastSeq = this.tracker.lastSeq
+          this.scheduleStatus()
           this.o.onEvent(ev)          // 补取来的 product_row 是文本、无数据，reducer 忽略它
         }
       }
@@ -214,6 +219,17 @@ export class WsClient {
   private stopTimers(): void {
     if (this.retryTimer) { this.ct()(this.retryTimer); this.retryTimer = null }
     if (this.watchdog) { this.ct()(this.watchdog); this.watchdog = null }
+    if (this.statusTimer) { this.ct()(this.statusTimer); this.statusTimer = null }
+  }
+
+  /**
+   * 序号推进后节流上报状态。此前只有状态迁移与 `dropped` 才上报，跑完一个不断线的任务，
+   * 界面上的 `ws.lastSeq` 还停在订阅时的 `since`（状态条显示「已连接 seq 0」）。
+   * 客户端内部的 tracker 一直是对的，补取与缺号判定不受影响，错的只是这一处读数。
+   */
+  private scheduleStatus(): void {
+    if (this.statusTimer !== null) return
+    this.statusTimer = this.st()(() => { this.statusTimer = null; this.emitStatus() }, STATUS_MS)
   }
 
   private setStatus(status: WsState['status']): void {

@@ -25,3 +25,15 @@ export function fmtLngLat(lng: number, lat: number): string {
 }
 
 export function fmtInt(n: number): string { return n.toLocaleString('en-US') }
+
+/** dB 读数：一位小数，非有限给「—」。 */
+export function fmtDb(v: number | null | undefined, unit = 'dB'): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—'
+  return `${v.toFixed(1)} ${unit}`
+}
+
+/** 带符号的差值读数（Δ）。 */
+export function fmtDelta(v: number | null | undefined, fmt: (x: number) => string): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—'
+  return `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}`
+}

@@ -1,6 +1,8 @@
 // 纯派生函数：轴标文字、状态条文字、探针 app 子对象（09 §10）。
 
 import type { AppState, CalibrationSource, ProductIndex, WsState } from './types.js'
+import type { SignalViewState } from '../signal/viewStore.js'
+import { spectrumGeomOf } from '../signal/viewport.js'
 
 export const SOURCE_LABEL: Record<CalibrationSource, string> = { measured: '实测', paper: '论文', assumed: '假定', model: '模型' }
 
@@ -14,6 +16,18 @@ export function scaleLabel(index: ProductIndex | null, dev: boolean): string | n
     return dev ? `dBm · 标定：${SOURCE_LABEL[index.calibration.source] ?? index.calibration.source}` : 'dBm'
   }
   return 'dBFS（未标定）'
+}
+
+/**
+ * 观测点产品的结果四态提示（09 §13.2「降级时图上叠一行原因」；铁律 15 不静默降级）。
+ * `valid` 或没有索引时为 null；有原因就带上第一条，没有原因也要说出状态本身。
+ */
+export function productStateNote(index: ProductIndex | null): { text: string; tone: 'warn' | 'bad' | 'na' } | null {
+  if (!index || index.state === 'valid') return null
+  const label = index.state === 'degraded' ? '降级' : index.state === 'invalid' ? '无效' : '不适用'
+  const tone = index.state === 'degraded' ? 'warn' : index.state === 'invalid' ? 'bad' : 'na'
+  const reason = (index.state_reasons ?? []).find((r) => !!r)
+  return { text: reason ? `${label}：${reason}` : label, tone }
 }
 
 export function timeBasis(s: AppState): { text: string; attr: string } {
@@ -32,10 +46,23 @@ export interface ProbeExtras {
   rows: number
   cols: number
   peakBin: number | null
+  /** 信号页外部 store 的快照（U-3）；信号页尚未挂载时为 null */
+  signalView?: SignalViewState | null
+  /** 开发者模式的长任务计数（PerformanceObserver longtask） */
+  longTasks?: { count: number; maxMs: number } | null
+}
+
+function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
+  return s.signal.markers.map((m) => {
+    if (m.id === 'M1') return { id: 'M1', freq_Hz: v?.m1?.f ?? m.freq_Hz, level_dB: v?.m1?.v ?? null }
+    return { id: m.id, freq_Hz: m.freq_Hz, level_dB: v?.m2Level ?? null }
+  })
 }
 
 export function probeApp(s: AppState, x: ProbeExtras) {
   const index = s.signal.index
+  const v = x.signalView ?? null
+  const geom = index ? spectrumGeomOf(index) : null
   return {
     view: s.ui.view,
     context: {
@@ -44,7 +71,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     },
     task: {
       runState: s.task.runState, result: s.task.result, t_s: s.task.t_s, duration_s: s.task.duration_s,
-      realtimeFactor: s.task.realtimeFactor,
+      realtimeFactor: s.task.realtimeFactor, resultProvisional: s.task.resultProvisional, lastSeq: s.task.lastSeq,
     },
     ws: { status: s.ws.status, lastSeq: s.ws.lastSeq, reconnects: s.ws.reconnects, dropped: s.ws.dropped },
     drawer: { open: s.ui.drawer.open, tab: s.ui.drawer.tab },
@@ -63,8 +90,31 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       scaleLabel: scaleLabel(index, s.ui.devMode),
       calibration: s.signal.display.calibration,
       waterfallNewestRow: 'top' as const,
-      markers: [] as { id: string; freq_Hz: number; level_dB: number }[],
+      markers: probeMarkers(s, v),
+      mode: v?.mode ?? (s.signal.follow ? 'follow' : 'browse'),
+      follow: s.signal.follow,
+      cursor_t_s: s.signal.cursor_t_s,
+      stat: s.signal.viewport.stat,
+      trace: s.signal.display.trace,
+      geom: geom ? { nfft: geom.nfft, bw: geom.bw, dt: geom.dt, center_Hz: index?.center_Hz ?? 0, t0_s: index?.t0_s ?? 0 } : null,
+      lastFetch: v?.lastFetch
+        ? {
+            rows: v.lastFetch.spec.rows, cols: v.lastFetch.spec.cols, px: v.lastFetch.key.px, py: v.lastFetch.key.py,
+            t0: v.lastFetch.spec.t0, t1: v.lastFetch.spec.t1, f0: v.lastFetch.spec.f0, f1: v.lastFetch.spec.f1,
+            stat: v.lastFetch.key.stat, state: v.lastFetch.state, envRows: v.lastFetch.env?.rows ?? null,
+          }
+        : null,
+      fetchStatus: v?.fetchStatus ?? 'idle',
+      bounds: v?.bounds ?? { spectrum: null, waterfall: null },
+      canvas: v ? { W: v.W, H: v.H, dpr: v.dpr } : null,
+      drawnRows: v?.drawnRows ?? 0,
+      hatchedRows: v?.hatchedRows ?? 0,
+      liveFrames: v?.liveFrames ?? 0,
+      liveRows: v?.liveRows ?? 0,
+      shown: v?.shown ?? null,
+      envelopeRows: s.signal.envelopeIndex?.rows_available ?? 0,
     },
+    perf: s.ui.devMode ? { longTasks: x.longTasks ?? null } : null,
     badges: { noScene: !s.scene.summary },
     mapInstanceId: x.mapInstanceId,
   }

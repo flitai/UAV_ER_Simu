@@ -1,8 +1,9 @@
-// 结果视图（09 §7.1）：信号 / 检测 / 任务三页签。切片 ① 只有信号页签的页头（U-3 画频谱与瀑布）。
+// 结果视图（09 §7.1）：信号 / 检测 / 任务三页签。切片 ① 有信号页签（U-3 频谱、瀑布、包络）；检测与任务页签留 U-4。
 
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { resultBadge, runStateGlyph } from '../shell/badges.js'
-import { SignalPlaceholder } from '../signal/SignalPlaceholder.js'
+import { InstrumentPanel } from '../signal/InstrumentPanel.js'
+import { SignalView } from '../signal/SignalView.js'
 import { useAppState, useDispatch } from '../state/store.js'
 import type { ResultsTab } from '../state/types.js'
 
@@ -43,12 +44,12 @@ export function ResultsView() {
                 onClick={() => dispatch({ type: 'ui/resultsTab', tab: t.id })}>{t.label}</button>
             ))}
           </div>
-          {s.ui.resultsTab === 'signal' && <SignalPlaceholder />}
+          {s.ui.resultsTab === 'signal' && <SignalView />}
           {s.ui.resultsTab === 'detections' && <div className="placeholder">检测（U-4 启用）</div>}
           {s.ui.resultsTab === 'tasks' && <div className="placeholder">任务列表（U-4 启用）</div>}
         </div>
       }
-      right={<div className="group placeholder">仪表与视窗控制（U-3）</div>}
+      right={s.ui.resultsTab === 'signal' ? <InstrumentPanel /> : <div className="group placeholder">（U-4 启用）</div>}
     />
   )
 }

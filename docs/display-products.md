@@ -216,4 +216,4 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 
 - [x] 观测点组件 `ObservationTap` 的参数（nfft、窗、桶长）与目录条目（B-3，2026-09-05）
 - [x] 抽取端点的测试夹具（B-7，2026-09-06）：黄金基准 `tests/golden/product-window.json`（合成产品 12 个用例，只存公式与输入哈希）+ 真引擎与 Python 参考的逐字节对拍 `server/src/products/reference.test.ts`
-- [ ] 瀑布瓦片缓存键 `(op_id, t 桶, f 段, px)` 的前端约定（U-3）
+- [x] 前端缓存约定（U-3，2026-09-06，D-048 ⑧）：只保留最近一次窗口 `(task, op, t0, t1, f0, f1, px, py, stat, envPx)` 的抽取结果（`web/src/signal/viewStore.ts`），量程变化只重查色表不重取；瓦片缓存键 `(op_id, t 桶, f 段, px)` 延后到 U-4，待回看延迟实测超过 100 ms 再议

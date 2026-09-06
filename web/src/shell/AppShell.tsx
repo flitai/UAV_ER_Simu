@@ -1,13 +1,15 @@
 // 应用壳：顶栏 + 视图区（三视图挂载后只隐藏不卸载；数据中心按需挂载）+ 底部抽屉 + 提示。
 // 引导请求、快捷键、WS 流、索引轮询、探针注册与 beforeunload 都在这里接线（09 §2、§4、附录 A.2）。
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
 import { SceneView } from '../scene/SceneView.js'
 import { DiagramJsonView } from '../diagram/DiagramJsonView.js'
 import { ResultsView } from '../results/ResultsView.js'
 import { DataCenter } from '../data/DataCenter.js'
 import { peakBinOf, signalBuffer } from '../signal/buffer.js'
+import { signalHooks, viewStore } from '../signal/viewStore.js'
+import { installLongTaskCounter, type LongTaskCounter } from './longTasks.js'
 import { probeApp } from '../state/selectors.js'
 import { useAppState, useStore } from '../state/store.js'
 import type { View } from '../state/types.js'
@@ -56,6 +58,22 @@ export function AppShell() {
     return () => clearTimeout(t)
   }, [s.ui.layout])
 
+  const longTasks = useRef<LongTaskCounter | null>(null)
+  useEffect(() => {
+    if (!s.ui.devMode) return
+    longTasks.current = installLongTaskCounter()
+    window.__cuav = {
+      ...(window.__cuav ?? { ws: { dropForTest: () => false, state: () => null } }),
+      signal: {
+        zoomTo: (vp) => store.dispatch({ type: 'signal/viewport', viewport: vp }),
+        reset: () => store.dispatch({ type: 'signal/follow', on: true }),
+        csv: () => signalHooks.csv?.() ?? null,
+      },
+      perf: { reset: () => longTasks.current?.reset() },
+    }
+    return () => { longTasks.current?.dispose(); longTasks.current = null }
+  }, [s.ui.devMode, store])
+
   useEffect(() => installAppProbe(() => {
     const st = store.getState()
     const op = st.signal.opId
@@ -64,6 +82,8 @@ export function AppShell() {
       rows: signalBuffer.rows(op, 'spectrum'),
       cols: signalBuffer.cols(op, 'spectrum'),
       peakBin: peakBinOf(signalBuffer.latestRow(op, 'spectrum')),
+      signalView: viewStore.get(),
+      longTasks: longTasks.current?.snapshot() ?? null,
     })
   }), [store])
 

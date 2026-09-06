@@ -1,6 +1,7 @@
 // 应用状态的 reducer（09 附录 A.1）。纯函数：所有网络与定时器都在 shell/actions.ts 与 hooks 里。
 
 import { lineFromEvent, pushLines } from './logRing.js'
+import { clampViewport, fullWindow, spectrumGeomOf } from '../signal/viewport.js'
 import type {
   Action, AppState, DiagramError, LogLine, ProductIndex, ResultState, RunState, TaskRecord, WsTextEvent,
 } from './types.js'
@@ -52,13 +53,13 @@ function emptyTask(): AppState['task'] {
 
 function emptySignal(): AppState['signal'] {
   return {
-    opId: null, compareOpId: null, index: null,
+    opId: null, compareOpId: null, index: null, envelopeIndex: null,
     viewport: { t0: 0, t1: 0, f0: 0, f1: 0, stat: 'max' },
     display: {
       refLevel_dB: 0, range_dB: 100, auto: true, trace: 'single', avgN: 16, freqAxis: 'rf',
       overlayDetections: false, unit: 'dBFS', calibration: null,
     },
-    markers: [], follow: true, cursor_t_s: null,
+    markers: [{ id: 'M1', freq_Hz: null, auto: true }], follow: true, cursor_t_s: null,
   }
 }
 
@@ -232,7 +233,8 @@ export function reducer(s: AppState, a: Action): AppState {
       return {
         ...s, task,
         context: { ...s.context, taskId: a.record.task_id },
-        signal: { ...emptySignal(), opId: firstSpectrumOp(a.record.observation_points ?? []) },
+        // 采用已结束的任务时不回放行帧（since = last_seq），环里没有实时数据：直接进回看，索引到达后取全窗
+        signal: { ...emptySignal(), opId: firstSpectrumOp(a.record.observation_points ?? []), follow: !terminal },
         ws: { ...s.ws, lastSeq: since, dropped: 0 },
       }
     }
@@ -288,11 +290,9 @@ export function reducer(s: AppState, a: Action): AppState {
       if (s.signal.opId && a.opId !== s.signal.opId) return s
       const idx = a.index
       const first = s.signal.index === null
-      const fs = idx.sample_rate_Hz
-      const hop = idx.frame_hop_samples ?? idx.bucket_samples ?? 1
-      const viewport = first
-        ? { t0: 0, t1: fs > 0 ? (idx.rows_available * hop) / fs : 0, f0: -fs / 2, f1: fs / 2, stat: s.signal.viewport.stat }
-        : s.signal.viewport
+      const geom = spectrumGeomOf(idx)
+      // 首次拿到索引：视窗 = 全窗（列边界精确到半格，与抽取端点的 X-CUAV-F0/F1 同口径）
+      const viewport = first && geom ? fullWindow(geom, s.signal.viewport.stat) : s.signal.viewport
       const calibrated = idx.scale === 'dBm' && !!idx.calibration
       let next: AppState = {
         ...s,
@@ -311,10 +311,33 @@ export function reducer(s: AppState, a: Action): AppState {
       }
       return next
     }
+    case 'signal/envelopeIndex':
+      if (s.signal.opId && a.opId !== s.signal.opId) return s
+      return { ...s, signal: { ...s.signal, envelopeIndex: a.index } }
     case 'signal/selectOp':
       return { ...s, signal: { ...emptySignal(), opId: a.opId, follow: s.signal.follow } }
-    case 'signal/follow':
-      return { ...s, signal: { ...s.signal, follow: a.on } }
+    case 'signal/follow': {
+      if (!a.on) return { ...s, signal: { ...s.signal, follow: false } }
+      // 回到跟随：频率复位全带、时间游标清掉
+      const geom = s.signal.index ? spectrumGeomOf(s.signal.index) : null
+      const viewport = geom ? fullWindow(geom, s.signal.viewport.stat) : s.signal.viewport
+      return { ...s, signal: { ...s.signal, follow: true, viewport, cursor_t_s: null } }
+    }
+    case 'signal/viewport': {
+      const merged = { ...s.signal.viewport, ...a.viewport }
+      const geom = s.signal.index ? spectrumGeomOf(s.signal.index) : null
+      const viewport = geom ? clampViewport(merged, geom) : merged
+      return { ...s, signal: { ...s.signal, viewport, follow: false } }
+    }
+    case 'signal/display':
+      return { ...s, signal: { ...s.signal, display: { ...s.signal.display, ...a.patch } } }
+    case 'signal/marker': {
+      const others = s.signal.markers.filter((m) => m.id !== a.id)
+      const markers = a.freq_Hz === null ? others : [...others, { id: a.id, freq_Hz: a.freq_Hz, auto: false }]
+      return { ...s, signal: { ...s.signal, markers } }
+    }
+    case 'signal/cursor':
+      return { ...s, signal: { ...s.signal, cursor_t_s: a.t_s } }
     default:
       return s
   }

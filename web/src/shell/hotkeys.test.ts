@@ -30,3 +30,18 @@ test('Chromium 保留键一律不绑定', () => {
   for (const f of ['F5', 'F11', 'F12']) assert.equal(mapHotkey(k(f)), null)
   assert.equal(mapHotkey(k('Digit2', { altKey: true, shiftKey: true })), null)
 })
+
+test('信号页键：M / Delete / Backspace / ←→（Shift 十帧）只在信号页且焦点不在输入框时生效', () => {
+  const on = { editable: false, signalActive: true }
+  assert.equal(mapHotkey(k('KeyM'), on), 'signal:marker')
+  assert.equal(mapHotkey(k('Delete'), on), 'signal:markerDelete')
+  assert.equal(mapHotkey(k('Backspace'), on), 'signal:markerDelete')
+  assert.equal(mapHotkey(k('ArrowLeft'), on), 'signal:cursorPrev')
+  assert.equal(mapHotkey(k('ArrowRight', { shiftKey: true }), on), 'signal:cursorNext10')
+  assert.equal(mapHotkey(k('ArrowLeft', { shiftKey: true }), on), 'signal:cursorPrev10')
+  assert.equal(mapHotkey(k('KeyM'), { editable: true, signalActive: true }), null)
+  assert.equal(mapHotkey(k('KeyM'), { editable: false, signalActive: false }), null)
+  assert.equal(mapHotkey(k('KeyM')), null)
+  assert.equal(mapHotkey(k('KeyM', { ctrlKey: true }), on), null)
+  assert.equal(mapHotkey(k('Escape'), on), 'escape')
+})
