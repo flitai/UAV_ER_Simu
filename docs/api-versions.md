@@ -78,6 +78,30 @@
 
 `/api/v1/health` 增加 `engine: {available, version?}`：`available` 是二进制是否可执行，`version` 只在目录已缓存时给出（不为健康检查起子进程）。
 
+### 3.1b 视窗抽取（2026-09-06，B-7，决策 D-046）
+
+全部 GET/HEAD，其它方法 405 `Allow: GET, HEAD`。归约的确切定义、参数语义、错误码与响应头见
+`docs/display-products.md` §3.1–§3.4，那里是真理源，本表只列路径与要点。
+
+| 方法 | 路径 | 返回 | 说明 |
+|---|---|---|---|
+| GET/HEAD | `/api/v1/results/{task}/{op}/spectrum?t0&t1&f0&f1&px&py&stat` | `application/octet-stream`，Float32 小端行主序，行 = 时间、列 = 频率 | `stat ∈ {max, mean, min}` 缺省 `max`；`mean` 在线性功率域聚合（铁律 5）；`px/py` 超过原始行列数**不插值** |
+| GET/HEAD | `/api/v1/results/{task}/{op}/envelope?t0&t1&px` | 同上，三列 `[min_abs, max_abs, rms_abs]` | 合桶的 rms 按样点数加权；末桶只有索引收尾后才按 `last_bucket_samples` 计权 |
+| GET/HEAD | `/api/v1/results/{task}/{op}/scatter` | 404 `product_unsupported` | 观测点本版本不产出 `iq` 产品（D-040 ③），待 `iq` 落地 |
+| GET/HEAD | `/api/v1/results/{task}/{op}/{spectrum\|envelope}/index` | 索引原文 + `rows_available` + `index_final` + `run_state` | 客户端据此建频率轴与时间轴；不含任何服务器路径 |
+| GET/HEAD | `/api/v1/results/{task}/{track\|links\|detections}?t0&t1&stride[&link_id]` | JSON 数组 | 闭区间取窗、按键抽稀；**生产者尚未实现**（G 线），现阶段这三个端点在终态任务上返回 404 |
+
+响应头：`X-CUAV-Rows`、`X-CUAV-Cols`、`X-CUAV-T0`、`X-CUAV-T1`、`X-CUAV-F0`、`X-CUAV-F1`、
+`X-CUAV-Stat`、`X-CUAV-State`（JSONL 端点用 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`）。
+时间与频率都是**相对量**：时间相对索引的 `t0_s`，频率相对 `center_Hz`。
+
+三个与别处不同的约定：
+
+1. **读端以文件长度定行数**，不信索引里的 `rows`（`docs/display-products.md` §2）。
+2. **409 `not_ready` 不是错误**：产品文件或索引还没出现时带 `Retry-After: 1`，客户端重试即可；
+   只有终态任务确实没有这种产品才 404。
+3. 单次响应上限 16 MB，超出 413 并给出必定能过的 `suggest`；不带参数的请求永远不会 413。
+
 ### 3.2 Range 语义（已冻结）
 
 按 RFC 9110 §14 实现，语义对齐参考实现 Airports `serve.py`：
@@ -93,11 +117,10 @@
 多区间那条是允许的降级（服务端可以忽略 Range），但必须显式写明，不能让调用方以为拿到的是
 部分内容。实现见 `server/src/range.ts`，13 项单元测试加 17 项集成测试。
 
-### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a）
+### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b）
 
 | 方法 | 路径 | 说明 | 步骤 |
 |---|---|---|---|
-| GET | `/api/v1/results/{task}/{op}/spectrum`、`.../envelope`、`.../scatter`；`/api/v1/results/{task}/track`、`.../detections` | 按视窗抽取的展示数据；参数与响应见 `docs/display-products.md` §3 | B-7 |
 | GET / PUT | `/api/v1/scenarios/{id}` | 场景文件读写，按 `docs/schemas/scenario.schema.json` 校验 | G-4 |
 | GET | `/api/v1/datasets` | 各批数据索引的非路径字段：`data_id`、数据集、通道、中心频率、样点数、分段数、质量四态与原因、`holdout` 标记、`calibration{offset_dB, source}`（若有）；不暴露 `.iq`，不暴露任何路径 | U-4 |
 | GET | `/api/v1/datasets/{data_id}` | 单条索引详情（非路径字段）与真值摘要 | U-4 |
@@ -202,6 +225,6 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 ## 6. 待写清单
 
 - [ ] 第 1 节 版本策略
-- [~] 第 3 节 端点清单：3.1a 已实现（B-5、B-6）；3.3 已冻结，待 B-7 / G-4 / U-4 实现
+- [~] 第 3 节 端点清单：3.1a 已实现（B-5、B-6）、3.1b 已实现（B-7）；3.3 已冻结，待 G-4 / U-4 实现
 - [x] 第 4 节 WebSocket 事件：已冻结并由 B-6 实现（4.0 实现约定，2026-09-05）
 - [ ] 鉴权与审计（P2 阶段）

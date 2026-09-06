@@ -226,3 +226,50 @@ TEST_CASE("观测点参数：缺 op_id、op_id 含非法字符、两种产品都
     CHECK(!t.configure({{"spectrum", 0}, {"envelope", 0}}, {{"op_id", "s4"}, {"out_dir", "x"}}, err));
     CHECK(err.find("至少") != std::string::npos);
 }
+
+TEST_CASE("观测点：写完第一行就刷一次索引（B-7 读端靠它拿到几何参数，D-046）") {
+    const std::string dir = temp_root() + "/run_first";
+    std::string err;
+    REQUIRE(platform::make_dirs(dir, err));
+    const std::string op = dir + "/s4";
+    std::remove((op + "/spectrum.index.json").c_str());
+    std::remove((op + "/envelope.index.json").c_str());
+
+    const std::size_t nfft = 256;
+    const double fs = 1e6;
+    ObservationTap tap;
+    // overlap 0：一段就是一帧，喂 nfft 个样点恰好产出第一行谱；桶长 128 让包络也在同一块里出第一行
+    REQUIRE_MESSAGE(tap.configure({{"nfft", double(nfft)}, {"overlap", 0.0}, {"bucket_samples", 128}},
+                                  {{"op_id", "s4"}, {"out_dir", dir}}, err), err);
+    Xoshiro256pp rng(7);
+    REQUIRE_MESSAGE(tap.init(rng, err), err);
+
+    PortMap in, out;
+    PortData d;
+    d.type = PortType::IQStream;
+    d.has_data = true;
+    d.iq = Block(nfft);
+    d.iq.meta.sample_rate_Hz = fs;
+    d.iq.meta.center_frequency_Hz = 0.0;
+    d.iq.meta.start_sample = 0;
+    for (std::size_t i = 0; i < nfft; ++i) d.iq.samples[i] = Complex(0.25, -0.125);
+    in["in"] = d;
+    REQUIRE(tap.process(in, out, err) == Step::Produced);
+
+    // 还没 flush，但两份索引都应已存在，且 rows == 1：读端据此就能算出频率轴与时间轴
+    CHECK(tap.spectrum_rows() == 1u);
+    CHECK(tap.envelope_rows() == 2u);   // 256 样点 / 128 = 2 个满桶
+    auto sidx = read_json(op + "/spectrum.index.json");
+    CHECK(sidx["rows"] == 1);
+    CHECK(sidx["nfft"] == 256);
+    CHECK(sidx["row_len"] == 256);
+    CHECK(sidx["sample_rate_Hz"] == fs);
+    CHECK(sidx["bin_width_Hz"] == fs / 256.0);
+    auto eidx = read_json(op + "/envelope.index.json");
+    CHECK(eidx["bucket_samples"] == 128);
+    // 索引在第 1、64、128… 行刷新，所以这里记的是 1 行而文件已有 2 行——**索引落后于文件是常态**，
+    // 视窗抽取端点因此一律按文件长度定行数（docs/display-products.md §1.1、§2；B-7）
+    CHECK(eidx["rows"] == 1);
+    CHECK(read_f32(op + "/spectrum.f32").size() == 256u);
+    CHECK(read_f32(op + "/envelope.f32").size() == 6u);
+}

@@ -1,7 +1,8 @@
 # 显示产品与视窗抽取
 
-**状态**：骨架，字段已冻结（2026-09-04，决策 D-030、D-031）。观测点组件、产品写盘与抽取端点
-尚未实现，实现时以本文为准。
+**状态**：字段已冻结（2026-09-04，决策 D-030、D-031）。观测点组件与产品写盘已实现（B-3，2026-09-05）；
+抽取端点已实现（B-7，2026-09-06，决策 D-046，`server/src/products/`），归约的确切定义见 §3.1。
+`scatter` 与三个 JSONL 产品的**生产者**尚未实现（分别等 `iq` 产品与 G 线）。
 
 **依据**：铁律 7（原始 IQ 不进浏览器；展示数据按时间窗、频段、像素宽、统计量抽取；禁止
 JSON / Base64 封装二进制）；04 §6.4（展示数据五类）、§8.3（引擎向应用服务发布降采样显示
@@ -84,8 +85,14 @@ data/runs/<task_id>/
 `envelope.index.json` 同上，`kind = envelope`，`row_len = 3`，`columns = [min_abs, max_abs, rms_abs]`（桶内 |x| 的最小、最大、均方根，线性、相对满量程），
 `scale = linear_FS`，另有 `bucket_samples`（每桶样点数）与 `last_bucket_samples`（末桶实际样点数）。
 
-写入约定：行定长追加，索引里的 `rows` 最后更新；读端只读 `rows` 以内的行。这样 Windows 上
-服务读正在追加的文件也不会读到半行。
+写入约定：行定长追加；索引在**写完第一行**时刷一次，此后每 64 行一次，收尾时最后更新（首行那次是给
+读端的：没有索引就不知道 nfft 与采样率，抽取端点只能回 409，B-7 / D-046）。
+
+**读端一律以文件长度定行数**：`rows_available = floor(文件字节数 / (row_len × 4))`。索引里的 `rows`
+只用来判断索引是否已收尾（`index_final = rows == rows_available`），它决定包络末桶按满桶还是按
+`last_bucket_samples` 计权。这条不是可选项：`rows` 每 64 行才刷一次，任务被杀时还会永远停在最后一次
+刷新——实测取消的任务 `t20260905-143440-f5f3` 包络索引记 1344 行而文件有 1392 行。行定长加上
+`floor` 使得读正在追加的文件也永远读不到半行。
 
 ## 3. 抽取端点（已冻结）
 
@@ -117,6 +124,80 @@ data/runs/<task_id>/
 3. 抽取在应用服务里用 TypeScript 完成（原型阶段）；性能不够再下沉到 C++，端点不变。
 4. 抽取结果必须与 Python 参考对同一产品文件做同样归约的结果逐值一致（B-7 验收）。
 
+### 3.1 归约的确切定义（B-7，2026-09-06，D-046）
+
+实现在 `server/src/products/`，参考实现 `algos/reference/product_window.py`，两侧逐行对译。
+区间一律**半开** `[lo, hi)`；所有分组边界是整数运算，与浮点无关。
+
+**行选择**（谱 `dt = frame_hop_samples / sample_rate_Hz`，包络 `dt = bucket_samples / sample_rate_Hz`）：
+
+```
+r0 = t0 缺省 ? 0 : clamp(floor(t0 / dt), 0, rows_available)
+r1 = t1 缺省 ? rows_available : clamp(ceil(t1 / dt), 0, rows_available)
+```
+
+**列选择**（只谱；`half = floor(nfft / 2)`，对奇偶 nfft 通用）。列 k 的中心频率是
+`center_Hz + (k − half)·bin_width_Hz`，覆盖 `[(k − half − 0.5)·bw, (k − half + 0.5)·bw)`：
+
+```
+c0 = f0 缺省 ? 0 : clamp(floor(f0 / bw + half + 0.5), 0, nfft)
+c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
+```
+
+**分组**：n 个输入项分成 m 组，边界 `B[g] = floor(g·n / m)`，`g = 0..m`；`m = min(目标, n)`，
+所以目标超过原始数时每组恰好一项（即规则 1 的「不插值」）。时间与频率两个方向同法。
+
+**统计量**：
+
+| 量 | 定义 | 复现性 |
+|---|---|---|
+| `max` / `min` | 直接对 dB 值取 | 逐位可复现（比较不引入舍入） |
+| `mean` | **线性功率域**聚合（铁律 5）：`10·log10( Σ 10^(v/10) / count )`，float64 按行主序顺序累加，结果转 float32 | 依赖 `pow` 与 `log10`，允许 1 个 float32 ulp |
+| 包络合桶 | `[min(min), max(max), sqrt(Σ n_j·rms_j² / Σ n_j)]`；`n_j = bucket_samples`，**仅当索引已收尾且 j 为末行**时取 `last_bucket_samples` | 逐位可复现 |
+
+谱的 `mean` 对行不加权：末行段数不足是流结束的自然结果，不影响该行的值本身。累加顺序是逐位复现的
+前提——参考实现必须写显式循环，不得用 Python 内置 `sum()`（3.12 起是 Neumaier 补偿求和）或 numpy
+（成对求和），两者都不是「acc = acc + x」。
+
+**缺省与上限**：`px` 缺省 `min(窗内列数, 4096)`；`py` 缺省 `min(窗内行数, 2048, floor(16 MiB / (列数 × 4)))`
+——**不带参数的请求永远不会 413**。显式值必须是不超过 9 位的正整数。
+
+**响应头**取实际覆盖的范围，都是**相对量**（`String(x)` 的十进制文本）：`X-CUAV-T0 = r0·dt`、
+`X-CUAV-T1 = r1·dt`、`X-CUAV-F0 = (c0 − half − 0.5)·bw`、`X-CUAV-F1 = (c1 − half − 0.5)·bw`；
+`X-CUAV-State` 取索引里的 `state`。包络没有 `X-CUAV-F0/F1/Stat`。绝对频率与绝对时间由客户端用
+索引端点的 `center_Hz` 与 `t0_s` 换算。空窗口返回 200、`X-CUAV-Rows: 0`、空响应体。
+
+### 3.2 就绪语义与错误码（B-7）
+
+| 情形 | 码 | 响应体 |
+|---|---|---|
+| 任务不存在、`op_id` 非法、观测点没有这种产品（任务已终态） | 404 | `{error, task_id, op_id?, kind?}` |
+| `scatter` | 404 | `{error, reason: "product_unsupported", message}`——观测点本版本不产出 `iq` 产品（框图装载器拒绝 `products` 里的 `iq`，D-040 ③），端点待 `iq` 产品落地 |
+| 参数不合法（非十进制数、非正整数、`t1 < t0`、`f1 < f0`、`stat` 越界） | 400 | `{error: "bad_request", param, message}` |
+| 产品文件还没出现，任务仍 `queued / running` | 409 + `Retry-After: 1` | `{error: "not_ready", reason: "product_missing", bytes, rows_available, run_state}` |
+| 索引还没写出来（任何运行态） | 409 + `Retry-After: 1` | `{error: "not_ready", reason: "index_missing", bytes, rows_available, run_state}`；谱的 `rows_available` 为 `null`（行长未知） |
+| 索引不合法、读到短行 | 500 | `{error: "index_invalid" \| "short_read", message}` |
+| 超过单次响应上限 | 413 | `{error: "payload_too_large", max_bytes, rows, cols, bytes, suggest: {px, py}}`，`suggest` 按 `sqrt(上限 / 字节数)` 缩，重取必定能过 |
+
+**409 不是错误，是「还没到」**：客户端收到后按 `Retry-After` 重试即可，通常下一条 `product_row`
+事件到达时就已就绪。**参数校验先于就绪判定**：坏参数在任何运行态下都返回 400，不被 409 盖住，
+否则客户端会拿着一个永远不可能成功的查询一直重试。
+
+### 3.3 索引端点（B-7 新增）
+
+`GET /api/v1/results/{task_id}/{op_id}/{spectrum|envelope}/index` 返回索引原文加三个字段：
+`rows_available`（文件长度定的行数）、`index_final`、`run_state`。客户端用它建频率轴与时间轴、
+读 `scale` 与 `state`，再决定视窗参数。索引里没有任何服务器路径（04 §8.6）。
+
+### 3.4 JSONL 端点（`track` / `links` / `detections`）
+
+三者共用一个时间窗读取器：闭区间 `t0 ≤ t_s ≤ t1`；`stride` 按键抽稀（`track` 按 `id`、`links` 按
+`link_id`、`detections` 全局），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤。
+末尾没有换行的残片一律丢弃（生产者可能正在写），不可解析或缺 `t_s` 的行跳过并在 `X-CUAV-Skipped`
+里计数。响应是裸 JSON 数组，头带 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`；
+超上限 413 并建议更大的 `stride`。**这三个文件首期还没有生产者**（G-2 的 `ScenarioSource` 与 G-5 才写），
+端点先行，生产者落地后不必改读取层。
+
 ## 4. 实时推送
 
 运行中的新行经 WebSocket **二进制帧**推送（`docs/api-versions.md` §4，字节布局见 §4.0，B-6 已实现，D-044）：
@@ -128,10 +209,11 @@ data/runs/<task_id>/
 引擎侧的来源（B-4）：`ObservationTap` 每写一行就 `fflush`，随即经运行器在 stdout 发一条不带数据的 `product_row`
 事件 `{op_id, kind, row_index, row_len}`（`docs/api-versions.md` §4.1）；应用服务据此从 `<op_id>/<kind>.f32` 的
 `row_index × row_len × 4` 偏移读出该行并转成二进制帧。索引里的 `rows` 仍每 64 行更新一次，它服务的是回看端点，
-实时推送不等它——这是第 2 节「读端只读 `rows` 以内的行」的**有意例外**，靠引擎逐行 `fflush` 保证；行尚未落盘（短读）时服务端退回发文本事件，不发半行。
+实时推送不等它——推送按事件读，靠引擎逐行 `fflush` 保证；行尚未落盘（短读）时服务端退回发文本事件，不发半行。
+回看端点走的是另一条路：按文件长度定行数（第 2 节），与索引的刷新节奏无关。
 
 ## 5. 待写
 
 - [x] 观测点组件 `ObservationTap` 的参数（nfft、窗、桶长）与目录条目（B-3，2026-09-05）
-- [ ] 抽取端点的测试夹具（B-7）
+- [x] 抽取端点的测试夹具（B-7，2026-09-06）：黄金基准 `tests/golden/product-window.json`（合成产品 12 个用例，只存公式与输入哈希）+ 真引擎与 Python 参考的逐字节对拍 `server/src/products/reference.test.ts`
 - [ ] 瀑布瓦片缓存键 `(op_id, t 桶, f 段, px)` 的前端约定（U-3）

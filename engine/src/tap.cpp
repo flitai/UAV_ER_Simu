@@ -206,7 +206,9 @@ bool ObservationTap::write_spectrum_row(const std::vector<double>& power, std::u
     const double t_s = sample_rate_Hz_ > 0 ? static_cast<double>(first_sample) / sample_rate_Hz_ : 0.0;
     if (obs_) obs_->on_product_row(op_id_, "spectrum", spec_rows_, row.data(), row.size(), t_s);
     ++spec_rows_;
-    if ((spec_rows_ & 63) == 0) {   // 每 64 行刷一次索引，让读端在运行中就能取到已写完的行
+    // 第一行写完就刷一次索引，此后每 64 行一次。首行那次是给读端用的：没有索引就不知道 nfft 与采样率，
+    // 视窗抽取端点只能回 409 让客户端重试（B-7 / D-046）；只按 64 行刷会让任务开头有一整段取不到数据。
+    if (spec_rows_ == 1 || (spec_rows_ & 63) == 0) {
         std::fflush(spec_file_);
         if (!write_index("spectrum", err)) return false;
     }
@@ -225,7 +227,7 @@ bool ObservationTap::write_envelope_row(std::string& err) {
     ++env_rows_;
     last_bucket_samples_ = bucket_count_;
     bucket_count_ = 0;
-    if ((env_rows_ & 63) == 0) {
+    if (env_rows_ == 1 || (env_rows_ & 63) == 0) {   // 同 spectrum：首行即刷，让读端尽早拿到几何参数
         std::fflush(env_file_);
         if (!write_index("envelope", err)) return false;
     }

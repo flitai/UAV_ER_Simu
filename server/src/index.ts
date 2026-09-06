@@ -3,7 +3,7 @@
 // 已实现：健康检查、场景数据包的只读接口、支持 Range 的静态文件服务（D1）；组件目录与任务管理
 // （B-5：提交框图 → 拉起 cuav_run 子进程 → 状态机 → 任务列表，见 src/tasks/）；WebSocket 事件推送与
 // 按序号补取（B-6：/ws 订阅、GET /api/v1/tasks/{id}/events、product_row 转二进制帧，见 src/ws/）。
-// 视窗抽取端点（B-7）尚未实现，见 docs/api-versions.md。
+// 视窗抽取（B-7：GET /api/v1/results/... 按时间窗、频段、像素与统计量归约产品文件，见 src/products/）。
 //
 // 依赖策略：运行时只加 ws 一个包（锁版本、进 THIRD-PARTY-NOTICES，D-032），其余只用 Node 内置模块。
 //
@@ -23,6 +23,7 @@ import { resolveWithin, sendFile, sendJson } from './static.js'
 import { Engine, defaultEngineBinary } from './tasks/engine.js'
 import { createTaskManager } from './tasks/manager.js'
 import { handleTaskRoutes } from './tasks/routes.js'
+import { handleResultRoutes } from './products/routes.js'
 import { WsHub } from './ws/hub.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -95,6 +96,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   if (path === '/api/v1/components' || path === '/api/v1/tasks' || path.startsWith('/api/v1/tasks/')) {
     if (await handleTaskRoutes(req, res, url, { mgr: tasks, engine })) return
   }
+  // 视窗抽取（B-7）：结果路由自己管方法与错误码
+  if (path.startsWith('/api/v1/results/')) {
+    if (await handleResultRoutes(req, res, url, { mgr: tasks })) return
+  }
   if (method !== 'GET' && method !== 'HEAD') {
     res.writeHead(405, { allow: 'GET, HEAD' })
     return res.end()
@@ -156,6 +161,7 @@ export async function start(): Promise<void> {
     console.log(`  前端产物 ${WEB_DIST}`)
     console.log(`  引擎 ${engine.cfg.bin}${engineOk ? '' : '（不存在或不可执行：任务提交将返回 503）'}`)
     console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.list(1000).length} 个`)
+    console.log(`  视窗抽取 GET /api/v1/results/{task}/{op}/{spectrum|envelope}?t0&t1&f0&f1&px&py&stat`)
     console.log(`  WebSocket ws://${HOST}:${PORT}${hub.path}（订阅 {subscribe, since}；补取 GET /api/v1/tasks/{id}/events?since）`)
   })
 }
