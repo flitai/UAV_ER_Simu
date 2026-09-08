@@ -5,7 +5,10 @@
 //   --validate <框图>                  只校验：装成 Graph 并 validate()，不落盘；错误带 {code, node_id, port, message}
 //   --run <框图> --out <目录> [--task-id <id>] [--seed N] [--resolved <旁挂> | --data-index <索引>...]
 //                                      运行：产品写 <目录>/<观测点>/…，事件写 stdout 并原样落 <目录>/events.jsonl
-//   --scenario-track <场景>            航迹预览（G-2 后实现，现在返回 ExitUsage 并说明）
+//   --scenario-track <场景> [--track-rate Hz] [--scene-root <目录>]
+//                                      航迹预览：只跑运动学，输出 entity 事件流，不建产品目录。
+//                                      不发 progress、不按墙钟节流，因此 stdout 逐字节可复现，
+//                                      直接用作黄金基准的生成器；服务端 PUT 场景时也拿它作语义校验。
 //
 // stdout 每行一条 JSON 事件，信封与 WebSocket 文本帧相同（docs/api-versions.md §4）：
 //   {seq, task_id, type, t_s, payload}，seq 从 1 单调递增。
@@ -35,7 +38,10 @@ struct Options {
     std::uint64_t seed = 0;                       // --seed 覆盖框图 run.seed，事件里写明来源
     std::string resolved_path;                    // 解析旁挂 cuav-resolved/1（docs/diagram-format.md §9）
     std::vector<std::string> data_index_paths;    // 数据索引 index.manifest.json，可多份
-    std::string scenario_path;
+    std::string scenario_path;                    // --scenario-track 的位置参数
+    std::vector<std::string> scenario_paths;      // --scenario <场景文件>，可多份（单机与回归用）
+    double track_rate_Hz = 10.0;                  // --track-rate，只与 --scenario-track 搭配，[1, 100]
+    std::string scene_root = "data/scene";        // --scene-root；空串表示跳过观测区域清单哈希核对
     std::uint64_t progress_interval_ms = 100;     // progress 事件的最小墙钟间隔；0 = 每轮都发
 };
 

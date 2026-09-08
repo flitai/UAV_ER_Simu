@@ -1,7 +1,8 @@
 # 组件目录格式
 
 **状态**：字段已冻结（2026-09-04，决策 D-030、D-036）。目录由引擎 `cuav_run --catalog` 生成（B-1、B-4），
-黄金基准 `tests/golden/component-catalog.json` 已于 2026-09-05 由它首次生成（八个组件），
+黄金基准 `tests/golden/component-catalog.json` 于 2026-09-05 首次生成（八个组件），
+**2026-09-06 随切片 ② 增到十二个**（新增四个场景运行时组件，按第 5 节「已有条目不变」的规则重生成）；
 `engine/tests/test_catalog_golden.cpp` 按第 5 节规则比对。
 
 **依据**：04 §8.1（组件库六类）、§8.4（组件至少声明的字段）；决策 D-013（连线规则）、
@@ -80,7 +81,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
   不含 `generated_at`）；`validate_catalog_entry()` 拒绝类别不在六类、Coder 产物缺 `source_ref`、参数既必填又带默认值。
 - 一致性测试：`engine/tests/test_registry.cpp`，只给必填项即可构造、去掉任一必填两道闸都拒绝、默认值在自己的范围内。
 
-现有八个组件的归属：
+首批八个组件的归属：
 
 | 组件 | 类别 | M / E | 实现 |
 |---|---|---|---|
@@ -93,7 +94,38 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 | `SpectrumAnalyzer` 频谱分析 | algorithm | M3 / E2 | cpp；Welch 功率谱 dBFS，`SpectrumFrame` 首个生产者（P1-4a），与 Python、MATLAB `pwelch` 三方互证 |
 | `ObservationTap` 观测点 | algorithm | M3 / E2 | cpp；用户参数 `op_id`，内部参数 `out_dir`；写 `spectrum.f32` / `envelope.f32` 与索引（B-3） |
 
+切片 ② 新增四个（2026-09-06，G-2 / G-3，D-049）：
+
+| 组件 | 类别 | M / E | 实现 |
+|---|---|---|---|
+| `ScenarioSource` 场景参数源 | data | M2 / E2 | cpp，`scene_bindable`，绑站点；**动态输出口** `link:<emitter_id>`，每条链路一路 `SceneParamFrame`；内部参数 `scenario_path` / `scenario_id` / `site_id`；实体与链路读数经观察者上报 |
+| `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | cpp，`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst，**归一化到发射期间单位功率（0 dBm）**；守铁律 4 |
+| `SceneBoundChannel` 场景绑定信道 | channel | M3 / E2 | cpp，`scene_bindable`；施加增益、整数样点时延、多普勒相位斜坡；帧内零阶保持；拒回放数据（防线二、三） |
+| `FreeSpaceChannel` 自由空间信道 | channel | M3 / E2 | cpp，定参 FSPL，原 P1-3 欠项，供解析锚点与标准算例用 |
+
+切片 ④a 新增三个（2026-09-07，C-2，D-051 / D-050）：
+
+| 组件 | 类别 | M / E | 实现 |
+|---|---|---|---|
+| `AntennaGain` 天线增益 | antenna | M3 / E1 | cpp，`scene_bindable = false`；解析式方向图（全向 / 高斯主瓣 `12·(Δ/θ)²` 截于副瓣底）+ 指向（固定或随航向）+ 五档极化失配表 + 馈线损耗；`scene` 是**可选输入口**，接了按帧里的离开角 / 到达角逐样点施加，不接按 `aspect_*` 常量方向；极化与馈线只在 `role = rx` 端各计一次 |
+| `ReceiverFrontEnd` 接收机前端 | receiver | M3 / E2 | cpp；噪声系数生等效输入热噪声（与 `geo/link_budget.cpp` 共用 −174 dBm/Hz 常数）、增益、本振频偏、IQ 幅相不平衡、直流偏置；私有随机子流；`noise_mode = none` 供混合增强模式 |
+| `AdcQuantizer` ADC 量化 | receiver | M3 / E2 | cpp；`bits` / `full_scale_dBm` / 削顶；**削顶是数据标记不是降级**，逐块进 `clip_count` 与 `state_reasons`，全程比例超 `degrade_clip_ratio` 才在 `flush()` 降级 |
+
+同批给两个既有组件加参数（**缺省保持旧行为**，既有示例与产品基准一个字未改）：
+`SceneEmitterSource.emit_at_tx_power`（真时按场景 `tx_power_dBm` 出电平，使 S0 读到发射功率本身）、
+`SceneBoundChannel.gain_mode`（`link_budget` 为原口径，`path_loss_only` 只施加路损，
+发射功率与两端天线增益由各自组件负责）。两种口径在真场景上给出同一电平，
+对拍见 `engine/tests/test_channel.cpp` 的「增益口径等价」。
+
+**动态端口**：`ScenarioSource` 是 `dynamic_ports` 的第一个使用者。`describe()` 在**未 configure**
+的实例上调用，那时端口还不知道，所以目录里只有 `dynamic_ports` 的声明；`Graph::connect` 在
+`configure()` 之后调用，那时 `outputs()` 已按场景的辐射源给出具体端口。画布据此生成端口列表。
+
 ## 7. 待写
 
 - [x] 首版目录黄金基准 `tests/golden/component-catalog.json`（2026-09-05，`cuav_run --catalog` 生成，21763 字节）
 - [ ] Coder 产物组件的 `source_ref` 填写示例（M-2）
+- [ ] `AddMixer` 的类别现标 `source`，它其实是两路 IQ 相加的处理件；改动要记决策（08 报告 §15 ⑤）
+- [x] D-051 的接口部分（C-1，2026-09-07）：端口类型 `RecognitionList`（`port_types` 6 → 7、`port_compat` 36 → 49，既有 36 行逐字未变）；`PortSpec.optional`（为假时不输出，既有条目字节不变）。黄金基准 `tests/golden/component-catalog.json` 据此更新一次，WORKLOG 有记录
+- [x] D-051 的天线与接收机（C-2，2026-09-07）：新增 `AntennaGain` / `ReceiverFrontEnd` / `AdcQuantizer`，`SceneEmitterSource.emit_at_tx_power` 与 `SceneBoundChannel.gain_mode` 加参；组件 12 → 15，黄金基准更新一次
+- [ ] D-051 的其余组件（C-4 / C-5 / C-10 分批）：`FeatureExtractor` / `TemplateClassifier` / `Evaluator` / `DDC` / `Channelizer`；`EnergyDetector.noise_mode` 等加参（缺省保旧行为）

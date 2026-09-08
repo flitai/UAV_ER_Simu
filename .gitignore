@@ -14,6 +14,16 @@ data/**
 # 而它正是场景数据包的入口文件（D0-6），漏了会被静默排除在版本控制之外。
 !data/**/manifest.json
 
+# 场景文件是小文件、可入库，不受 data/ 大文件规则约束（docs/scenario-format.md §1）。
+# 它是框图 scenario_ref 指向的对象，必须与代码一起版本化，否则同一个框图换台机器就跑不起来。
+!data/scene/*/scenarios/*.scenario.json
+
+# 框图文件同理（C-6，D-051）：小文件、可入库。典型链路视图存的参数集就是它，
+# 不入库的话换台机器就得重新配一遍每个环节的参数。校验用的临时件不入库。
+!data/diagrams/*.diagram.json
+data/diagrams/*.tmp
+data/diagrams/*.resolved.json
+
 # 逐产物 IQ 清单不入库：两个公开数据集共 4714 个产物，逐个入库等于给仓库塞进近五千个
 # 小文件、约 19 MB。改为只入每批的合并索引 index.manifest.json 与冻结清单
 # holdout.manifest.json（D-027）。逐产物清单由 tools/iq_convert.py 确定性重生成，

@@ -4,7 +4,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
 import { SceneView } from '../scene/SceneView.js'
-import { DiagramJsonView } from '../diagram/DiagramJsonView.js'
+import { situationSnapshot } from '../scene/sceneStore.js'
+import { DiagramView } from '../diagram/DiagramView.jsx'
+import { ChainView } from '../chain/ChainView.js'
 import { ResultsView } from '../results/ResultsView.js'
 import { DataCenter } from '../data/DataCenter.js'
 import { peakBinOf, signalBuffer } from '../signal/buffer.js'
@@ -24,9 +26,15 @@ import { useProductIndex } from './useProductIndex.js'
 import { useTaskStream } from './useTaskStream.js'
 
 function ViewHost({ id, active, children }: { id: View; active: boolean; children: ReactNode }) {
-  // visibility 而不是 display：地图容器尺寸不能归零（09 §4.2）；inert 让隐藏页的输入框接不到快捷键
+  // 隐藏用 visibility 而不是 display：地图容器尺寸不能归零，瀑布画布也要在隐藏期继续累积（09 §4.2、D-048）。
+  //
+  // 但只有 visibility 不够：visibility 虽然继承，后代却可以把自己改回 visible，而 React Flow 正是这么做的
+  // ——它量到节点尺寸后在每个节点上写行内 `visibility: visible`（@xyflow/react index.js:2363），
+  // 于是框图节点会穿透隐藏浮在场景地图上。opacity 在祖先上后代无法覆盖，补一个 opacity: 0 兜住。
+  // inert 让隐藏页的输入框接不到快捷键。
   return (
-    <section className="view" data-view={id} data-active={active} style={{ visibility: active ? 'visible' : 'hidden' }}
+    <section className="view" data-view={id} data-active={active}
+      style={{ visibility: active ? 'visible' : 'hidden', opacity: active ? undefined : 0 }}
       // @ts-expect-error React 19 支持 inert 布尔属性
       inert={active ? undefined : ''}>
       {children}
@@ -84,6 +92,7 @@ export function AppShell() {
       peakBin: peakBinOf(signalBuffer.latestRow(op, 'spectrum')),
       signalView: viewStore.get(),
       longTasks: longTasks.current?.snapshot() ?? null,
+      ...situationSnapshot(),
     })
   }), [store])
 
@@ -103,7 +112,14 @@ export function AppShell() {
       <TopBar />
       <div className="views">
         <ViewHost id="scene" active={view === 'scene'}><SceneView active={view === 'scene'} /></ViewHost>
-        {visited.has('diagram') && <ViewHost id="diagram" active={view === 'diagram'}><DiagramJsonView /></ViewHost>}
+        {visited.has('diagram') && (
+          <ViewHost id="diagram" active={view === 'diagram'}>
+            {/* 框图页两种形态：缺省是典型链路视图，自由画布是高级模式（C-7，D-051）。
+                画布只在真的进过它之后才挂载——React Flow 的初始化不便宜，
+                而绝大多数使用不会去到那里。 */}
+            {s.ui.diagramCanvas ? <DiagramView /> : <ChainView />}
+          </ViewHost>
+        )}
         {visited.has('results') && <ViewHost id="results" active={view === 'results'}><ResultsView /></ViewHost>}
         {view === 'data' && <ViewHost id="data" active><DataCenter /></ViewHost>}
       </div>

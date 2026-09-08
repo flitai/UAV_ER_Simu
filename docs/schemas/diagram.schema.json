@@ -14,6 +14,7 @@
     "observation_points": { "type": "array", "items": { "$ref": "#/$defs/observation_point" } },
     "run": { "$ref": "#/$defs/run" },
     "scenario_ref": { "$ref": "#/$defs/scenario_ref" },
+    "template_ref": { "$ref": "#/$defs/template_ref" },
     "trace": { "$ref": "#/$defs/trace" }
   },
   "$defs": {
@@ -100,6 +101,17 @@
       "properties": {
         "scenario_id": { "$ref": "#/$defs/id" },
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "template_ref": {
+      "description": "典型链路视图的还原线索（D-051）。引擎与服务端只校验取值、不解释语义。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template_id", "mode", "version"],
+      "properties": {
+        "template_id": { "$ref": "#/$defs/id" },
+        "mode": { "enum": ["synthetic", "replay", "mixed"] },
+        "version": { "type": "integer", "minimum": 1 }
       }
     },
     "trace": {

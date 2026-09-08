@@ -38,6 +38,7 @@ const char* to_string(PortType t) {
         case PortType::SpectrumFrame: return "SpectrumFrame";
         case PortType::DetectionList: return "DetectionList";
         case PortType::FeatureVector: return "FeatureVector";
+        case PortType::RecognitionList: return "RecognitionList";
     }
     return "unknown";
 }

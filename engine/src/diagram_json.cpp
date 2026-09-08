@@ -1,5 +1,7 @@
 #include "cuav/diagram_json.h"
 
+#include "cuav/scenario_json.h"
+
 #include <cmath>
 #include <fstream>
 #include <set>
@@ -245,6 +247,123 @@ bool inject_data(const ComponentInfo& info, const std::string& node_id, IDataRes
     return true;
 }
 
+// 一次装载里只读一次场景文件、只算一次哈希；顺带做跨节点一致性检查。
+struct ScenarioCache {
+    bool loaded = false;
+    LoadedScenario scenario;
+    bool fs_seen = false;
+    double fs = 0.0;
+    std::string fs_node;
+};
+
+// scene_binding → 内部参数（与 inject_data 同法，D-037）。
+// 只对声明了内部参数 scenario_path 的组件生效；框图里永远只写 scene_binding，不写路径。
+bool inject_scene(const ComponentInfo& info, const std::string& node_id, const nlohmann::json* binding,
+                  LoadedDiagram& diag, const LoadOptions& options, ScenarioCache& cache,
+                  std::map<std::string, double>& num, std::map<std::string, std::string>& txt,
+                  DiagramError& err) {
+    const ParamSpec* sp = find_spec(info, "scenario_path");
+    if (!sp || !sp->internal) return true;          // 组件不吃场景，早退
+    if (binding == nullptr) return true;            // 缺必填交给 validate_params 报
+
+    const std::string bound_id = (*binding)["scenario_id"].get<std::string>();
+    if (bound_id != diag.scenario_id) {
+        err = fail("scene_binding", node_id, "",
+                   "节点 " + node_id + " 绑定的场景是 " + bound_id + "，与框图 scenario_ref 的 " +
+                   diag.scenario_id + " 不一致");
+        return false;
+    }
+    if (options.scenarios == nullptr) {
+        err = fail("scenario", node_id, "",
+                   "节点 " + node_id + " 绑定场景 " + bound_id +
+                   "，但没有场景解析器：cuav_run 需给 --scenario <场景文件> 或带 scenarios 段的 --resolved，"
+                   "应用服务在提交时解析（D-037）");
+        return false;
+    }
+
+    if (!cache.loaded) {
+        std::string path, e;
+        if (!options.scenarios->resolve(bound_id, path, e)) {
+            err = fail("scenario", node_id, "", "场景 " + bound_id + " 无法解析：" + e);
+            return false;
+        }
+        if (!load_scenario_file(path, cache.scenario, e)) {
+            err = fail("scenario", node_id, "", "场景 " + bound_id + " 读不进来：" + e);
+            return false;
+        }
+        // 哈希核对：框图声明的 sha256 必须与场景文件的**原始字节**相符（docs/diagram-format.md §7）。
+        if (!diag.scenario_sha256.empty() && cache.scenario.sha256 != diag.scenario_sha256) {
+            err = fail("scenario", node_id, "",
+                       "场景 " + bound_id + " 的文件哈希与框图 scenario_ref 声明的不符：框图写 " +
+                       diag.scenario_sha256.substr(0, 8) + "…，文件是 " + cache.scenario.sha256.substr(0, 8) +
+                       "…；场景改了就要同步改框图（铁律 10）");
+            return false;
+        }
+        // 观测区域清单哈希：scene_root 为空串才跳过，跳过要在结果里标明，不静默放行（铁律 15）。
+        if (!options.scene_root.empty()) {
+            std::string actual;
+            if (!check_aoi_manifest(cache.scenario.scenario, options.scene_root, actual, e)) {
+                err = fail("scenario", node_id, "", "场景 " + bound_id + " 的观测区域清单核对失败：" + e);
+                return false;
+            }
+            diag.aoi_manifest_verified = true;
+        }
+        // 框图时长不得超过场景时长，否则后半段无人机停在末航点，画面上像卡住。
+        if (diag.run.duration_s > cache.scenario.scenario.duration_s + 1e-9) {
+            err = fail("duration", node_id, "",
+                       "框图 run.duration_s " + std::to_string(diag.run.duration_s) +
+                       " 超过场景时长 " + std::to_string(cache.scenario.scenario.duration_s));
+            return false;
+        }
+        diag.scenario_path = cache.scenario.path;
+        diag.scenario_verified = !diag.scenario_sha256.empty();
+        cache.loaded = true;
+    }
+
+    const geo::Scenario& sc = cache.scenario.scenario;
+    if (binding->contains("entity_id")) {
+        const std::string eid = (*binding)["entity_id"].get<std::string>();
+        if (sc.find_emitter(eid) == nullptr) {
+            std::string avail;
+            for (std::size_t i = 0; i < sc.emitters.size(); ++i) avail += (i ? ", " : "") + sc.emitters[i].id;
+            err = fail("scene_binding", node_id, "",
+                       "场景 " + bound_id + " 里没有辐射源 " + eid + "；可用的是：" + avail);
+            return false;
+        }
+        txt["entity_id"] = eid;
+    } else {
+        const std::string sid = (*binding)["site_id"].get<std::string>();
+        if (sc.find_site(sid) == nullptr) {
+            std::string avail;
+            for (std::size_t i = 0; i < sc.sites.size(); ++i) avail += (i ? ", " : "") + sc.sites[i].id;
+            err = fail("scene_binding", node_id, "",
+                       "场景 " + bound_id + " 里没有站点 " + sid + "；可用的是：" + avail);
+            return false;
+        }
+        txt["site_id"] = sid;
+    }
+    txt["scenario_path"] = cache.scenario.path;
+    txt["scenario_id"] = bound_id;
+
+    // 跨节点一致性：同一场景下所有场景绑定节点必须同采样率，否则参数帧与 IQ 块的样点窗口对不上，
+    // 而调度器会把没被消费的块静默覆盖掉（08 报告 §9.4）。这道闸放在这里，不等运行时才炸。
+    std::map<std::string, double>::const_iterator fs_it = num.find("sample_rate_Hz");
+    if (fs_it != num.end()) {
+        if (!cache.fs_seen) {
+            cache.fs_seen = true;
+            cache.fs = fs_it->second;
+            cache.fs_node = node_id;
+        } else if (std::fabs(cache.fs - fs_it->second) > 1e-6) {
+            err = fail("param", node_id, "",
+                       "同一场景的场景绑定节点必须同采样率：节点 " + cache.fs_node + " 声明 " +
+                       std::to_string(cache.fs) + " Hz，节点 " + node_id + " 声明 " +
+                       std::to_string(fs_it->second) + " Hz");
+            return false;
+        }
+    }
+    return true;
+}
+
 // 源组件的 total_samples 由 run.duration_s × sample_rate_Hz 补（四舍五入到整数样点）；显式值不得超过它。
 // run.block_size 给未写 block_samples 的节点当块长。（docs/diagram-format.md §3、§6）
 bool fill_run_derived(const ComponentInfo& info, const std::string& node_id, const RunSpec& run,
@@ -373,6 +492,59 @@ bool IndexDataResolver::resolve(const std::string& data_id, std::string& manifes
 
 // ------------------------------------------------------------------ 装载
 
+bool MapScenarioResolver::load(const nlohmann::json& resolved, std::string& err) {
+    if (!resolved.is_object()) { err = "解析旁挂顶层必须是对象"; return false; }
+    if (!resolved.contains("schema_version") || resolved["schema_version"] != kResolvedSchema) {
+        err = std::string("解析旁挂的 schema_version 必须是 ") + kResolvedSchema;
+        return false;
+    }
+    // scenarios 是可选段：只有 data 的旧旁挂照样能用，场景解析器留空即可。
+    if (!resolved.contains("scenarios")) return true;
+    if (!resolved["scenarios"].is_object()) { err = "解析旁挂的 scenarios 必须是对象"; return false; }
+    for (auto it = resolved["scenarios"].begin(); it != resolved["scenarios"].end(); ++it) {
+        if (!it.value().is_string()) { err = "解析旁挂 scenarios." + it.key() + " 不是字符串"; return false; }
+        table_[it.key()] = it.value().get<std::string>();
+    }
+    return true;
+}
+
+bool MapScenarioResolver::load_file(const std::string& path, std::string& err) {
+    nlohmann::json j;
+    if (!read_json_file(path, j, err)) { err = "解析旁挂 " + err; return false; }
+    return load(j, err);
+}
+
+bool MapScenarioResolver::resolve(const std::string& scenario_id, std::string& scenario_path,
+                                  std::string& err) {
+    auto it = table_.find(scenario_id);
+    if (it == table_.end()) { err = "scenario_id 不在解析表里：" + scenario_id; return false; }
+    scenario_path = it->second;
+    return true;
+}
+
+bool FileScenarioResolver::add_file(const std::string& path, std::string& err) {
+    LoadedScenario ls;
+    if (!load_scenario_file(path, ls, err)) return false;
+    auto it = table_.find(ls.scenario.scenario_id);
+    if (it != table_.end() && it->second != path) {
+        err = "场景标识 " + ls.scenario.scenario_id + " 在两处出现：" + it->second + " 与 " + path;
+        return false;
+    }
+    table_[ls.scenario.scenario_id] = path;
+    return true;
+}
+
+bool FileScenarioResolver::resolve(const std::string& scenario_id, std::string& scenario_path,
+                                   std::string& err) {
+    auto it = table_.find(scenario_id);
+    if (it == table_.end()) {
+        err = "没有给出场景 " + scenario_id + " 的文件：请用 cuav_run --scenario <场景文件>";
+        return false;
+    }
+    scenario_path = it->second;
+    return true;
+}
+
 bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolver* resolver,
                   const LoadOptions& options, LoadedDiagram& out, DiagramError& err) {
     out = LoadedDiagram();
@@ -381,7 +553,8 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
     // 1. 顶层结构
     if (!need_object(j, "框图顶层", "", err)) return false;
     static const std::set<std::string> kTopKeys = {
-        "schema_version", "diagram_id", "name", "nodes", "edges", "observation_points", "run", "scenario_ref", "trace"};
+        "schema_version", "diagram_id", "name", "nodes", "edges", "observation_points", "run",
+        "scenario_ref", "template_ref", "trace"};
     if (!check_keys(j, kTopKeys, "框图顶层", "", err)) return false;
     for (const char* k : {"schema_version", "diagram_id", "name", "nodes", "edges", "run"}) {
         if (!need(j, k, "框图顶层", "", err)) return false;
@@ -433,6 +606,32 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
         out.scenario_sha256 = s["sha256"].get<std::string>();
     }
 
+    // 典型链路的还原线索（D-051）。只校验取值，不解释语义：引擎不知道也不需要知道
+    // 九个槽位怎么编译成节点，它看到的就是一张普通框图。
+    if (j.contains("template_ref")) {
+        const nlohmann::json& t = j["template_ref"];
+        if (!need_object(t, "template_ref", "", err)) return false;
+        static const std::set<std::string> kKeys = {"template_id", "mode", "version"};
+        if (!check_keys(t, kKeys, "template_ref", "", err)) return false;
+        for (const char* k : {"template_id", "mode", "version"}) {
+            if (!need(t, k, "template_ref", "", err)) return false;
+        }
+        if (!t["template_id"].is_string() || !match_id(t["template_id"].get<std::string>())) {
+            err = fail("template", "", "", "template_ref.template_id 必须匹配 [a-z0-9_-]{1,64}");
+            return false;
+        }
+        const std::string mode = t["mode"].is_string() ? t["mode"].get<std::string>() : std::string();
+        if (mode != "synthetic" && mode != "replay" && mode != "mixed") {
+            err = fail("template", "", "", "template_ref.mode 必须是 synthetic / replay / mixed 之一");
+            return false;
+        }
+        if (!t["version"].is_number_integer() || t["version"].get<long long>() < 1) {
+            err = fail("template", "", "", "template_ref.version 必须是不小于 1 的整数");
+            return false;
+        }
+        out.template_ref = t;
+    }
+
     if (j.contains("trace")) {
         const nlohmann::json& t = j["trace"];
         if (!need_object(t, "trace", "", err)) return false;
@@ -452,6 +651,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
     }
 
     // 2. 节点：结构校验、参数分流、内部参数注入、按注册表构造
+    ScenarioCache scenario_cache;
     static const std::set<std::string> kNodeKeys = {"id", "type", "label", "params", "position", "scene_binding"};
     for (const auto& n : j["nodes"]) {
         if (!need_object(n, "nodes[] 每项", "", err)) return false;
@@ -527,6 +727,10 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
         std::map<std::string, std::string> txt;
         if (!split_params(info, n["params"], who, id, num, txt, err)) return false;
         if (!inject_data(info, id, resolver, txt, err)) return false;
+        {
+            const nlohmann::json* binding = n.contains("scene_binding") ? &n["scene_binding"] : nullptr;
+            if (!inject_scene(info, id, binding, out, options, scenario_cache, num, txt, err)) return false;
+        }
         if (!fill_run_derived(info, id, out.run, num, err)) return false;
 
         std::unique_ptr<IComponent> comp = registry.create_configured(type, num, txt, e);

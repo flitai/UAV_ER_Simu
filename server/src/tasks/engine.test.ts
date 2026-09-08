@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { Engine, EngineUnavailableError, parseEvent, spawnEngine, splitLines } from './engine.js'
-import { fakeEngine, makeRoot, rmrf, slice1 } from './testkit.js'
+import { FAKE_ENGINE, fakeEngine, makeRoot, rmrf, slice1 } from './testkit.js'
 import { promises as fsp } from 'node:fs'
 import { join } from 'node:path'
 
@@ -50,6 +50,27 @@ test('catalog：取一次并缓存，导出 internal 参数表与 generated_at',
   assert.equal(a.internal.has('ToneSource'), false)
   assert.match(String(a.catalog.generated_at), /^\d{4}-\d{2}-\d{2}T/)
   assert.equal(await eng.cachedCatalog(), a)
+})
+
+test('catalog：引擎二进制换了就重取目录（开发时重建引擎而服务还开着）', async () => {
+  // 假引擎是 .mjs，用 shebang 包成可执行文件当 bin，这样 touch 得到它的 mtime。
+  // 为什么要这条：目录进程内缓存，引擎重建后服务不重启就一直吐旧目录；画布查不到新组件
+  // 就没有端口，React Flow 会把连到它们的边**静默**丢掉——实测九环节链只画出一条连线。
+  const shim = join(root, 'fake_engine_shim.mjs')
+  await fsp.writeFile(shim, `#!${process.execPath}\n` + (await fsp.readFile(FAKE_ENGINE, 'utf8')), 'utf8')
+  await fsp.chmod(shim, 0o755)
+
+  const eng = new Engine({ bin: shim, cwd: root })
+  const a = await eng.catalog()
+  assert.equal(await eng.catalog(), a, '二进制没变就用缓存')
+
+  // 换二进制（内容与时间都变）→ 下一次 catalog() 必须重取
+  await new Promise((r) => setTimeout(r, 10))
+  await fsp.writeFile(shim, `#!${process.execPath}\n// touched\n` + (await fsp.readFile(FAKE_ENGINE, 'utf8')), 'utf8')
+  await fsp.chmod(shim, 0o755)
+  const b = await eng.catalog()
+  assert.notEqual(b, a, '二进制换了应重取，不能继续用旧目录')
+  assert.equal(b.engine_version, a.engine_version, '重取到的仍是同一个假引擎')
 })
 
 test('validate：合法框图一条 validate 事件且 task_id 显式；非法框图一条 error 四字段', async () => {

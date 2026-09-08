@@ -1,6 +1,81 @@
 {
   "components": [
     {
+      "category": "receiver",
+      "description": "ADC 采样与量化（04 §7.6）。I、Q 各按 bits 位均匀量化，量化步长 q = 2A / 2^bits，其中 A = 10^(full_scale_dBm/20) 是满量程复单音的幅度；超出可表示范围的样点在 ±A 处削顶。满量程复单音的量化信噪比为 6.02·bits + 1.76 dB。**削顶是数据标记不是降级**：逐块的削顶样点数写进块元数据 clip_count 与 state_reasons，四态不变；只有全程削顶比例超过 degrade_clip_ratio 才在收尾时把组件状态标降级（D-051）。采样时钟偏差、丢样与不连续注入是 04 §7.6 的可选项，本版本未实现。",
+      "display_name": "ADC 量化",
+      "implementation": "cpp",
+      "model_id": "EM-B-11",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": "14",
+          "description": "I、Q 各自的量化位数",
+          "enum": [
+            "8",
+            "10",
+            "12",
+            "14",
+            "16"
+          ],
+          "name": "bits",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "description": "满量程复单音对应的功率",
+          "max": 30.0,
+          "min": -60.0,
+          "name": "full_scale_dBm",
+          "required": true,
+          "type": "number",
+          "unit": "dBm"
+        },
+        {
+          "default": "nearest",
+          "description": "量化取整方式；抖动随后续版本",
+          "enum": [
+            "nearest"
+          ],
+          "name": "rounding",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 0.01,
+          "description": "全程削顶样点比例超过它才标降级",
+          "max": 1.0,
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "degrade_clip_ratio",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "AdcQuantizer",
+      "version": "0.1.0"
+    },
+    {
       "category": "source",
       "description": "两路 IQ 加权相加，用于真实背景加合成目标（04 §15.2 标准算例第 10 项）；两路采样率与中心频率必须一致",
       "display_name": "加法混合",
@@ -47,6 +122,198 @@
       "scene_bindable": false,
       "stateful": false,
       "type": "AddMixer",
+      "version": "0.1.0"
+    },
+    {
+      "category": "antenna",
+      "description": "按方向图施加天线增益。全向为常量增益；定向按 12·[(Δaz/θaz)² + (Δel/θel)²] 的抛物线主瓣衰减并截止于副瓣底（Δ = θ/2 处恰为 3 dB，即半功率波束宽度的定义，EM-B-07 §10.3 的 E1 抽象）。来波 / 去波方向优先取 scene 口的参数帧（role = tx 用离开角，role = rx 用到达角）；scene 口是可选输入，不接时按 aspect_az_deg / aspect_el_deg 当常量方向。极化失配损耗与馈线损耗只在 role = rx 时各计一次，避免两端重复计入。首期没有方向图查表、阵列流形、互耦与平台遮挡（04 §7.4），那些随 P3。",
+      "display_name": "天线增益",
+      "implementation": "cpp",
+      "model_id": "EM-B-07",
+      "model_layer": "M3",
+      "model_level": "E1",
+      "params": [
+        {
+          "description": "本天线在链路的哪一端：tx 用参数帧的离开角，rx 用到达角，且只有 rx 端计极化失配与馈线损耗",
+          "enum": [
+            "tx",
+            "rx"
+          ],
+          "name": "role",
+          "required": true,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": "omni",
+          "description": "方向图形式",
+          "enum": [
+            "omni",
+            "directional"
+          ],
+          "name": "pattern",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "description": "峰值增益",
+          "max": 40.0,
+          "min": -10.0,
+          "name": "gain_dBi",
+          "required": true,
+          "type": "number",
+          "unit": "dBi"
+        },
+        {
+          "default": 60.0,
+          "description": "方位半功率波束宽度，仅 directional",
+          "max": 360.0,
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "beamwidth_az_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 60.0,
+          "description": "俯仰半功率波束宽度，仅 directional",
+          "max": 180.0,
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "beamwidth_el_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 20.0,
+          "description": "副瓣底相对峰值的衰减上限，仅 directional",
+          "max": 60.0,
+          "min": 0.0,
+          "name": "sidelobe_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": "fixed",
+          "description": "视轴指向：固定方位，或跟随平台航向（只对 role = tx 有意义）",
+          "enum": [
+            "fixed",
+            "heading"
+          ],
+          "name": "pointing",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 0.0,
+          "description": "视轴方位，真北顺时针",
+          "max": 360.0,
+          "max_exclusive": true,
+          "min": 0.0,
+          "name": "boresight_az_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 0.0,
+          "description": "视轴俯仰，水平为 0",
+          "max": 90.0,
+          "min": -90.0,
+          "name": "boresight_el_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": "vertical",
+          "description": "本天线极化",
+          "enum": [
+            "vertical",
+            "horizontal",
+            "slant45",
+            "rhcp",
+            "lhcp"
+          ],
+          "name": "polarization",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": "vertical",
+          "description": "对端天线极化；典型链路视图从场景 emission.polarization 带出",
+          "enum": [
+            "vertical",
+            "horizontal",
+            "slant45",
+            "rhcp",
+            "lhcp"
+          ],
+          "name": "peer_polarization",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 0.0,
+          "description": "馈线固定损耗，正值为损耗；只在 role = rx 端计",
+          "max": 20.0,
+          "min": 0.0,
+          "name": "feeder_loss_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 0.0,
+          "description": "scene 口未接时的常量来波 / 去波方位",
+          "max": 360.0,
+          "max_exclusive": true,
+          "min": 0.0,
+          "name": "aspect_az_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 0.0,
+          "description": "scene 口未接时的常量来波 / 去波俯仰",
+          "max": 90.0,
+          "min": -90.0,
+          "name": "aspect_el_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          },
+          {
+            "name": "scene",
+            "optional": true,
+            "type": "SceneParamFrame"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "AntennaGain",
       "version": "0.1.0"
     },
     {
@@ -202,6 +469,77 @@
       "scene_bindable": false,
       "stateful": true,
       "type": "FileReplaySource",
+      "version": "0.1.0"
+    },
+    {
+      "category": "channel",
+      "description": "定参自由空间传播：L = 20·log10(4πd/λ)，增益 = tx_power_dBm + 发射天线增益 + 接收天线增益 − L，逐样点常数。不绑定场景，供标准算例与解析锚点对拍用；随时间变化的链路走场景绑定信道。",
+      "display_name": "自由空间信道",
+      "implementation": "cpp",
+      "model_id": "EM-P-01",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "description": "站点到辐射源的斜距",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "distance_m",
+          "required": true,
+          "type": "number",
+          "unit": "m"
+        },
+        {
+          "description": "载频",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "frequency_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 0.0,
+          "description": "发射功率；输入应是归一化到单位功率的波形",
+          "name": "tx_power_dBm",
+          "required": false,
+          "type": "number",
+          "unit": "dBm"
+        },
+        {
+          "default": 0.0,
+          "description": "发射天线增益",
+          "name": "tx_gain_dBi",
+          "required": false,
+          "type": "number",
+          "unit": "dBi"
+        },
+        {
+          "default": 0.0,
+          "description": "接收天线增益",
+          "name": "rx_gain_dBi",
+          "required": false,
+          "type": "number",
+          "unit": "dBi"
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": false,
+      "type": "FreeSpaceChannel",
       "version": "0.1.0"
     },
     {
@@ -388,6 +726,412 @@
       "scene_bindable": false,
       "stateful": true,
       "type": "ObservationTap",
+      "version": "0.1.0"
+    },
+    {
+      "category": "receiver",
+      "description": "接收机射频前端等效模型（04 §7.5）。按顺序施加：等效输入热噪声（由噪声系数生成，N0 = −174 dBm/Hz + 10·log10(T/290) + nf_dB，与场景参数帧里的链路噪声底同一常数）、总增益、本振频偏（相位累加器跨块连续）、IQ 幅相不平衡（K1·y + K2·conj(y) 形式，与 MATLAB comm.IQImbalance 同定义）、直流偏置。噪声加在增益之前，即噪声系数是输入折合的。本组件不做接收滤波：幅频响应与群时延是 M-3 的 Coder 产物，串在本组件之前。相位噪声、增益压缩与自动增益控制的动态过程随 P3（04 §7.5 的其余项）。noise_mode = none 用于混合增强模式：实测背景片段自带接收机噪声，再注入即重复计入。",
+      "display_name": "接收机前端",
+      "implementation": "cpp",
+      "model_id": "EM-B-11",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": "thermal",
+          "description": "热噪声注入：按噪声系数生成，或不注入（混合增强模式下背景已含噪声）",
+          "enum": [
+            "thermal",
+            "none"
+          ],
+          "name": "noise_mode",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "description": "噪声系数",
+          "max": 30.0,
+          "min": 0.0,
+          "name": "nf_dB",
+          "required": true,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 290.0,
+          "description": "热噪声参考温度；290 K 时噪声底为 −174 dBm/Hz + nf",
+          "max": 1000.0,
+          "min": 100.0,
+          "name": "reference_temperature_K",
+          "required": false,
+          "type": "number",
+          "unit": "K"
+        },
+        {
+          "default": 0.0,
+          "description": "总增益，加在噪声之后（噪声系数是输入折合的）",
+          "max": 80.0,
+          "min": -20.0,
+          "name": "gain_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 0.0,
+          "description": "本振频偏",
+          "name": "lo_offset_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 0.0,
+          "description": "IQ 幅度不平衡",
+          "max": 3.0,
+          "min": -3.0,
+          "name": "iq_gain_imbalance_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 0.0,
+          "description": "IQ 相位不平衡",
+          "max": 20.0,
+          "min": -20.0,
+          "name": "iq_phase_imbalance_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 0.0,
+          "description": "直流分量功率，I、Q 各占一半；0 为关",
+          "min": 0.0,
+          "name": "dc_offset_mW",
+          "required": false,
+          "type": "number",
+          "unit": "mW"
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "ReceiverFrontEnd",
+      "version": "0.1.0"
+    },
+    {
+      "category": "data",
+      "description": "站点视角的场景运行时：按航线与活动时间线算出链路几何与链路预算，每条链路输出一路慢变参数帧（10–100 Hz，帧内零阶保持），实体状态与链路读数经观察者上报。参数帧按样点序号推进，不按墙钟，因此同种子逐字节可复现（D-033）。首期路损为自由空间、视距在平地假设下恒真，D3 接入建筑遮挡后帧结构不变。",
+      "display_name": "场景参数源",
+      "dynamic_ports": {
+        "pattern": "link:<emitter_id>",
+        "source": "scene_binding",
+        "type": "SceneParamFrame"
+      },
+      "implementation": "cpp",
+      "model_id": "EM-P-01",
+      "model_layer": "M2",
+      "model_level": "E2",
+      "params": [
+        {
+          "description": "链路的 IQ 采样率，须与站点接收机的 fs_Hz 一致",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "sample_rate_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "description": "覆盖的总样点数",
+          "min": 1.0,
+          "name": "total_samples",
+          "required": true,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 20.0,
+          "description": "参数帧更新率",
+          "max": 100.0,
+          "min": 10.0,
+          "name": "update_rate_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 10.0,
+          "description": "实体状态与链路读数的上报率，不大于更新率",
+          "min": 0.1,
+          "name": "report_rate_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": true,
+          "description": "是否上报实体状态；多站场景里只让一个节点报，避免重复",
+          "name": "report_entities",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "default": 65536.0,
+          "description": "每块样点数；由 run.block_size 统一给定，不建议单节点覆盖",
+          "min": 1.0,
+          "name": "block_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "绑定的站点标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [],
+        "out": []
+      },
+      "scene_bindable": true,
+      "stateful": true,
+      "type": "ScenarioSource",
+      "version": "0.1.0"
+    },
+    {
+      "category": "channel",
+      "description": "把场景参数帧施加到 IQ 上：增益 = tx_power_dBm + 发射天线增益 + 接收天线增益 − 路损，整数样点时延，多普勒相位斜坡（相位累加器跨块连续）。帧内零阶保持，帧过期而无新帧到达时按上一帧继续并把块标降级。输入应是归一化到单位功率的波形（SceneEmitterSource），否则电平会重复计入。本组件不注入热噪声：帧里的 noise_floor_dBm_per_Hz 目前只供链路读数，热噪声注入待接收机前端。时延为整数样点，delay_s 变化处有 ±1 样点跳变，分数时延随 P3；单站场景里绝对时延在频谱上不可观测，它的意义在于为多站与到达时间差定位预留结构。",
+      "display_name": "场景绑定信道",
+      "implementation": "cpp",
+      "model_id": "EM-P-01",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": true,
+          "description": "是否施加链路预算增益",
+          "name": "apply_gain",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "default": "link_budget",
+          "description": "增益口径：link_budget 施加 tx_power + 发射天线增益 + 接收天线增益 − 路损；path_loss_only 只施加 −路损，另三项由辐射源与两个天线组件各自负责（典型链路视图用后者，D-051）",
+          "enum": [
+            "link_budget",
+            "path_loss_only"
+          ],
+          "name": "gain_mode",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": true,
+          "description": "是否施加多普勒相位斜坡",
+          "name": "apply_doppler",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "default": "tracking",
+          "description": "时延模式：不施加 / 全程用起始时刻的整数时延 / 逐帧跟随",
+          "enum": [
+            "off",
+            "fixed_at_start",
+            "tracking"
+          ],
+          "name": "delay_mode",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 65536.0,
+          "description": "时延历史缓冲的上限；帧要求超过它即报错，不截断",
+          "min": 1.0,
+          "name": "max_delay_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "绑定的辐射源标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "entity_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          },
+          {
+            "name": "scene",
+            "type": "SceneParamFrame"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": true,
+      "stateful": true,
+      "type": "SceneBoundChannel",
+      "version": "0.1.0"
+    },
+    {
+      "category": "source",
+      "description": "按场景 emission.waveform 生成 tone / noise / burst，归一化到**发射期间**的单位功率（0 dBm）；绝对电平由施加类信道按链路预算给出（D-045）。因此本组件输出的全程平均功率对 burst 是 duty × 1 mW，瀑布上的时间平均电平比链路预算低 10·log10(1/duty)，突发峰值才等于链路预算。活动时间线的图传开关与跳频在这里生效。noise 首期不做带限，emission.bw_Hz 小于采样带宽时输出全带白噪声并标降级。",
+      "display_name": "场景辐射源",
+      "implementation": "cpp",
+      "model_id": "EM-B-09",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "description": "复采样率，须与站点接收机的 fs_Hz 一致",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "sample_rate_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "description": "输出总样点数",
+          "min": 1.0,
+          "name": "total_samples",
+          "required": true,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "description": "观测中心频率（站点接收机的），基带频偏据此算出",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "center_frequency_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 65536.0,
+          "description": "每块样点数；由 run.block_size 统一给定",
+          "min": 1.0,
+          "name": "block_samples",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": false,
+          "description": "按场景的 tx_power_dBm 标定输出电平（发射期间 |x|² = 10^(tx_power/10)）。为假时保持单位功率归一化，电平由施加类信道的链路预算给出。典型链路视图恒为真：这样 S0 观测点读到的就是发射功率，而天线增益由天线组件、路损由信道组件各自负责，不再折在一处",
+          "name": "emit_at_tx_power",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "绑定的辐射源标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "entity_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": true,
+      "stateful": true,
+      "type": "SceneEmitterSource",
       "version": "0.1.0"
     },
     {
@@ -615,6 +1359,12 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "IQStream",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "SceneParamFrame",
       "IQStream",
       false,
@@ -650,6 +1400,12 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "SceneParamFrame",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "ChannelPathSet",
       "IQStream",
       false,
@@ -685,6 +1441,12 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "ChannelPathSet",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "SpectrumFrame",
       "IQStream",
       false,
@@ -720,6 +1482,12 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "SpectrumFrame",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "DetectionList",
       "IQStream",
       false,
@@ -755,6 +1523,12 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "DetectionList",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "FeatureVector",
       "IQStream",
       false,
@@ -787,6 +1561,53 @@
     [
       "FeatureVector",
       "FeatureVector",
+      true
+    ],
+    [
+      "FeatureVector",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "RecognitionList",
       true
     ]
   ],
@@ -796,7 +1617,8 @@
     "ChannelPathSet",
     "SpectrumFrame",
     "DetectionList",
-    "FeatureVector"
+    "FeatureVector",
+    "RecognitionList"
   ],
   "schema_version": "cuav-catalog/1"
 }

@@ -9,10 +9,14 @@ namespace {
 const PortType kPortTypes[] = {
     PortType::IQStream, PortType::SceneParamFrame, PortType::ChannelPathSet,
     PortType::SpectrumFrame, PortType::DetectionList, PortType::FeatureVector,
+    PortType::RecognitionList,
 };
 
 nlohmann::json port_json(const PortSpec& p) {
-    return nlohmann::json{{"name", p.name}, {"type", to_string(p.type)}};
+    nlohmann::json j{{"name", p.name}, {"type", to_string(p.type)}};
+    // 只在为真时写出：可选口是少数，这样既有条目的字节不变（docs/component-catalog.md §5）
+    if (p.optional) j["optional"] = true;
+    return j;
 }
 
 nlohmann::json param_json(const ParamSpec& p) {

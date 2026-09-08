@@ -1,5 +1,11 @@
 // 纯派生函数：轴标文字、状态条文字、探针 app 子对象（09 §10）。
 
+import { parse as parseDoc } from '../diagram/doc.js'
+import { parseChain } from '../chain/compile.js'
+import { SLOTS, TAP_ORDER, slotState } from '../chain/model.js'
+import { freqPlan, planChecks } from '../chain/plan.js'
+import { isCatalog } from '../api/catalog.js'
+
 import type { AppState, CalibrationSource, ProductIndex, WsState } from './types.js'
 import type { SignalViewState } from '../signal/viewStore.js'
 import { spectrumGeomOf } from '../signal/viewport.js'
@@ -50,6 +56,9 @@ export interface ProbeExtras {
   signalView?: SignalViewState | null
   /** 开发者模式的长任务计数（PerformanceObserver longtask） */
   longTasks?: { count: number; maxMs: number } | null
+  /** 态势快照（切片 ②）：实体位置与链路读数，供 e2e 与黄金航迹对拍 */
+  entities: Array<{ id: string; t_s: number; lon: number; lat: number; alt_m: number; heading_deg: number; speed_mps: number; tx_on: boolean }>
+  links: Array<{ id: string; t_s: number; los: boolean; distance_m: number; pathLoss_dB: number; doppler_Hz: number }>
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -57,6 +66,19 @@ function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array
     if (m.id === 'M1') return { id: 'M1', freq_Hz: v?.m1?.f ?? m.freq_Hz, level_dB: v?.m1?.v ?? null }
     return { id: m.id, freq_Hz: m.freq_Hz, level_dB: v?.m2Level ?? null }
   })
+}
+
+function sceneCount(s: AppState, key: 'sites' | 'emitters'): number {
+  const v = s.scene.scenario.doc?.[key]
+  return Array.isArray(v) ? v.length : 0
+}
+
+function waypointCount(s: AppState): number {
+  const routes = s.scene.scenario.doc?.routes
+  if (!Array.isArray(routes)) return 0
+  let n = 0
+  for (const r of routes as Array<Record<string, unknown>>) if (Array.isArray(r.waypoints)) n += r.waypoints.length
+  return n
 }
 
 export function probeApp(s: AppState, x: ProbeExtras) {
@@ -80,7 +102,57 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       scene: { depth: s.scene.undo.past.length, redo: s.scene.undo.future.length },
       diagram: { depth: s.diagram.undo.past.length, redo: s.diagram.undo.future.length },
     },
-    links: [] as { id: string; los: boolean; distance_m: number; pathLoss_dB: number }[],
+    // 框图画布（切片 ③，U-2）。取自已解析的文档，画布与源码两种编辑路径都走它。
+    diagram: (() => {
+      const j = s.diagram.json as { nodes?: unknown[]; edges?: unknown[]; observation_points?: unknown[] } | null
+      const val = s.diagram.validation
+      return {
+        id: s.context.diagramId,
+        nodes: j?.nodes?.length ?? 0,
+        edges: j?.edges?.length ?? 0,
+        taps: j?.observation_points?.length ?? 0,
+        dirty: s.diagram.dirty,
+        parseError: s.diagram.parseError,
+        validation: val ? { ok: val.ok, errors: val.errors.length } : null,
+      }
+    })(),
+    // 典型链路视图（切片 ④a，C-7）。链路状态是框图文档的投影，这里也从同一份文档解，
+    // 不是第二份状态——探针读到的与画面看到的必然一致。
+    chain: (() => {
+      const r = parseDoc(s.diagram.text)
+      const chain = r.ok ? parseChain(r.doc) : null
+      if (!chain) return { template: null as string | null }
+      const plan = freqPlan(chain, s.scene.scenario.doc)
+      const checks = planChecks(chain, plan)
+      const slots: Record<string, string> = {}
+      for (const d of SLOTS) slots[d.id] = slotState(chain, d.id, isCatalog(s.components.catalog) ? s.components.catalog : null)
+      return {
+        template: 'chain-v1',
+        mode: chain.mode,
+        canvas: s.ui.diagramCanvas,
+        scenarioId: chain.scenario?.scenario_id ?? null,
+        siteId: chain.siteId,
+        emitterId: chain.emitterId,
+        slots,
+        taps: TAP_ORDER.filter((t) => chain.taps[t]),
+        plan: { fs_rf: plan.fs_rf, f_rx: plan.f_rx, fs_s4: plan.fs_s4, decim: plan.decim },
+        checks: Object.fromEntries(checks.map((k) => [k.id, k.ok])),
+      }
+    })(),
+    // 场景与态势（切片 ②）。实体与链路是高频量，存在 sceneStore 里，探针取当前快照。
+    scene: {
+      scenarioId: s.scene.scenario.id,
+      scenarioSha256: s.scene.scenario.sha256,
+      status: s.scene.scenario.status,
+      dirty: s.scene.dirty,
+      tool: s.scene.editor.tool,
+      selection: s.scene.editor.selection,
+      sites: sceneCount(s, 'sites'),
+      emitters: sceneCount(s, 'emitters'),
+      waypoints: waypointCount(s),
+    },
+    entities: x.entities,
+    links: x.links,
     signal: {
       opId: s.signal.opId,
       viewport: s.signal.viewport,

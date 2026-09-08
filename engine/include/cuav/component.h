@@ -56,13 +56,17 @@ struct PortData {
     Block iq;
     DetectionList detections;
     std::vector<SpectrumFrame> spectra;   // 一个输入块可能切出多帧，一次 process 全部交出
-    SceneParamFrame scene;
+    // 慢变参数帧也是向量：块长可能大于一帧的样点数（一块配多帧），也可能小于（多块共用一帧），
+    // 单帧字段只能表达后者。生产端每轮交出**恰好覆盖本轮样点窗口的全部帧**（至少一帧），
+    // 消费端按块的 start_sample 对齐取用并自己缓存上一帧做零阶保持（08 报告 §9.3）。
+    std::vector<SceneParamFrame> scenes;
 
     void clear() {
         has_data = false;
         iq.samples.clear();
         detections.items.clear();
         spectra.clear();
+        scenes.clear();          // 原来漏了这一句：缓冲里会长期挂着上一轮的帧
     }
 };
 
@@ -71,6 +75,12 @@ using PortMap = std::map<std::string, PortData>;
 struct PortSpec {
     std::string name;
     PortType type;
+    // 可选输入口（D-051，C-1）：没有连线时组件照常运行，用自己的参数顶替。
+    // 首批使用者是 AntennaGain 与 Evaluator 的 scene 口——定参链路（FreeSpaceChannel）没有场景，
+    // 此时天线按固定来波角、评价器按数据清单真值工作。
+    // Graph::validate 不把未连的可选口报成 input_unconnected，调度器也不等它的数据。
+    // C++14 起聚合体允许默认成员初始化，因此 PortSpec{"in", PortType::IQStream} 仍然成立。
+    bool optional = false;
 };
 
 // 组件目录里的类别（04 §8.1 六类：辐射源、信道、天线、接收机、数据、算法）。

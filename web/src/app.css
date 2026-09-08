@@ -198,3 +198,163 @@ details.scene-panel > summary::-webkit-details-marker { display: none; }
 .toast.warn { border-left-color: var(--warn); }
 .toast.error { border-left-color: var(--bad); }
 .toast button { border: none; background: none; color: var(--poi); font-size: 16px; padding: 0 2px; }
+
+/* ---------- 场景对象树与对象表单（09 §5.1、§5.3、§5.4，切片 ②） ---------- */
+.group-title { font-weight: 600; padding: 4px 0 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.dot-dirty { color: var(--warn); margin-left: 4px; }
+.scene-tree { overflow: auto; }
+.tree-meta { color: var(--dim); font-size: 12px; padding: 2px 0 6px; }
+.tree-group { color: var(--dim); font-size: 12px; margin: 8px 0 2px; }
+.tree-sub { color: var(--dim); font-size: 12px; margin: 4px 0 2px 8px; }
+.tree-dim { color: var(--poi); font-size: 11px; }
+.tree-row {
+  display: block; width: 100%; text-align: left; border: 1px solid transparent; background: none;
+  border-radius: 4px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tree-row:hover { background: var(--earth); }
+.tree-row.sel { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.tree-row.sel .tree-dim { color: var(--paper); opacity: 0.75; }
+.tree-row.indent { padding-left: 18px; }
+
+.form-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.form-label { color: var(--dim); flex: 0 0 76px; }
+.form-value { flex: 1 1 auto; min-width: 0; }
+.form-unit { color: var(--poi); font-size: 11px; flex: 0 0 auto; }
+.form-input {
+  width: 100%; border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px;
+  background: var(--white); font-variant-numeric: tabular-nums;
+}
+.form-input.bad { border-color: var(--bad); background: #fdf3f3; }
+.form-sub { color: var(--dim); font-size: 12px; margin: 8px 0 2px; border-top: 1px solid var(--border); padding-top: 6px; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.form-note { color: var(--poi); font-size: 11px; margin-top: 8px; line-height: 1.4; }
+.form-err { color: var(--bad); font-size: 12px; padding: 4px 0; }
+button.mini { font-size: 11px; padding: 0 5px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.badge-los { color: var(--ok); }
+.badge-nlos { color: var(--bad); }
+
+/* 工具条分组：四个工具、撤销重做与保存、图层与俯仰各成一组 */
+.map-toolbar .tool-group { display: inline-flex; gap: 2px; margin-right: 6px; }
+
+/* ── 框图画布（U-2，09 §6）─────────────────────────────────────────── */
+.diagram-canvas { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.rf-host { flex: 1; min-height: 0; position: relative; }
+.diagram-tabs { display: inline-flex; gap: 2px; }
+.diagram-tabs button { padding: 2px 8px; }
+.diagram-tabs button.on { background: var(--sel, #e8e2d8); font-weight: 600; }
+
+/* 组件库 */
+.palette { padding: 8px; overflow: auto; height: 100%; }
+.palette-search { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted, #7b7367); }
+.palette-search input { width: 100%; }
+.palette-group { margin-top: 10px; }
+.palette-cat { border-left: 3px solid; padding-left: 6px; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+.palette-empty { font-size: 12px; color: var(--muted, #7b7367); padding-left: 9px; }
+.palette-item { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  padding: 4px 6px; border: 1px solid transparent; border-radius: 4px; background: none; cursor: grab; }
+.palette-item:hover { border-color: var(--border, #ddd7cd); background: #fff; }
+.palette-dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.palette-name { flex: 1; }
+.palette-type { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted, #7b7367); }
+
+/* 节点 */
+.rf-node { width: 200px; background: #fff; border: 1px solid var(--border, #ddd7cd); border-radius: 6px;
+  padding: 6px 8px 8px; font-size: 12px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.rf-node.sel { border-color: #48423a; box-shadow: 0 0 0 2px rgba(72,66,58,.18); }
+.rf-node.bad { border-color: #b91c1c; box-shadow: 0 0 0 2px rgba(185,28,28,.15); }
+.rf-cat { position: absolute; left: 0; right: 0; top: 0; height: 4px; border-radius: 6px 6px 0 0; }
+.rf-head { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.rf-catname { font-size: 11px; font-weight: 600; }
+.rf-badge { font-size: 12px; }
+.rf-badge.ok { color: #15803d; }
+.rf-badge.error { color: #b91c1c; }
+.rf-label { font-weight: 600; margin-top: 2px; }
+.rf-id { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted, #7b7367); }
+.rf-summary { margin-top: 4px; font-variant-numeric: tabular-nums; color: #5a5348; }
+.rf-taps { position: absolute; left: 8px; bottom: -18px; display: flex; gap: 4px; }
+.rf-tap { font-size: 11px; color: #15803d; background: #fff; border: 1px solid #ddd7cd; border-radius: 3px; padding: 0 4px; cursor: pointer; }
+
+/* 端口把手：形状按类型区分，不只靠颜色（09 §6.3） */
+.rf-handle { width: 10px; height: 10px; background: #48423a; border: 1px solid #fff; }
+.rf-handle.h-circle { border-radius: 50%; }
+.rf-handle.h-diamond { transform: rotate(45deg); border-radius: 1px; }
+.rf-handle.h-square { border-radius: 1px; }
+.rf-handle.h-triangle { border-radius: 0; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.rf-handle.bad { background: #b91c1c; }
+
+/* 参数面板 */
+.param-panel { padding: 8px; overflow: auto; height: 100%; }
+.pp-title { font-weight: 600; margin-bottom: 6px; }
+.pp-row { display: grid; grid-template-columns: 116px 1fr auto; gap: 6px; align-items: center; margin: 3px 0; font-size: 12px; }
+.pp-row > span { color: var(--muted, #7b7367); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-row input, .pp-row select { width: 100%; font-variant-numeric: tabular-nums; }
+.pp-row input.dim, .pp-row select.dim { color: var(--muted, #7b7367); }
+.pp-row input.bad { border-color: #b91c1c; background: #fdf6e3; }
+.pp-unit { font-style: normal; font-size: 11px; color: var(--muted, #7b7367); }
+.pp-range { font-style: normal; font-size: 11px; color: var(--muted, #7b7367); grid-column: 2 / 4; }
+.pp-warn { font-size: 12px; color: #7c2d12; background: #fdf6e3; border: 1px solid #dfbe83; border-radius: 4px; padding: 3px 6px; margin-top: 4px; }
+.pp-excl { border: 1px dashed var(--border, #ddd7cd); border-radius: 4px; padding: 4px; margin: 4px 0; }
+
+/* 连线拒绝提示：不用弹窗，连线是高频操作（09 §6.5） */
+.canvas-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 5;
+  background: #fdf6e3; border: 1px solid #dfbe83; color: #7c2d12; border-radius: 4px;
+  padding: 6px 10px; font-size: 12px; max-width: 70%; cursor: pointer; }
+
+/* ------------------------------------------------------------------ 典型链路视图（C-7，D-051） */
+
+.chain-view { height: 100%; }
+.chain-main { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 8px; gap: 8px; }
+.chain-bar { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.chain-bar .spacer { flex: 1; }
+.chain-mode { font-weight: 600; }
+.chain-id { color: var(--muted, #7b7367); font-family: ui-monospace, monospace; }
+
+/* 九张卡片一行排开；窄窗自动折行，2K 基线一行放得下（09 §11） */
+.chain-strip { display: flex; flex-wrap: wrap; align-items: stretch; gap: 2px; }
+.chain-cell { display: flex; align-items: center; gap: 2px; }
+.chain-arrow { color: var(--poi, #9a9187); font-size: 14px; }
+
+.slot-card { width: 168px; min-height: 96px; background: var(--white); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0 0 6px; cursor: pointer; display: flex; flex-direction: column;
+  font-size: 12px; }
+.slot-card.on { border-color: #1e40af; box-shadow: 0 0 0 1px #1e40af inset; }
+.slot-card.bad { border-color: #b91c1c; }
+.slot-card.dim { background: #faf9f7; color: var(--muted, #7b7367); }
+.slot-head { display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  padding: 5px 8px; border-top: 3px solid #94a3b8; border-radius: 5px 5px 0 0; }
+.slot-name { font-weight: 600; }
+.slot-badge { font-size: 11px; color: #15803d; }
+.slot-badge.warn { color: #a16207; }
+.slot-badge.bad { color: #b91c1c; }
+.slot-variant { margin: 0 8px 4px; width: calc(100% - 16px); font-size: 11px; }
+.slot-body { padding: 0 8px; display: flex; flex-direction: column; gap: 2px; }
+.slot-param { font-family: ui-monospace, monospace; font-size: 11px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.slot-note { padding: 0 8px; font-size: 11px; color: var(--muted, #7b7367); }
+.slot-error { padding: 4px 8px 0; font-size: 11px; color: #b91c1c; }
+.slot-bypass { padding: 4px 8px 0; font-size: 11px; display: flex; align-items: center; gap: 4px; }
+
+/* 观测点一行，勾选即产出频谱与包络 */
+.tap-row { display: flex; align-items: center; gap: 12px; font-size: 12px;
+  border-top: 1px solid var(--border); padding-top: 6px; }
+.tap { display: flex; align-items: center; gap: 4px; }
+.tap.dim { color: var(--poi, #9a9187); }
+.tap-hint { margin-left: auto; }
+
+.chain-errors { margin: 0; padding: 6px 10px; list-style: none; font-size: 12px;
+  background: #fdf6e3; border: 1px solid #dfbe83; border-radius: 4px; max-height: 120px; overflow: auto; }
+.chain-errors li { margin: 2px 0; }
+
+.plan-checks { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; }
+.plan-checks li { margin: 4px 0; }
+.plan-checks .ok { color: #15803d; }
+.plan-checks .bad { color: #b91c1c; }
+.plan-detail { color: var(--muted, #7b7367); font-size: 11px; padding-left: 14px; }
+
+/* 目录里查不到的组件：必须显眼。没有 spec 就没有端口，React Flow 会把连到它的边
+   静默丢掉，画面上只表现为「连线少了」，看不出是目录的问题（铁律 15）。 */
+.rf-node.unknown { border-color: #b91c1c; background: #fef2f2; }
+.rf-unknown { padding: 2px 8px 4px; font-size: 10px; line-height: 1.35; color: #b91c1c; }
+.canvas-stale { margin: 6px 0 0; padding: 6px 10px; font-size: 12px; border-radius: 4px;
+  background: #fef2f2; border: 1px solid #f0b4b4; color: #7f1d1d; }

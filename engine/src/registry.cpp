@@ -6,6 +6,10 @@
 #include "cuav/components/processing.h"
 #include "cuav/components/sources.h"
 #include "cuav/components/spectrum.h"
+#include "cuav/components/antenna.h"
+#include "cuav/components/channel.h"
+#include "cuav/components/receiver.h"
+#include "cuav/components/scenario.h"
 #include "cuav/components/tap.h"
 
 namespace cuav {
@@ -213,6 +217,15 @@ Registry builtin_registry() {
     ok = r.add<SpectrumAnalyzer>(err) && ok;
     ok = r.add<ObservationTap>(err) && ok;
     ok = r.add<DetectionSink>(err) && ok;
+    // 切片 ② 的场景运行时（G-2、G-3）
+    ok = r.add<ScenarioSource>(err) && ok;
+    ok = r.add<SceneEmitterSource>(err) && ok;
+    ok = r.add<SceneBoundChannel>(err) && ok;
+    ok = r.add<FreeSpaceChannel>(err) && ok;
+    // 切片 ④a 的天线与接收机（C-2，D-051 / D-050）
+    ok = r.add<AntennaGain>(err) && ok;
+    ok = r.add<ReceiverFrontEnd>(err) && ok;
+    ok = r.add<AdcQuantizer>(err) && ok;
     (void)ok;
     return r;
 }

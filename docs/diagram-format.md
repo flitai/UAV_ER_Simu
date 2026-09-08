@@ -1,8 +1,8 @@
 # 框图文件格式
 
 **状态**：字段已冻结（2026-09-04，决策 D-030、D-032）。**引擎装载器 B-2 已实现**（2026-09-05，
-`engine/include/cuav/diagram_json.h`，四项口子见决策 D-040）；框图画布（U-2）尚未实现，实现时以本文为准；
-要改字段先改本文并记决策。机器可读版本：`docs/schemas/diagram.schema.json`。
+`engine/include/cuav/diagram_json.h`，四项口子见决策 D-040）；**框图画布 U-2 已实现**（2026-09-07，`web/src/diagram/`：文档模型与规范序列化 `doc.ts`，
+连线判据只查组件目录的 `port_compat`，不复制规则）；要改字段先改本文并记决策。机器可读版本：`docs/schemas/diagram.schema.json`。
 
 **依据**：04 §8.2（框图能力：端口兼容性检查、中间观测点、错误定位到模型与端口）、§8.4（组件
 声明）、§8.6（错误码映射到框图、模型、端口）；决策 D-013（连线校验）、D-030、D-032；
@@ -14,7 +14,7 @@
 
 | 消费者 | 动作 |
 |---|---|
-| 框图画布（U-2） | 保存 / 载入 / 提交；连线合法性查组件目录的 `port_compat`（`docs/component-catalog.md`），不手抄规则 |
+| 框图画布（U-2，已实现） | 保存 / 载入 / 提交；连线合法性查组件目录的 `port_compat`（`docs/component-catalog.md`），不手抄规则；序列化固定键序、缺省值不写入 |
 | 应用服务（B-5） | `POST /api/v1/tasks` 的载荷；只做最小结构检查、内部参数拒绝、`data_id` 解析与落盘，随后同步调 `cuav_run --validate`，不解释语义（`docs/api-versions.md` §3.1a） |
 | 引擎 `cuav_run --validate` / `--run`（B-2、B-4） | 装成 `Graph`，执行连线校验、拓扑排序与运行；错误定位到 `node_id + port` |
 | 回归测试（P1-7） | 算例框图入 `tests/regression/diagrams/`，与黄金结果配对 |
@@ -33,6 +33,7 @@
 | `observation_points` | array | 否 | 观测点，第 5 节；缺省为空 |
 | `run` | object | 是 | 运行参数，第 6 节 |
 | `scenario_ref` | object | 否 | 场景引用，第 7 节；任一节点带 `scene_binding` 时必填 |
+| `template_ref` | object | 否 | 典型链路视图的还原线索，第 7.1 节（2026-09-07，D-051） |
 | `trace` | object | 否 | `{created_by, created_at, parent_diagram_id, notes}` |
 
 未知键一律拒绝，引擎、服务、画布三处同规则，避免「写了没生效」。
@@ -94,16 +95,19 @@
 | `param` | 参数未知、类型错位、越界、缺必填、跨参数约束不满足（组件 `configure()` 的报文原样携带） | 节点或观测点 |
 | `param_conflict` | 互斥参数同时给出（目录 `excludes[]`，如 `level_dBm` 与 `amplitude`）；判据是注册表报文里的「只能给一个」 | 节点 |
 | `data_id` | 没有数据解析器、`data_id` 解析不到、或引用数据的组件构造失败（清单打不开等） | 节点 |
+| `scenario` | 没有场景解析器、`scenario_id` 解析不到、场景文件不是合法 JSON 或不过 schema、跨引用校验不过、`scenario_ref.sha256` 与文件字节哈希不符、场景的 `aoi.manifest_sha256` 与观测区域清单不符（2026-09-06，D-049） | 节点 |
 | `duration` | `total_samples` 与 `run.duration_s × sample_rate_Hz` 的关系不成立 | 节点 |
 | `scene_binding` | 组件不可绑定场景，或带 `scene_binding` 却无 `scenario_ref` | 节点 |
 | `node_missing` | 连线或观测点引用的节点不存在 | 被引用的 id 与端口 |
 | `port_missing` | 节点没有该输出口 / 输入口 | 节点与端口 |
 | `port_incompatible` | 端口类型不允许直连（D-013，`can_connect()`） | 起点节点与输出口，报文含两端 |
 | `input_occupied` | 一个输入口连了两条边 | 终点节点与输入口 |
-| `input_unconnected` | 输入口悬空 | 节点与输入口 |
+| `input_unconnected` | 必填输入口悬空。声明为 `optional` 的输入口不在此列：组件在没有该输入时用自身参数顶替（D-051） | 节点与输入口 |
 | `cycle` | 有环（含自环） | 自环时给节点 |
 | `observation_port` | 观测点不在 `IQStream` 输出口上 | 节点与端口 |
 | `product_unsupported` | 观测点要求本版本未实现的产品（`iq`） | 观测点 |
+| `template` | `template_ref` 的取值错误：`template_id` 不匹配正则、`mode` 不在三种之内、`version` 不是不小于 1 的整数（D-051）。缺字段与未知键仍归 `schema` | — |
+| `port_optional` | **预留**：组件按参数要求某个可选输入口而它没有连线。本版本不产生该码 | 节点与输入口 |
 | `graph` | 兜底：引擎内部一致性错误，正常路径不可达 | — |
 
 规则只在引擎 `Graph::connect / validate` 一处解释；装载器拿它们的失败分类（`LinkFault` / `GraphFault`）映射成
@@ -137,8 +141,33 @@
 
 ## 7. 场景引用 `scenario_ref`
 
-`{scenario_id, sha256}`。引擎装载时核对场景文件哈希，不一致则任务 `invalid`。场景文件格式见
-`docs/scenario-format.md`。
+`{scenario_id, sha256}`。**框图里只写标识，路径由服务端解析后经旁挂注入**（与 `data_id` 同法，D-037）；
+装载器按 `scenario_id` 解析出文件、核对其**原始字节**的 sha256，不一致即错 `scenario`。
+`sha256` 由服务端 `PUT /api/v1/scenarios/{id}` 的响应回传（落盘字节的哈希），前端据此写回框图——
+两端各自序列化再算哈希必然对不上（场景文件的规范序列化形式见 `docs/scenario-format.md` §1）。
+
+装载器同时核对场景的 `aoi.manifest_sha256` 与 `<scene_root>/<aoi_id>/manifest.json`（`--scene-root`
+给空串才跳过，跳过要在结果里标明），并要求 `run.duration_s ≤ scenario.time.duration_s`。
+场景文件格式见 `docs/scenario-format.md`。
+
+## 7.1 `template_ref`（2026-09-07，D-051）
+
+典型链路视图（`10.典型链路框图与检测识别评价实施方案_v1.0.md` §5）把九个固定槽位编译成一份普通框图。
+这一段是**还原视图用的线索**，不是运行语义：引擎与服务端只校验取值合法，不据此改变任何行为；
+自由画布保存的框图没有这一段。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `template_id` | string | 是 | `[a-z0-9_-]{1,64}`，当前只有 `chain-v1` |
+| `mode` | enum | 是 | `synthetic` / `replay` / `mixed`，即三种信号源模式（04 §4.3） |
+| `version` | integer | 是 | 描述符版本，不小于 1；与 `template_id` 一起决定槽位表 |
+
+```json
+"template_ref": { "template_id": "chain-v1", "mode": "synthetic", "version": 1 }
+```
+
+载入时若节点 `id` 与 `type` 与描述符不符（用户在自由画布改过），前端按普通框图打开并提示，
+不试图猜测对应关系。取值错误报 `template`，缺字段与未知键仍报 `schema`。
 
 ## 8. 示例（切片 ① 的框图）
 
@@ -175,8 +204,12 @@
 ```json
 { "schema_version": "cuav-resolved/1",
   "diagram_sha256": "<所配框图文件的 sha256，可选>",
-  "data": { "dronerfb_0_CH0_S4": "data/iq/measured/dronerfb/dronerfb_0_CH0_S4.manifest.json" } }
+  "data": { "dronerfb_0_CH0_S4": "data/iq/measured/dronerfb/dronerfb_0_CH0_S4.manifest.json" },
+  "scenarios": { "demo-01": "data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json" } }
 ```
+
+`scenarios` 段可选（2026-09-06，D-049）：只有 `data` 的旧旁挂照样能用，场景解析器留空即可；
+框图里有 `scene_binding` 而没有场景解析器时报 `scenario`。
 
 机器可读版本 `docs/schemas/resolved.schema.json`。**路径相对引擎的工作目录、`/` 分隔、纯 ASCII**（B-5，决策 D-042）：应用服务以仓库根为
 cwd 拉起 `cuav_run`，旁挂里写 `<索引所在目录>/<data_id>.manifest.json` 的仓库相对形式，与 `IndexDataResolver` 的定位规则相同；
@@ -187,6 +220,7 @@ cwd 拉起 `cuav_run`，旁挂里写 `<索引所在目录>/<data_id>.manifest.js
 | 应用服务（B-5） | 提交时按 `index.manifest.json` 解析，写 `data/runs/<task_id>/diagram.resolved.json`；框图副本 `diagram.json` 原样落盘（缩进 2 重排）；随后同步 `cuav_run --validate --resolved` 校验，失败即 400 并删目录 |
 | 引擎 `cuav_run --run … --resolved <旁挂>`（B-4） | `MapDataResolver::load_file()` 读入 |
 | 引擎单机 / 回归 `cuav_run --run … --data-index <索引>...` | `IndexDataResolver` 直接读索引，按 `<索引目录>/<data_id>.manifest.json` 定位并核对存在 |
+| 引擎单机 / 回归 `cuav_run … --scenario <场景文件>...` | `FileScenarioResolver` 直接读场景文件，键取文件自身的 `scenario_id`；同一标识在两处出现即拒 |
 
 这样框图文件永远只含 `data_id`，路径只在服务端、旁挂与引擎进程里出现；引擎对框图里的内部参数无条件拒绝，
 D-037 的「引擎装载器同样拒绝」没有例外。
@@ -197,4 +231,6 @@ D-037 的「引擎装载器同样拒绝」没有例外。
       `engine/tests/diagrams/slice1_tone_noise_psd.json`，装载运行通过）；目录黄金基准 `tests/golden/component-catalog.json` 仍待 B-4
 - [x] `docs/schemas/resolved.schema.json`（`cuav-resolved/1`），2026-09-05 随 B-5 写出
 - [ ] 画布序列化的黄金基准 `tests/golden/diagram-slice1.json`（U-2）
-- [ ] 子系统封装与模板（04 §8.2，P2）
+- [x] 可选顶层字段 `template_ref{template_id, mode, version}`（第 7.1 节）：2026-09-07 随 C-1 落地，引擎白名单 + schema + 装载器取值校验 + 前端键序，语义不解释（D-051）
+- [x] 错误码 `template`（19 → 20，已实现）与 `port_optional`（21，预留未产生），2026-09-07 随 C-1
+- [ ] 子系统封装与**用户自存**模板（04 §8.2，P2；系统预置的典型链路不在其列，见 10 报告 §1.3）

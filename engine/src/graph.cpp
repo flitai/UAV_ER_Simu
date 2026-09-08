@@ -115,9 +115,12 @@ bool Graph::validate(std::string& err, GraphFault& fault, NodeId& node, std::str
         fault = GraphFault::Cycle;
         return false;
     }
-    // 输入口必须全部连上：留空口会让组件收到空输入而静默产出错误结果
+    // 必填输入口必须全部连上：留空口会让组件收到空输入而静默产出错误结果。
+    // 声明为 optional 的口是例外（D-051）：组件在没有该输入时用自己的参数顶替，
+    // 这是组件自己声明的能力，不是装载器替它做的假设。
     for (std::size_t i = 0; i < nodes_.size(); ++i) {
         for (const auto& p : nodes_[i].comp->inputs()) {
+            if (p.optional) continue;
             bool linked = false;
             for (const auto& e : edges_) {
                 if (e.to == i && e.to_port == p.name) { linked = true; break; }
@@ -172,6 +175,11 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
     std::vector<std::vector<NodeId>> preds(nodes_.size());
     for (const auto& e : edges_) preds[e.to].push_back(e.from);
 
+    // 实际连了线的输入口。可选口没连线时既不等它的数据，也不算「本节点有输入」——
+    // 一个只剩未连可选口的节点等同于源，每轮都该跑（D-051）。
+    std::vector<std::set<std::string>> wired_in(nodes_.size());
+    for (const auto& e : edges_) wired_in[e.to].insert(e.to_port);
+
     std::vector<bool> finished(nodes_.size(), false);
     std::uint64_t round = 0;
     for (; round < max_rounds; ++round) {
@@ -180,7 +188,10 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
             if (finished[id]) continue;
             PortMap in, out;
             bool inputs_ready = true;
+            std::size_t wired_count = 0;
             for (const auto& p : nodes_[id].comp->inputs()) {
+                if (p.optional && !wired_in[id].count(p.name)) continue;
+                wired_count++;
                 auto it = buffers.find(key(id, p.name));
                 if (it == buffers.end() || !it->second.has_data) {
                     inputs_ready = false;
@@ -188,7 +199,7 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
                 }
                 in[p.name] = it->second;
             }
-            const bool has_inputs = !nodes_[id].comp->inputs().empty();
+            const bool has_inputs = wired_count > 0;
             if (has_inputs && !inputs_ready) {
                 // 上游全部结束、且本节点所有输入缓冲都空 → 本节点也该收尾了
                 bool upstream_done = true;

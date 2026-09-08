@@ -24,6 +24,9 @@ import { Engine, defaultEngineBinary } from './tasks/engine.js'
 import { createTaskManager } from './tasks/manager.js'
 import { handleTaskRoutes } from './tasks/routes.js'
 import { handleResultRoutes } from './products/routes.js'
+import { handleScenarioRoutes } from './scenarios.js'
+import { handleDiagramRoutes } from './diagrams.js'
+import { DataIndex, ScenarioIndex } from './tasks/resolve.js'
 import { WsHub } from './ws/hub.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -41,9 +44,13 @@ const WEB_DIST = join(ROOT, 'web', 'dist')
 
 /** 引擎与任务管理器。构造无副作用（不 spawn、不读盘），扫描与对账在 start() 里的 init() 做。 */
 export const engine = new Engine({ bin: defaultEngineBinary(ROOT), cwd: ROOT })
+export const scenarioIndex = new ScenarioIndex(ROOT)
+export const dataIndex = new DataIndex(ROOT)
 export const tasks = createTaskManager({
   root: ROOT,
   engine,
+  dataIndex,
+  scenarioIndex,
   maxConcurrent: Number(process.env.CUAV_MAX_CONCURRENT_TASKS ?? 1) || 1,
 })
 
@@ -95,6 +102,14 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   // 任务与组件目录路由自己管方法（POST 只在这里放行）
   if (path === '/api/v1/components' || path === '/api/v1/tasks' || path.startsWith('/api/v1/tasks/')) {
     if (await handleTaskRoutes(req, res, url, { mgr: tasks, engine })) return
+  }
+  // 场景读写（G-4）：路由自己管方法（PUT 只在这里放行）
+  if (path === '/api/v1/scenarios' || path.startsWith('/api/v1/scenarios/')) {
+    if (handleScenarioRoutes({ root: ROOT, index: scenarioIndex, engine }, req, res, path)) return
+  }
+  // 框图读写（C-6）：路由自己管方法（PUT / DELETE 只在这里放行）
+  if (path === '/api/v1/diagrams' || path.startsWith('/api/v1/diagrams/')) {
+    if (handleDiagramRoutes({ root: ROOT, engine, dataIndex, scenarioIndex }, req, res, path)) return
   }
   // 视窗抽取（B-7）：结果路由自己管方法与错误码
   if (path.startsWith('/api/v1/results/')) {

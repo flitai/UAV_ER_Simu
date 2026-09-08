@@ -6,6 +6,9 @@ import type {
   Action, AppState, DiagramError, LogLine, ProductIndex, ResultState, RunState, TaskRecord, WsTextEvent,
 } from './types.js'
 
+/** 撤销栈深度（09 §4.3）。场景文件几千字节，五十步整份存栈也只有几百 KB。 */
+const UNDO_DEPTH = 50
+
 export const TERMINAL: ReadonlySet<RunState> = new Set(['finished', 'failed', 'cancelled'])
 
 export function defaultLayout(innerWidth: number): AppState['ui']['layout'] {
@@ -13,11 +16,11 @@ export function defaultLayout(innerWidth: number): AppState['ui']['layout'] {
   return innerWidth >= 2560 ? { leftW: 350, rightW: 400, drawerH: 240 } : { leftW: 280, rightW: 320, drawerH: 240 }
 }
 
-export function initialState(devMode: boolean, innerWidth: number, diagramText = '', route: { view: AppState['ui']['view']; resultsTab: AppState['ui']['resultsTab'] } = { view: 'scene', resultsTab: 'signal' }): AppState {
+export function initialState(devMode: boolean, innerWidth: number, diagramText = '', route: { view: AppState['ui']['view']; resultsTab: AppState['ui']['resultsTab']; canvas?: boolean } = { view: 'scene', resultsTab: 'signal' }): AppState {
   const parsed = parseDiagram(diagramText)
   return {
     ui: {
-      view: route.view, resultsTab: route.resultsTab, devMode,
+      view: route.view, resultsTab: route.resultsTab, diagramCanvas: !!route.canvas, devMode,
       drawer: { open: false, tab: 'log' },
       leftCollapsed: innerWidth < 1920, rightCollapsed: innerWidth < 1920,
       layout: defaultLayout(innerWidth),
@@ -29,7 +32,12 @@ export function initialState(devMode: boolean, innerWidth: number, diagramText =
     },
     server: { version: null, engineAvailable: null },
     components: { status: 'loading', catalog: null },
-    scene: { packageId: null, summary: null, error: null, dirty: false, editor: { tool: 'select', selection: null }, undo: { past: [], future: [] } },
+    scene: {
+      packageId: null, summary: null, error: null, dirty: false,
+      scenario: { list: [], id: null, doc: null, sha256: '', status: 'idle', error: null },
+      editor: { tool: 'select', selection: null, measure: [] },
+      undo: { past: [], future: [] },
+    },
     diagram: {
       text: diagramText, json: parsed.json, parseError: parsed.error, savedText: diagramText, dirty: false,
       validation: null, undo: { past: [], future: [] },
@@ -185,7 +193,17 @@ export function applyEvent(s: AppState, ev: WsTextEvent, wallMs: number): AppSta
 export function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case 'ui/navigate':
-      return { ...s, ui: { ...s.ui, view: a.view, resultsTab: a.view === 'results' && a.resultsTab ? a.resultsTab : s.ui.resultsTab, popover: null } }
+      return {
+        ...s,
+        ui: {
+          ...s.ui, view: a.view,
+          resultsTab: a.view === 'results' && a.resultsTab ? a.resultsTab : s.ui.resultsTab,
+          diagramCanvas: a.view === 'diagram' ? (a.canvas ?? s.ui.diagramCanvas) : s.ui.diagramCanvas,
+          popover: null,
+        },
+      }
+    case 'ui/diagramCanvas':
+      return { ...s, ui: { ...s.ui, diagramCanvas: a.on } }
     case 'ui/resultsTab':
       return { ...s, ui: { ...s.ui, resultsTab: a.tab } }
     case 'ui/drawer':
@@ -210,6 +228,77 @@ export function reducer(s: AppState, a: Action): AppState {
       return { ...s, scene: { ...s.scene, packageId: a.summary.id, summary: a.summary, error: null } }
     case 'scene/error':
       return { ...s, scene: { ...s.scene, error: a.message } }
+    case 'scene/scenarioList':
+      return { ...s, scene: { ...s.scene, scenario: { ...s.scene.scenario, list: a.list } } }
+    case 'scene/scenarioLoading':
+      return { ...s, scene: { ...s.scene, scenario: { ...s.scene.scenario, id: a.id, status: 'loading', error: null } } }
+    case 'scene/scenarioLoaded':
+      return {
+        ...s,
+        scene: {
+          ...s.scene,
+          dirty: false,
+          scenario: { ...s.scene.scenario, id: a.id, doc: a.doc, sha256: a.sha256, status: 'ok', error: null },
+          editor: { ...s.scene.editor, selection: null, measure: [] },
+          undo: { past: [], future: [] },
+        },
+        context: { ...s.context, scenarioId: a.id },
+      }
+    case 'scene/scenarioError':
+      return { ...s, scene: { ...s.scene, scenario: { ...s.scene.scenario, status: 'error', error: a.message } } }
+    case 'scene/edit': {
+      // 整份文档入栈：场景文件是几千字节的小对象，记整份比记 diff 简单可靠，
+      // 也让「一次拖动一步撤销」这条（09 §5.2）不必去拼补丁。
+      const prev = s.scene.scenario.doc
+      const past = prev ? [...s.scene.undo.past, prev].slice(-UNDO_DEPTH) : s.scene.undo.past
+      return {
+        ...s,
+        scene: {
+          ...s.scene,
+          dirty: true,
+          scenario: { ...s.scene.scenario, doc: a.doc },
+          undo: { past, future: [] },
+        },
+      }
+    }
+    case 'scene/saved':
+      return { ...s, scene: { ...s.scene, dirty: false, scenario: { ...s.scene.scenario, sha256: a.sha256 } } }
+    case 'scene/tool':
+      return { ...s, scene: { ...s.scene, editor: { ...s.scene.editor, tool: a.tool, measure: [] } } }
+    case 'scene/select':
+      return { ...s, scene: { ...s.scene, editor: { ...s.scene.editor, selection: a.selection } } }
+    case 'scene/measure':
+      return { ...s, scene: { ...s.scene, editor: { ...s.scene.editor, measure: a.points } } }
+    case 'scene/undo': {
+      const { past } = s.scene.undo
+      const cur = s.scene.scenario.doc
+      if (!past.length || !cur) return s
+      const doc = past[past.length - 1]
+      return {
+        ...s,
+        scene: {
+          ...s.scene,
+          dirty: true,
+          scenario: { ...s.scene.scenario, doc },
+          undo: { past: past.slice(0, -1), future: [cur, ...s.scene.undo.future].slice(0, UNDO_DEPTH) },
+        },
+      }
+    }
+    case 'scene/redo': {
+      const { past, future } = s.scene.undo
+      const cur = s.scene.scenario.doc
+      if (!future.length || !cur) return s
+      const doc = future[0]
+      return {
+        ...s,
+        scene: {
+          ...s.scene,
+          dirty: true,
+          scenario: { ...s.scene.scenario, doc },
+          undo: { past: [...past, cur].slice(-UNDO_DEPTH), future: future.slice(1) },
+        },
+      }
+    }
     case 'diagram/setText':
     case 'diagram/loadExample': {
       const parsed = parseDiagram(a.text)
@@ -218,6 +307,51 @@ export function reducer(s: AppState, a: Action): AppState {
         ...s,
         diagram: { ...s.diagram, text: a.text, json: parsed.json, parseError: parsed.error, savedText, dirty: a.text !== savedText, validation: null },
         context: { ...s.context, diagramId: parsed.diagramId, experimentId: parsed.json ? parsed.diagramId : s.context.experimentId, seed: parsed.seed },
+      }
+    }
+    // 画布提交一次编辑（09 §6.10）。撤销栈存**规范文本**：它是框图的真相，
+    // 存文本而不是存文档对象，撤销回去的东西与保存出去的东西必然一致。
+    case 'diagram/setDoc': {
+      const parsed = parseDiagram(a.text)
+      const past = [...s.diagram.undo.past, s.diagram.text].slice(-UNDO_DEPTH)
+      return {
+        ...s,
+        diagram: {
+          ...s.diagram, text: a.text, json: parsed.json, parseError: parsed.error,
+          dirty: a.text !== s.diagram.savedText, validation: null,
+          undo: { past, future: [] },
+        },
+        context: { ...s.context, diagramId: parsed.diagramId, seed: parsed.seed },
+      }
+    }
+    case 'diagram/undo': {
+      const { past } = s.diagram.undo
+      if (past.length === 0) return s
+      const text = past[past.length - 1]!
+      const parsed = parseDiagram(text)
+      return {
+        ...s,
+        diagram: {
+          ...s.diagram, text, json: parsed.json, parseError: parsed.error,
+          dirty: text !== s.diagram.savedText, validation: null,
+          undo: { past: past.slice(0, -1), future: [s.diagram.text, ...s.diagram.undo.future].slice(0, UNDO_DEPTH) },
+        },
+        context: { ...s.context, diagramId: parsed.diagramId, seed: parsed.seed },
+      }
+    }
+    case 'diagram/redo': {
+      const { future } = s.diagram.undo
+      if (future.length === 0) return s
+      const text = future[0]!
+      const parsed = parseDiagram(text)
+      return {
+        ...s,
+        diagram: {
+          ...s.diagram, text, json: parsed.json, parseError: parsed.error,
+          dirty: text !== s.diagram.savedText, validation: null,
+          undo: { past: [...s.diagram.undo.past, s.diagram.text].slice(-UNDO_DEPTH), future: future.slice(1) },
+        },
+        context: { ...s.context, diagramId: parsed.diagramId, seed: parsed.seed },
       }
     }
     case 'diagram/markSaved':

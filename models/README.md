@@ -33,6 +33,14 @@
 | ADC 量化削顶、噪声注入、混合、观测量归约 | 手写 C++ | 引擎 `components/` |
 | 场景绑定信道、自由空间信道 | 手写 C++，链接 `geo/` | 06 §9C G-3 |
 
-## 现状
+## 现状（2026-09-07）
 
-全部子目录为空。
+代码不在这里：三件手写 C++ 组件（`AntennaGain`、`ReceiverFrontEnd`、`AdcQuantizer`）的实现
+在 `engine/src/{antenna,receiver}.cpp`，与其余组件同处一地，因为它们与引擎共用同一套
+`IComponent` 生命周期与 `ParamSpec` 描述，拆开放会让构建与头文件路径无谓地复杂。
+本目录保留给两类东西：
+
+- **模型卡**：`antenna/README.md`、`receiver/README.md` 已写（C-2，D-051），记依据、参数、
+  取值来源与适用范围。其余环节的模型卡随各自组件落地。
+- **Coder 产物**：`adc-ddc/coder/`、`channelizer/coder/` 等待 M-2 / M-3，那些确实是独立的
+  C 源码，必须与手写代码分开存放并带来源头。

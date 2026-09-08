@@ -21,6 +21,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "构建类型" FORCE)
 endif()
 
+# 场景运行时的运动学与链路预算在 cuav_geo（决策 D-033）：引擎侧的 ScenarioSource 只作薄封装。
+# 源在树外，add_subdirectory 必须显式给二进制目录。geo 也可独立构建（scripts/build-all.sh 各建一次）。
+if(NOT TARGET cuav_geo)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../geo ${CMAKE_CURRENT_BINARY_DIR}/geo)
+endif()
+
 add_library(cuav_engine STATIC
   src/types.cpp
   src/random.cpp
@@ -34,11 +40,18 @@ add_library(cuav_engine STATIC
   src/registry.cpp
   src/catalog.cpp
   src/diagram_json.cpp
+  src/sha256.cpp
+  src/scenario_json.cpp
+  src/scenario.cpp
+  src/channel.cpp
+  src/antenna.cpp
+  src/receiver.cpp
 )
 target_include_directories(cuav_engine PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
+target_link_libraries(cuav_engine PUBLIC cuav_geo)
 
 if(MSVC)
   target_compile_options(cuav_engine PRIVATE /W4)
@@ -74,6 +87,10 @@ add_executable(cuav_engine_tests
   tests/test_diagram_json.cpp
   tests/test_runner.cpp
   tests/test_catalog_golden.cpp
+  tests/test_geo.cpp
+  tests/test_scenario.cpp
+  tests/test_channel.cpp
+  tests/test_receiver_chain.cpp
 )
 target_link_libraries(cuav_engine_tests PRIVATE cuav_runner)
 # 黄金基准放源码树里，测试要按源码目录找它，不能依赖运行时工作目录
@@ -88,3 +105,18 @@ add_test(NAME cuav_run_validate_slice1
 add_test(NAME cuav_run_run_slice1
   COMMAND cuav_run --run "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice1_tone_noise_psd.json"
           --out "${CMAKE_CURRENT_BINARY_DIR}/runs/slice1" --seed 20260904)
+
+# 切片 ② 的场景绑定链路：航迹预览、只校验、运行（产品与 track/links 写到构建目录）
+add_test(NAME cuav_run_scenario_track
+  COMMAND cuav_run --scenario-track
+          "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --track-rate 2 --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")
+add_test(NAME cuav_run_validate_slice2
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")
+add_test(NAME cuav_run_run_slice2
+  COMMAND cuav_run --run "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
+          --out "${CMAKE_CURRENT_BINARY_DIR}/runs/slice2"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")

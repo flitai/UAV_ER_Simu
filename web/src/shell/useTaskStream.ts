@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { getEvents } from '../api/client.js'
 import { WsClient, wsUrl } from '../api/ws.js'
+import { entityFromPayload, linkFromPayload, sceneStore } from '../scene/sceneStore.js'
 import { signalBuffer } from '../signal/buffer.js'
 import { useAppState, useStore } from '../state/store.js'
 import type { WsTextEvent } from '../state/types.js'
@@ -43,6 +44,17 @@ export function useTaskStream(): void {
       onEvent: (ev) => {
         if (ev.type === 'subscribed') {
           store.dispatch({ type: 'ws/subscribed', last_seq: Number(ev.payload['last_seq'] ?? 0), run_state: ev.payload['run_state'] as never })
+          return
+        }
+        // 实体与链路是高频量（10–100 Hz），走独立的小 store，不进主 store 的批量折叠（G-5）
+        if (ev.type === 'entity') {
+          const e = entityFromPayload(ev.t_s, ev.payload)
+          if (e) sceneStore.pushEntity(e)
+          return
+        }
+        if (ev.type === 'link') {
+          const l = linkFromPayload(ev.t_s, ev.payload)
+          if (l) sceneStore.pushLink(l)
           return
         }
         pending.current.push(ev)

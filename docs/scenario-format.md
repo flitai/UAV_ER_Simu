@@ -1,7 +1,8 @@
 # 场景文件格式
 
-**状态**：骨架，字段已冻结（2026-09-04，决策 D-030、D-033）。场景编辑器、`geo/` 运动学库与
-引擎组件 `ScenarioSource` 尚未实现，实现时以本文为准；要改字段先改本文并记决策。
+**状态**：字段已冻结（2026-09-04，决策 D-030、D-033）；**2026-09-06 全部落地**（切片 ②，D-049）：
+`geo/` 运动学与链路预算、引擎组件 `ScenarioSource` / `SceneEmitterSource` / `SceneBoundChannel`、
+场景编辑器与 `GET/PUT /api/v1/scenarios/{id}` 都按本文实现。要改字段先改本文并记决策。
 
 **依据**：决策 D-001（场景视图 = 仿真的场景设置与环境背景）、D-013（慢变参数只经"施加"类
 组件进入 IQ）、D-033（运动学与链路预算在 `geo/`，参数帧按样点序号推进）；铁律 1（坐标）、
@@ -17,14 +18,18 @@
 ## 1. 文件位置与消费者
 
 - 位置：`data/scene/<aoi>/scenarios/<scenario_id>.scenario.json`。同一观测区域可有多个场景。
-  场景文件是小文件，可入库；不受 `data/` 大文件规则约束。
+  场景文件是小文件，**可入库**；不受 `data/` 大文件规则约束（`.gitignore` 有一条对应的放行）。
+- **规范序列化形式：`JSON.stringify(doc, null, 2)` 加一个末尾换行。** 框图 `scenario_ref.sha256`
+  核对的是文件**原始字节**的哈希，重排缩进就换哈希；把盘上的文件写成编辑器保存时的形态，
+  「不改内容直接保存」才是逐字节的空操作。服务端 `PUT` 的响应回传落盘字节的哈希，前端据此更新框图——
+  两端各自序列化再各自算哈希必然对不上（08 报告 §9）。
 - 消费者：
 
 | 消费者 | 动作 |
 |---|---|
 | 场景编辑器（G-4） | 读写；浏览器内只做直线插值预览，不做物理 |
 | 应用服务 `GET/PUT /api/v1/scenarios/{id}`（G-4） | 按 `docs/schemas/scenario.schema.json` 校验后落盘 |
-| `cuav_run --scenario-track`（G-1） | 只跑运动学，输出航迹，作黄金基准与预览对拍 |
+| `cuav_run --scenario-track <场景> [--track-rate Hz] [--scene-root <目录>]`（G-1） | 只跑运动学，输出 `entity` 事件流；不发 progress、不按墙钟节流，因此 stdout 逐字节可复现，既是黄金基准的生成器，也是服务端 `PUT` 的语义校验器（只看退出码） |
 | 引擎组件 `ScenarioSource`（G-2） | 每条链路输出 `SceneParamFrame`，实体状态经观察者回调上报 |
 | 框图 `scenario_ref`（`docs/diagram-format.md` §7） | 引用并核对 `sha256` |
 
@@ -55,7 +60,7 @@
 | `id` | string | 是 | `[a-z0-9_-]{1,64}` |
 | `name` | string | 是 | |
 | `position` | object | 是 | `{lon, lat, alt_m}`，`alt_m` 按 `coordinate.alt_ref` 解释 |
-| `antenna` | object | 是 | `{gain_dBi, pattern: "omni"}`；首期只有全向 |
+| `antenna` | object | 是 | `{gain_dBi, pattern: "omni"}`；首期只有全向。`pattern` 自 2026-09-07（D-051）起真正入库，供装载器注入天线组件的缺省方向图，此前解析后即丢弃 |
 | `receiver` | object | 是 | `{fs_Hz, center_Hz, bw_Hz, nf_dB}`；对应场景绑定接收机节点的默认参数 |
 
 ## 4. 辐射源 `emitters[]`
@@ -66,7 +71,8 @@
 | `name` | string | 是 | |
 | `platform_type` | enum | 是 | `multirotor` / `fixed_wing` / `racing` / `medium`（沿用 em-demo 分类）；只作显示与默认参数，不进物理 |
 | `position` | object | 是 | 初始位置 `{lon, lat, alt_m}`；有航线时以航线第一个航点为准 |
-| `emission` | object | 是 | `{center_Hz, bw_Hz, tx_power_dBm, antenna_gain_dBi, waveform}` |
+| `emission` | object | 是 | `{center_Hz, bw_Hz, tx_power_dBm, antenna_gain_dBi, polarization?, waveform}` |
+| `emission.polarization` | enum | 否 | `vertical`（缺省）/ `horizontal` / `slant45` / `rhcp` / `lhcp`（2026-09-07，D-051）。极化失配损耗只在接收端算一次：由接收天线组件按自身 `polarization` 与这里注入的发射极化查五档表（10 报告 §3.2）。既有场景文件不写它仍然合法 |
 | `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst", ...}`：`tone` 带 `offset_Hz`；`noise` 无附加字段；`burst` 带 `period_s, duty, offset_Hz`。P3 再扩 `ofdm` / `fhss`；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
 
 ## 5. 航线 `routes[]`
@@ -81,9 +87,18 @@
 
 1. 从第一个航点起始；相邻航点之间直线插值，经度、纬度、高度各自线性。
 2. 段速度取该段起点航点的 `speed_mps`。
-3. 到达航点后若 `loiter_s > 0` 则悬停该时长，位置与航向不变。
+3. 到达航点后若 `loiter_s > 0` 则悬停该时长，位置与航向不变（首航点的 `loiter_s` 只在 `loop` 绕回来时生效）。
 4. 越过段末的剩余时间续推到下一段，不丢时间。
 5. 航向 = 当前段的真北顺时针方位（铁律 1）；速度单位 m/s；只有 1 个航点即静止。
+
+**两处对 em-demo 的有意偏离**（实现在 `geo/src/kinematics.cpp` 与 `web/src/scene/editor/preview.ts`，
+两侧同式，由 `tests/golden/scenario-track-demo-01.json` 对拍，见 08 报告 §9）：
+
+- **段长用 ECEF 弦长**，不用 em-demo 的球面半正矢（R = 6371000）。两者在 2 km 段上差约 0.5%，
+  即 10 米，远超航迹对拍 1e-6 度（约 0.1 米）的容差；弦长闭式无迭代，C++ 与浏览器能逐位一致。
+- **按绝对时间闭式求值**，不做 em-demo 的增量积分。增量积分与调用步长耦合，
+  而引擎里的步长由块长决定——换块长就换结果，「同种子逐字节复现」立刻失守（铁律 9、D-033）。
+  另外 `loop` 缺省为假（到末航点停住），em-demo 的 `moveAlongPlan` 是恒循环的。
 
 ## 6. 活动时间线 `activities[]`
 
@@ -102,11 +117,25 @@
 
 每条（站点, 辐射源）链路产生一个帧序列，结构即 `engine/include/cuav/types.h` 的
 `SceneParamFrame{valid_from_s, valid_to_s, update_rate_Hz, path_loss_dB, noise_floor_dBm_per_Hz,
-line_of_sight, doppler_Hz, delay_s, state, trace}`。
+line_of_sight, doppler_Hz, delay_s, aod_az_deg, aod_el_deg, aoa_az_deg, aoa_el_deg, tx_heading_deg,
+tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）新增：
 
-- 帧边界**按样点序号**：第 k 帧 `valid_from_s = k / update_rate_Hz`，帧内零阶保持；不按墙钟（铁律 9，D-033）。
+- `aod_*` 是辐射源看站点的方向（发射天线用），`aoa_*` 是站点看辐射源的方向（接收天线用）。
+  **两者各算各的**，不由对方取反推出：地球曲率与高差使两端的俯仰角之和不为零，
+  短基线上方位近似互为反向也只是近似。角度按铁律 1：方位真北顺时针 [0, 360)、俯仰水平为 0。
+- `tx_heading_deg` 是辐射源平台航向，供「指向随航向」的天线用。
+- `tx_on` 与 `tx_center_Hz` 是活动时间线的施加结果（G-6），**只供评价器取真值与链路读数，
+  不进被测算法**（04 §5.2「可供评价使用但不向被测算法泄漏的真值索引」）。
+
+- 帧边界**按样点序号**：第 k 帧覆盖样点 `[floor(k·fs/rate), floor((k+1)·fs/rate))`，帧内零阶保持；
+  不按墙钟（铁律 9，D-033）。映射用纯整数：`fs` 不被 `rate` 整除时也确定，且 C++ 与浏览器能逐位一致，
+  用秒做中间量就会在边界上差一个样点。`valid_from_s = k / update_rate_Hz` 是给人看与回放用的派生量，
+  施加时一律用样点区间。生产端**每一轮都必须产出至少一帧**（哪怕重发上一帧），
+  否则下游信道会因输入不齐而跳过一轮，调度器随即把没被消费的 IQ 块静默覆盖掉（08 报告 §9.3）。
 - `update_rate_Hz` 取值范围 [10, 100]，越界拒绝。
-- 首期 `path_loss_dB` = 自由空间路损（`c = 299792458`，D-009）；`line_of_sight` 在平地假设下恒为真；
+- 首期 `path_loss_dB` = 自由空间路损（`c = 299792458`，D-009），**只装纯传播损耗**，不含发射功率与
+  收发天线增益——那三项在首期是全程常量，由施加类信道按场景绑定读取，不进 10–100 Hz 的慢变帧，
+  否则 `link` 事件与场景视图里的「路损」读数就名不副实了。`line_of_sight` 在平地假设下恒为真；
   D3 落地后换刀口衍射附加损耗，帧结构不变。
 - `doppler_Hz = -f · (dr/dt) / c`（远离为负）；`delay_s = d / c`。
 - 实体状态 `EntityState{t_s, id, lon, lat, alt_m, heading_deg, speed_mps, tx_on, center_Hz}`
@@ -151,7 +180,9 @@ line_of_sight, doppler_Hz, delay_s, state, trace}`。
 
 ## 9. 待写
 
-- [ ] 示例文件 `data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json` 与 schema 的一致性测试（G-0）
+- [x] 示例文件 `data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json` 与 schema 的一致性测试
+      （2026-09-06，`tests/unit/test_scenario_example.py` 八项：schema、清单哈希、跨引用、航线时长覆盖仿真时长、
+      全部位置落在观测区域内）
 - [ ] 多站、阵列与设备字段（05 P0，只作命名预留）
 - [ ] P3 波形类型 `ofdm` / `fhss` 的字段
 - [ ] 波形类型 `template`（`template_id`；模板文件路径是内部参数，画布只见标识，与 D-037 同法；`docs/emitter-template.md` §7；D-045）

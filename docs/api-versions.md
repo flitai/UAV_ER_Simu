@@ -89,7 +89,7 @@
 | GET/HEAD | `/api/v1/results/{task}/{op}/envelope?t0&t1&px` | 同上，三列 `[min_abs, max_abs, rms_abs]` | 合桶的 rms 按样点数加权；末桶只有索引收尾后才按 `last_bucket_samples` 计权 |
 | GET/HEAD | `/api/v1/results/{task}/{op}/scatter` | 404 `product_unsupported` | 观测点本版本不产出 `iq` 产品（D-040 ③），待 `iq` 落地 |
 | GET/HEAD | `/api/v1/results/{task}/{op}/{spectrum\|envelope}/index` | 索引原文 + `rows_available` + `index_final` + `run_state` | 客户端据此建频率轴与时间轴，按 `scale` / `calibration` 定纵轴单位（D-047）；不含任何服务器路径 |
-| GET/HEAD | `/api/v1/results/{task}/{track\|links\|detections}?t0&t1&stride[&link_id]` | JSON 数组 | 闭区间取窗、按键抽稀；**生产者尚未实现**（G 线），现阶段这三个端点在终态任务上返回 404 |
+| GET/HEAD | `/api/v1/results/{task}/{track\|links\|detections}?t0&t1&stride[&link_id]` | JSON 数组 | 闭区间取窗、按键抽稀。`track` 与 `links` 的生产者 2026-09-06 上线（`ScenarioSource` 经观察者上报，`cuav_run` 落盘）；`detections` 仍待 P1-4d。无场景绑定的任务不产生这些文件，端点在终态返回 404 |
 
 响应头：`X-CUAV-Rows`、`X-CUAV-Cols`、`X-CUAV-T0`、`X-CUAV-T1`、`X-CUAV-F0`、`X-CUAV-F1`、
 `X-CUAV-Stat`、`X-CUAV-State`（JSONL 端点用 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`）。
@@ -117,11 +117,50 @@
 多区间那条是允许的降级（服务端可以忽略 Range），但必须显式写明，不能让调用方以为拿到的是
 部分内容。实现见 `server/src/range.ts`，13 项单元测试加 17 项集成测试。
 
-### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b）
+### 3.1c 场景读写（G-4，2026-09-06 实现）
+
+| 方法 | 路径 | 返回 | 约定 |
+|---|---|---|---|
+| GET | `/api/v1/scenarios` | `{scenarios: [{scenario_id, aoi, name, duration_s, sites, emitters}]}` | 摘要，不含全文；扫 `data/scene/*/scenarios/*.scenario.json`，按文件里声明的 `scenario_id` 建表，同一标识出现两次即拒 |
+| GET | `/api/v1/scenarios/{id}` | 场景文件原文 | 响应头 `X-CUAV-Sha256`（**落盘字节**的哈希）、`X-CUAV-Aoi`；不存在即 404 |
+| PUT | `/api/v1/scenarios/{id}` | `{scenario_id, aoi, sha256, bytes}` | 见下 |
+
+`PUT` 的校验分两层，与 B-5 的框图路数一致（D-042「服务端不复刻 schema，语义交引擎」）：
+服务端只查路径标识与文件里的 `scenario_id` 一致、`aoi.id` 对应的观测区域存在、请求体不超 256 KB；
+**语义校验先落临时文件再调 `cuav_run --scenario-track --track-rate 1` 看退出码**，不过即 400
+并带引擎的 `{code, node_id, port, message}`，临时文件删掉、盘上原文件不动。通过才原子改名落位。
+响应里的 `sha256` 是落盘字节的哈希，前端据此更新框图的 `scenario_ref.sha256`。
+
+### 3.1d 框图读写与评价结果（C-6，2026-09-07 实现，D-051）
+
+此前框图不落盘（刷新即丢，只有提交过的任务在 `data/runs/<任务号>/diagram.json` 留副本）。
+典型链路视图是「改参数、跑、再改」的循环，参数集必须能存能再开。
+
+| 方法 | 路径 | 返回 | 约定 |
+|---|---|---|---|
+| GET | `/api/v1/diagrams` | `{diagrams: [{diagram_id, name, template_id, mode, scenario_id, nodes, observation_points, bytes, modified_utc}]}` | 摘要，不含全文；扫 `data/diagrams/*.diagram.json`；目录不存在即空数组，坏文件跳过 |
+| GET | `/api/v1/diagrams/{id}` | 框图文件原文 | 响应头 `X-CUAV-Sha256`（**落盘字节**的哈希）；不存在即 404 |
+| PUT | `/api/v1/diagrams/{id}` | `{diagram_id, sha256, bytes, warnings}` | 见下 |
+| DELETE | `/api/v1/diagrams/{id}` | `{diagram_id, deleted}` | 不存在即 404；已被任务引用的不阻止（任务目录自有副本） |
+
+`PUT` 的校验与任务提交**共用同一段代码**（`prepareDiagram()`）：最小结构检查 → 内部参数检查
+（D-037）→ `data_id` 与 `scenario_id` 解析 → 落临时文件与解析旁挂 → 同步 `cuav_run --validate`
+→ 过了才原子改名。两处对同一份框图必须给出同一个判断，复制一遍迟早分叉。
+坏框图不覆盖盘上的好框图；临时件与旁挂都不入库。
+**规范序列化形式是 `JSON.stringify(doc, null, 2)` 加末尾换行**，与场景文件同法（D-049 ⑧），
+因此「不改内容的保存」是逐字节的空操作。请求体上限 1 MB。
+
+结果端点同批新增（读取层先行，生产者随 C-4 / C-5）：
+
+| 方法 | 路径 | 返回 |
+|---|---|---|
+| GET | `/api/v1/results/{task}/{features\|recognitions\|truth}?t0&t1&stride` | JSON 数组，与 `track` / `links` / `detections` 共用同一个时间窗读取器；`features` 与 `recognitions` 按 `segment_id` 抽稀 |
+| GET | `/api/v1/results/{task}/metrics` | `metrics.json` 整文件（`cuav-metrics/1`，10 报告附录 C）。一次运行一份摘要，不按视窗抽；就绪语义同 JSONL 端点：运行中缺文件回 409，终态缺文件回 404 |
+
+### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b，G-4 的场景端点已于 2026-09-06 实现并移入 3.1c）
 
 | 方法 | 路径 | 说明 | 步骤 |
 |---|---|---|---|
-| GET / PUT | `/api/v1/scenarios/{id}` | 场景文件读写，按 `docs/schemas/scenario.schema.json` 校验 | G-4 |
 | GET | `/api/v1/datasets` | 各批数据索引的非路径字段：`data_id`、数据集、通道、中心频率、样点数、分段数、质量四态与原因、`holdout` 标记、`calibration{offset_dB, source}`（若有）；不暴露 `.iq`，不暴露任何路径 | U-4 |
 | GET | `/api/v1/datasets/{data_id}` | 单条索引详情（非路径字段）与真值摘要 | U-4 |
 
@@ -204,10 +243,23 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 | 码 | 含义 |
 |---|---|
 | 0 | 目录已输出 / 校验通过 / 运行到底（结果四态在 `task.state` 里，不影响退出码） |
-| 1 | 命令行错误，或尚未实现的子命令（`--scenario-track` 待 G-2） |
+| 1 | 命令行错误 |
 | 2 | 框图装载失败（含解析旁挂或数据索引读不到），已发 `error`；运行模式下再发 `task.state failed` |
 | 3 | 运行失败（初始化、处理、收尾、调度停滞、超轮数），已发 `error` 与 `task.state failed` |
 | 4 | 产品目录建不了或 `events.jsonl` 打不开 |
+
+**切片 ② 新增的命令行入口**（2026-09-06，D-049）：
+
+| 选项 | 用于 | 说明 |
+|---|---|---|
+| `--scenario <场景文件>` | `--validate` / `--run` | 可给多份；键取文件自身的 `scenario_id`。应用服务走解析旁挂的 `scenarios` 段，这个入口是给单机与回归用的 |
+| `--scene-root <目录>` | `--validate` / `--run` / `--scenario-track` | 观测区域清单的根，缺省 `data/scene`；空串表示跳过 `aoi.manifest_sha256` 核对，跳过要在结果里标明 |
+| `--scenario-track <场景> [--track-rate Hz]` | 独立子命令 | 只跑运动学，输出 `entity` 事件流，不建产品目录。**不发 progress、不按墙钟节流，stdout 逐字节可复现**；`--track-rate` 缺省 10，范围 [1, 100] |
+
+`--scenario-track` 的成功输出以一条 `task.state`（`run_state = finished`）收口，带
+`scenario_id / scenario_sha256 / aoi_id / aoi_manifest_checked / entities / samples / track_rate_Hz`。
+失败只发一条 `error`（`code = scenario`）并以退出码 2 结束——服务端 `PUT /api/v1/scenarios/{id}`
+的判据就是这个退出码。
 
 `--seed N` 覆盖框图 `run.seed`：`task.state.seed_source = cli`，并发一条 `log` 写明原值与新值。数据解析入口
 `--resolved <旁挂>`（`cuav-resolved/1`）或 `--data-index <index.manifest.json>...`，二者互斥；都不给而框图有回放节点

@@ -13,6 +13,12 @@
       "description": "data_id 到清单文件相对路径",
       "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$" },
       "additionalProperties": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_./-]*\\.manifest\\.json$" }
+    },
+    "scenarios": {
+      "type": "object",
+      "description": "scenario_id 到场景文件相对路径（G-2 起）。可选：只有 data 段的旧旁挂照样能用，场景解析器留空即可。框图的 scenario_ref 只写标识，路径只在服务端、本旁挂与引擎进程里出现（D-037）",
+      "propertyNames": { "pattern": "^[a-z0-9_-]{1,64}$" },
+      "additionalProperties": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_./-]*\\.scenario\\.json$" }
     }
   }
 }

@@ -26,7 +26,7 @@ import {
   type EngineProcess,
   type ValidateResult,
 } from './engine.js'
-import { DataIndex, buildSidecar, makeRedactor, resolveDataIds } from './resolve.js'
+import { DataIndex, ScenarioIndex, buildSidecar, makeRedactor, resolveDataIds } from './resolve.js'
 import {
   DEFAULT_RUNS_REL,
   FILE_DIAGRAM,
@@ -77,6 +77,7 @@ export interface ManagerConfig {
   /** 任务根目录，相对仓库根、`/` 分隔；缺省 data/runs */
   runsRel?: string
   dataIndex?: DataIndex
+  scenarioIndex?: ScenarioIndex
   /** 同时运行的任务数上限，缺省 1（用户 2026-09-05 拍板） */
   maxConcurrent?: number
   /** 每任务事件环形缓冲深度，缺省 4096（docs/api-versions.md §4） */
@@ -115,6 +116,7 @@ export class TaskManager {
   private readonly store: StoreConfig
   private readonly engine: Engine
   private readonly dataIndex: DataIndex
+  private readonly scenarioIndex: ScenarioIndex
   private readonly maxConcurrent: number
   private readonly depth: number
   private readonly killGraceMs: number
@@ -130,6 +132,7 @@ export class TaskManager {
     this.store = { root: cfg.root, runsRel: cfg.runsRel ?? DEFAULT_RUNS_REL }
     this.engine = cfg.engine
     this.dataIndex = cfg.dataIndex ?? new DataIndex(cfg.root)
+    this.scenarioIndex = cfg.scenarioIndex ?? new ScenarioIndex(cfg.root)
     this.maxConcurrent = Math.max(1, cfg.maxConcurrent ?? 1)
     this.depth = Math.max(16, cfg.eventBufferDepth ?? 4096)
     this.killGraceMs = cfg.killGraceMs ?? 3000
@@ -253,59 +256,12 @@ export class TaskManager {
       }
     }
 
-    let catalog: CatalogInfo
-    try {
-      catalog = await this.engine.catalog()
-    } catch (e) {
-      throw engineFailure(e)
-    }
-
-    // 内部参数出现即 400（D-037）；节点与观测点都查
-    for (const n of d.nodes) {
-      const internal = catalog.internal.get(n.type)
-      if (!internal) continue
-      for (const k of Object.keys(n.params)) {
-        if (internal.has(k)) {
-          throw diagramInvalid({
-            code: 'internal_param',
-            node_id: n.id,
-            port: '',
-            message: `框图里出现内部参数 ${k}（组件 ${n.type}）：数据引用只能写 data_id，路径由服务端解析`,
-          })
-        }
-      }
-    }
-    const tapInternal = catalog.internal.get('ObservationTap')
-    if (tapInternal) {
-      for (const o of d.observation_points) {
-        for (const k of Object.keys(o.params ?? {})) {
-          if (tapInternal.has(k)) {
-            throw diagramInvalid({ code: 'internal_param', node_id: o.id, port: '', message: `观测点里出现内部参数 ${k}` })
-          }
-        }
-      }
-    }
-
-    // data_id 解析 → 旁挂
-    const refs: Array<{ node_id: string; data_id: string }> = []
-    for (const n of d.nodes) {
-      const v = n.params.data_id
-      if (typeof v === 'string') refs.push({ node_id: n.id, data_id: v })
-    }
-    let sidecar: ReturnType<typeof buildSidecar> | null = null
-    const dataRefs: DataRef[] = []
-    const warnings: string[] = []
-    if (refs.length) {
-      const r = await resolveDataIds(this.dataIndex, this.store.root, refs.map((x) => x.data_id))
-      if (r.missing.length) {
-        const m = r.missing[0]
-        const node = refs.find((x) => x.data_id === m.data_id)!
-        throw diagramInvalid({ code: 'data_id', node_id: node.node_id, port: '', message: m.reason })
-      }
-      sidecar = buildSidecar(r.data, sha)
-      for (const x of refs) dataRefs.push({ ...x, holdout: r.holdout.includes(x.data_id) })
-      for (const id of r.holdout) warnings.push(`验收集片段 ${id} 用于回放：只作演示，不得据此调参（D-038）`)
-    }
+    const prep = await prepareDiagram(
+      { engine: this.engine, dataIndex: this.dataIndex, scenarioIndex: this.scenarioIndex, root: this.store.root },
+      d,
+      sha,
+    )
+    const { sidecar, dataRefs, warnings } = prep
 
     // 落盘 → 同步校验 → 入队
     const taskId = await this.freshTaskId()
@@ -584,7 +540,7 @@ interface ShapedTap {
   id: string
   params?: Record<string, unknown>
 }
-interface ShapedDiagram {
+export interface ShapedDiagram {
   /** 原始框图对象，落盘与哈希用它 */
   raw: Record<string, unknown>
   diagram_id: string
@@ -603,7 +559,7 @@ function schemaError(message: string, node_id = ''): HttpError {
   return diagramInvalid({ code: 'schema', node_id, port: '', message })
 }
 
-function checkShape(body: unknown): ShapedDiagram {
+export function checkShape(body: unknown): ShapedDiagram {
   if (!isObj(body)) throw schemaError('框图必须是 JSON 对象')
   if (body.schema_version !== DIAGRAM_SCHEMA) throw schemaError(`schema_version 必须是 ${DIAGRAM_SCHEMA}`)
   if (typeof body.diagram_id !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(body.diagram_id)) throw schemaError('diagram_id 缺失或不合法')
@@ -634,6 +590,106 @@ function checkShape(body: unknown): ShapedDiagram {
     run: body.run,
     scenario_ref: isObj(body.scenario_ref) ? body.scenario_ref : undefined,
   }
+}
+
+/**
+ * 框图的服务端预处理：内部参数检查（D-037）、data_id 与 scenario_id 解析、解析旁挂构造。
+ * `submit()` 与框图落盘端点（B-8）共用它——两处对同一份框图必须给出同一个判断，
+ * 复制一遍迟早会分叉。语义校验仍然只在引擎一处（D-042），本函数不碰。
+ */
+export interface DiagramDeps {
+  engine: Engine
+  dataIndex: DataIndex
+  scenarioIndex: ScenarioIndex
+  root: string
+}
+
+export interface PreparedDiagram {
+  sidecar: ReturnType<typeof buildSidecar> | null
+  dataRefs: DataRef[]
+  warnings: string[]
+  scenarioId: string | null
+}
+
+export async function prepareDiagram(
+  deps: DiagramDeps,
+  d: ShapedDiagram,
+  sha: string,
+): Promise<PreparedDiagram> {
+  let catalog: CatalogInfo
+  try {
+    catalog = await deps.engine.catalog()
+  } catch (e) {
+    throw engineFailure(e)
+  }
+
+  // 内部参数出现即 400（D-037）；节点与观测点都查
+  for (const n of d.nodes) {
+    const internal = catalog.internal.get(n.type)
+    if (!internal) continue
+    for (const k of Object.keys(n.params)) {
+      if (internal.has(k)) {
+        throw diagramInvalid({
+          code: 'internal_param',
+          node_id: n.id,
+          port: '',
+          message: `框图里出现内部参数 ${k}（组件 ${n.type}）：数据引用只能写 data_id，路径由服务端解析`,
+        })
+      }
+    }
+  }
+  const tapInternal = catalog.internal.get('ObservationTap')
+  if (tapInternal) {
+    for (const o of d.observation_points) {
+      for (const k of Object.keys(o.params ?? {})) {
+        if (tapInternal.has(k)) {
+          throw diagramInvalid({ code: 'internal_param', node_id: o.id, port: '', message: `观测点里出现内部参数 ${k}` })
+        }
+      }
+    }
+  }
+
+  // data_id 解析 → 旁挂
+  const refs: Array<{ node_id: string; data_id: string }> = []
+  for (const n of d.nodes) {
+    const v = n.params.data_id
+    if (typeof v === 'string') refs.push({ node_id: n.id, data_id: v })
+  }
+  let sidecar: ReturnType<typeof buildSidecar> | null = null
+  const dataRefs: DataRef[] = []
+  const warnings: string[] = []
+  let resolvedData: Record<string, string> = {}
+  if (refs.length) {
+    const r = await resolveDataIds(deps.dataIndex, deps.root, refs.map((x) => x.data_id))
+    if (r.missing.length) {
+      const m = r.missing[0]
+      const node = refs.find((x) => x.data_id === m.data_id)!
+      throw diagramInvalid({ code: 'data_id', node_id: node.node_id, port: '', message: m.reason })
+    }
+    resolvedData = r.data
+    for (const x of refs) dataRefs.push({ ...x, holdout: r.holdout.includes(x.data_id) })
+    for (const id of r.holdout) warnings.push(`验收集片段 ${id} 用于回放：只作演示，不得据此调参（D-038）`)
+  }
+
+  // scenario_id 解析 → 旁挂的 scenarios 段（G-2）。与 data_id 同法：框图只写标识，路径不进框图（D-037）。
+  const scenarios: Record<string, string> = {}
+  const scenarioId =
+    d.scenario_ref && typeof d.scenario_ref.scenario_id === 'string' ? d.scenario_ref.scenario_id : null
+  if (scenarioId) {
+    await deps.scenarioIndex.ensureLoaded()
+    const entry = deps.scenarioIndex.get(scenarioId)
+    if (!entry) {
+      throw diagramInvalid({
+        code: 'scenario',
+        node_id: '',
+        port: '',
+        message: `框图引用的场景 ${scenarioId} 不在 data/scene/<观测区域>/scenarios/ 下`,
+      })
+    }
+    scenarios[scenarioId] = entry.pathRel
+  }
+  if (refs.length || scenarioId) sidecar = buildSidecar(resolvedData, sha, scenarios)
+  return { sidecar, dataRefs, warnings, scenarioId }
 }
 
 function engineFailure(e: unknown): HttpError {

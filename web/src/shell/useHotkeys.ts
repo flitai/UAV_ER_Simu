@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useStore } from '../state/store.js'
 import { mapHotkey } from './hotkeys.js'
-import { runDiagram } from './actions.js'
+import { runDiagram, saveDiagram } from './actions.js'
 import { deleteMarker, placeMarker, stepCursor } from '../signal/commands.js'
 
 function isEditable(t: EventTarget | null): boolean {
@@ -25,7 +25,7 @@ export function useHotkeys(): void {
         case 'view:diagram': dispatch({ type: 'ui/navigate', view: 'diagram' }); break
         case 'view:results': dispatch({ type: 'ui/navigate', view: 'results' }); break
         case 'view:data': dispatch({ type: 'ui/navigate', view: 'data' }); break
-        case 'save': dispatch({ type: 'diagram/markSaved' }); dispatch({ type: 'ui/toast', kind: 'info', text: '已保存（首期只保存在本页）' }); break
+        case 'save': void saveDiagram(store); break
         case 'run': void runDiagram(store); break
         case 'escape': dispatch({ type: 'ui/popover', id: null }); break
         case 'drawer': dispatch({ type: 'ui/drawer', open: !store.getState().ui.drawer.open }); break

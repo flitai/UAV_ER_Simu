@@ -37,3 +37,34 @@ export function fmtDelta(v: number | null | undefined, fmt: (x: number) => strin
   if (v === null || v === undefined || !Number.isFinite(v)) return '—'
   return `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}`
 }
+
+/** 距离：小于 1 km 用米，否则用千米（09 §12 工程计数法）。 */
+export function fmtMeters(m: number | null | undefined): string {
+  if (m === null || m === undefined || !Number.isFinite(m)) return '—'
+  return Math.abs(m) < 1000 ? `${m.toFixed(0)} m` : `${(m / 1000).toFixed(2)} km`
+}
+
+/** 角度，一位小数带度号。 */
+export function fmtDeg(d: number | null | undefined): string {
+  if (d === null || d === undefined || !Number.isFinite(d)) return '—'
+  return `${d.toFixed(1)}°`
+}
+
+/** 时延：秒太小，一律用微秒。 */
+export function fmtDelay(s: number | null | undefined): string {
+  if (s === null || s === undefined || !Number.isFinite(s)) return '—'
+  return `${(s * 1e6).toFixed(1)} µs`
+}
+
+/**
+ * 解析带 SI 前缀的输入（09 §5.3：输入接受 `2.44G`、`20M`，底层存 SI 基本单位）。
+ * 认不出来返回 null——不拿 0 顶替（铁律 15）。
+ */
+export function parseSi(text: string): number | null {
+  const m = /^\s*([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s*([kKMGmuµn]?)\s*$/.exec(text)
+  if (!m) return null
+  const v = Number(m[1])
+  if (!Number.isFinite(v)) return null
+  const mul: Record<string, number> = { '': 1, k: 1e3, K: 1e3, M: 1e6, G: 1e9, m: 1e-3, u: 1e-6, 'µ': 1e-6, n: 1e-9 }
+  return v * (mul[m[2]] ?? 1)
+}

@@ -55,6 +55,9 @@ private:
     WelchAccumulator acc_;
     bool seen_block_ = false;
     BlockMeta last_meta_;
+    // 上游 ADC 削顶样点数的累计（D-051）。写进索引供界面在页头显示「削顶 n 样点」；
+    // 它是数据标记不是降级，因此不进 state / state_reasons 的判定。
+    std::uint64_t clipped_samples_ = 0;
     double sample_rate_Hz_ = 0.0, center_frequency_Hz_ = 0.0;
     std::uint64_t first_sample_ = 0;
 

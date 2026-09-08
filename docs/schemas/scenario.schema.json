@@ -120,6 +120,7 @@
             "bw_Hz": { "type": "number", "exclusiveMinimum": 0 },
             "tx_power_dBm": { "type": "number" },
             "antenna_gain_dBi": { "type": "number" },
+            "polarization": { "enum": ["vertical", "horizontal", "slant45", "rhcp", "lhcp"] },
             "waveform": { "$ref": "#/$defs/waveform" }
           }
         }

@@ -120,3 +120,33 @@ test('真引擎：目录与黄金基准同组件集；切片 ① 提交→完成
     await rmrf(root)
   }
 })
+
+test('真引擎：template_ref 原样穿过服务端并被引擎接受；取值非法则 400 template（D-051）', { skip }, async () => {
+  const root = await makeRoot('cuav-tmpl-')
+  try {
+    const engine = new Engine({ bin: BIN, cwd: root })
+    const mgr = createTaskManager({ root, engine, killGraceMs: 1000 })
+    await mgr.init()
+
+    // 服务端不解释 template_ref，只是原样落盘；引擎校验取值
+    const ok = await slice1()
+    ok.template_ref = { template_id: 'chain-v1', mode: 'synthetic', version: 1 }
+    const r = await mgr.submit({ body: ok })
+    assert.equal(r.status, 201)
+    const dir = taskDirAbs(mgr.storeConfig, r.task.task_id)
+    const saved = JSON.parse(await fsp.readFile(join(dir, 'diagram.json'), 'utf8')) as Record<string, unknown>
+    assert.deepEqual(saved.template_ref, { template_id: 'chain-v1', mode: 'synthetic', version: 1 })
+
+    // 取值非法：引擎 --validate 拒绝，错误码原样透传，任务目录不留
+    const bad = await slice1()
+    bad.template_ref = { template_id: 'chain-v1', mode: 'hybrid', version: 1 }
+    await assert.rejects(mgr.submit({ body: bad }), (e: unknown) =>
+      e instanceof HttpError && e.status === 400 && (e.body.detail as { code: string }).code === 'template')
+
+    const isDone2 = (x: TaskRecord | null) => !!x && x.run_state !== 'queued' && x.run_state !== 'running'
+    await waitFor(() => (isDone2(mgr.get(r.task.task_id)) ? true : undefined), '带 template_ref 的任务跑完', 120000, 50)
+    mgr.shutdownSync()
+  } finally {
+    await rmrf(root)
+  }
+})

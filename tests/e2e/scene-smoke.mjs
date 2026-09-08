@@ -31,8 +31,9 @@ try {
 
   check('探针可用且无副作用接口', st.ready === true)
   check('WebGL2 可用（MapLibre GL 5 不支持 WebGL1）', st.webgl2 === true)
-  // U-1 起多一层观测区域边界 aoi-boundary（09 §5.2、§10）：60 + 建筑 + 山体阴影 + 边界 = 63
-  check('样式图层齐全（底图 60 层 + 建筑 + 山体阴影 + AOI 边界 = 63）', st.layers.length === 63,
+  // 切片 ② 起再多七层态势（链路线、规划航线、航迹、航点、站点圆点、站点图标、目标图标）：
+  // 60 + 建筑 + 山体阴影 + 边界 + 7 = 70（09 §5.2、§10）
+  check('样式图层齐全（底图 60 + 建筑 + 山体阴影 + AOI 边界 + 态势 7 = 70）', st.layers.length === 70,
     `实际 ${st.layers.length} 层`)
   check('底图数据源已挂载', st.sources.includes('pm'))
   check('高程数据源已挂载', st.sources.includes('dem'))
@@ -61,7 +62,9 @@ try {
 } finally {
   if (page && chrome) await page.close(chrome.port)
   if (chrome) chrome.proc.kill()
-  if (dir) await rm(dir, { recursive: true, force: true })
+  // 清理失败不能掐掉结果打印：Chrome 退出后可能还在写 profile 目录，rm 会抛 ENOTEMPTY，
+  // 而结果是在 finally 之后才打印的（2026-09-07 实测，scene-smoke 因此看不到断言结果）。
+  if (dir) await rm(dir, { recursive: true, force: true }).catch(() => undefined)
 }
 
 let bad = 0

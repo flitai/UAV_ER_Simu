@@ -75,6 +75,9 @@ Step AddMixer::process(PortMap& in, PortMap& out, std::string& err) {
     d.iq.meta = a.meta;
     d.iq.meta.trace = make_trace("AddMixer", "M3", "E2", "V3");
     d.iq.meta.state = worst(a.meta.state, b.meta.state);
+    // 削顶计数相加（D-051）：混合增强模式下 ADC 只在合成目标那一路上，取哪一路当"主"都不对，
+    // 两路相加才是这一块里被削顶的样点总数。两路都为 0 时结果仍是 0，既有框图不受影响。
+    d.iq.meta.clip_count = a.meta.clip_count + b.meta.clip_count;
     d.iq.meta.state_reasons = a.meta.state_reasons;
     for (const auto& r : b.meta.state_reasons) d.iq.meta.state_reasons.push_back(r);
     // 功率标定（D-047 ⑤）：两路都标定才算标定，来源取较弱的一路；任一路未标定则整体未标定，

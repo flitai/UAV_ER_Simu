@@ -143,10 +143,19 @@ TEST_CASE("cuav_run 命令行：子命令唯一、--run 要 --out、解析入口
     CHECK(opt.task_id == "t1");
     CHECK(opt.data_index_paths.size() == 2);
     CHECK(opt.progress_interval_ms == 0u);
+    // --scenario-track 已于 G-1 实现（原先返回 ExitUsage 说"待 G-2"）。
+    // 场景文件不存在时走装载失败：一条 error 事件 + 退出码 2，这正是服务端 PUT 场景的判据。
     REQUIRE(parse({"--scenario-track", "s.json"}, opt, err));
+    CHECK(opt.track_rate_Hz == 10.0);
     std::ostringstream o, d;
-    CHECK(run(opt, o, d) == ExitUsage);
-    CHECK(d.str().find("G-2") != std::string::npos);
+    CHECK(run(opt, o, d) == ExitDiagram);
+    CHECK(o.str().find("\"code\":\"scenario\"") != std::string::npos);
+    CHECK_FALSE(d.str().empty());
+    // --track-rate 与 --scene-root 只跟 --scenario-track 搭配。
+    CHECK_FALSE(parse({"--catalog", "--track-rate", "5"}, opt, err));
+    CHECK(parse({"--validate", "d.json", "--scene-root", "x"}, opt, err));   // 装载器选项，校验与运行都要
+    CHECK_FALSE(parse({"--catalog", "--scene-root", "x"}, opt, err));
+    CHECK_FALSE(parse({"--scenario-track", "s.json", "--track-rate", "0.5"}, opt, err));
     REQUIRE(parse({"--help"}, opt, err));
     CHECK(run(opt, o, d) == ExitOk);
     CHECK(d.str().find("用法") != std::string::npos);
@@ -158,7 +167,7 @@ TEST_CASE("cuav_run --catalog：输出与 catalog_json() 逐字节相同，且�
     CHECK(r.out == catalog_json(builtin_registry()).dump(2) + "\n");
     json j = json::parse(r.out);
     CHECK(j["schema_version"] == "cuav-catalog/1");
-    CHECK(j["components"].size() == 8);
+    CHECK(j["components"].size() == 15);
 }
 
 TEST_CASE("cuav_run --validate：合法框图一条 validate 事件；非法框图一条 error 事件并退出 2") {

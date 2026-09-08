@@ -53,9 +53,18 @@ try {
   st = await page.waitFor((s) => s.app?.view === 'scene' && s.tilesLoaded, { label: '切回场景' })
   check('三视图切换不重建地图实例', st.app.mapInstanceId === id0 && st.tilesLoaded, `mapInstanceId ${id0} → ${st.app.mapInstanceId}`)
 
-  // 提交示例框图（默认已装入切片 ① 合成链）
-  await page.pressKey(alt(2))
+  // 提交切片 ① 的示例框图。C-7 之后框图页缺省是典型链路视图，示例在自由画布的下拉里，
+  // 所以这里显式进 #/diagram/canvas 再选 slice1。
+  await page.send('Page.navigate', { url: `${BASE}?dev=1#/diagram/canvas` })
   await waitApp(page, (a) => a.view === 'diagram', '框图页')
+  await page.evaluate(`(() => {
+    const el = document.querySelector('[data-action=example]');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    setter.call(el, 'slice1');
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  })()`)
+  await sleep(300)
   const before = st.app.context.taskId
   // 等组件目录就绪（运行按钮可用）
   for (let i = 0; i < 40; i++) {
@@ -181,7 +190,9 @@ try {
 } finally {
   if (page && chrome) await page.close(chrome.port)
   if (chrome) chrome.proc.kill()
-  if (dir) await rm(dir, { recursive: true, force: true })
+  // 清理失败不能掐掉结果打印：Chrome 退出后可能还在写 profile 目录，rm 会抛 ENOTEMPTY，
+  // 而结果是在 finally 之后才打印的（2026-09-07 实测，scene-smoke 因此看不到断言结果）。
+  if (dir) await rm(dir, { recursive: true, force: true }).catch(() => undefined)
 }
 
 let bad = 0

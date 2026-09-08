@@ -44,6 +44,7 @@ enum class PortType {
     SpectrumFrame,      // 功率谱与瀑布
     DetectionList,      // 检测结果
     FeatureVector,      // 特征
+    RecognitionList,    // 识别结果（D-051；生产者 TemplateClassifier，消费者 Evaluator）
 };
 
 const char* to_string(PortType t);
@@ -106,6 +107,12 @@ struct BlockMeta {
     PowerCalibration calibration;
     double full_scale = 32768.0;   // 回放源的量化码满量程；合成源不用
 
+    // 本块里被 ADC 削顶的样点数（D-051）。这是**数据标记不是降级**：削顶是被显式建模的效应，
+    // 把它标成 Degraded 会让整个任务的结果四态变成降级，掩盖真正的降级信号（同 08 报告 §9.5
+    // 对整数样点时延跳变的处置）。全程比例失控才由 AdcQuantizer 按 degrade_clip_ratio 降级。
+    // 上游没有 ADC 时恒为 0；施加类组件按「取上游值」传递，AdcQuantizer 覆写为本块实测值。
+    std::uint64_t clip_count = 0;
+
     State state = State::Valid;
     std::vector<std::string> state_reasons;
     ModelTrace trace;
@@ -137,6 +144,19 @@ struct SceneParamFrame {
     bool line_of_sight = true;
     double doppler_Hz = 0.0;
     double delay_s = 0.0;
+
+    // 收发两端的视线角与平台航向（D-051，C-1）。方位真北顺时针 [0, 360)、俯仰水平为 0（铁律 1）。
+    // aod = 辐射源看站点的方向（发射天线用），aoa = 站点看辐射源的方向（接收天线用）；
+    // 两者不是简单的互为反方位——地球曲率与高差都会让它们差开，所以各算各的，不由对方取反推出。
+    double aod_az_deg = 0.0;
+    double aod_el_deg = 0.0;
+    double aoa_az_deg = 0.0;
+    double aoa_el_deg = 0.0;
+    double tx_heading_deg = 0.0;      // 辐射源平台航向，供随航向指向的天线用
+
+    // 发射活动（G-6 施加结果）。只供评价器取真值与链路读数，**不进被测算法**（04 §5.2）。
+    bool tx_on = true;
+    double tx_center_Hz = 0.0;        // 跳频后的辐射源中心频率
 
     State state = State::Valid;
     ModelTrace trace;

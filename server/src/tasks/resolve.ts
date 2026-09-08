@@ -146,10 +146,93 @@ export interface ResolvedSidecar {
   schema_version: typeof RESOLVED_SCHEMA
   diagram_sha256: string
   data: Record<string, string>
+  /** scenario_id → 场景文件相对路径（G-2 起）。没有场景绑定时不写这一段。 */
+  scenarios?: Record<string, string>
 }
 
-export function buildSidecar(data: Record<string, string>, diagramSha256: string): ResolvedSidecar {
-  return { schema_version: RESOLVED_SCHEMA, diagram_sha256: diagramSha256, data: { ...data } }
+export function buildSidecar(
+  data: Record<string, string>,
+  diagramSha256: string,
+  scenarios?: Record<string, string>,
+): ResolvedSidecar {
+  const out: ResolvedSidecar = { schema_version: RESOLVED_SCHEMA, diagram_sha256: diagramSha256, data: { ...data } }
+  if (scenarios && Object.keys(scenarios).length) out.scenarios = { ...scenarios }
+  return out
+}
+
+/** 场景标识必须是 ASCII 小写标识：它要进相对路径与旁挂（docs/schemas/scenario.schema.json） */
+const SCENARIO_ID = /^[a-z0-9_-]{1,64}$/
+
+export interface ScenarioEntry {
+  scenario_id: string
+  aoi: string
+  /** 相对仓库根、`/` 分隔的场景文件路径 */
+  pathRel: string
+}
+
+/**
+ * 场景文件索引：扫 data/scene/<aoi>/scenarios/*.scenario.json，按文件里声明的 scenario_id 建表。
+ * 与 DataIndex 同构、同理由——框图里只写 scenario_id，路径只在服务端、旁挂与引擎进程里出现（D-037）。
+ * 标识在两处出现即拒绝：不猜哪个是对的。
+ */
+export class ScenarioIndex {
+  private table = new Map<string, ScenarioEntry>()
+  private loaded = false
+
+  constructor(private readonly root: string) {}
+
+  get size(): number {
+    return this.table.size
+  }
+
+  async ensureLoaded(): Promise<void> {
+    if (!this.loaded) await this.load()
+  }
+
+  async load(): Promise<void> {
+    const table = new Map<string, ScenarioEntry>()
+    const sceneDir = join(this.root, 'data', 'scene')
+    let aois: import('node:fs').Dirent[]
+    try {
+      aois = await fsp.readdir(sceneDir, { withFileTypes: true })
+    } catch {
+      this.table = table
+      this.loaded = true
+      return
+    }
+    for (const a of aois) {
+      if (!a.isDirectory() || !SAFE_NAME.test(a.name)) continue
+      const dir = join(sceneDir, a.name, 'scenarios')
+      let files: string[]
+      try {
+        files = await fsp.readdir(dir)
+      } catch {
+        continue
+      }
+      for (const f of files.sort()) {
+        if (!f.endsWith('.scenario.json')) continue
+        const doc = await readJson(join(dir, f))
+        const id = doc && typeof doc.scenario_id === 'string' ? doc.scenario_id : null
+        if (!id || !SCENARIO_ID.test(id)) continue
+        const pathRel = `data/scene/${a.name}/scenarios/${f}`
+        const prev = table.get(id)
+        if (prev && prev.pathRel !== pathRel) {
+          throw new Error(`场景标识 ${id} 在两处出现：${prev.pathRel} 与 ${pathRel}`)
+        }
+        table.set(id, { scenario_id: id, aoi: a.name, pathRel })
+      }
+    }
+    this.table = table
+    this.loaded = true
+  }
+
+  get(id: string): ScenarioEntry | undefined {
+    return this.table.get(id)
+  }
+
+  list(): ScenarioEntry[] {
+    return [...this.table.values()].sort((a, b) => (a.scenario_id < b.scenario_id ? -1 : 1))
+  }
 }
 
 /** JSON 字符串里的写法（去掉两端引号），用于匹配已被 JSON 转义的路径，如 Windows 的 `C:\\Work`。 */

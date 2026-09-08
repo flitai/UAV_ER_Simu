@@ -25,9 +25,11 @@
 namespace cuav {
 
 // 装载错误。code 取值表见 docs/diagram-format.md §4「错误码」：
-//   json_parse / schema / unknown_type / internal_param / param / data_id / duration / scene_binding /
-//   node_missing / port_missing / port_incompatible / input_occupied / input_unconnected / cycle /
-//   observation_port / product_unsupported / graph
+//   json_parse / schema / unknown_type / internal_param / param / param_conflict / data_id / duration /
+//   scenario / scene_binding / node_missing / port_missing / port_incompatible / input_occupied /
+//   input_unconnected / cycle / observation_port / product_unsupported / graph / template / port_optional
+// template 是 template_ref 段的取值错误（D-051）；port_optional 为预留码，
+// 供将来「组件按参数要求某个可选输入口而它没连线」的情形使用，本版本不产生。
 // node_id 是出错的框图节点 id；观测点自身的错误填观测点 id；与节点无关时为空。
 struct DiagramError {
     std::string code;
@@ -79,10 +81,47 @@ private:
     std::map<std::string, std::string> table_;   // data_id → manifest_path
 };
 
+// 场景解析器：把框图 scenario_ref 里的 scenario_id 换成场景文件的位置。
+// 与 IDataResolver 同构、同理由——框图文件永远只写标识，路径只在服务端、解析旁挂与引擎进程里出现。
+class IScenarioResolver {
+public:
+    virtual ~IScenarioResolver() {}
+    virtual bool resolve(const std::string& scenario_id, std::string& scenario_path, std::string& err) = 0;
+};
+
+// 查表解析器：从解析旁挂 diagram.resolved.json 的 scenarios 段装入（应用服务 B-5 写）。
+class MapScenarioResolver : public IScenarioResolver {
+public:
+    void set(const std::string& scenario_id, const std::string& path) { table_[scenario_id] = path; }
+    bool load(const nlohmann::json& resolved, std::string& err);
+    bool load_file(const std::string& path, std::string& err);
+    std::size_t size() const { return table_.size(); }
+    bool resolve(const std::string& scenario_id, std::string& scenario_path, std::string& err) override;
+
+private:
+    std::map<std::string, std::string> table_;
+};
+
+// 文件解析器：cuav_run --scenario <文件>，可给多份，键取文件自身的 scenario_id。
+// 供单机运行与回归测试用，不经过应用服务。
+class FileScenarioResolver : public IScenarioResolver {
+public:
+    bool add_file(const std::string& path, std::string& err);
+    std::size_t size() const { return table_.size(); }
+    bool resolve(const std::string& scenario_id, std::string& scenario_path, std::string& err) override;
+
+private:
+    std::map<std::string, std::string> table_;
+};
+
 // 装载选项。out_dir 为空即「只校验」模式：观测点照常构造并校验参数，但不注入产品目录，
 // 运行前会在 init() 被拒；cuav_run --validate 走这一种，不在盘上留任何东西。
 struct LoadOptions {
     std::string out_dir;      // 产品目录 data/runs/<task_id>/，注入每个观测点的内部参数 out_dir
+    // 场景解析器。为空时，框图里出现 scene_binding 即报 scenario 错误。
+    IScenarioResolver* scenarios = nullptr;
+    // 场景数据包根目录，用于核对场景的 aoi.manifest_sha256。空串表示跳过核对（并在结果里标明）。
+    std::string scene_root = "data/scene";
 };
 
 // 框图的 run 段，原样交给运行器：种子建 Xoshiro256pp，max_rounds 交给 Graph::run。
@@ -111,10 +150,16 @@ struct LoadedDiagram {
     std::vector<TapBinding> taps;
     std::size_t edge_count = 0;                    // 用户连线数（不含观测点并联的边）
     RunSpec run;
-    bool has_scenario_ref = false;                 // 场景文件哈希核对由运行器做（需要读文件）
+    bool has_scenario_ref = false;
     std::string scenario_id;
-    std::string scenario_sha256;
+    std::string scenario_sha256;                   // 框图里声明的哈希
+    std::string scenario_path;                     // 解析出的文件位置（不进事件、不给浏览器）
+    bool scenario_verified = false;                // 文件字节哈希与框图声明相符
+    bool aoi_manifest_verified = false;            // 场景的观测区域清单哈希已核对
     nlohmann::json trace;                          // 框图 trace 段原样保留，运行器写进 task.json
+    // 典型链路视图的还原线索（D-051）。引擎只校验取值合法，不解释语义——
+    // 链路怎么编译成节点与连线是前端的事，引擎见到的永远是普通框图。
+    nlohmann::json template_ref;
 };
 
 // 装载。失败返回 false 并写 err，out 的内容不可用。resolver 可为空指针，此时框图里出现

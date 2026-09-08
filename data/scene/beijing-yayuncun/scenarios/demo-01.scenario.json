@@ -1,0 +1,124 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "demo-01",
+  "name": "亚运村上空单机过顶后远去",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 180
+  },
+  "seed": 20260906,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "亚运村侦察站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 500000,
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "uav-1",
+      "name": "多旋翼图传下行",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.4035,
+        "lat": 39.9885,
+        "alt_m": 50
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "tx_power_dBm": 27,
+        "antenna_gain_dBi": 2,
+        "waveform": {
+          "type": "tone",
+          "offset_Hz": 48828.125
+        }
+      }
+    }
+  ],
+  "routes": [
+    {
+      "emitter_id": "uav-1",
+      "loop": false,
+      "waypoints": [
+        {
+          "position": {
+            "lon": 116.4035,
+            "lat": 39.9885,
+            "alt_m": 50
+          },
+          "speed_mps": 18
+        },
+        {
+          "position": {
+            "lon": 116.411,
+            "lat": 39.9955,
+            "alt_m": 110
+          },
+          "speed_mps": 20,
+          "loiter_s": 12
+        },
+        {
+          "position": {
+            "lon": 116.43,
+            "lat": 40.011,
+            "alt_m": 160
+          },
+          "speed_mps": 20
+        }
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0,
+      "event": "takeoff"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 3,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 56,
+      "event": "hover"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 68,
+      "event": "cruise"
+    }
+  ],
+  "trace": {
+    "created_by": "实施方（切片 ② G-0）",
+    "created_at": "2026-09-06T00:00:00Z",
+    "notes": "演示场景。站点置于观测区域中心，航线自西南向东北，t=15 s 附近近乎过顶（斜距约 70 m），此后单调远去至 t=180 s 的约 3037 m，自由空间路损从 77.1 dB 增到 109.9 dB，接收电平从 -45.1 dBm 降到 -77.9 dBm。窄带观测配置：本切片没有下变频与信道化（M-2 / M-3，切片 ④），接收机按 500 kS/s 的窄带观测窗建模，发射带宽随之取 400 kHz；完整 10-20 MHz 图传带宽的宽带场景随切片 ④ 补。发射功率、天线增益、噪声系数为 2.4 GHz 图传的通用取值，非甲方清单，属原型阶段取值（D-028）。频偏 48828.125 Hz 选得在 nfft 1024 与 4096 下都恰好落在频点中心，不吃扇贝损耗。"
+  }
+}

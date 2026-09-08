@@ -19,9 +19,18 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 add_library(cuav_geo STATIC
-  src/placeholder.cpp
+  src/geodesy.cpp
+  src/kinematics.cpp
+  src/link_budget.cpp
+  src/scenario.cpp
 )
 target_include_directories(cuav_geo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+if(MSVC)
+  target_compile_options(cuav_geo PRIVATE /W4)
+else()
+  target_compile_options(cuav_geo PRIVATE -Wall -Wextra)
+endif()
 
 enable_testing()
 add_executable(cuav_geo_smoke_test tests/smoke_test.cpp)

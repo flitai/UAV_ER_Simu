@@ -1,6 +1,7 @@
 #include "runner.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -13,6 +14,7 @@
 #include "cuav/platform.h"
 #include "cuav/random.h"
 #include "cuav/registry.h"
+#include "cuav/scenario_json.h"
 #include "cuav/types.h"
 
 namespace cuav {
@@ -130,11 +132,19 @@ public:
         sink_.emit("log", last_t_s_, json{{"level", level}, {"message", message}});
     }
 
+    // 产品目录。给了才落 track.jsonl / links.jsonl；--validate 与无场景的任务不产生空文件。
+    void set_out_dir(const std::string& dir) { out_dir_ = dir; }
+
     void on_entity(const EntityState& e) override {
         if (e.t_s > last_t_s_) last_t_s_ = e.t_s;
+        const json j{{"t_s", e.t_s}, {"id", e.id}, {"lon", e.lon}, {"lat", e.lat}, {"alt_m", e.alt_m},
+                     {"heading_deg", e.heading_deg}, {"speed_mps", e.speed_mps},
+                     {"tx_on", e.tx_on}, {"center_Hz", e.center_Hz}};
         sink_.emit("entity", e.t_s, json{{"id", e.id}, {"lon", e.lon}, {"lat", e.lat}, {"alt_m", e.alt_m},
                                          {"heading_deg", e.heading_deg}, {"speed_mps", e.speed_mps},
                                          {"tx_on", e.tx_on}, {"center_Hz", e.center_Hz}});
+        write_jsonl(track_, "track.jsonl", j);
+        ++entities_;
     }
 
     void on_link(const LinkFrame& l) override {
@@ -145,17 +155,43 @@ public:
                                        {"delay_s", l.delay_s}, {"doppler_Hz", l.doppler_Hz},
                                        {"valid_from_s", l.valid_from_s}, {"valid_to_s", l.valid_to_s},
                                        {"update_rate_Hz", l.update_rate_Hz}, {"state", to_string(l.state)}});
+        write_jsonl(links_, "links.jsonl",
+                    json{{"t_s", l.t_s}, {"link_id", l.link_id}, {"line_of_sight", l.line_of_sight},
+                         {"distance_m", l.distance_m}, {"azimuth_deg", l.azimuth_deg},
+                         {"elevation_deg", l.elevation_deg}, {"path_loss_dB", l.path_loss_dB},
+                         {"delay_s", l.delay_s}, {"doppler_Hz", l.doppler_Hz},
+                         {"valid_from_s", l.valid_from_s}, {"valid_to_s", l.valid_to_s},
+                         {"update_rate_Hz", l.update_rate_Hz}, {"state", to_string(l.state)}});
+        ++links_written_;
     }
 
     double last_t_s() const { return last_t_s_; }
     std::uint64_t rows() const { return rows_; }
+    std::uint64_t entities() const { return entities_; }
+    std::uint64_t links_written() const { return links_written_; }
     std::uint64_t progress_events() const { return progress_events_; }
     std::uint64_t rounds_seen() const { return rounds_seen_; }
 
 private:
+    // 惰性开文件：只有真有实体或链路上报时才建。每行必须自带 t_s 且以换行结尾——
+    // 读端（B-7 的 server/src/products/jsonl.ts）把没有换行的末行当残片丢弃。
+    void write_jsonl(std::ofstream& f, const char* name, const json& row) {
+        if (out_dir_.empty()) return;
+        if (!f.is_open()) {
+            f.open(platform::join(out_dir_, name).c_str(), std::ios::binary | std::ios::trunc);
+            if (!f.good()) return;
+        }
+        f << row.dump() << '\n';
+        f.flush();
+    }
+
     EventSink& sink_;
     std::chrono::milliseconds interval_;
     bool throttle_;
+    std::string out_dir_;
+    std::ofstream track_, links_;
+    std::uint64_t entities_ = 0;
+    std::uint64_t links_written_ = 0;
     bool has_last_ = false;
     Clock::time_point last_;
     double last_t_s_ = 0.0;
@@ -176,6 +212,25 @@ bool build_resolver(const Options& opt, MapDataResolver& map, IndexDataResolver&
             if (!index.add_index(p, err)) return false;
         }
         resolver = &index;
+    }
+    return true;
+}
+
+// 按 --resolved 的 scenarios 段或 --scenario 建场景解析器；都没给返回空指针
+// （框图里有 scene_binding 时装载器会报 scenario）。
+bool build_scenario_resolver(const Options& opt, MapScenarioResolver& map, FileScenarioResolver& files,
+                             IScenarioResolver*& resolver, std::string& err) {
+    resolver = nullptr;
+    if (!opt.scenario_paths.empty()) {
+        for (const auto& p : opt.scenario_paths) {
+            if (!files.add_file(p, err)) return false;
+        }
+        resolver = &files;
+        return true;
+    }
+    if (!opt.resolved_path.empty()) {
+        if (!map.load_file(opt.resolved_path, err)) return false;
+        if (map.size() > 0) resolver = &map;
     }
     return true;
 }
@@ -233,10 +288,24 @@ int do_validate(const Options& opt, std::ostream& events, std::ostream& diag) {
         diag << err << "\n";
         return ExitDiagram;
     }
+    MapScenarioResolver smap;
+    FileScenarioResolver sfiles;
+    IScenarioResolver* sresolver = nullptr;
+    if (!build_scenario_resolver(opt, smap, sfiles, sresolver, err)) {
+        DiagramError se;
+        se.code = "scenario";
+        se.message = err;
+        sink.emit("error", 0.0, to_json(se));
+        diag << err << "\n";
+        return ExitDiagram;
+    }
+
     Registry registry = builtin_registry();
     LoadedDiagram d;
     DiagramError e;
     LoadOptions lo;   // out_dir 为空：只校验，不落盘
+    lo.scenarios = sresolver;
+    lo.scene_root = opt.scene_root;
     if (!load_diagram_file(opt.diagram_path, registry, resolver, lo, d, e)) {
         sink.emit("error", 0.0, to_json(e));
         diag << "框图校验失败 [" << e.code << "] " << e.message << "\n";
@@ -280,11 +349,26 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
         return ExitDiagram;
     }
 
+    MapScenarioResolver smap;
+    FileScenarioResolver sfiles;
+    IScenarioResolver* sresolver = nullptr;
+    if (!build_scenario_resolver(opt, smap, sfiles, sresolver, err)) {
+        DiagramError se;
+        se.code = "scenario";
+        se.message = err;
+        sink.emit("error", 0.0, to_json(se));
+        sink.emit("task.state", 0.0, json{{"run_state", "failed"}, {"result", "invalid"}, {"reasons", json::array({err})}});
+        diag << err << "\n";
+        return ExitDiagram;
+    }
+
     Registry registry = builtin_registry();
     LoadedDiagram d;
     DiagramError e;
     LoadOptions lo;
     lo.out_dir = opt.out_dir;
+    lo.scenarios = sresolver;
+    lo.scene_root = opt.scene_root;
     if (!load_diagram_file(opt.diagram_path, registry, resolver, lo, d, e)) {
         sink.emit("error", 0.0, to_json(e));
         sink.emit("task.state", 0.0, json{{"run_state", "failed"}, {"result", "invalid"}, {"reasons", json::array({e.message})}});
@@ -320,6 +404,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
 
     Xoshiro256pp rng(d.run.seed);
     RunnerObserver obs(sink, opt.progress_interval_ms);
+    obs.set_out_dir(opt.out_dir);
     const Clock::time_point t0 = Clock::now();
     RunReport rep = d.run.max_rounds ? d.graph.run(rng, obs, d.run.max_rounds) : d.graph.run(rng, obs);
     const double wall_s = std::chrono::duration<double>(Clock::now() - t0).count();
@@ -361,6 +446,80 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
     return ExitOk;
 }
 
+// --scenario-track：只跑运动学，输出 entity 事件流。
+//
+// 不建产品目录、不发 progress、不按墙钟节流，所以 stdout **逐字节可复现**——
+// 它因此既是黄金基准 tests/golden/scenario-track-demo-01.json 的生成器，
+// 也是应用服务 PUT /api/v1/scenarios/{id} 的语义校验器（只看退出码：0 通过，2 不合法）。
+int do_scenario_track(const Options& opt, std::ostream& events, std::ostream& diag) {
+    EventSink sink(events);
+
+    LoadedScenario loaded;
+    std::string err;
+    if (!load_scenario_file(opt.scenario_path, loaded, err)) {
+        sink.set_task_id("");
+        sink.emit("error", 0.0, json{{"code", "scenario"}, {"node_id", ""}, {"port", ""}, {"message", err}});
+        diag << err << "\n";
+        return ExitDiagram;
+    }
+    const geo::Scenario& sc = loaded.scenario;
+    sink.set_task_id(sc.scenario_id);
+
+    // 观测区域清单哈希：--scene-root 给了空串即跳过，并在摘要里写明没查（不静默略过，铁律 15）。
+    bool aoi_checked = false;
+    std::string aoi_actual;
+    if (!opt.scene_root.empty()) {
+        if (!check_aoi_manifest(sc, opt.scene_root, aoi_actual, err)) {
+            sink.emit("error", 0.0, json{{"code", "scenario"}, {"node_id", ""}, {"port", ""}, {"message", err}});
+            diag << err << "\n";
+            return ExitDiagram;
+        }
+        aoi_checked = true;
+    }
+
+    std::vector<geo::EmitterRuntime> rt(sc.emitters.size());
+    for (std::size_t i = 0; i < sc.emitters.size(); ++i) {
+        if (!rt[i].build(sc, sc.emitters[i].id, err)) {
+            sink.emit("error", 0.0, json{{"code", "scenario"}, {"node_id", sc.emitters[i].id}, {"port", ""}, {"message", err}});
+            diag << err << "\n";
+            return ExitDiagram;
+        }
+    }
+
+    // 采样点数：闭区间 [0, duration_s]，末刻也取一次，便于与浏览器预览在两端对齐。
+    const double rate = opt.track_rate_Hz;
+    const std::uint64_t n = static_cast<std::uint64_t>(std::floor(sc.duration_s * rate + 1e-9)) + 1;
+    for (std::uint64_t k = 0; k < n; ++k) {
+        const double t = static_cast<double>(k) / rate;
+        for (std::size_t i = 0; i < rt.size(); ++i) {
+            const geo::MotionState m = rt[i].motion_at(t);
+            sink.emit("entity", t,
+                      json{{"id", rt[i].id()},
+                           {"lon", m.position.lon_deg},
+                           {"lat", m.position.lat_deg},
+                           {"alt_m", m.position.alt_m},
+                           {"heading_deg", m.heading_deg},
+                           {"speed_mps", m.speed_mps},
+                           {"tx_on", rt[i].tx_on_at(t)},
+                           {"center_Hz", rt[i].center_Hz_at(t)}});
+        }
+    }
+
+    sink.emit("task.state", sc.duration_s,
+              json{{"run_state", "finished"},
+                   {"result", "valid"},
+                   {"scenario_id", sc.scenario_id},
+                   {"scenario_sha256", loaded.sha256},
+                   {"aoi_id", sc.aoi_id},
+                   {"aoi_manifest_checked", aoi_checked},
+                   {"entities", static_cast<std::uint64_t>(rt.size())},
+                   {"samples", n},
+                   {"track_rate_Hz", rate},
+                   {"duration_s", sc.duration_s},
+                   {"engine_version", engine_version()}});
+    return ExitOk;
+}
+
 }  // namespace
 
 const char* usage() {
@@ -368,15 +527,19 @@ const char* usage() {
         "用法：\n"
         "  cuav_run --catalog\n"
         "  cuav_run --validate <框图.json> [--task-id <id>] [--resolved <旁挂.json> | --data-index <索引.json>...]\n"
+        "           [--scenario <场景.json>...] [--scene-root <目录>]\n"
         "  cuav_run --run <框图.json> --out <产品目录> [--task-id <id>] [--seed N]\n"
-        "           [--resolved <旁挂.json> | --data-index <索引.json>...] [--progress-interval-ms N]\n"
-        "  cuav_run --scenario-track <场景.json>        （G-2 后实现）\n"
+        "           [--resolved <旁挂.json> | --data-index <索引.json>...] [--scenario <场景.json>...]\n"
+        "           [--scene-root <目录>] [--progress-interval-ms N]\n"
+        "  cuav_run --scenario-track <场景.json> [--track-rate Hz] [--scene-root <目录>]\n"
         "退出码：0 成功；1 命令行错误；2 框图装载失败；3 运行失败；4 产品目录或事件文件不可写。\n"
         "stdout 每行一条 JSON 事件 {seq, task_id, type, t_s, payload}；诊断文字在 stderr。\n";
 }
 
 bool parse_args(int argc, const char* const* argv, Options& opt, std::string& err) {
     opt = Options();
+    bool track_rate_given = false;
+    bool scene_root_given = false;
     auto set_mode = [&](Mode m) {
         if (opt.mode != Mode::None) { err = "只能给一个子命令"; return false; }
         opt.mode = m;
@@ -398,12 +561,25 @@ bool parse_args(int argc, const char* const* argv, Options& opt, std::string& er
         else if (a == "--task-id") { if (!value(opt.task_id)) return false; }
         else if (a == "--resolved") { if (!value(opt.resolved_path)) return false; }
         else if (a == "--data-index") { std::string p; if (!value(p)) return false; opt.data_index_paths.push_back(p); }
+        else if (a == "--scenario") { std::string p; if (!value(p)) return false; opt.scenario_paths.push_back(p); }
         else if (a == "--seed") {
             std::string v;
             if (!value(v)) return false;
             if (!parse_u64(v, opt.seed)) { err = "--seed 必须是不小于 0 的整数：" + v; return false; }
             opt.seed_given = true;
         }
+        else if (a == "--track-rate") {
+            std::string v;
+            if (!value(v)) return false;
+            char* end = 0;
+            opt.track_rate_Hz = std::strtod(v.c_str(), &end);
+            if (end == v.c_str() || *end != '\0' || !(opt.track_rate_Hz >= 1.0) || !(opt.track_rate_Hz <= 100.0)) {
+                err = "--track-rate 必须是 1 到 100 之间的数：" + v;
+                return false;
+            }
+            track_rate_given = true;
+        }
+        else if (a == "--scene-root") { if (!value(opt.scene_root)) return false; scene_root_given = true; }
         else if (a == "--progress-interval-ms") {
             std::string v;
             if (!value(v)) return false;
@@ -417,9 +593,14 @@ bool parse_args(int argc, const char* const* argv, Options& opt, std::string& er
     if (opt.mode != Mode::Run && opt.seed_given) { err = "--seed 只与 --run 搭配"; return false; }
     if (!opt.resolved_path.empty() && !opt.data_index_paths.empty()) { err = "--resolved 与 --data-index 只能给一种"; return false; }
     if ((opt.mode == Mode::Catalog || opt.mode == Mode::Help || opt.mode == Mode::ScenarioTrack) &&
-        (!opt.resolved_path.empty() || !opt.data_index_paths.empty() || !opt.task_id.empty())) {
-        err = "--resolved / --data-index / --task-id 只与 --validate 或 --run 搭配";
+        (!opt.resolved_path.empty() || !opt.data_index_paths.empty() || !opt.task_id.empty() ||
+         !opt.scenario_paths.empty())) {
+        err = "--resolved / --data-index / --task-id / --scenario 只与 --validate 或 --run 搭配";
         return false;
+    }
+    if (opt.mode != Mode::ScenarioTrack && track_rate_given) { err = "--track-rate 只与 --scenario-track 搭配"; return false; }
+    if (opt.mode == Mode::Catalog || opt.mode == Mode::Help) {
+        if (scene_root_given) { err = "--scene-root 只与 --validate / --run / --scenario-track 搭配"; return false; }
     }
     if (opt.diagram_path.empty() && (opt.mode == Mode::Run || opt.mode == Mode::Validate)) { err = "缺框图文件"; return false; }
     return true;
@@ -431,9 +612,7 @@ int run(const Options& opt, std::ostream& events, std::ostream& diag) {
         case Mode::Catalog: return do_catalog(events, diag);
         case Mode::Validate: return do_validate(opt, events, diag);
         case Mode::Run: return do_run(opt, events, diag);
-        case Mode::ScenarioTrack:
-            diag << "--scenario-track 在 G-2（场景运行时 ScenarioSource）落地后实现，当前版本不支持\n";
-            return ExitUsage;
+        case Mode::ScenarioTrack: return do_scenario_track(opt, events, diag);
         default: diag << usage(); return ExitUsage;
     }
 }

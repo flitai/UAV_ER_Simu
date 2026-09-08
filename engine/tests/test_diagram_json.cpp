@@ -563,6 +563,59 @@ TEST_CASE("装载器：顶层与 run 段的基本约束") {
     CHECK(d.trace["created_by"] == "tester");
 }
 
+TEST_CASE("装载器：template_ref 只校验取值不解释语义（D-051）") {
+    // 合法：原样带出，供服务端与前端还原典型链路视图
+    json j = slice1();
+    j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "synthetic"}, {"version", 1}};
+    LoadedDiagram d;
+    DiagramError e;
+    REQUIRE_MESSAGE(try_load(j, d, e), e.message);
+    CHECK(d.template_ref["template_id"] == "chain-v1");
+    CHECK(d.template_ref["mode"] == "synthetic");
+
+    // 不给也合法：自由画布存的框图没有这一段
+    j = slice1();
+    REQUIRE_MESSAGE(try_load(j, d, e), e.message);
+    CHECK(d.template_ref.is_null());
+
+    // 三个模式各自合法
+    for (const char* m : {"synthetic", "replay", "mixed"}) {
+        j = slice1();
+        j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", m}, {"version", 1}};
+        REQUIRE_MESSAGE(try_load(j, d, e), e.message);
+    }
+
+    // 取值错误一律报 template，不混进 schema
+    j = slice1();
+    j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "hybrid"}, {"version", 1}};
+    CHECK(contains(expect_fail(j, "template").message, "synthetic"));
+
+    j = slice1();
+    j["template_ref"] = {{"template_id", "Chain V1"}, {"mode", "synthetic"}, {"version", 1}};
+    expect_fail(j, "template");
+
+    j = slice1();
+    j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "synthetic"}, {"version", 0}};
+    expect_fail(j, "template");
+
+    j = slice1();
+    j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "synthetic"}, {"version", 1.5}};
+    expect_fail(j, "template");
+
+    // 结构错误仍归 schema：缺字段、未知键、不是对象
+    j = slice1();
+    j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "synthetic"}};
+    expect_fail(j, "schema");
+
+    j = slice1();
+    j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "synthetic"}, {"version", 1}, {"slots", 9}};
+    CHECK(contains(expect_fail(j, "schema").message, "slots"));
+
+    j = slice1();
+    j["template_ref"] = "chain-v1";
+    expect_fail(j, "schema");
+}
+
 TEST_CASE("装载器：scene_binding 只允许目录可绑定的组件，且须有 scenario_ref") {
     json j = slice1();
     j["nodes"][0]["scene_binding"] = {{"scenario_id", "demo"}, {"entity_id", "uav1"}};

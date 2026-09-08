@@ -26,7 +26,19 @@ pmtiles 4.4.1 -- BSD-3-Clause（据包内 package.json 的 license 字段；包�
 react 19.2.8、react-dom 19.2.8 -- MIT
   Copyright (c) Meta Platforms, Inc. and affiliates
   https://github.com/facebook/react
-后续随包件（React Flow 等）按 D-032 在此追加。
+@xyflow/react 12.11.6 -- MIT
+  Copyright (c) 2019-2024 webkid GmbH
+  https://github.com/xyflow/xyflow
+  用途：框图画布（U-2）。随其一并进包的传递依赖如下，均为 MIT / ISC / BSD-3-Clause：
+    @xyflow/system 0.0.82 -- MIT
+    zustand 4.5.7 -- MIT（React Flow 内部状态；本项目自身的状态管理仍是零依赖 useReducer，D-032）
+    classcat 5.0.5 -- MIT
+    use-sync-external-store 1.6.0 -- MIT
+    d3-zoom 3.0.0、d3-drag 3.0.0、d3-selection 3.0.0、d3-interpolate 3.0.1、
+    d3-transition 3.0.1、d3-color 3.1.0、d3-dispatch 3.0.1、d3-timer 3.0.1 -- ISC
+      Copyright (c) 2010-2023 Mike Bostock
+    d3-ease 3.0.1 -- BSD-3-Clause
+      Copyright 2001 Robert Penner，2010-2021 Mike Bostock
 
 引擎（engine/third_party/，构建期 vendored）
 --------------------------------------------

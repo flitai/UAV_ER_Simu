@@ -112,6 +112,7 @@ void ObservationTap::reset() {
     acc_.reset();
     seen_block_ = false;
     spec_rows_ = env_rows_ = 0;
+    clipped_samples_ = 0;
     spec_first_known_ = false;
     bucket_count_ = 0;
     bucket_min_ = 0.0; bucket_max_ = 0.0; bucket_sumsq_ = 0.0;
@@ -173,6 +174,9 @@ bool ObservationTap::write_index(const char* kind, std::string& err) {
     if (cal.calibrated) {
         j["calibration"] = {{"offset_dB", cal.offset_dB}, {"source", cal.source}, {"note", cal.note}};
     }
+    // 上游 ADC 的削顶累计（D-051）。恒写出，读端不必区分「没有 ADC」与「有 ADC 但没削顶」——
+    // 两种情形对界面是同一句话「削顶 0 样点」。
+    j["clipped_samples"] = clipped_samples_;
     State st = worst(last_meta_.state, status_.state);
     j["state"] = to_string(st);
     nlohmann::json reasons = nlohmann::json::array();
@@ -270,6 +274,7 @@ Step ObservationTap::process(PortMap& in, PortMap&, std::string& err) {
         return Step::Error;
     }
     last_meta_ = blk.meta;
+    clipped_samples_ += blk.meta.clip_count;
     status_.blocks_in++;
     status_.samples_in += blk.size();
     status_.state = worst(status_.state, blk.meta.state);

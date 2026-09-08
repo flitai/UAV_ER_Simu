@@ -27,15 +27,30 @@ using Txt = std::map<std::string, std::string>;
 Num required_sample(const std::string& type) {
     if (type == "ToneSource" || type == "NoiseSource") return {{"sample_rate_Hz", 1e6}, {"total_samples", 4096}};
     if (type == "EnergyDetector") return {{"band_lo_Hz", -1e5}, {"band_hi_Hz", 1e5}};
+    if (type == "FreeSpaceChannel") return {{"distance_m", 1000.0}, {"frequency_Hz", 2.4e9}};
+    if (type == "AntennaGain") return {{"gain_dBi", 3.0}};
+    if (type == "AdcQuantizer") return {{"full_scale_dBm", -20.0}};
+    if (type == "ReceiverFrontEnd") return {{"nf_dB", 6.0}};
+    return {};
+}
+
+// 必填的字符串与枚举参数走 text_params 那一路（C-2 的 AntennaGain.role 是第一个）。
+Txt required_text_sample(const std::string& type) {
+    if (type == "AntennaGain") return {{"role", "rx"}};
     return {};
 }
 
 }  // namespace
 
-TEST_CASE("内置注册表列出八个组件，按名排序") {
+TEST_CASE("内置注册表列出十五个组件，按名排序") {
     Registry r = builtin_registry();
-    const std::vector<std::string> want = {"AddMixer", "DetectionSink", "EnergyDetector",
-                                           "FileReplaySource", "NoiseSource", "ObservationTap", "SpectrumAnalyzer", "ToneSource"};
+    // 切片 ② 新增四个场景运行时组件（G-2、G-3）、切片 ④a 新增三个天线与接收机组件（C-2）：
+    // 目录黄金基准的规则是「已有条目不变，新增允许」。
+    const std::vector<std::string> want = {"AdcQuantizer", "AddMixer", "AntennaGain", "DetectionSink",
+                                           "EnergyDetector", "FileReplaySource", "FreeSpaceChannel",
+                                           "NoiseSource", "ObservationTap", "ReceiverFrontEnd",
+                                           "ScenarioSource", "SceneBoundChannel",
+                                           "SceneEmitterSource", "SpectrumAnalyzer", "ToneSource"};
     CHECK(r.types() == want);
     for (const auto& t : want) CHECK(r.has(t));
 }
@@ -106,26 +121,34 @@ TEST_CASE("参数校验：未知参数、越界、缺必填、类型错位都被
 TEST_CASE("describe() 与 configure() 一致：只给必填项即可构造，必填项与 configure 的要求相同") {
     Registry r = builtin_registry();
     for (const std::string& type : r.types()) {
-        if (type == "FileReplaySource" || type == "ObservationTap") continue;   // 必填含文件路径或产品目录，另有夹具测试
+        // 必填里含文件路径、产品目录或场景绑定的，另有夹具测试（test_scenario.cpp / test_channel.cpp）
+        if (type == "FileReplaySource" || type == "ObservationTap" || type == "ScenarioSource" ||
+            type == "SceneEmitterSource" || type == "SceneBoundChannel")
+            continue;
         std::string err;
         ComponentInfo info;
         REQUIRE(r.describe(type, info, err));
         const Num sample = required_sample(type);
+        const Txt tsample = required_text_sample(type);
 
         // 只给必填：能过
-        auto c = r.create_configured(type, sample, {}, err);
+        auto c = r.create_configured(type, sample, tsample, err);
         CHECK_MESSAGE(c, type << ": " << err);
 
-        // 去掉任一必填：描述说必填，configure 也必须拒绝（两道闸一致）
+        // 去掉任一必填：描述说必填，configure 也必须拒绝（两道闸一致）。
+        // 必填项可能是数值也可能是字符串 / 枚举，两张表都要试。
         for (const auto& p : info.params) {
             if (!p.required) continue;
             Num less = sample;
+            Txt tless = tsample;
             less.erase(p.name);
+            tless.erase(p.name);
             auto d = r.create(type, err);
             REQUIRE(d);
             std::string e2;
-            CHECK_MESSAGE(!d->configure(less, {}, e2), type << " 缺 " << p.name << " 却通过了 configure");
-            CHECK(e2.find(p.name) != std::string::npos);
+            CHECK_MESSAGE(!d->configure(less, tless, e2), type << " 缺 " << p.name << " 却通过了 configure");
+            CHECK_MESSAGE(e2.find(p.name) != std::string::npos,
+                          type << " 缺 " << p.name << " 的报文里没点名该参数：" << e2);
         }
 
         // 描述里的默认值必须在自己的范围内
@@ -133,7 +156,7 @@ TEST_CASE("describe() 与 configure() 一致：只给必填项即可构造，必
             if (!p.has_default || p.type != ParamType::Number) continue;
             Num one = sample;
             one[p.name] = p.default_number;
-            CHECK_MESSAGE(validate_params(info, one, {}, err), type << "." << p.name << " 默认值越界：" << err);
+            CHECK_MESSAGE(validate_params(info, one, tsample, err), type << "." << p.name << " 默认值越界：" << err);
         }
     }
 }
@@ -143,8 +166,9 @@ TEST_CASE("目录导出：六类、端口兼容矩阵全枚举、D-013 规则、
     nlohmann::json j = catalog_json(r);
     CHECK(j["schema_version"] == "cuav-catalog/1");
     CHECK(j["engine_version"] == std::string(engine_version()));
-    CHECK(j["port_types"].size() == 6);
-    CHECK(j["port_compat"].size() == 36);
+    // 七个端口类型（D-051 加 RecognitionList），全枚举 7×7
+    CHECK(j["port_types"].size() == 7);
+    CHECK(j["port_compat"].size() == 49);
 
     int ok_count = 0;
     for (const auto& row : j["port_compat"]) {
@@ -155,9 +179,9 @@ TEST_CASE("目录导出：六类、端口兼容矩阵全枚举、D-013 规则、
         if (row[0] == row[1]) CHECK(ok);
         if (!ok) CHECK(row.size() == 4);   // 拒绝理由随行
     }
-    CHECK(ok_count == 6);
+    CHECK(ok_count == 7);
 
-    CHECK(j["components"].size() == 8);
+    CHECK(j["components"].size() == 15);
     const std::set<std::string> types = {"number", "string", "enum", "bool"};
     const std::set<std::string> cats = {"source", "channel", "antenna", "receiver", "data", "algorithm"};
     std::string prev;

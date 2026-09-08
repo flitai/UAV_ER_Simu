@@ -2,7 +2,7 @@
 
 **状态**：字段已冻结（2026-09-04，决策 D-030、D-031）。观测点组件与产品写盘已实现（B-3，2026-09-05）；
 抽取端点已实现（B-7，2026-09-06，决策 D-046，`server/src/products/`），归约的确切定义见 §3.1。
-`scatter` 与三个 JSONL 产品的**生产者**尚未实现（分别等 `iq` 产品与 G 线）。
+`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘），`detections.jsonl` 仍待 P1-4d。
 
 **依据**：铁律 7（原始 IQ 不进浏览器；展示数据按时间窗、频段、像素宽、统计量抽取；禁止
 JSON / Base64 封装二进制）；04 §6.4（展示数据五类）、§8.3（引擎向应用服务发布降采样显示
@@ -76,6 +76,7 @@ data/runs/<task_id>/
 | `nfft`、`segments_per_frame`、`window` | 谱参数；`frame_hop_samples = hop × segments_per_frame` |
 | `scale` | `dBm` 或 `dBFS`。有 `calibration` 即为 `dBm`：引擎内部功率单位是 mW（`|x|² = 功率 / mW`，D-047），样点在**源端**已换算，观测点不再加偏移，行值直接是 dBm；没有任何标定常数才写 `dBFS`。界面对用户只标 `dBm`，来源徽标、常数与出处只在开发者模式 `?dev=1` 显示（D-047 ④，修正 D-038 的显示层） |
 | `calibration` | `{offset_dB, source ∈ {measured, paper, assumed, model}, note}`：`offset_dB` 是源端用过的常数——回放源为清单 `power.calibration.full_scale_dBm`（满量程对应的 dBm，2026-09-06 估算：DroneRFb-DIR −1.6 `model`、DroneRFa −50.0 `paper`，原型阶段验证值），合成源为 0（`model`）；`AddMixer` 两路都标定才标定、来源取较弱者（`measured > paper > model > assumed`）；缺失即无此字段 |
+| `clipped_samples` | 上游 ADC 削顶样点的累计（2026-09-07，D-051）。**恒写出**：没有 ADC 时为 0，读端不必区分「没有 ADC」与「有 ADC 但没削顶」，对界面是同一句话。削顶是数据标记不是降级，因此它不参与 `state` 的判定；界面在页头写「削顶 n 样点」，不解释来源 |
 | `floor_dB` | 零功率频点的下限（−300 dB），读端据此识别精确零 |
 | `state`、`state_reasons` | 四态与原因，取自被观测信号的块元数据；**末行段数不足、末桶样点不足、丢弃尾样点是流结束的自然结果，不降级** |
 | `notes` | 说明性备注：`末行只有 m/K 段`、`末桶只有 n/N 个样点`、`收尾丢弃不满一段的 k 个样点` |
@@ -193,6 +194,11 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 
 三者共用一个时间窗读取器：闭区间 `t0 ≤ t_s ≤ t1`；`stride` 按键抽稀（`track` 按 `id`、`links` 按
 `link_id`、`detections` 全局），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤。
+
+写盘的两条硬契约（2026-09-06，生产者上线）：**每行必须自带 `t_s`、必须以换行结尾**——
+读取器把没有换行的末行当作正在写入的残片丢弃。文件惰性创建：没有场景绑定的任务不产生空文件，
+那三个端点在终态任务上仍是 404。上报率由 `ScenarioSource` 的 `report_rate_Hz` 定（缺省 10 Hz，
+不大于参数帧的 `update_rate_Hz`），每个帧序号只报一次——帧会跨轮重发，但不会重复上报。
 末尾没有换行的残片一律丢弃（生产者可能正在写），不可解析或缺 `t_s` 的行跳过并在 `X-CUAV-Skipped`
 里计数。响应是裸 JSON 数组，头带 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`；
 超上限 413 并建议更大的 `stride`。**这三个文件首期还没有生产者**（G-2 的 `ScenarioSource` 与 G-5 才写），

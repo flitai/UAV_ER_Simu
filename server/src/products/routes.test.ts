@@ -246,7 +246,7 @@ test('索引端点：索引原文加 rows_available、index_final、run_state', 
 })
 
 test('JSONL 端点：文件不存在按运行态 404；有文件时时间窗与按键抽稀生效', async () => {
-  for (const k of ['track', 'links', 'detections']) {
+  for (const k of ['track', 'links', 'detections', 'features', 'recognitions', 'truth']) {
     const r = await fetch(url(`${taskId}/${k}`))
     assert.equal(r.status, 404, k)
     assert.equal(((await r.json()) as Record<string, unknown>).kind, k)
@@ -335,4 +335,44 @@ test('参数校验先于服务端状态：产品未就绪时坏参数仍回 400�
   } finally {
     rec.run_state = saved
   }
+})
+
+test('评价指标端点：没文件按运行态 404；有文件时整份回，不按视窗抽（C-6，D-051）', async () => {
+  const r0 = await fetch(url(`${taskId}/metrics`))
+  assert.equal(r0.status, 404)
+  assert.equal(((await r0.json()) as Record<string, unknown>).kind, 'metrics')
+
+  const metrics = {
+    schema_version: 'cuav-metrics/1',
+    task_id: taskId,
+    truth_source: 'scenario',
+    frames: { total: 100, tp: 40, fp: 1, fn: 2, tn: 57, pd: 0.9524, pfa: 0.0172, f1: 0.9639 },
+    state: 'valid',
+    reasons: [],
+  }
+  await fsp.writeFile(join(dir, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n')
+
+  const r = await fetch(url(`${taskId}/metrics`))
+  assert.equal(r.status, 200)
+  assert.equal(r.headers.get('content-type'), 'application/json; charset=utf-8')
+  const back = (await r.json()) as typeof metrics
+  assert.equal(back.schema_version, 'cuav-metrics/1')
+  assert.equal(back.frames.pd, 0.9524)
+
+  const head = await fetch(url(`${taskId}/metrics`), { method: 'HEAD' })
+  assert.equal(head.status, 200)
+  assert.equal(head.headers.get('content-length'), String(Buffer.byteLength(JSON.stringify(metrics, null, 2) + '\n')))
+})
+
+test('新增三个 JSONL 端点按 segment_id 抽稀（features / recognitions / truth，C-6）', async () => {
+  const rows: string[] = []
+  for (let i = 0; i < 4; i++) {
+    rows.push(JSON.stringify({ t_s: i * 0.1, segment_id: i % 2, center_Hz: 2.44e9 }))
+  }
+  await fsp.writeFile(join(dir, 'features.jsonl'), rows.join('\n') + '\n')
+  const all = await fetch(url(`${taskId}/features`))
+  assert.equal(all.status, 200)
+  assert.equal(all.headers.get('x-cuav-rows'), '4')
+  const thin = (await (await fetch(url(`${taskId}/features?stride=2`))).json()) as Array<{ segment_id: number }>
+  assert.equal(thin.length, 2, '两个 segment_id 各留第 0 条')
 })

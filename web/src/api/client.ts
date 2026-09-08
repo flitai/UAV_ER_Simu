@@ -118,3 +118,157 @@ export function getSpectrumWindow(task: string, op: string, q: SpectrumRequest, 
 export function getEnvelopeWindow(task: string, op: string, q: { t0: number; t1: number; px: number }, signal?: AbortSignal, base = ''): Promise<WindowResult> {
   return fetchWindow(`${base}/api/v1/results/${encodeURIComponent(task)}/${encodeURIComponent(op)}/envelope?${envelopeQueryString(q)}`, signal)
 }
+
+// ---------------------------------------------------------------------------
+// 场景与航迹（G-4 / G-5）
+// ---------------------------------------------------------------------------
+
+export interface ScenarioSummary {
+  scenario_id: string
+  aoi: string
+  name: string
+  duration_s: number | null
+  sites: number
+  emitters: number
+}
+
+export async function listScenarios(base = ''): Promise<ScenarioSummary[]> {
+  const r = await fetch(`${base}/api/v1/scenarios`)
+  if (!r.ok) throw new Error(`scenarios HTTP ${r.status}`)
+  return (await json<{ scenarios: ScenarioSummary[] }>(r)).scenarios
+}
+
+/** 读场景全文。sha256 是**落盘字节**的哈希，写进框图的 scenario_ref 就用它。 */
+export async function getScenario(
+  id: string,
+  base = '',
+): Promise<{ doc: Record<string, unknown>; sha256: string; aoi: string } | null> {
+  const r = await fetch(`${base}/api/v1/scenarios/${encodeURIComponent(id)}`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`scenario HTTP ${r.status}`)
+  const text = await r.text()
+  return {
+    doc: JSON.parse(text) as Record<string, unknown>,
+    sha256: r.headers.get('x-cuav-sha256') ?? '',
+    aoi: r.headers.get('x-cuav-aoi') ?? '',
+  }
+}
+
+export type PutScenarioResult =
+  | { ok: true; sha256: string; bytes: number }
+  | { ok: false; code: string; message: string }
+
+/**
+ * 写场景。服务端只做最小结构检查，语义交引擎（D-042）；返回的 sha256 是落盘字节的哈希，
+ * 前端据此更新框图 scenario_ref——两端各自序列化再算哈希必然对不上。
+ */
+export async function putScenario(id: string, doc: unknown, base = ''): Promise<PutScenarioResult> {
+  const r = await fetch(`${base}/api/v1/scenarios/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(doc, null, 2),
+  })
+  const text = await r.text()
+  let body: Record<string, unknown> = {}
+  try { body = JSON.parse(text) as Record<string, unknown> } catch { /* 非 JSON 响应 */ }
+  if (r.ok) return { ok: true, sha256: String(body['sha256'] ?? ''), bytes: Number(body['bytes'] ?? 0) }
+  const detail = body['detail'] as Record<string, unknown> | undefined
+  return {
+    ok: false,
+    code: String(detail?.['code'] ?? body['error'] ?? `HTTP ${r.status}`),
+    message: String(detail?.['message'] ?? body['message'] ?? text.slice(0, 200)),
+  }
+}
+
+// ------------------------------------------------------- 框图读写（C-6，D-051）
+
+export interface DiagramSummary {
+  diagram_id: string
+  name: string
+  template_id: string | null
+  mode: string | null
+  scenario_id: string | null
+  nodes: number
+  observation_points: number
+  bytes: number
+  modified_utc: string
+}
+
+export async function listDiagrams(base = ''): Promise<DiagramSummary[]> {
+  const r = await fetch(`${base}/api/v1/diagrams`)
+  if (!r.ok) throw new Error(`diagrams HTTP ${r.status}`)
+  return (await json<{ diagrams: DiagramSummary[] }>(r)).diagrams
+}
+
+/** 读框图全文。返回的是**盘上原文**，不是重新序列化的结果。 */
+export async function getDiagram(id: string, base = ''): Promise<{ text: string; sha256: string } | null> {
+  const r = await fetch(`${base}/api/v1/diagrams/${encodeURIComponent(id)}`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`diagram HTTP ${r.status}`)
+  return { text: await r.text(), sha256: r.headers.get('x-cuav-sha256') ?? '' }
+}
+
+export type PutDiagramResult =
+  | { ok: true; sha256: string; bytes: number; warnings: string[] }
+  | { ok: false; code: string; message: string; node_id: string }
+
+/** 写框图。与场景同法：服务端最小检查，语义交引擎 `--validate`（D-042）。 */
+export async function putDiagram(id: string, text: string, base = ''): Promise<PutDiagramResult> {
+  const r = await fetch(`${base}/api/v1/diagrams/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: text,
+  })
+  const body = await r.text()
+  let j: Record<string, unknown> = {}
+  try { j = JSON.parse(body) as Record<string, unknown> } catch { /* 非 JSON 响应 */ }
+  if (r.ok) {
+    return {
+      ok: true,
+      sha256: String(j['sha256'] ?? ''),
+      bytes: Number(j['bytes'] ?? 0),
+      warnings: Array.isArray(j['warnings']) ? (j['warnings'] as string[]) : [],
+    }
+  }
+  const detail = j['detail'] as Record<string, unknown> | undefined
+  return {
+    ok: false,
+    code: String(detail?.['code'] ?? j['error'] ?? `HTTP ${r.status}`),
+    message: String(detail?.['message'] ?? j['message'] ?? body.slice(0, 200)),
+    node_id: String(detail?.['node_id'] ?? ''),
+  }
+}
+
+export async function deleteDiagram(id: string, base = ''): Promise<boolean> {
+  const r = await fetch(`${base}/api/v1/diagrams/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return r.ok
+}
+
+/** 评价指标（C-5 的产物，C-6 的端点）。未就绪或没有即 null。 */
+export async function getMetrics(task: string, base = ''): Promise<Record<string, unknown> | null> {
+  const r = await fetch(`${base}/api/v1/results/${encodeURIComponent(task)}/metrics`)
+  if (!r.ok) return null
+  return (await r.json()) as Record<string, unknown>
+}
+
+/** 航迹与链路读数（B-7 的 JSONL 端点，生产者是 G-2）。终态任务没有这类记录时返回空数组。 */
+async function getJsonlWindow<T>(
+  task: string, kind: 'track' | 'links', q: string, base: string,
+): Promise<T[]> {
+  const r = await fetch(`${base}/api/v1/results/${encodeURIComponent(task)}/${kind}${q}`)
+  if (r.status === 404) return []
+  if (!r.ok) throw new Error(`${kind} HTTP ${r.status}`)
+  return json<T[]>(r)
+}
+
+export function getTrack(
+  task: string, t0: number, t1: number, stride = 1, base = '',
+): Promise<Array<Record<string, unknown>>> {
+  return getJsonlWindow(task, 'track', `?t0=${t0}&t1=${t1}&stride=${stride}`, base)
+}
+
+export function getLinks(
+  task: string, t0: number, t1: number, stride = 1, base = '',
+): Promise<Array<Record<string, unknown>>> {
+  return getJsonlWindow(task, 'links', `?t0=${t0}&t1=${t1}&stride=${stride}`, base)
+}

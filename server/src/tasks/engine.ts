@@ -11,7 +11,7 @@
 // 事件信封与 docs/api-versions.md §4.1 一致：{seq, task_id, type, t_s, payload}。诊断文字在 stderr，只留尾部。
 
 import { spawn, type ChildProcess } from 'node:child_process'
-import { constants as fsConstants, promises as fsp } from 'node:fs'
+import { constants as fsConstants, promises as fsp, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 export interface EngineConfig {
@@ -179,6 +179,8 @@ export type ValidateResult =
 /** 引擎客户端：目录缓存、只校验、拉起运行。运行进程的生命周期由任务管理器掌管。 */
 export class Engine {
   private catalogCache: Promise<CatalogInfo> | null = null
+  /** 缓存时引擎二进制的指纹（大小 + 修改时间）。二进制换了就重取目录，见 catalog() 的说明。 */
+  private catalogStamp = ''
 
   constructor(readonly cfg: EngineConfig) {}
 
@@ -191,15 +193,36 @@ export class Engine {
     }
   }
 
-  /** 组件目录，进程内只取一次；失败不缓存，下次再试。 */
+  /**
+   * 组件目录。进程内缓存，但**引擎二进制变了就重取**——开发时重建引擎而服务还开着，
+   * 缓存的旧目录会让画布查不到新组件、于是静默丢掉连到它们的每一条边（实测踩到过一次：
+   * 九环节链只画出一条连线）。用二进制的大小与修改时间做指纹，取不到指纹就沿用缓存。
+   * 失败不缓存，下次再试。
+   */
   catalog(): Promise<CatalogInfo> {
+    const stamp = this.binStampSync()
+    if (this.catalogCache && stamp && this.catalogStamp && stamp !== this.catalogStamp) {
+      this.catalogCache = null
+    }
     if (!this.catalogCache) {
+      this.catalogStamp = stamp
       this.catalogCache = this.loadCatalog().catch((e) => {
         this.catalogCache = null
+        this.catalogStamp = ''
         throw e
       })
     }
     return this.catalogCache
+  }
+
+  /** 引擎二进制的指纹。取不到（文件不在、权限不够）返回空串，此时不触发重取。 */
+  private binStampSync(): string {
+    try {
+      const st = statSync(this.cfg.bin)
+      return `${st.size}:${st.mtimeMs}`
+    } catch {
+      return ''
+    }
   }
 
   /** 已缓存的目录（不触发加载），健康检查用。 */
@@ -270,6 +293,39 @@ export class Engine {
         node_id: '',
         port: '',
         message: `cuav_run --validate 退出码 ${exit.code ?? exit.signal}，无错误事件：${exit.stderrTail.trim()}`,
+      },
+    }
+  }
+
+  /**
+   * 场景的语义校验（G-4）：跑 `--scenario-track` 只看退出码。
+   * 服务端不复刻场景 schema——语义只在引擎一处解释，与 B-5 的框图路数一致（D-042）。
+   * `--track-rate 1` 是为了省时间：校验只关心装载与跨引用，不关心航迹密度。
+   */
+  async validateScenario(scenarioRel: string): Promise<ValidateResult> {
+    const args = ['--scenario-track', scenarioRel, '--track-rate', '1', '--scene-root', 'data/scene']
+    const events: EngineEvent[] = []
+    const ep = spawnEngine(this.cfg, args, {
+      onLine: (l) => {
+        const e = parseEvent(l)
+        if (e && e.type !== 'entity') events.push(e)
+      },
+    })
+    const exit = await ep.done
+    if (exit.error) throw new EngineUnavailableError(`引擎起不来：${exit.error}`)
+    if (exit.code === 0) {
+      const ok = events.find((e) => e.type === 'task.state')
+      if (ok) return { ok: true, event: ok }
+    }
+    const err = events.find((e) => e.type === 'error')
+    if (err) return { ok: false, error: asDiagramError(err.payload) }
+    return {
+      ok: false,
+      error: {
+        code: 'scenario',
+        node_id: '',
+        port: '',
+        message: `cuav_run --scenario-track 退出码 ${exit.code ?? exit.signal}：${exit.stderrTail.trim()}`,
       },
     }
   }

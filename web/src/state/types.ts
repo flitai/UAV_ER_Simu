@@ -104,6 +104,8 @@ export interface AppState {
   ui: {
     view: View
     resultsTab: ResultsTab
+    /** 框图页的子形态：false = 典型链路视图（缺省），true = 自由画布（高级模式，D-051） */
+    diagramCanvas: boolean
     devMode: boolean
     drawer: { open: boolean; tab: DrawerTab }
     leftCollapsed: boolean
@@ -130,8 +132,17 @@ export interface AppState {
     summary: SceneSummaryLite | null
     error: string | null
     dirty: boolean
-    editor: { tool: 'select'; selection: null }
-    undo: UndoStack<never>
+    /** 当前载入的场景（G-4）。doc 是场景文件原文；sha256 是**落盘字节**的哈希，写框图用它 */
+    scenario: {
+      list: ScenarioSummary[]
+      id: string | null
+      doc: ScenarioDoc | null
+      sha256: string
+      status: 'idle' | 'loading' | 'ok' | 'error'
+      error: string | null
+    }
+    editor: { tool: SceneTool; selection: SceneSelection | null; measure: MeasurePoint[] }
+    undo: UndoStack<ScenarioDoc>
   }
   diagram: {
     text: string
@@ -140,7 +151,7 @@ export interface AppState {
     savedText: string
     dirty: boolean
     validation: { ok: boolean; errors: DiagramError[] } | null
-    undo: UndoStack<never>
+    undo: UndoStack<string>
   }
   task: {
     id: string | null
@@ -189,6 +200,31 @@ export interface AppState {
   ws: WsState
 }
 
+/** 场景编辑器的工具（09 §5.2）。 */
+export type SceneTool = 'select' | 'site' | 'waypoint' | 'measure'
+
+/** 选中的场景对象。链路是派生对象，不入场景文件（09 §5.1）。 */
+export type SceneSelection =
+  | { kind: 'site'; id: string }
+  | { kind: 'emitter'; id: string }
+  | { kind: 'waypoint'; id: string; index: number }
+  | { kind: 'activity'; index: number }
+  | { kind: 'link'; id: string }
+
+export interface MeasurePoint { lon: number; lat: number }
+
+/** 场景文件原文。字段规范在 docs/scenario-format.md，前端不复刻类型，按需读写。 */
+export type ScenarioDoc = Record<string, unknown>
+
+export interface ScenarioSummary {
+  scenario_id: string
+  aoi: string
+  name: string
+  duration_s: number | null
+  sites: number
+  emitters: number
+}
+
 /** 场景数据包摘要在 store 里的形状（与 scene/scenePackage.ts 的 SceneSummary 同构，避免循环依赖只重复类型） */
 export interface SceneSummaryLite {
   id: string
@@ -205,7 +241,8 @@ export interface SceneSummaryLite {
 }
 
 export type Action =
-  | { type: 'ui/navigate'; view: View; resultsTab?: ResultsTab }
+  | { type: 'ui/navigate'; view: View; resultsTab?: ResultsTab; canvas?: boolean }
+  | { type: 'ui/diagramCanvas'; on: boolean }
   | { type: 'ui/resultsTab'; tab: ResultsTab }
   | { type: 'ui/drawer'; open?: boolean; tab?: DrawerTab }
   | { type: 'ui/collapse'; side: 'left' | 'right'; collapsed: boolean }
@@ -218,7 +255,22 @@ export type Action =
   | { type: 'components/unavailable' }
   | { type: 'scene/loaded'; summary: SceneSummaryLite }
   | { type: 'scene/error'; message: string }
+  | { type: 'scene/scenarioList'; list: ScenarioSummary[] }
+  | { type: 'scene/scenarioLoading'; id: string }
+  | { type: 'scene/scenarioLoaded'; id: string; doc: ScenarioDoc; sha256: string }
+  | { type: 'scene/scenarioError'; message: string }
+  /** 一次编辑：整份文档替换并入撤销栈。场景文件是小对象，整份存栈比记 diff 简单可靠 */
+  | { type: 'scene/edit'; doc: ScenarioDoc }
+  | { type: 'scene/saved'; sha256: string }
+  | { type: 'scene/tool'; tool: SceneTool }
+  | { type: 'scene/select'; selection: SceneSelection | null }
+  | { type: 'scene/measure'; points: MeasurePoint[] }
+  | { type: 'scene/undo' }
+  | { type: 'scene/redo' }
   | { type: 'diagram/setText'; text: string }
+  | { type: 'diagram/setDoc'; text: string; label: string }
+  | { type: 'diagram/undo' }
+  | { type: 'diagram/redo' }
   | { type: 'diagram/loadExample'; text: string }
   | { type: 'diagram/markSaved' }
   | { type: 'diagram/validation'; ok: boolean; errors: DiagramError[] }
