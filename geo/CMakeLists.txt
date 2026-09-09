@@ -23,6 +23,10 @@ add_library(cuav_geo STATIC
   src/kinematics.cpp
   src/link_budget.cpp
   src/scenario.cpp
+  src/df_error.cpp
+  src/fix_geometry.cpp
+  src/locate_aoa.cpp
+  src/locate_tdoa.cpp
 )
 target_include_directories(cuav_geo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

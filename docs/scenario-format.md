@@ -45,7 +45,7 @@
 | `coordinate` | object | 是 | `{crs: "EPSG:4326", alt_ref: "AGL" \| "MSL", terrainHeight_m, coord_version}`。首期 `alt_ref` 固定 `AGL`（离地高），`terrainHeight_m` 是显式平地假设常数（铁律 2） |
 | `time` | object | 是 | `{basis: "LogicalSim", duration_s}`。首期只允许 `LogicalSim`（铁律 3） |
 | `seed` | integer | 是 | 场景内随机量（若有）的种子；与框图 `run.seed` 独立，两者都进溯源 |
-| `sites` | array | 是 | 站点，至少 1 个。首期单站，多站只作结构预留 |
+| `sites` | array | 是 | 站点，至少 1 个。**多站自 D-053（2026-09-09）起启用**（纯软件多站，05 §3.2）：一条任务可以同时跑 K 个站的接收链。约束是同一框图里参与的各站 `receiver.fs_Hz` 与 `center_Hz` 必须一致（与装载器的跨节点同采样率约束同口径，`engine/src/diagram_json.cpp`）。阵列与多通道仍不做 |
 | `emitters` | array | 是 | 辐射源（无人机），至少 1 个 |
 | `routes` | array | 是 | 航线；每个辐射源至多一条，没有航线的辐射源静止在 `emitters[].position` |
 | `activities` | array | 否 | 业务活动时间线；缺省为空，表示辐射源自 t = 0 起持续发射 |
@@ -59,9 +59,11 @@
 |---|---|---|---|
 | `id` | string | 是 | `[a-z0-9_-]{1,64}` |
 | `name` | string | 是 | |
+| `equipment_model` | string | 否 | 设备型号，1–64 字符（2026-09-09，D-054）。**只作参数分组与显示，不进物理**：框图页按它把同型号的站归成一组共用一套接收链参数，用户仍可为单个站单独设置。缺席即「未标型号」，与其它未标型号的站同组。引擎收下并原样保存，不解释 |
 | `position` | object | 是 | `{lon, lat, alt_m}`，`alt_m` 按 `coordinate.alt_ref` 解释 |
 | `antenna` | object | 是 | `{gain_dBi, pattern: "omni"}`；首期只有全向。`pattern` 自 2026-09-07（D-051）起真正入库，供装载器注入天线组件的缺省方向图，此前解析后即丢弃 |
 | `receiver` | object | 是 | `{fs_Hz, center_Hz, bw_Hz, nf_dB}`；对应场景绑定接收机节点的默认参数 |
+| `clock` | object | 否 | 站钟与时统（D-053）：`{sync_sigma_ns（必填，≥ 0）, bias_ns, rx_delay_ns, rx_delay_sigma_ns, sync_state ∈ locked \| holdover \| unsynced}`。**在 `time.basis = "LogicalSim"` 下这些是「建模的」同步误差，不是任何真实设备的时统指标**；真实站钟与卫星驯服属 05 P2 的 `DeviceStatus`。`ToaReport` 每一行的 `sync_state` 与 `time_quality` 是它的体现，把 05 §6.2.2「失锁、补零、重对齐不得当作连续数据」落到行级。缺省即缺席：时差定位相关组件遇到没有 `clock` 的站必须报错，**不得默认一个完美时钟**（铁律 15）|
 
 ## 4. 辐射源 `emitters[]`
 
@@ -70,6 +72,7 @@
 | `id` | string | 是 | |
 | `name` | string | 是 | |
 | `platform_type` | enum | 是 | `multirotor` / `fixed_wing` / `racing` / `medium`（沿用 em-demo 分类）；只作显示与默认参数，不进物理 |
+| `equipment_model` | string | 否 | 设备型号，1–64 字符（2026-09-09，D-054）。与站点同义；**缺席时框图页回退用 `platform_type` 作分组键**，所以既有场景文件不写它也能按机型分组 |
 | `position` | object | 是 | 初始位置 `{lon, lat, alt_m}`；有航线时以航线第一个航点为准 |
 | `emission` | object | 是 | `{center_Hz, bw_Hz, tx_power_dBm, antenna_gain_dBi, polarization?, waveform}` |
 | `emission.polarization` | enum | 否 | `vertical`（缺省）/ `horizontal` / `slant45` / `rhcp` / `lhcp`（2026-09-07，D-051）。极化失配损耗只在接收端算一次：由接收天线组件按自身 `polarization` 与这里注入的发射极化查五档表（10 报告 §3.2）。既有场景文件不写它仍然合法 |

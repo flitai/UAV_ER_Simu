@@ -37,6 +37,22 @@ const setInput = (sel, value) => `(() => {
   el.dispatchEvent(new Event('focusout', { bubbles: true }));
   return true })()`
 
+/**
+ * 轮询 DOM 直到表达式取到期望值。
+ * `page.waitFor` 轮询的是 store 探针，它先于 React 重绘——先等探针再立刻读 DOM 会偶发读到上一帧
+ * （2026-09-08 见过两次单项偶发失败）。凡是「状态变了，看界面是否跟着变」的断言都走这个。
+ */
+const waitDom = async (page, expr, want, ms = 4000) => {
+  const t0 = Date.now()
+  let got
+  do {
+    got = await page.evaluate(expr)
+    if (got === want) return got
+    await sleep(100)
+  } while (Date.now() - t0 < ms)
+  return got
+}
+
 /** dB 域比较：|a − b| ≤ tol */
 const near = (a, b, tol) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tol
 
@@ -61,17 +77,82 @@ try {
     `${st.app.chain.mode} / ${st.app.chain.scenarioId} / ${st.app.chain.siteId} / ${st.app.chain.emitterId}`)
 
   const cards = await evalJson(page, "Array.from(document.querySelectorAll('[data-slot]')).map(e => e.dataset.slot)")
-  check('九个环节都画出来（04 §5.1 的端到端对象）',
-    JSON.stringify(cards) === JSON.stringify(['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'ddc', 'chan', 'det']),
+  // 04 §5.1 的九个环节，加 D-053 在尾部补的测向与多站定位共十一个
+  check('十一个环节都画出来（04 §5.1 九环节 + D-053 的测向与多站定位）',
+    JSON.stringify(cards) === JSON.stringify(['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'ddc', 'chan', 'det', 'df', 'loc']),
     cards.join(' → '))
 
   const states = await evalJson(page, "Object.fromEntries(Array.from(document.querySelectorAll('[data-slot]')).map(e => [e.dataset.slot, e.dataset.slotState]))")
   check('DDC 与信道化标未实现而不是隐藏（M-2 / M-3 未到）',
     states.ddc === 'unavailable' && states.chan === 'unavailable', JSON.stringify(states))
+  // 两个新槽位都缺省旁路：测向在单站演示里没有增量，多站定位至少要两个站（D-053 §2.4）
+  check('测向与多站定位缺省都旁路，单站的缺省链因此逐字节不变（D-053）',
+    states.df === 'bypass' && states.loc === 'bypass', `df ${states.df} / loc ${states.loc}`)
   check('其余七个环节是启用态', ['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det'].every((k) => states[k] === 'active'),
     JSON.stringify(states))
   const note = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-note]')?.textContent ?? ''")
   check('未实现的环节给出理由，不是空着', /M-2/.test(note), note.slice(0, 40))
+
+  // 观测点一行写全名，不是只写 S0…S5 让人去悬停（2026-09-08 用户反馈）
+  const tapLabels = await evalJson(page, "Array.from(document.querySelectorAll('.tap-row [data-tap]')).map((e) => e.textContent.trim())")
+  check('观测点写全名而不只写编号',
+    JSON.stringify(tapLabels) === JSON.stringify(['S0 辐射源输出', 'S1 接收天线端', 'S2 前端输出', 'S3 量化后', 'S4 主产品', 'S5 子信道']),
+    tapLabels.join(' | '))
+  const tapLines = await evalJson(page, `(() => { const es = Array.from(document.querySelectorAll('.tap-row [data-tap]'));
+    return [...new Set(es.map((e) => Math.round(e.getBoundingClientRect().y)))].length })()`)
+  check('六个全名在 2K 基线下仍是一行', tapLines === 1, `${tapLines} 行`)
+
+  // 链条块占满工具条以下的高度并纵向居中，不把一行卡片吊在顶上留一大片空白
+  const fill = await evalJson(page, `(() => { const b = document.querySelector('.chain-body').getBoundingClientRect();
+    const m = document.querySelector('.chain-main').getBoundingClientRect();
+    const s = document.querySelector('.chain-strip').getBoundingClientRect();
+    return { bodyBottomGap: Math.round(m.bottom - b.bottom),
+      above: Math.round(s.top - b.top), below: Math.round(b.bottom - document.querySelector('.tap-row').getBoundingClientRect().bottom) } })()`)
+  check('链条区占满中栏高度（下方不再是裸露的空白）', fill.bodyBottomGap <= 12, `底部余 ${fill.bodyBottomGap} px`)
+  check('链条在区内纵向居中', Math.abs(fill.above - fill.below) <= 24, `上 ${fill.above} px / 下 ${fill.below} px`)
+
+  // 环节按**每行四张、蛇形**排（2026-09-09 用户指定）：单数行从左往右、双数行从右往左，
+  // 行末向下转折。十一个槽位排成 4 + 4 + 3。
+  const snake = await evalJson(page, `(() => {
+    const cells = Array.from(document.querySelectorAll('.chain-cell'));
+    const info = cells.map((c) => {
+      const card = c.querySelector('[data-slot]');
+      const r = card.getBoundingClientRect();
+      const conn = c.querySelector('.chain-conn');
+      return { slot: card.dataset.slot, pos: c.dataset.chainPos,
+        cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2),
+        dir: conn ? (conn.classList.contains('to-right') ? 'right' : 'left')
+                  : (c.querySelector('[data-chain-turn]') ? 'down' : 'end') };
+    });
+    const byRow = {};
+    for (const x of info) (byRow[x.pos.split(':')[0]] ||= []).push(x);
+    const rows = Object.keys(byRow).sort((a, b) => Number(a) - Number(b)).map((k) => byRow[k]);
+    const body = document.querySelector('.chain-body');
+    const strip = document.querySelector('.chain-strip').getBoundingClientRect();
+    const b = body.getBoundingClientRect();
+    const tap = document.querySelector('.tap-row')?.getBoundingClientRect();
+    return { rows, ovx: body.scrollWidth - body.clientWidth,
+      above: Math.round(strip.top - b.top), below: Math.round(b.bottom - (tap?.bottom ?? b.bottom)) };
+  })()`)
+  check('环节按每行四张排，十一个排成 4 + 4 + 3',
+    snake.rows.length === 3 && snake.rows[0].length === 4 && snake.rows[1].length === 4 && snake.rows[2].length === 3,
+    snake.rows.map((r) => `${r.length} 个`).join(' / '))
+  // 蛇形：奇数行从左往右、偶数行从右往左，行末向下转折，且转折点与下一行首张卡片同列
+  const snakeOk = snake.rows.every((row, r) => {
+    const ltr = r % 2 === 0
+    const xs = row.map((c) => c.cx)
+    const monotonic = xs.every((x, i) => i === 0 || (ltr ? x > xs[i - 1] : x < xs[i - 1]))
+    const inner = row.slice(0, -1).every((c) => c.dir === (ltr ? 'right' : 'left'))
+    const tail = row[row.length - 1].dir
+    return monotonic && inner && (r === snake.rows.length - 1 ? tail === 'end' : tail === 'down')
+  })
+  check('蛇形排布：单数行从左往右、双数行从右往左，行末向下转折',
+    snakeOk, snake.rows.map((row, r) => `${r % 2 === 0 ? '→' : '←'} ${row.map((c) => c.slot).join(' ')}`).join('  |  '))
+  check('转折处上下同列：一行读到头，下一张卡片就在正下方',
+    snake.rows.slice(0, -1).every((row, r) => row[row.length - 1].cx === snake.rows[r + 1][0].cx),
+    snake.rows.slice(0, -1).map((row, r) => `${row[row.length - 1].cx} vs ${snake.rows[r + 1][0].cx}`).join('，'))
+  check('四列不把中栏撑出横向滚动条', snake.ovx === 0, `溢出 ${snake.ovx} px`)
+  check('链条仍在中栏里纵向居中', Math.abs(snake.above - snake.below) <= 24, `上 ${snake.above} / 下 ${snake.below}`)
 
   // 画布不出现：没有组件库、没有连线操作
   const palette = await page.evaluate("document.querySelectorAll('[data-palette-group]').length")
@@ -85,13 +166,51 @@ try {
   // ---------- ② 改一个参数，看它进框图 ----------
   await page.evaluate("(document.querySelector('[data-slot=rx_fe]').click(), true)")
   await sleep(200)
-  await page.evaluate(setInput('[data-form=slot] [data-field=nf_dB]', '4'))
+  await page.evaluate(setInput('[data-form=slot] [data-field=gain_dB]', '24'))
   await sleep(300)
   const dirty = await page.waitFor((s) => s.app?.diagram?.dirty === true, { label: '改参数后置脏' })
   check('改参数即进框图并置脏（撤销栈沿用 U-2 的那一套）', dirty.app.diagram.dirty === true)
   // 改回去
-  await page.evaluate(setInput('[data-form=slot] [data-field=nf_dB]', '6'))
+  await page.evaluate(setInput('[data-form=slot] [data-field=gain_dB]', '20'))
   await sleep(300)
+
+  // ---------- ②b 实体选择器与场景里的设备参数（D-054）----------
+  const bar = await page.evaluate("!!document.querySelector('[data-chain-entity-bar]')")
+  check('面板上方有无人机与侦测站两个选择框', bar === true)
+  const picks = await evalJson(page, `(() => {
+    const e = document.querySelector('[data-field=focus-emitter]')
+    const s = document.querySelector('[data-field=focus-site]')
+    return { em: e && e.value, site: s && s.value,
+             emText: e && e.selectedOptions[0] && e.selectedOptions[0].textContent }
+  })()`)
+  check('缺省焦点落在参与运行的第一架无人机与第一个站',
+    picks.em === 'uav-1' && picks.site === 'site-1', JSON.stringify(picks))
+  check('条目写得出是哪一台（id · 名称 · 型号）',
+    String(picks.emText).includes('uav-1') && String(picks.emText).includes('multirotor'), String(picks.emText))
+
+  // 噪声系数改为由场景带出：组件参数行只说明来源，值在「设备参数 · 来自场景」那组里改
+  const nfFrom = await page.evaluate("!!document.querySelector('[data-param-from-scene=nf_dB]')")
+  check('噪声系数标为来自场景，不再是框图里的第二份真理源', nfFrom === true)
+  const sceneField = '[data-form=entity-device] [data-field="sites.0.receiver.nf_dB"]'
+  check('场景设备参数在本页可编辑', await page.evaluate(`!!document.querySelector('${sceneField}')`))
+
+  await page.evaluate(setInput(sceneField, '4'))
+  const sceneDirty = await page.waitFor((s) => s.app?.scene?.dirty === true, { label: '改场景字段后置脏' })
+  check('改场景设备参数标的是场景脏，不是框图脏', sceneDirty.app.scene.dirty === true)
+  // 自动保存：不点任何按钮，等它自己存下去（D-054）
+  const autoSaved = await page.waitFor((s) => s.app?.scene?.dirty === false, { label: '场景自动保存', timeoutMs: 30000 })
+  check('改完自动存场景，不用点保存', autoSaved.app.scene.dirty === false)
+  // 存回原值，不给后面的断言与仓库留副作用
+  await page.evaluate(setInput(sceneField, '6'))
+  await page.waitFor((s) => s.app?.scene?.dirty === false, { label: '场景存回原值', timeoutMs: 30000 })
+
+  // 传播信道不随实体选择变化（用户明确要求）
+  await page.evaluate("(document.querySelector('[data-slot=ch]').click(), true)")
+  await sleep(200)
+  const chOwner = await page.evaluate("document.querySelector('[data-slot-owner]')?.dataset.slotOwner ?? ''")
+  check('传播信道标为全图共用，不随实体选择变化', chOwner === 'shared', chOwner)
+  await page.evaluate("(document.querySelector('[data-slot=rx_fe]').click(), true)")
+  await sleep(150)
 
   // ---------- 勾上 S1 与 S2，缩短时长，跑一次 ----------
   // 勾上而不是切换：上一次运行保存的框图可能已经勾着，切换会把它关掉。
@@ -105,6 +224,29 @@ try {
   await sleep(400)
   st = await page.waitFor((s) => (s.app?.chain?.taps ?? []).includes('s1') && (s.app?.chain?.taps ?? []).includes('s2'), { label: '观测点勾上' })
   check('S1 与 S2 观测点可勾选', st.app.chain.taps.join(',').includes('s1') && st.app.chain.taps.includes('s2'), st.app.chain.taps.join(','))
+
+  // 勾选只改框图，产品要下次运行才有——不说清楚会让人以为勾了没生效（2026-09-08 用户反馈）
+  // 有在先的任务时才有「不一致」可言：第一次跑这套用例时页面上还没有任务，此时不该提示
+  // 探针读的是 store、提示读的是 DOM，React 重绘落后一帧，两边可能短暂不一致
+  // （2026-09-08 修过同一个竞态，这一处当时漏了；只等一个方向仍会在另一个方向上红）。
+  // 轮询到两者自洽再断言：有任务就该有提示，没任务就不该有。
+  // 判据是「提示出现 ⟺ 勾选与在跑的那个任务不一致」。不能只看「有没有任务」：
+  // 上一个任务的观测点恰好与现在相同时，本来就不该提示（切片 ⑥b 留下别的任务后才发现
+  // 这条断言原来读的是恒为 undefined 的 app.task.id，等于一直没生效）。
+  // 在跑的观测点从任务端点取，去掉多站的实例后缀再比（D-053 §2.6）。
+  const hadTask = await evalJson(page, 'window.__probe().app.context.taskId')
+  const wantTaps = (await evalJson(page, 'window.__probe().app.chain.taps')) ?? []
+  let ranBases = []
+  if (hadTask) {
+    const rec = await page.evaluateAsync(`fetch('/api/v1/tasks/${hadTask}').then(r => r.ok ? r.json() : null)`)
+    ranBases = [...new Set((rec?.observation_points ?? []).map((o) => String(o.op_id).split('__')[0]))]
+  }
+  const shouldWarn = !!hadTask && JSON.stringify(wantTaps) !== JSON.stringify(ranBases)
+  const stale = await waitDom(page,
+    "document.querySelector('[data-chain-taps-stale]') !== null", shouldWarn)
+  check('观测点与当前任务不一致时才提示要重新运行，一致时不提示',
+    stale === shouldWarn,
+    `在跑 ${ranBases.join('/') || '（无任务）'}，勾选 ${wantTaps.join('/')}，应提示 ${shouldWarn}`)
 
   for (let i = 0; i < 40; i++) {
     if (await page.evaluate("(!document.querySelector('[data-action=run]')?.disabled)")) break
@@ -146,6 +288,52 @@ try {
     `scale ${idx.scale}，削顶 ${idx.clipped_samples}`)
   check('本次运行没有削顶（满量程留了余量）', idx.clipped_samples === 0, String(idx.clipped_samples))
 
+  // ---------- 结果页：观测点分得开、切得动，默认仍是主产品 S4 ----------
+  await page.send('Page.navigate', { url: `${BASE}#/results` })
+  await page.waitFor((s) => s.ready && s.app?.view === 'results', { label: '结果页', timeoutMs: 60000 })
+  await sleep(1200)
+  const opTabs = await evalJson(page, "Array.from(document.querySelectorAll('[data-op-tab]')).map((e) => e.textContent)")
+  check('结果页中栏有观测点页签，且写的是名字不是 op_id',
+    opTabs.length === 3 && opTabs[2] === 'S4 主产品', opTabs.join(' | '))
+  check('默认选中主产品 S4，勾了中间观测点也不把默认视图挪走',
+    (await page.evaluate("document.querySelector('[data-op-tab].on')?.dataset.opTab")) === 's4')
+
+  // 左栏收起后仍换得动观测点——原来这份列表只在左栏，收着栏就没法切（2026-09-08 用户反馈）
+  await page.evaluate("(document.querySelector('.col.left .rail').click(), true)")
+  await sleep(300)
+  check('左栏收起后观测点页签还在', (await page.evaluate("document.querySelectorAll('[data-op-tab]').length")) === 3)
+  await page.evaluate("(document.querySelector('[data-op-tab=s1]').click(), true)")
+  st = await page.waitFor((s) => s.app?.signal?.opId === 's1', { label: '切到 S1', timeoutMs: 20000 })
+  const headOp = await waitDom(page, "document.querySelector('[data-signal-op]')?.textContent", 'S1 接收天线端')
+  check('点页签能换观测点，页头随之改', st.app.signal.opId === 's1' && headOp === 'S1 接收天线端', headOp)
+
+  // S1 与 S2 读数确实不同：拆开天线与前端之后，中间点看得出 20 dB 增益差
+  const twoOps = {}
+  for (const op of ['s1', 's2']) {
+    twoOps[op] = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/${op}/spectrum?t0=4&t1=4.05&px=512&py=1&stat=max')
+      .then(async (r) => { const b = new Float32Array(await r.arrayBuffer()); let m = -Infinity; for (const v of b) if (v > m) m = v; return m })`)
+  }
+  check('勾上的中间观测点读数确实不同（S2 − S1 = 前端增益 20 dB）',
+    near(twoOps.s2 - twoOps.s1, 20, 1.5), `S1 ${twoOps.s1.toFixed(2)} dBm，S2 ${twoOps.s2.toFixed(2)} dBm，差 ${(twoOps.s2 - twoOps.s1).toFixed(2)} dB`)
+
+  await page.evaluate("(document.querySelector('.col.left .rail').click(), true)")
+  await page.send('Page.navigate', { url: `${BASE}#/diagram` })
+  await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '回框图页', timeoutMs: 60000 })
+  await sleep(600)
+
+  // 正向分支：刚跑完时不该提示；取消一个观测点，立刻提示要重新运行
+  check('刚跑完、观测点没动过时不提示',
+    (await page.evaluate("document.querySelector('[data-chain-taps-stale]') === null")) === true)
+  await page.evaluate("(document.querySelector('[data-tap-toggle=s2]').click(), true)")
+  await waitDom(page, "document.querySelector('[data-chain-taps-stale]') !== null", true)
+  const staleNow = await page.evaluate("document.querySelector('[data-chain-taps-stale]')?.textContent ?? ''")
+  check('取消一个观测点后，工具条当场说明要重新运行才生效',
+    /重新运行后生效/.test(staleNow) && /S1/.test(staleNow) && /S4/.test(staleNow),
+    staleNow.replace(/\s+/g, ' ').trim().slice(0, 48))
+  await page.evaluate("(document.querySelector('[data-tap-toggle=s2]').click(), true)")
+  check('勾回去之后提示消失',
+    (await waitDom(page, "document.querySelector('[data-chain-taps-stale]') === null", true)) === true)
+
   // ---------- ③ 框图能存能再开 ----------
   await page.evaluate("(document.querySelector('[data-action=chain-save]').click(), true)")
   st = await page.waitFor((s) => s.app?.unsaved?.diagram === false, { label: '保存完成', timeoutMs: 30000 })
@@ -179,6 +367,74 @@ try {
   await sleep(600)
   const paletteGroups = await page.evaluate("document.querySelectorAll('[data-palette-group]').length")
   check('自由画布仍可用（降为高级模式，不是删掉）', paletteGroups === 6, `${paletteGroups} 个分组`)
+
+  // ---------- ④ 画布 ↔ 典型链路能往返（2026-09-08 用户实测发现的导航缺口） ----------
+  // 缺口是：进了画布之后 Alt+2 与顶栏「框图」都只切视图不改子形态，回不去。
+  // 下面分别验证三条修法，且必须**从画布里出发**，不是刷新地址栏。
+  st = await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '已在自由画布' })
+  check('画布里探针报子形态为画布', st.app.diagram.canvas === true)
+
+  const hasBack = await page.evaluate("!!document.querySelector('[data-action=open-chain]')")
+  check('画布工具条有「回到典型链路」（与「展开为自由画布」对称）', hasBack === true)
+
+  // 此刻文档还是那条典型链路（前面刷新后载入的就是它），所以按下应当直接回去、不问
+  await page.evaluate("(document.querySelector('[data-action=open-chain]').click(), true)")
+  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: '回到典型链路', timeoutMs: 20000 })
+  const hash1 = await page.evaluate('location.hash')
+  check('解得开就直接回，不弹确认', st.app.diagram.canvas === false
+    && st.app.chain?.template === 'chain-v1' && hash1 === '#/diagram', `hash ${hash1}`)
+
+  // 顶栏「框图」按钮：先回画布，再点它
+  await page.evaluate("(document.querySelector('[data-action=open-canvas]').click(), true)")
+  await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '再进画布' })
+  await sleep(400)
+  await page.evaluate("(document.querySelector('[data-view-btn=diagram]').click(), true)")
+  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: '顶栏「框图」回默认形态', timeoutMs: 20000 })
+  check('顶栏「框图」按钮从画布回到默认形态（典型链路）',
+    st.app.diagram.canvas === false && (await page.evaluate('location.hash')) === '#/diagram')
+
+  // Alt+2：同样先回画布再按
+  await page.evaluate("(document.querySelector('[data-action=open-canvas]').click(), true)")
+  await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '第三次进画布' })
+  await sleep(400)
+  await page.pressKey({ key: '2', code: 'Digit2', vk: 50, modifiers: 1 })
+  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: 'Alt+2 回默认形态', timeoutMs: 20000 })
+  check('Alt+2 从画布回到默认形态（典型链路）',
+    st.app.diagram.canvas === false && (await page.evaluate('location.hash')) === '#/diagram')
+
+  // ---------- 解不开的那条路：不得静默丢改动（铁律 15） ----------
+  // 注意判据：**删**节点仍解得开（缺席的槽位按旁路或缺省处理），**加**一个模板之外的节点才解不开
+  // （`parseChain` 的 `if (!hit) return null`）。所以这里从组件库点一个新节点进去。
+  await page.evaluate("(document.querySelector('[data-action=open-canvas]').click(), true)")
+  await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '第四次进画布' })
+  await sleep(700)
+  const nodes0 = await evalJson(page, 'window.__probe().app.diagram.nodes')
+  await page.evaluate("(document.querySelector('[data-palette-item=NoiseSource]').click(), true)")
+  st = await page.waitFor((s) => s.app?.diagram?.nodes === nodes0 + 1, { label: '画布里加一个节点', timeoutMs: 20000 })
+  check('画布里加一个模板之外的节点后，框图不再是典型链路',
+    st.app.chain?.template === null, `${nodes0} → ${st.app.diagram.nodes} 节点，template ${st.app.chain?.template}`)
+
+  await page.evaluate("(document.querySelector('[data-action=open-chain]').click(), true)")
+  await sleep(400)
+  const asked = await page.evaluate("document.querySelector('[data-chain-back-ask]')?.textContent ?? ''")
+  const stillCanvas = await evalJson(page, 'window.__probe().app.diagram.canvas')
+  check('解不开时先说清楚再问，按一下不走人也不丢改动',
+    /不是典型链路的形状/.test(asked) && /会丢/.test(asked) && stillCanvas === true, asked.replace(/\s+/g, ' ').slice(0, 46))
+
+  await page.evaluate("(document.querySelector('[data-action=open-chain-cancel]').click(), true)")
+  await sleep(300)
+  const afterCancel = await evalJson(page, 'window.__probe().app.diagram')
+  check('选「留在画布」后改动原样还在', afterCancel.nodes === nodes0 + 1 && afterCancel.canvas === true,
+    `${afterCancel.nodes} 节点，canvas ${afterCancel.canvas}`)
+
+  await page.evaluate("(document.querySelector('[data-action=open-chain]').click(), true)")
+  await sleep(300)
+  await page.evaluate("(document.querySelector('[data-action=open-chain-confirm]').click(), true)")
+  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: '确认后回到框图页默认形态', timeoutMs: 20000 })
+  const foreign = await page.evaluate("!!document.querySelector('[data-chain-foreign]')")
+  check('确认后回到框图页，给出「新建一条链」的出路，且改动到此仍未丢（铁律 15）',
+    foreign === true && st.app.diagram.nodes === nodes0 + 1 && st.app.chain?.template === null,
+    `${st.app.diagram.nodes} 节点，foreign ${foreign}`)
 
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 } catch (e) {

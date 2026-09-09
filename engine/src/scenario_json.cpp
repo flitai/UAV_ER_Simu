@@ -55,6 +55,16 @@ bool get_str(const json& obj, const char* key, const std::string& where, std::st
     return true;
 }
 
+// 可选字符串：缺席即放行并保持 out 不变；出现了就必须是字符串——
+// 类型写错时静默忽略会让用户以为设置生效了（铁律 15）。
+bool get_opt_str(const json& obj, const char* key, const std::string& where,
+                 std::string& out, std::string& err) {
+    if (!obj.contains(key)) return true;
+    if (!obj[key].is_string()) return fail(err, where, std::string("的 ") + key + " 必须是字符串");
+    out = obj[key].get<std::string>();
+    return true;
+}
+
 bool get_id(const json& obj, const char* key, const std::string& where, std::string& out, std::string& err) {
     if (!get_str(obj, key, where, out, err)) return false;
     if (!match_id(out)) return fail(err, where, std::string("的 ") + key + " 必须匹配 [a-z0-9_-]{1,64}");
@@ -108,13 +118,41 @@ bool parse_waveform(const json& w, const std::string& where, geo::Waveform& out,
     return fail(err, where, "的 type 必须是 tone / noise / burst 之一（ofdm / fhss / template 随 P3）");
 }
 
+// 站钟（D-053，可选）。缺席时 has_clock 保持 false——TDOA 相关组件据此报错而不是
+// 默认一个完美时钟（默认 0 ns 会让时差定位结果好得不真实，铁律 15）。
+bool parse_clock(const json& c, const std::string& where, geo::Clock& out, std::string& err) {
+    if (!c.is_object()) return fail(err, where, "必须是对象");
+    static const std::set<std::string> kKeys = {"sync_sigma_ns", "bias_ns", "rx_delay_ns",
+                                                "rx_delay_sigma_ns", "sync_state"};
+    if (!check_keys(c, kKeys, where, err)) return false;
+    if (!get_num(c, "sync_sigma_ns", where, out.sync_sigma_ns, err)) return false;
+    if (out.sync_sigma_ns < 0.0) return fail(err, where, "的 sync_sigma_ns 不得为负");
+    if (c.contains("bias_ns") && !get_num(c, "bias_ns", where, out.bias_ns, err)) return false;
+    if (c.contains("rx_delay_ns") && !get_num(c, "rx_delay_ns", where, out.rx_delay_ns, err)) return false;
+    if (c.contains("rx_delay_sigma_ns")) {
+        if (!get_num(c, "rx_delay_sigma_ns", where, out.rx_delay_sigma_ns, err)) return false;
+        if (out.rx_delay_sigma_ns < 0.0) return fail(err, where, "的 rx_delay_sigma_ns 不得为负");
+    }
+    std::string st = "locked";
+    if (c.contains("sync_state") && !get_str(c, "sync_state", where, st, err)) return false;
+    if (st == "locked") out.sync_state = geo::SyncState::Locked;
+    else if (st == "holdover") out.sync_state = geo::SyncState::Holdover;
+    else if (st == "unsynced") out.sync_state = geo::SyncState::Unsynced;
+    else return fail(err, where, "的 sync_state 必须是 locked / holdover / unsynced 之一");
+    out.has_clock = true;
+    return true;
+}
+
 bool parse_site(const json& s, std::size_t i, geo::Site& out, std::string& err) {
     const std::string where = "sites[" + std::to_string(i) + "]";
     if (!s.is_object()) return fail(err, where, "必须是对象");
-    static const std::set<std::string> kKeys = {"id", "name", "position", "antenna", "receiver"};
+    static const std::set<std::string> kKeys = {"id", "name", "equipment_model", "position",
+                                                "antenna", "receiver", "clock"};
     if (!check_keys(s, kKeys, where, err)) return false;
     if (!get_id(s, "id", where, out.id, err)) return false;
     if (!get_str(s, "name", where, out.name, err)) return false;
+    // 设备型号只作前端的参数分组与显示，不进物理（D-054）。引擎收下并原样保存，不解释。
+    if (!get_opt_str(s, "equipment_model", where, out.equipment_model, err)) return false;
     if (!need(s, "position", where, err)) return false;
     if (!get_pos(s["position"], where + ".position", out.position, err)) return false;
 
@@ -138,16 +176,21 @@ bool parse_site(const json& s, std::size_t i, geo::Site& out, std::string& err) 
     if (!positive(out.receiver.center_Hz, where + ".receiver", "center_Hz", err)) return false;
     if (!positive(out.receiver.bw_Hz, where + ".receiver", "bw_Hz", err)) return false;
     if (out.receiver.nf_dB < 0.0) return fail(err, where + ".receiver", "的 nf_dB 不得为负");
+
+    if (s.contains("clock") && !parse_clock(s["clock"], where + ".clock", out.clock, err)) return false;
     return true;
 }
 
 bool parse_emitter(const json& e, std::size_t i, geo::Emitter& out, std::string& err) {
     const std::string where = "emitters[" + std::to_string(i) + "]";
     if (!e.is_object()) return fail(err, where, "必须是对象");
-    static const std::set<std::string> kKeys = {"id", "name", "platform_type", "position", "emission"};
+    static const std::set<std::string> kKeys = {"id", "name", "equipment_model", "platform_type",
+                                                "position", "emission"};
     if (!check_keys(e, kKeys, where, err)) return false;
     if (!get_id(e, "id", where, out.id, err)) return false;
     if (!get_str(e, "name", where, out.name, err)) return false;
+    // 同站点：只作参数分组与显示。缺席时前端回退 platform_type 作分组键（D-054）。
+    if (!get_opt_str(e, "equipment_model", where, out.equipment_model, err)) return false;
 
     std::string pt;
     if (!get_str(e, "platform_type", where, pt, err)) return false;

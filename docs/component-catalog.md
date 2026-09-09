@@ -126,6 +126,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 - [x] 首版目录黄金基准 `tests/golden/component-catalog.json`（2026-09-05，`cuav_run --catalog` 生成，21763 字节）
 - [ ] Coder 产物组件的 `source_ref` 填写示例（M-2）
 - [ ] `AddMixer` 的类别现标 `source`，它其实是两路 IQ 相加的处理件；改动要记决策（08 报告 §15 ⑤）
+- [x] D-053 的接口部分（L-1，2026-09-09）：端口类型 `BearingReport` / `ToaReport` / `PositionReport`（`port_types` 7 → 10、`port_compat` 49 → 100，既有 49 行逐字未变，仍是纯对角）；`SceneBoundChannel` 加内部参数 `site_id`（多站绑定，单站可省略即取唯一站，旧行为不变）；`IComponent::check_wiring()` 与错误码 `port_optional` 启用。黄金基准据此更新一次，差异逐项见 11 报告 §7.3
 - [x] D-051 的接口部分（C-1，2026-09-07）：端口类型 `RecognitionList`（`port_types` 6 → 7、`port_compat` 36 → 49，既有 36 行逐字未变）；`PortSpec.optional`（为假时不输出，既有条目字节不变）。黄金基准 `tests/golden/component-catalog.json` 据此更新一次，WORKLOG 有记录
 - [x] D-051 的天线与接收机（C-2，2026-09-07）：新增 `AntennaGain` / `ReceiverFrontEnd` / `AdcQuantizer`，`SceneEmitterSource.emit_at_tx_power` 与 `SceneBoundChannel.gain_mode` 加参；组件 12 → 15，黄金基准更新一次
 - [ ] D-051 的其余组件（C-4 / C-5 / C-10 分批）：`FeatureExtractor` / `TemplateClassifier` / `Evaluator` / `DDC` / `Channelizer`；`EnergyDetector.noise_mode` 等加参（缺省保旧行为）

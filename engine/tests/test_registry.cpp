@@ -42,15 +42,16 @@ Txt required_text_sample(const std::string& type) {
 
 }  // namespace
 
-TEST_CASE("内置注册表列出十五个组件，按名排序") {
+TEST_CASE("内置注册表列出十九个组件，按名排序") {
     Registry r = builtin_registry();
-    // 切片 ② 新增四个场景运行时组件（G-2、G-3）、切片 ④a 新增三个天线与接收机组件（C-2）：
-    // 目录黄金基准的规则是「已有条目不变，新增允许」。
+    // 切片 ② 新增四个场景运行时组件（G-2、G-3）、切片 ④a 新增三个天线与接收机组件（C-2）、
+    // 切片 ⑥a 新增多路叠加（L-2）、⑥b 新增单站测向、多站定位与到达时间估计（L-3 至 L-5，D-053）：目录黄金基准的规则是「已有条目不变，新增允许」。
     const std::vector<std::string> want = {"AdcQuantizer", "AddMixer", "AntennaGain", "DetectionSink",
-                                           "EnergyDetector", "FileReplaySource", "FreeSpaceChannel",
-                                           "NoiseSource", "ObservationTap", "ReceiverFrontEnd",
-                                           "ScenarioSource", "SceneBoundChannel",
-                                           "SceneEmitterSource", "SpectrumAnalyzer", "ToneSource"};
+                                           "DirectionFinder", "EnergyDetector", "FileReplaySource",
+                                           "FreeSpaceChannel", "MultiSiteLocator", "NoiseSource",
+                                           "ObservationTap", "ReceiverFrontEnd", "ScenarioSource", "SceneBoundChannel",
+                                           "SceneEmitterSource", "SpectrumAnalyzer", "Superposition",
+                                           "ToaEstimator", "ToneSource"};
     CHECK(r.types() == want);
     for (const auto& t : want) CHECK(r.has(t));
 }
@@ -123,7 +124,8 @@ TEST_CASE("describe() 与 configure() 一致：只给必填项即可构造，必
     for (const std::string& type : r.types()) {
         // 必填里含文件路径、产品目录或场景绑定的，另有夹具测试（test_scenario.cpp / test_channel.cpp）
         if (type == "FileReplaySource" || type == "ObservationTap" || type == "ScenarioSource" ||
-            type == "SceneEmitterSource" || type == "SceneBoundChannel")
+            type == "SceneEmitterSource" || type == "SceneBoundChannel" ||
+            type == "DirectionFinder" || type == "ToaEstimator")
             continue;
         std::string err;
         ComponentInfo info;
@@ -166,9 +168,9 @@ TEST_CASE("目录导出：六类、端口兼容矩阵全枚举、D-013 规则、
     nlohmann::json j = catalog_json(r);
     CHECK(j["schema_version"] == "cuav-catalog/1");
     CHECK(j["engine_version"] == std::string(engine_version()));
-    // 七个端口类型（D-051 加 RecognitionList），全枚举 7×7
-    CHECK(j["port_types"].size() == 7);
-    CHECK(j["port_compat"].size() == 49);
+    // 十个端口类型（D-051 加 RecognitionList；D-053 加三种报告），全枚举 10×10
+    CHECK(j["port_types"].size() == 10);
+    CHECK(j["port_compat"].size() == 100);
 
     int ok_count = 0;
     for (const auto& row : j["port_compat"]) {
@@ -179,9 +181,9 @@ TEST_CASE("目录导出：六类、端口兼容矩阵全枚举、D-013 规则、
         if (row[0] == row[1]) CHECK(ok);
         if (!ok) CHECK(row.size() == 4);   // 拒绝理由随行
     }
-    CHECK(ok_count == 7);
+    CHECK(ok_count == 10);   // 纯对角：只有同类型可连
 
-    CHECK(j["components"].size() == 15);
+    CHECK(j["components"].size() == 19);
     const std::set<std::string> types = {"number", "string", "enum", "bool"};
     const std::set<std::string> cats = {"source", "channel", "antenna", "receiver", "data", "algorithm"};
     std::string prev;

@@ -3,7 +3,9 @@
 import { useEffect, useRef } from 'react'
 import { getEvents } from '../api/client.js'
 import { WsClient, wsUrl } from '../api/ws.js'
-import { entityFromPayload, linkFromPayload, sceneStore } from '../scene/sceneStore.js'
+import {
+  bearingFromPayload, entityFromPayload, linkFromPayload, positionFromPayload, sceneStore,
+} from '../scene/sceneStore.js'
 import { signalBuffer } from '../signal/buffer.js'
 import { useAppState, useStore } from '../state/store.js'
 import type { WsTextEvent } from '../state/types.js'
@@ -55,6 +57,17 @@ export function useTaskStream(): void {
         if (ev.type === 'link') {
           const l = linkFromPayload(ev.t_s, ev.payload)
           if (l) sceneStore.pushLink(l)
+          return
+        }
+        // 测向与定位同样是高频量（每站每源 10 Hz），走同一条旁路（D-053）
+        if (ev.type === 'bearing') {
+          const b = bearingFromPayload(ev.t_s, ev.payload)
+          if (b) sceneStore.pushBearing(b)
+          return
+        }
+        if (ev.type === 'position') {
+          const p = positionFromPayload(ev.t_s, ev.payload)
+          if (p) sceneStore.pushPosition(p)
           return
         }
         pending.current.push(ev)

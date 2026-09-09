@@ -134,6 +134,24 @@ bool Graph::validate(std::string& err, GraphFault& fault, NodeId& node, std::str
             }
         }
     }
+    // 可选口连得够不够，由组件自己说了算（D-053）。放在悬空口检查之后：
+    // 必填口没连是更基本的错误，先报那个，报错信息才指得准。
+    for (std::size_t i = 0; i < nodes_.size(); ++i) {
+        std::vector<std::string> wired;
+        for (const auto& p : nodes_[i].comp->inputs()) {
+            for (const auto& e : edges_) {
+                if (e.to == i && e.to_port == p.name) { wired.push_back(p.name); break; }
+            }
+        }
+        std::string werr;
+        if (!nodes_[i].comp->check_wiring(wired, werr)) {
+            err = nodes_[i].name + "：" + werr;
+            fault = GraphFault::PortOptional;
+            node = i;
+            port.clear();
+            return false;
+        }
+    }
     validated_ = true;
     return true;
 }

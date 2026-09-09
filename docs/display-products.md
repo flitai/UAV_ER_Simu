@@ -2,7 +2,7 @@
 
 **状态**：字段已冻结（2026-09-04，决策 D-030、D-031）。观测点组件与产品写盘已实现（B-3，2026-09-05）；
 抽取端点已实现（B-7，2026-09-06，决策 D-046，`server/src/products/`），归约的确切定义见 §3.1。
-`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘），`detections.jsonl` 仍待 P1-4d。
+`bearings.jsonl` 与 `positions.jsonl` 的生产者随 D-053 的 L-3 / L-4 上线；`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘），`detections.jsonl` 仍待 P1-4d。
 
 **依据**：铁律 7（原始 IQ 不进浏览器；展示数据按时间窗、频段、像素宽、统计量抽取；禁止
 JSON / Base64 封装二进制）；04 §6.4（展示数据五类）、§8.3（引擎向应用服务发布降采样显示
@@ -21,6 +21,8 @@ data/runs/<task_id>/
 ├── track.jsonl                  实体状态，每行一个 EntityState（见 docs/scenario-format.md §7）
 ├── links.jsonl                  链路帧读数，每行一条链路一帧（字段同 WS link 事件，docs/api-versions.md §4）
 ├── detections.jsonl             检测列表，每行一个 Detection
+├── bearings.jsonl               单站测向报告，每行一条链路一帧（D-053，§5；生产者 DirectionFinder，惰性建文件）
+├── positions.jsonl              多站定位报告，每行一个解（D-053，§5；生产者 MultiSiteLocator）
 └── <observation_point_id>/      每个观测点一个子目录
     ├── spectrum.f32             定长行：每行 nfft 个 float32（dB），一行 = 一帧
     ├── spectrum.index.json
@@ -190,10 +192,11 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 `rows_available`（文件长度定的行数）、`index_final`、`run_state`。客户端用它建频率轴与时间轴、
 读 `scale` 与 `state`，再决定视窗参数。索引里没有任何服务器路径（04 §8.6）。
 
-### 3.4 JSONL 端点（`track` / `links` / `detections`）
+### 3.4 JSONL 端点（`track` / `links` / `detections` / `bearings` / `positions`）
 
-三者共用一个时间窗读取器：闭区间 `t0 ≤ t_s ≤ t1`；`stride` 按键抽稀（`track` 按 `id`、`links` 按
-`link_id`、`detections` 全局），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤。
+五者共用一个时间窗读取器：闭区间 `t0 ≤ t_s ≤ t1`；`stride` 按键抽稀（`track` 按 `id`、`links` 按
+`link_id`、`bearings` 按 `link_id`、`positions` 按 `emitter_id:method`、`detections` 全局），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤，
+`bearings` 支持 `site_id` / `emitter_id`，`positions` 支持 `emitter_id` / `method`（D-053）。
 
 写盘的两条硬契约（2026-09-06，生产者上线）：**每行必须自带 `t_s`、必须以换行结尾**——
 读取器把没有换行的末行当作正在写入的残片丢弃。文件惰性创建：没有场景绑定的任务不产生空文件，
@@ -201,8 +204,8 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 不大于参数帧的 `update_rate_Hz`），每个帧序号只报一次——帧会跨轮重发，但不会重复上报。
 末尾没有换行的残片一律丢弃（生产者可能正在写），不可解析或缺 `t_s` 的行跳过并在 `X-CUAV-Skipped`
 里计数。响应是裸 JSON 数组，头带 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`；
-超上限 413 并建议更大的 `stride`。**这三个文件首期还没有生产者**（G-2 的 `ScenarioSource` 与 G-5 才写），
-端点先行，生产者落地后不必改读取层。
+超上限 413 并建议更大的 `stride`。`track` 与 `links` 的生产者 2026-09-06 上线（G-2）；`bearings` 与 `positions` 随 D-053 的 L-3 / L-4 上线；
+`detections` 仍待 P1-4d。端点先行，生产者落地后不必改读取层。
 
 ## 4. 实时推送
 
@@ -218,7 +221,39 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 实时推送不等它——推送按事件读，靠引擎逐行 `fflush` 保证；行尚未落盘（短读）时服务端退回发文本事件，不发半行。
 回看端点走的是另一条路：按文件长度定行数（第 2 节），与索引的刷新节奏无关。
 
-## 5. 待写
+## 5. 测向与定位报告行（D-053）
+
+两个文件都是 JSONL，每行一个 JSON 对象，必带 `t_s`；写盘契约与 §3.4 的三条相同（自带 `t_s`、以换行结尾、惰性建文件）。
+
+**`bearings.jsonl`**（生产者 `DirectionFinder`，每站每链路按 `report_rate_Hz` 一行）
+
+| 字段 | 说明 |
+|---|---|
+| `site_id` / `emitter_id` / `link_id` | 身份三件，取自参数帧的同名字段 |
+| `bearing_deg` / `bearing_std_deg` / `elevation_deg` | 含噪量测方位（真北顺时针 [0, 360)）、合成 1σ、真值俯仰（本档不加噪） |
+| `snr_dB` / `level_dBm` | 由帧的 `path_loss_dB` / `noise_floor_dBm_per_Hz` 与场景的发射功率、两端天线增益算出 |
+| `df_quality` | `DF-Q1` … `DF-Q4` / `invalid`，只看 σ 分档（信噪比已进 σ） |
+| `df_result_state` | 这次**测向裁决**的四态，与顶层 `state`（这一行**数据**的四态）正交 |
+| `use_policy` | `normal` / `low_weight` / `exclude`，下游融合据此加权 |
+| `sigma{method, snr, cal, att, multipath, mixture}` | 六个误差分量分列（EM-S-05 §10.14）；`bias_deg` 不进方差，单列 |
+| `mixture` | 同站同频多源混叠标记 |
+| `signal_role` | 预留给识别（C-4），本期恒为空串 |
+| `truth_consumed` | **恒 `true`**：本行来自 M2 效应模型，输入含真值方位（11 报告 §1.3）。评价时不得当作算法性能 |
+| `state` / `reasons` / `trace` | 四态、原因、溯源八件套（`model_layer = M2`、`credibility = V2`）|
+
+**`positions.jsonl`**（生产者 `MultiSiteLocator`，每个解一行）
+
+| 字段 | 说明 |
+|---|---|
+| `emitter_id` / `method` | `method ∈ {aoa, tdoa, aoa_tdoa}`；同一时刻可有多个方法的解，各占一行 |
+| `lon` / `lat` / `crs` / `coord_version` / `enu_origin` | 05 §6.2.3：椭圆的旋转角相对 ENU 东向，脱离原点声明就没有意义 |
+| `cov_m2` | ENU 平面协方差上三角 `[Pxx, Pxy, Pyy]`，单位 m²。给协方差而不只给椭圆，是因为评价要算马氏距离 |
+| `ellipse{semi_major_m, semi_minor_m, rotation_deg, scale, confidence}` | `scale` 恒 `"2sigma"`，`confidence` 恒 `0.8646647167633873`——**2σ 椭圆的二维包含概率是 `1 − exp(−2) = 86.5%`，不是一维的 95%**。显式写出以免下游按 95% 解释 |
+| `cep_m` / `gdop` / `geometry_quality` / `time_quality` | `time_quality` 仅 `tdoa` / `aoa_tdoa` 有值，否则 `null` |
+| `participating_sites` / `reference_site` / `residuals` / `outlier_sites` | 参与站、TDOA 参考站、逐站残差（`unit` 为 `deg` 或 `m`）、被剔除的站 |
+| `truth_consumed` / `state` / `reasons` / `trace` | 同上 |
+
+## 6. 待写
 
 - [x] 观测点组件 `ObservationTap` 的参数（nfft、窗、桶长）与目录条目（B-3，2026-09-05）
 - [x] 抽取端点的测试夹具（B-7，2026-09-06）：黄金基准 `tests/golden/product-window.json`（合成产品 12 个用例，只存公式与输入哈希）+ 真引擎与 Python 参考的逐字节对拍 `server/src/products/reference.test.ts`

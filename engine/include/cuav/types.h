@@ -45,6 +45,12 @@ enum class PortType {
     DetectionList,      // 检测结果
     FeatureVector,      // 特征
     RecognitionList,    // 识别结果（D-051；生产者 TemplateClassifier，消费者 Evaluator）
+    // 以下三种自 D-053 起启用（11 报告 §6.1）。BearingReport 与 PositionReport 出自 05 P0 的端口名单；
+    // ToaReport 是名单外的补充——05 假定时差定位直接消费 MultiSiteIQSet，没给「站级到达时间量测」留口，
+    // 而纯软件多站切片必须有这一层。三者一律 M2 效应级，行里带 truth_consumed。
+    BearingReport,      // 单站测向报告（EM-S-05；生产者 DirectionFinder）
+    ToaReport,          // 单站到达时间报告（EM-S-07；生产者 ToaEstimator）
+    PositionReport,     // 多站定位报告（EM-S-06 / S-07；生产者 MultiSiteLocator）
 };
 
 const char* to_string(PortType t);
@@ -157,6 +163,13 @@ struct SceneParamFrame {
     // 发射活动（G-6 施加结果）。只供评价器取真值与链路读数，**不进被测算法**（04 §5.2）。
     bool tx_on = true;
     double tx_center_Hz = 0.0;        // 跳频后的辐射源中心频率
+
+    // 这一帧属于哪条链路（D-053，11 报告 §6.2）。多源多站下消费端要按身份分流，
+    // 而 trace_id 是溯源约定不是数据契约——让消费者去解析它等于在两个模块之间建一条隐式协议，
+    // 改溯源格式就会静默改坏测向。三个显式字符串，代价可忽略。
+    std::string link_id;              // "<site_id>-<emitter_id>"，与 geo::Scenario 同口径
+    std::string site_id;
+    std::string emitter_id;
 
     State state = State::Valid;
     ModelTrace trace;

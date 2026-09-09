@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 
+#include "cuav/components/locate.h"
 #include "cuav/components/processing.h"
 #include "cuav/components/sources.h"
 #include "cuav/components/spectrum.h"
@@ -213,6 +214,10 @@ Registry builtin_registry() {
     ok = r.add<NoiseSource>(err) && ok;
     ok = r.add<FileReplaySource>(err) && ok;
     ok = r.add<AddMixer>(err) && ok;
+    ok = r.add<Superposition>(err) && ok;
+    ok = r.add<DirectionFinder>(err) && ok;
+    ok = r.add<ToaEstimator>(err) && ok;
+    ok = r.add<MultiSiteLocator>(err) && ok;
     ok = r.add<EnergyDetector>(err) && ok;
     ok = r.add<SpectrumAnalyzer>(err) && ok;
     ok = r.add<ObservationTap>(err) && ok;

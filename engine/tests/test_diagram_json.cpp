@@ -636,8 +636,14 @@ TEST_CASE("装载器：scene_binding 只允许目录可绑定的组件，且须�
     CHECK(d.has_scenario_ref);
     CHECK(d.scenario_id == "demo");
 
+    // D-053：两个键同时出现不再是结构错误，但组件目录必须同时声明两个内部参数才收得下。
+    // FakeBindable 只声明了 entity_id，所以这里报 scene_binding 而不是 schema——
+    // 多写的键被静默丢掉会让用户以为绑上了（铁律 15）。
     j["nodes"][4]["scene_binding"] = {{"scenario_id", "demo"}, {"entity_id", "uav1"}, {"site_id", "s1"}};
-    expect_fail(j, "schema");
+    e = expect_fail(j, "scene_binding");
+    CHECK(e.node_id == "bound");
+    CHECK(contains(e.message, "只能带 entity_id 或 site_id 之一"));
+    // 一个都不带仍是结构错误
     j["nodes"][4]["scene_binding"] = {{"scenario_id", "demo"}};
     expect_fail(j, "schema");
 }

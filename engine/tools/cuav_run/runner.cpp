@@ -51,6 +51,64 @@ bool parse_u64(const std::string& s, std::uint64_t& out) {
     return true;
 }
 
+// ---- 测向与定位报告的落盘形状（D-053，11 报告 §4）----
+// 溯源六件套加两项按铁律 8 随每一行走；truth_consumed 是 M2 效应模型的强制声明（11 §1.3）。
+json trace_json(const ModelTrace& t) {
+    return json{{"model_id", t.model_id}, {"model_version", t.model_version},
+                {"model_level", t.model_level}, {"model_layer", t.model_layer},
+                {"credibility", t.credibility}, {"parameter_version", t.parameter_version},
+                {"trace_id", t.trace_id}};
+}
+
+json bearing_json(const BearingReport& b) {
+    return json{
+        {"t_s", b.t_s}, {"site_id", b.site_id}, {"emitter_id", b.emitter_id}, {"link_id", b.link_id},
+        {"site_lon", b.site_lon}, {"site_lat", b.site_lat}, {"site_alt_m", b.site_alt_m},
+        {"bearing_deg", b.bearing_deg}, {"bearing_std_deg", b.bearing_std_deg},
+        {"elevation_deg", b.elevation_deg}, {"snr_dB", b.snr_dB}, {"level_dBm", b.level_dBm},
+        {"df_quality", b.df_quality}, {"df_result_state", to_string(b.df_result_state)},
+        {"use_policy", b.use_policy}, {"method", b.method}, {"bias_deg", b.bias_deg},
+        {"sigma", json{{"method", b.sigma.method_deg}, {"snr", b.sigma.snr_deg},
+                       {"cal", b.sigma.cal_deg}, {"att", b.sigma.att_deg},
+                       {"multipath", b.sigma.multipath_deg}, {"mixture", b.sigma.mixture_deg}}},
+        {"line_of_sight", b.line_of_sight}, {"mixture", b.mixture},
+        {"signal_role", b.signal_role}, {"truth_consumed", b.truth_consumed},
+        {"state", to_string(b.state)}, {"reasons", b.reasons}, {"trace", trace_json(b.trace)}};
+}
+
+json position_json(const PositionReport& p) {
+    json residuals = json::array();
+    for (const auto& r : p.residuals) {
+        residuals.push_back(json{{"site_id", r.site_id}, {"value", r.value}, {"unit", r.unit}});
+    }
+    return json{
+        {"t_s", p.t_s}, {"emitter_id", p.emitter_id}, {"method", p.method},
+        {"lon", p.lon}, {"lat", p.lat}, {"crs", p.crs}, {"coord_version", p.coord_version},
+        {"enu_origin", json{{"lon", p.origin_lon}, {"lat", p.origin_lat}, {"alt_m", p.origin_alt_m}}},
+        {"cov_m2", json::array({p.cov_m2[0], p.cov_m2[1], p.cov_m2[2]})},
+        {"ellipse", json{{"semi_major_m", p.ellipse.semi_major_m},
+                         {"semi_minor_m", p.ellipse.semi_minor_m},
+                         {"rotation_deg", p.ellipse.rotation_deg},
+                         {"scale", std::string(p.ellipse.scale)},
+                         {"confidence", p.ellipse.confidence}}},
+        {"cep_m", p.cep_m}, {"gdop", p.gdop},
+        {"min_crossing_angle_deg", p.min_crossing_angle_deg},
+        {"geometry_quality", p.geometry_quality},
+        {"time_quality", p.time_quality.empty() ? json(nullptr) : json(p.time_quality)},
+        {"participating_sites", p.participating_sites},
+        {"reference_site", p.reference_site.empty() ? json(nullptr) : json(p.reference_site)},
+        {"residuals", residuals}, {"outlier_sites", p.outlier_sites},
+        {"truth_consumed", p.truth_consumed},
+        {"state", to_string(p.state)}, {"reasons", p.reasons}, {"trace", trace_json(p.trace)}};
+}
+
+// 事件载荷 = 行去掉 t_s（信封里已有，docs/api-versions.md §4）。
+json strip_t(const json& row) {
+    json j = row;
+    j.erase("t_s");
+    return j;
+}
+
 // 事件出口：stdout 一行一条，--out 给了就原样再落 events.jsonl；两处都逐行 flush，服务端读到即完整。
 class EventSink {
 public:
@@ -165,10 +223,30 @@ public:
         ++links_written_;
     }
 
+    // 测向与定位报告（D-053）。与 on_link 同法：一条事件 + 一行 JSONL。
+    // 行里带 t_s，事件的载荷去掉 t_s（它已在信封里，docs/api-versions.md §4）。
+    void on_bearing(const BearingReport& b) override {
+        if (b.t_s > last_t_s_) last_t_s_ = b.t_s;
+        json row = bearing_json(b);
+        sink_.emit("bearing", b.t_s, strip_t(row));
+        write_jsonl(bearings_, "bearings.jsonl", row);
+        ++bearings_written_;
+    }
+
+    void on_position(const PositionReport& p) override {
+        if (p.t_s > last_t_s_) last_t_s_ = p.t_s;
+        json row = position_json(p);
+        sink_.emit("position", p.t_s, strip_t(row));
+        write_jsonl(positions_, "positions.jsonl", row);
+        ++positions_written_;
+    }
+
     double last_t_s() const { return last_t_s_; }
     std::uint64_t rows() const { return rows_; }
     std::uint64_t entities() const { return entities_; }
     std::uint64_t links_written() const { return links_written_; }
+    std::uint64_t bearings_written() const { return bearings_written_; }
+    std::uint64_t positions_written() const { return positions_written_; }
     std::uint64_t progress_events() const { return progress_events_; }
     std::uint64_t rounds_seen() const { return rounds_seen_; }
 
@@ -189,9 +267,10 @@ private:
     std::chrono::milliseconds interval_;
     bool throttle_;
     std::string out_dir_;
-    std::ofstream track_, links_;
+    std::ofstream track_, links_, bearings_, positions_;
     std::uint64_t entities_ = 0;
     std::uint64_t links_written_ = 0;
+    std::uint64_t bearings_written_ = 0, positions_written_ = 0;
     bool has_last_ = false;
     Clock::time_point last_;
     double last_t_s_ = 0.0;

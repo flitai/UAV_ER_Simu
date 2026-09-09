@@ -391,3 +391,135 @@ TEST_CASE("加法混合器拒绝采样率不同的两路") {
     CHECK(m.process(in, out, err) == Step::Error);
     CHECK(err.find("不一致") != std::string::npos);
 }
+
+// ----------------------------------------------------------- Superposition（D-053，L-2）
+
+namespace {
+
+// 造一路支路块：n 个恒定复样点，元数据按给定的采样率 / 中心频率 / 首样点
+PortData branch(std::size_t n, Complex v, double fs, double fc, std::uint64_t start) {
+    PortData d;
+    d.type = PortType::IQStream;
+    d.has_data = true;
+    d.iq.samples.assign(n, v);
+    d.iq.meta.sample_rate_Hz = fs;
+    d.iq.meta.center_frequency_Hz = fc;
+    d.iq.meta.start_sample = start;
+    return d;
+}
+
+}  // namespace
+
+TEST_CASE("多路叠加：N 路逐样点相加，元数据取最差状态并累加削顶计数") {
+    Superposition s;
+    std::string err;
+    REQUIRE(s.configure({{"min_inputs", 2.0}}, {}, err));
+    Xoshiro256pp rng(1);
+    REQUIRE(s.init(rng, err));
+
+    PortMap in, out;
+    in["in1"] = branch(8, Complex(1.0f, 0.0f), 1e6, 2.44e9, 0);
+    in["in2"] = branch(8, Complex(0.0f, 2.0f), 1e6, 2.44e9, 0);
+    in["in3"] = branch(8, Complex(-0.5f, 0.0f), 1e6, 2.44e9, 0);
+    in["in2"].iq.meta.clip_count = 3;
+    in["in3"].iq.meta.clip_count = 4;
+    in["in3"].iq.meta.degrade("第三路自带的降级理由");
+
+    REQUIRE(s.process(in, out, err) == Step::Produced);
+    const Block& b = out["out"].iq;
+    CHECK(b.size() == 8);
+    for (std::size_t i = 0; i < b.size(); ++i) {
+        CHECK(b.samples[i].real() == doctest::Approx(0.5));
+        CHECK(b.samples[i].imag() == doctest::Approx(2.0));
+    }
+    CHECK(b.meta.clip_count == 7);                      // 3 + 4，与 AddMixer 同法
+    CHECK(b.meta.state == State::Degraded);             // 取最差
+    CHECK(b.meta.state_reasons.size() == 1);
+    CHECK(b.meta.trace.model_layer == "M3");
+    CHECK(s.status().blocks_in == 3);
+}
+
+TEST_CASE("多路叠加：四项一致性任一不符即报错，绝不截断") {
+    // 截断会让较长那一路的尾部样点被下一轮无条件覆盖掉，样点丢了还不报错（08 报告约定四）
+    struct Case { const char* what; double fs; double fc; std::uint64_t start; std::size_t n; };
+    const Case cases[] = {
+        {"采样率",   2e6,   2.44e9, 0, 8},
+        {"中心频率", 1e6,   5.8e9,  0, 8},
+        {"首样点序号", 1e6, 2.44e9, 1, 8},
+        {"块长",     1e6,   2.44e9, 0, 9},
+    };
+    for (const Case& c : cases) {
+        Superposition s;
+        std::string err;
+        REQUIRE(s.configure({}, {}, err));
+        Xoshiro256pp rng(1);
+        REQUIRE(s.init(rng, err));
+        PortMap in, out;
+        in["in1"] = branch(8, Complex(1.0f, 0.0f), 1e6, 2.44e9, 0);
+        in["in2"] = branch(c.n, Complex(1.0f, 0.0f), c.fs, c.fc, c.start);
+        CHECK_MESSAGE(s.process(in, out, err) == Step::Error, c.what);
+        CHECK_MESSAGE(err.find(c.what) != std::string::npos, err);
+    }
+}
+
+TEST_CASE("多路叠加：已连的口本轮没数据就整轮 Idle，不少加一路") {
+    Superposition s;
+    std::string err;
+    REQUIRE(s.configure({}, {}, err));
+    Xoshiro256pp rng(1);
+    REQUIRE(s.init(rng, err));
+    PortMap in, out;
+    in["in1"] = branch(8, Complex(1.0f, 0.0f), 1e6, 2.44e9, 0);
+    in["in2"] = PortData();                   // 已连但本轮无数据
+    in["in2"].type = PortType::IQStream;
+    CHECK(s.process(in, out, err) == Step::Idle);
+    CHECK(out.find("out") == out.end());
+}
+
+TEST_CASE("多路叠加：连得少于 min_inputs 即 check_wiring 拒绝（错误码 port_optional 的来源）") {
+    Superposition s;
+    std::string err;
+    REQUIRE(s.configure({{"min_inputs", 3.0}}, {}, err));
+    std::vector<std::string> wired;
+    wired.push_back("in1");
+    wired.push_back("in2");
+    CHECK_FALSE(s.check_wiring(wired, err));
+    CHECK(err.find("至少连上 3 路") != std::string::npos);
+    wired.push_back("in3");
+    CHECK(s.check_wiring(wired, err));
+
+    // 八个输入口全声明为可选，否则 Graph::validate 会把没连的口报成悬空
+    const std::vector<PortSpec> ins = s.inputs();
+    CHECK(ins.size() == 8);
+    for (std::size_t i = 0; i < ins.size(); ++i) CHECK(ins[i].optional);
+}
+
+TEST_CASE("多路叠加：全部支路都标定才算标定，来源取最弱的一路（与 AddMixer 同口径，D-047）") {
+    Superposition s;
+    std::string err;
+    REQUIRE(s.configure({}, {}, err));
+    Xoshiro256pp rng(1);
+    REQUIRE(s.init(rng, err));
+
+    PortMap in, out;
+    in["in1"] = branch(4, Complex(1.0f, 0.0f), 1e6, 2.44e9, 0);
+    in["in2"] = branch(4, Complex(1.0f, 0.0f), 1e6, 2.44e9, 0);
+    in["in1"].iq.meta.calibration.calibrated = true;
+    in["in1"].iq.meta.calibration.source = "measured";
+    in["in1"].iq.meta.calibration.offset_dB = -1.0;
+    in["in2"].iq.meta.calibration.calibrated = true;
+    in["in2"].iq.meta.calibration.source = "model";
+    in["in2"].iq.meta.calibration.offset_dB = -50.0;
+    REQUIRE(s.process(in, out, err) == Step::Produced);
+    CHECK(out["out"].iq.meta.calibration.calibrated);
+    CHECK(out["out"].iq.meta.calibration.source == "model");     // 较弱者
+    CHECK(out["out"].iq.meta.calibration.offset_dB == doctest::Approx(-50.0));
+
+    // 任一路未标定 → 整体未标定
+    PortMap in2, out2;
+    in2["in1"] = in["in1"];
+    in2["in2"] = branch(4, Complex(1.0f, 0.0f), 1e6, 2.44e9, 0);
+    s.reset();
+    REQUIRE(s.process(in2, out2, err) == Step::Produced);
+    CHECK_FALSE(out2["out"].iq.meta.calibration.calibrated);
+}

@@ -1,7 +1,7 @@
 // 非 React 的命令：开页面引导、运行、停止（09 附录 A.2 数据流）。
 
 import {
-  listDiagrams, getDiagram, putDiagram, cancelTask, createTask, getComponents, getEvents, getHealth, getScenario, listScenarios, listTasks } from '../api/client.js'
+  listDiagrams, getDiagram, putDiagram, putScenario, cancelTask, createTask, getComponents, getEvents, getHealth, getScenario, listScenarios, listTasks } from '../api/client.js'
 import { idempotencyKey } from '../api/hash.js'
 import { listScenes, loadScene } from '../scene/scenePackage.js'
 import { TERMINAL } from '../state/reducer.js'
@@ -171,6 +171,44 @@ export async function saveDiagram(store: StoreApi): Promise<void> {
   dispatch({ type: 'diagram/validation', ok: false, errors: [{ code: r.code, node_id: r.node_id, port: '', message: r.message }] })
   dispatch({ type: 'ui/toast', kind: 'error', text: `保存失败：${r.code}${r.node_id ? ` @ ${r.node_id}` : ''}`, sticky: true })
   dispatch({ type: 'ui/navigate', view: 'diagram' })
+}
+
+/**
+ * 保存场景到服务端（G-4 的端点）。原先只长在 `SceneView` 里，自 D-054 起框图页也要用它
+ * ——在框图页改站点采样率、天线增益这些**场景里的**设备参数，改完要能存下去。
+ *
+ * 回填的 `sha256` 是**服务端落盘字节**的哈希，不是本地算的：两端各自序列化再各自算必然对不上
+ * （D-049 ⑧）。框图的 `scenario_ref.sha256` 靠它跟着走。
+ *
+ * 防重入：上一次还没回来就不发下一次。服务端每次 PUT 都要起一次 `cuav_run --scenario-track`
+ * 做语义校验，叠着发等于排队起子进程。
+ */
+let scenarioSaveInFlight = false
+
+export function scenarioSaving(): boolean { return scenarioSaveInFlight }
+
+export async function saveScenario(store: StoreApi): Promise<boolean> {
+  const { dispatch, getState } = store
+  const s = getState()
+  const doc = s.scene.scenario.doc
+  const id = s.scene.scenario.id
+  if (!doc || !id || scenarioSaveInFlight) return false
+  scenarioSaveInFlight = true
+  try {
+    const r = await putScenario(id, doc)
+    if (r.ok) {
+      dispatch({ type: 'scene/saved', sha256: r.sha256 })
+      return true
+    }
+    // 失败不清 dirty：下次改动会再试一次，改坏的场景不会被悄悄当成存好了（铁律 15）
+    dispatch({ type: 'ui/toast', kind: 'error', text: `场景保存失败 [${r.code}] ${r.message}`, sticky: true })
+    return false
+  } catch (e) {
+    dispatch({ type: 'ui/toast', kind: 'error', text: `场景保存失败：${(e as Error).message}`, sticky: true })
+    return false
+  } finally {
+    scenarioSaveInFlight = false
+  }
 }
 
 export async function stopTask(store: StoreApi): Promise<void> {

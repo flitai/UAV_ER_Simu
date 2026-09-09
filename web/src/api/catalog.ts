@@ -7,6 +7,8 @@
 export type PortType =
   | 'IQStream' | 'SceneParamFrame' | 'ChannelPathSet'
   | 'SpectrumFrame' | 'DetectionList' | 'FeatureVector' | 'RecognitionList'
+  // 测向与定位报告（D-053）。三者是同一族，把手形状共用 hexagon
+  | 'BearingReport' | 'ToaReport' | 'PositionReport'
 
 export type Category = 'source' | 'channel' | 'antenna' | 'receiver' | 'data' | 'algorithm'
 
@@ -79,7 +81,7 @@ export const CATEGORY_COLOR: Readonly<Record<Category, string>> = {
 }
 
 /** 端口把手形状按类型区分，不只靠颜色（09 §6.3，色弱可辨）。 */
-export const PORT_SHAPE: Readonly<Record<PortType, 'circle' | 'diamond' | 'square' | 'triangle'>> = {
+export const PORT_SHAPE: Readonly<Record<PortType, 'circle' | 'diamond' | 'square' | 'triangle' | 'hexagon'>> = {
   IQStream: 'circle',
   SceneParamFrame: 'diamond',
   ChannelPathSet: 'diamond',
@@ -87,6 +89,9 @@ export const PORT_SHAPE: Readonly<Record<PortType, 'circle' | 'diamond' | 'squar
   DetectionList: 'triangle',
   FeatureVector: 'square',
   RecognitionList: 'triangle',
+  BearingReport: 'hexagon',
+  ToaReport: 'hexagon',
+  PositionReport: 'hexagon',
 }
 
 export function isCatalog(v: unknown): v is Catalog {

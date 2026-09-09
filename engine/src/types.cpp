@@ -39,6 +39,9 @@ const char* to_string(PortType t) {
         case PortType::DetectionList: return "DetectionList";
         case PortType::FeatureVector: return "FeatureVector";
         case PortType::RecognitionList: return "RecognitionList";
+        case PortType::BearingReport: return "BearingReport";
+        case PortType::ToaReport: return "ToaReport";
+        case PortType::PositionReport: return "PositionReport";
     }
     return "unknown";
 }

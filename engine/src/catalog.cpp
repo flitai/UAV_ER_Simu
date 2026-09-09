@@ -10,6 +10,7 @@ const PortType kPortTypes[] = {
     PortType::IQStream, PortType::SceneParamFrame, PortType::ChannelPathSet,
     PortType::SpectrumFrame, PortType::DetectionList, PortType::FeatureVector,
     PortType::RecognitionList,
+    PortType::BearingReport, PortType::ToaReport, PortType::PositionReport,
 };
 
 nlohmann::json port_json(const PortSpec& p) {

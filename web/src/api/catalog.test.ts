@@ -16,9 +16,9 @@ test('黄金目录能被识别为 Catalog', () => {
   assert.equal(cat.schema_version, 'cuav-catalog/1')
 })
 
-test('端口兼容矩阵是 7×7 全枚举，只有对角线为真', () => {
-  assert.equal(cat.port_types.length, 7)
-  assert.equal(cat.port_compat.length, 49, '49 条全枚举')
+test('端口兼容矩阵是 10×10 全枚举，只有对角线为真', () => {
+  assert.equal(cat.port_types.length, 10)
+  assert.equal(cat.port_compat.length, 100, '100 条全枚举')
   let ok = 0
   for (const t of cat.port_types) for (const u of cat.port_types) {
     const v = canConnect(cat, t, u)
@@ -26,7 +26,7 @@ test('端口兼容矩阵是 7×7 全枚举，只有对角线为真', () => {
     if (v.ok) ok++
     else assert.ok(v.reason.length > 0, `${t} → ${u} 必须带理由`)
   }
-  assert.equal(ok, 7)
+  assert.equal(ok, 10)   // 纯对角：只有同类型可连
 })
 
 test('IQ 流与参数流不得直连，理由取目录原文并点名 D-013', () => {
@@ -54,14 +54,27 @@ test('六类分组齐全且都不为空（C-2 补上天线与接收机后，04 �
     ['AdcQuantizer', 'ReceiverFrontEnd'])
 })
 
-test('可选输入口在目录里带 optional 标记，且只有它带（D-051）', () => {
+test('可选输入口在目录里带 optional 标记（D-051；D-053 起 Superposition 的八个口全可选）', () => {
   const withOptional: string[] = []
   for (const c of cat.components) {
     for (const p of c.ports.in ?? []) {
       if (p.optional) withOptional.push(`${c.type}.${p.name}`)
     }
   }
-  assert.deepEqual(withOptional, ['AntennaGain.scene'])
+  assert.deepEqual(withOptional, [
+    'AntennaGain.scene',
+    // 固定可选口取代动态端口（D-053 §6.4）：连不连、连几个由 check_wiring() 说了算
+    ...Array.from({ length: 8 }, (_, i) => `DirectionFinder.scene${i + 1}`),
+    'DirectionFinder.det',
+    ...Array.from({ length: 8 }, (_, i) => `MultiSiteLocator.b${i + 1}`),
+    ...Array.from({ length: 8 }, (_, i) => `MultiSiteLocator.t${i + 1}`),
+    ...Array.from({ length: 8 }, (_, i) => `Superposition.in${i + 1}`),
+    ...Array.from({ length: 8 }, (_, i) => `ToaEstimator.scene${i + 1}`),
+  ])
+  // 固定可选口的下限由组件的 check_wiring() 声明，装载器报 port_optional——
+  // 目录里看不出「至少连几路」，那是参数 min_inputs 的事
+  const sup = cat.components.find((c) => c.type === 'Superposition')
+  assert.ok(sup?.params.some((p) => p.name === 'min_inputs'), 'Superposition 应有 min_inputs')
 })
 
 test('每个组件的类别都在六类内，且都有类别色', () => {
@@ -100,8 +113,10 @@ test('互斥参数成对出现，界面据此并排显示（09 §6.6 第 2 条�
 test('内部参数在目录里有标记，画布据此隐藏（D-037）', () => {
   const internal: string[] = []
   for (const c of cat.components) for (const p of c.params) if (p.internal) internal.push(`${c.type}.${p.name}`)
-  // 2 处路径类（manifest_path、out_dir）+ 三个场景绑定组件各 3 处（scenario_path、scenario_id、实体标识）= 11
-  assert.equal(internal.length, 11, '全库 11 处内部参数')
+  // 2 处路径类（manifest_path、out_dir）+ 三个场景绑定组件各 3 处（scenario_path、scenario_id、实体标识）
+  // + SceneBoundChannel 的 site_id（D-053 多站绑定）+ DirectionFinder 与 ToaEstimator 各 3 处 = 18
+  assert.equal(internal.length, 18, '全库 18 处内部参数')
+  assert.ok(internal.includes('SceneBoundChannel.site_id'), '多站绑定的站点标识也是内部参数（D-053）')
   assert.ok(internal.includes('FileReplaySource.manifest_path'))
   assert.ok(internal.includes('ObservationTap.out_dir'))
   for (const t of ['ScenarioSource', 'SceneBoundChannel', 'SceneEmitterSource']) {
@@ -121,8 +136,11 @@ test('ScenarioSource 是动态端口的唯一使用者，未 configure 时没有
   assert.equal(others.length, 0)
 })
 
-test('可绑定场景的组件恰是三个；回放源不可绑定（06 防线二、三）', () => {
+test('可绑定场景的组件恰是五个；回放源不可绑定（06 防线二、三）', () => {
   const b = cat.components.filter((c) => c.scene_bindable).map((c) => c.type).sort()
-  assert.deepEqual(b, ['ScenarioSource', 'SceneBoundChannel', 'SceneEmitterSource'])
+  // DirectionFinder 与 ToaEstimator 自 D-053 起也绑场景：前者要采样率 / 噪声系数 / 发射功率，
+  // 后者还要站钟（缺 clock 即拒绝运行）。MultiSiteLocator 不绑——站址随报告走
+  assert.deepEqual(b, ['DirectionFinder', 'ScenarioSource', 'SceneBoundChannel', 'SceneEmitterSource', 'ToaEstimator'])
+  assert.equal(cat.components.find((c) => c.type === 'MultiSiteLocator')!.scene_bindable ?? false, false)
   assert.equal(findComponent(cat, 'FileReplaySource')!.scene_bindable ?? false, false)
 })

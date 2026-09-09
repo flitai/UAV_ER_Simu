@@ -343,6 +343,61 @@ TEST_CASE("航迹黄金基准：同一时刻的位置与 tests/golden/scenario-t
 }
 
 
+TEST_CASE("航迹黄金基准：demo-03 三源三站与 tests/golden/scenario-track-demo-03.json 相符（D-053）") {
+    std::ifstream gf(repo("tests/golden/scenario-track-demo-03.json").c_str(), std::ios::binary);
+    REQUIRE(gf.good());
+    std::stringstream ss;
+    ss << gf.rdbuf();
+    const nlohmann::json g = nlohmann::json::parse(ss.str());
+    CHECK(g["schema_version"] == "cuav-scenario-track/1");
+
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo("data/scene/beijing-yayuncun/scenarios/demo-03.scenario.json"), s, err));
+    CHECK(g["scenario_sha256"].get<std::string>() == s.sha256);
+    REQUIRE(s.scenario.sites.size() == 3);
+    REQUIRE(s.scenario.emitters.size() == 3);
+    REQUIRE_MESSAGE(s.scenario.cross_check(err), err);
+
+    // 站钟：三个站各自的建模同步误差，site-3 是保持态且带固定钟差
+    CHECK(s.scenario.sites[0].clock.has_clock);
+    CHECK(s.scenario.sites[0].clock.sync_sigma_ns == doctest::Approx(3.0));
+    CHECK(s.scenario.sites[2].clock.sync_state == geo::SyncState::Holdover);
+    CHECK(s.scenario.sites[2].clock.bias_ns == doctest::Approx(20.0));
+    // 各站必须同采样率同中心频率（多站的硬约束，11 报告 §6.5）
+    for (std::size_t i = 1; i < s.scenario.sites.size(); ++i) {
+        CHECK(s.scenario.sites[i].receiver.fs_Hz == s.scenario.sites[0].receiver.fs_Hz);
+        CHECK(s.scenario.sites[i].receiver.center_Hz == s.scenario.sites[0].receiver.center_Hz);
+    }
+    // uav-1 与 uav-2 有意同频：同站同频多源的测向混叠靠它演示
+    const geo::Emitter* e1 = s.scenario.find_emitter("uav-1");
+    const geo::Emitter* e2 = s.scenario.find_emitter("uav-2");
+    REQUIRE(e1 != nullptr);
+    REQUIRE(e2 != nullptr);
+    CHECK(e1->emission.center_Hz == e2->emission.center_Hz);
+    CHECK(e1->emission.waveform.offset_Hz == doctest::Approx(e2->emission.waveform.offset_Hz));
+
+    const double tol_deg = g["tolerance"]["position_deg"].get<double>();
+    const double tol_alt = g["tolerance"]["alt_m"].get<double>();
+    std::size_t checked = 0;
+    for (const std::string id : {"uav-1", "uav-2", "uav-3"}) {
+        geo::EmitterRuntime rt;
+        REQUIRE_MESSAGE(rt.build(s.scenario, id, err), err);
+        for (const auto& smp : g["samples"]) {
+            if (smp["id"].get<std::string>() != id) continue;
+            const double t = smp["t_s"].get<double>();
+            const geo::MotionState m = rt.motion_at(t);
+            CHECK(std::fabs(m.position.lon_deg - smp["lon"].get<double>()) < tol_deg);
+            CHECK(std::fabs(m.position.lat_deg - smp["lat"].get<double>()) < tol_deg);
+            CHECK(std::fabs(m.position.alt_m - smp["alt_m"].get<double>()) < tol_alt);
+            CHECK(rt.tx_on_at(t) == smp["tx_on"].get<bool>());
+            ++checked;
+        }
+    }
+    CHECK(checked == g["sample_count"].get<std::size_t>());
+    MESSAGE("demo-03 航迹黄金基准逐点对拍：" << checked << " 个样点（三个源），容差 " << tol_deg << " 度");
+}
+
 // ------------------------------------------------- C-1 新增字段（D-051）
 
 TEST_CASE("场景：发射极化可缺省，给出时必须在五档之内（D-051）") {
@@ -370,6 +425,109 @@ TEST_CASE("场景：发射极化可缺省，给出时必须在五档之内（D-0
     nlohmann::json d = demo_json();
     REQUIRE_MESSAGE(parse_scenario(d, s, err), err);
     CHECK(s.sites[0].antenna.pattern == "omni");
+}
+
+TEST_CASE("场景：设备型号可缺省，给出时收下并原样保存（D-054）") {
+    geo::Scenario s;
+    std::string err;
+
+    // 既有场景文件不写 equipment_model 仍合法，读出来是空串（不拿默认值顶替，铁律 15）
+    nlohmann::json a = demo_json();
+    REQUIRE_MESSAGE(parse_scenario(a, s, err), err);
+    CHECK(s.sites[0].equipment_model.empty());
+    CHECK(s.emitters[0].equipment_model.empty());
+
+    // 给出时逐字保存。引擎不解释它，只是不静默丢弃
+    nlohmann::json b = demo_json();
+    b["sites"][0]["equipment_model"] = "宽带站-A";
+    b["emitters"][0]["equipment_model"] = "DJI-Mavic3";
+    REQUIRE_MESSAGE(parse_scenario(b, s, err), err);
+    CHECK(s.sites[0].equipment_model == "宽带站-A");
+    CHECK(s.emitters[0].equipment_model == "DJI-Mavic3");
+
+    // 类型写错不放行：静默忽略会让用户以为型号设上了
+    nlohmann::json c = demo_json();
+    c["sites"][0]["equipment_model"] = 7;
+    CHECK_FALSE(parse_scenario(c, s, err));
+    CHECK(err.find("equipment_model") != std::string::npos);
+}
+
+TEST_CASE("场景：站钟可缺省，缺省时 has_clock 为假（D-053）") {
+    geo::Scenario s;
+    std::string err;
+
+    // 既有场景文件不写 clock 照旧合法；has_clock 保持假，TDOA 组件据此报错而不是假定完美时钟
+    nlohmann::json a = demo_json();
+    REQUIRE_MESSAGE(parse_scenario(a, s, err), err);
+    CHECK_FALSE(s.sites[0].clock.has_clock);
+    CHECK(s.sites[0].clock.sync_sigma_ns == 0.0);
+
+    // 全字段
+    nlohmann::json b = demo_json();
+    b["sites"][0]["clock"] = {{"sync_sigma_ns", 3.0}, {"bias_ns", 20.0}, {"rx_delay_ns", 12.5},
+                              {"rx_delay_sigma_ns", 0.5}, {"sync_state", "holdover"}};
+    REQUIRE_MESSAGE(parse_scenario(b, s, err), err);
+    CHECK(s.sites[0].clock.has_clock);
+    CHECK(s.sites[0].clock.sync_sigma_ns == doctest::Approx(3.0));
+    CHECK(s.sites[0].clock.bias_ns == doctest::Approx(20.0));
+    CHECK(s.sites[0].clock.rx_delay_ns == doctest::Approx(12.5));
+    CHECK(s.sites[0].clock.sync_state == geo::SyncState::Holdover);
+    CHECK(std::string(geo::to_string(s.sites[0].clock.sync_state)) == "holdover");
+
+    // 只给必填项，同步态缺省 locked
+    nlohmann::json c = demo_json();
+    c["sites"][0]["clock"] = {{"sync_sigma_ns", 5.0}};
+    REQUIRE_MESSAGE(parse_scenario(c, s, err), err);
+    CHECK(s.sites[0].clock.has_clock);
+    CHECK(s.sites[0].clock.sync_state == geo::SyncState::Locked);
+}
+
+TEST_CASE("场景：站钟的非法取值被拒，报文点名字段（D-053）") {
+    geo::Scenario s;
+    std::string err;
+
+    nlohmann::json a = demo_json();
+    a["sites"][0]["clock"] = {{"sync_sigma_ns", -1.0}};
+    CHECK_FALSE(parse_scenario(a, s, err));
+    CHECK(err.find("sync_sigma_ns") != std::string::npos);
+
+    nlohmann::json b = demo_json();
+    b["sites"][0]["clock"] = {{"sync_sigma_ns", 3.0}, {"sync_state", "free_running"}};
+    CHECK_FALSE(parse_scenario(b, s, err));
+    CHECK(err.find("sync_state") != std::string::npos);
+
+    // 未知键一律拒绝（与场景其余部分同一口径）
+    nlohmann::json c = demo_json();
+    c["sites"][0]["clock"] = {{"sync_sigma_ns", 3.0}, {"drift_ppb", 1.0}};
+    CHECK_FALSE(parse_scenario(c, s, err));
+    CHECK(err.find("drift_ppb") != std::string::npos);
+
+    // sync_sigma_ns 是必填
+    nlohmann::json d = demo_json();
+    d["sites"][0]["clock"] = nlohmann::json::object();
+    CHECK_FALSE(parse_scenario(d, s, err));
+}
+
+TEST_CASE("场景：多站不再被拒（D-053 替换了单站守卫），跨引用照常校验") {
+    geo::Scenario s;
+    std::string err;
+    nlohmann::json a = demo_json();
+    nlohmann::json second = a["sites"][0];
+    second["id"] = "site-2";
+    second["name"] = "第二站";
+    second["position"]["lon"] = a["sites"][0]["position"]["lon"].get<double>() + 0.02;
+    a["sites"].push_back(second);
+    REQUIRE_MESSAGE(parse_scenario(a, s, err), err);
+    CHECK(s.sites.size() == 2);
+    CHECK(s.find_site("site-2") != nullptr);
+    REQUIRE_MESSAGE(s.cross_check(err), err);
+
+    // 站点标识仍必须唯一
+    nlohmann::json b = a;
+    b["sites"][1]["id"] = "site-1";
+    geo::Scenario t;
+    REQUIRE(parse_scenario(b, t, err));
+    CHECK_FALSE(t.cross_check(err));
 }
 
 TEST_CASE("链路帧：离开角与到达角各算各的，不是互为反方位（D-051）") {

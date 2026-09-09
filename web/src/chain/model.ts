@@ -17,9 +17,11 @@ export type { ChainMode }
 export const TEMPLATE_ID = 'chain-v1'
 export const TEMPLATE_VERSION = 1
 
-/** 九个槽位，顺序即链路顺序（04 §5.1 的端到端对象）。 */
+/** 十一个槽位，顺序即链路顺序（04 §5.1 的端到端对象加 D-053 的测向与定位）。 */
 export type SlotId =
   | 'tx' | 'tx_ant' | 'ch' | 'rx_ant' | 'rx_fe' | 'adc' | 'ddc' | 'chan' | 'det'
+  // D-053：尾部两个槽位。`df` 一站一个测向机，`loc` 全图唯一的融合节点
+  | 'df' | 'loc'
 
 /** 观测点，钉在链上的固定位置（04 §5.4 的 S0–S5；S6 不是 IQ，是检测识别产品）。 */
 export type TapId = 's0' | 's1' | 's2' | 's3' | 's4' | 's5'
@@ -34,18 +36,46 @@ export interface SlotVariant {
   node: string
   /** 变体的中文名，下拉里显示 */
   label: string
-  /** 绑定到场景的哪种对象；不绑定为 null */
-  bind?: 'emitter' | 'site'
+  /**
+   * 绑定到场景的哪种对象；不绑定为 null。
+   * `link` 表示**同时**绑源与站（D-053）：`SceneBoundChannel` 既要知道是哪个源（发射功率、波形），
+   * 又要知道是哪个站（接收天线增益）。只在场景确实有多个站时才写 `site_id`——
+   * 单站场景里组件自己取唯一站，既有框图因此逐字节不变。
+   */
+  bind?: 'emitter' | 'site' | 'link'
   /** 恒定参数：由模板决定、用户不可改 */
   fixed?: Record<string, ParamValue>
   /** 卡片正文显示哪几个参数 */
   summary: string[]
 }
 
+/**
+ * 槽位在哪个维度上实例化（D-053，11 报告 §2.1）。
+ * `emitter` 一源一份、`link` 一条 (源, 站) 链路一份、`site` 一站一份、`single` 全图唯一。
+ * 辐射源按**源**而不是按链路实例化：同一个源发出的是同一份波形，若每条链路各生成一份，
+ * 同一源在不同站的载波相位与突发时刻会各自独立，时差定位就失去物理意义。
+ */
+export type SlotPer = 'emitter' | 'link' | 'site' | 'single'
+
+/**
+ * 参数归谁（D-054）。**与 `per` 是两件事**：`per` 说编译出几个节点，`owner` 说这些节点的参数从哪取。
+ *
+ * `tx_ant` 与 `rx_ant` 正是两者分离的地方：节点按链路展开 N×K 份，但发射天线长在无人机上
+ * （同一架机对 K 个站是同一副天线）、接收天线长在站上（同一个站对 N 个源是同一副天线）。
+ * 按 `per` 取参数会让「改一架机的天线增益」变成「改一条链路的天线增益」，物理上讲不通。
+ *
+ * `shared` 是全图一套：传播信道（用户 2026-09-09 明确要求它不随实体选择变化）与多站定位。
+ */
+export type SlotOwner = 'emitter' | 'site' | 'shared'
+
 export interface SlotDef {
   id: SlotId
   /** 环节名 */
   label: string
+  /** 实例化维度；缺省 `site`（接收侧一站一份） */
+  per?: SlotPer
+  /** 参数归属维度（D-054）；缺省 `site` */
+  owner?: SlotOwner
   /** 04 §5.1 里对应的环节措辞，鼠标悬停时显示 */
   hint: string
   variants: SlotVariant[]
@@ -60,7 +90,7 @@ export interface SlotDef {
 /** 槽位表。改这里就改了整条链，编译、反解与界面同时跟随。 */
 export const SLOTS: readonly SlotDef[] = [
   {
-    id: 'tx', label: '辐射源', hint: '辐射源复基带信号',
+    id: 'tx', label: '辐射源', hint: '辐射源复基带信号', per: 'emitter', owner: 'emitter',
     variants: [
       { type: 'SceneEmitterSource', node: 'tx', label: '场景辐射源', bind: 'emitter',
         fixed: { emit_at_tx_power: true }, summary: ['center_frequency_Hz', 'sample_rate_Hz'] },
@@ -68,23 +98,26 @@ export const SLOTS: readonly SlotDef[] = [
     ],
   },
   {
-    id: 'tx_ant', label: '发射天线', hint: '发射特征与天线等效作用', replayNotApplicable: true,
+    id: 'tx_ant', label: '发射天线', hint: '发射特征与天线等效作用', per: 'link', owner: 'emitter',
+    replayNotApplicable: true,
     variants: [
       { type: 'AntennaGain', node: 'tx_ant', label: '天线增益', fixed: { role: 'tx' },
         summary: ['pattern', 'gain_dBi', 'polarization'] },
     ],
   },
   {
-    id: 'ch', label: '传播信道', hint: '传播损耗、时延、多径、多普勒', replayNotApplicable: true,
+    id: 'ch', label: '传播信道', hint: '传播损耗、时延、多径、多普勒', per: 'link', owner: 'shared',
+    replayNotApplicable: true,
     variants: [
-      { type: 'SceneBoundChannel', node: 'ch', label: '场景绑定信道', bind: 'emitter',
+      { type: 'SceneBoundChannel', node: 'ch', label: '场景绑定信道', bind: 'link',
         fixed: { gain_mode: 'path_loss_only' }, summary: ['delay_mode', 'apply_doppler'] },
       { type: 'FreeSpaceChannel', node: 'ch', label: '自由空间（定参）',
         summary: ['distance_m', 'frequency_Hz'] },
     ],
   },
   {
-    id: 'rx_ant', label: '接收天线', hint: '接收天线与馈线', replayNotApplicable: true,
+    id: 'rx_ant', label: '接收天线', hint: '接收天线与馈线', per: 'link', owner: 'site',
+    replayNotApplicable: true,
     variants: [
       { type: 'AntennaGain', node: 'rx_ant', label: '天线增益', fixed: { role: 'rx' },
         summary: ['pattern', 'gain_dBi', 'feeder_loss_dB'] },
@@ -123,12 +156,35 @@ export const SLOTS: readonly SlotDef[] = [
         summary: ['nfft', 'pfa', 'noise_mode'] },
     ],
   },
+  {
+    // 测向不在 IQ 主链上：它吃的是链路参数帧，一站一个（D-053）。
+    // 缺省旁路——单站演示里它没有增量，勾上多站才有意义。
+    id: 'df', label: '测向', hint: '单站测向（EM-S-05 的 E2 效应模型，取真值按误差预算给量测）',
+    per: 'site', bypassable: true, defaultBypass: true, replayNotApplicable: true,
+    variants: [
+      { type: 'DirectionFinder', node: 'df', label: '单站测向', bind: 'site',
+        summary: ['method', 'sigma_method_deg', 'min_snr_dB'] },
+    ],
+  },
+  {
+    // 全图唯一的融合节点：吃 K 路测向报告（与到达时间报告）出一个位置解。
+    // 缺省旁路——它至少要两个站，单站演示里没有意义。
+    id: 'loc', label: '多站定位', hint: '多站交叉定位与时差定位（EM-S-06 / EM-S-07）',
+    per: 'single', owner: 'shared', bypassable: true, defaultBypass: true, replayNotApplicable: true,
+    variants: [
+      { type: 'MultiSiteLocator', node: 'loc', label: '多站定位',
+        summary: ['method', 'min_crossing_angle_deg', 'weighting'] },
+    ],
+  },
 ]
 
 export const SLOT_BY_ID: Readonly<Record<SlotId, SlotDef>> =
   Object.fromEntries(SLOTS.map((s) => [s.id, s])) as Record<SlotId, SlotDef>
 
-/** 观测点在链上的锚点：优先挂第一个存在的槽位输出口。`s4` 另有兜底，见 compile。 */
+/**
+ * 观测点在链上的锚点：优先挂第一个存在的槽位输出口。`s4` 另有兜底，见 compile。
+ * `label` 是完整称呼，观测点一行、结果页页签、信号页头三处共用同一套名字。
+ */
 export const TAP_ANCHOR: Readonly<Record<TapId, { slot: SlotId; label: string }>> = {
   s0: { slot: 'tx', label: 'S0 辐射源输出' },
   s1: { slot: 'rx_ant', label: 'S1 接收天线端' },
@@ -139,6 +195,27 @@ export const TAP_ANCHOR: Readonly<Record<TapId, { slot: SlotId; label: string }>
 }
 
 export const TAP_ORDER: readonly TapId[] = ['s0', 's1', 's2', 's3', 's4', 's5']
+
+/** 实例后缀分隔符（D-053）。节点 id 正则是 `[a-z0-9_-]`，`@` 与 `:` 都不合法；
+ *  既有槽位 id 只用单下划线（`tx_ant` / `rx_fe`），双下划线因此可无歧义地切分。 */
+export const INST_SEP = '__'
+
+/**
+ * 观测点的产品目录名。只有一个实例时不加后缀，于是单源单站的框图逐字节不变。
+ * S0 挂在辐射源上（按源实例化），其余挂在接收侧（按站）。
+ */
+export function tapOpId(tap: TapId, inst: string, count: number): string {
+  return count > 1 && inst ? `${tap}${INST_SEP}${inst}` : tap
+}
+
+/** 三处共用的显示名：`s4` → `S4 主产品`，`s4__site-2` → `S4 主产品 · site-2`；不是 S 点的照原样返回。 */
+export function tapLabel(opId: string): string {
+  const i = opId.indexOf(INST_SEP)
+  const base = i < 0 ? opId : opId.slice(0, i)
+  if (!(TAP_ORDER as readonly string[]).includes(base)) return opId
+  const name = TAP_ANCHOR[base as TapId].label
+  return i < 0 ? name : `${name} · ${opId.slice(i + INST_SEP.length)}`
+}
 
 export const MODE_LABEL: Readonly<Record<ChainMode, string>> = {
   synthetic: '全合成',
@@ -152,7 +229,18 @@ export interface SlotConfig {
   variant: number
   /** 用户勾了旁路（只对 bypassable 有意义） */
   bypass: boolean
+  /** 共用底值：没有单独设置的实体都用它 */
   params: Record<string, ParamValue>
+  /**
+   * 逐实体覆盖（D-054）。键是站点 id 或辐射源 id，按 `SlotDef.owner` 决定是哪一种。
+   * 空或缺席时整个槽位退回「一套参数」，编译结果与 D-053 时代逐字节相同。
+   *
+   * 这里**只有两层**。用户看到的「同型号共用」是第三层，但它不进状态：型号要查场景文档，
+   * 而 `parseChain()` 只拿得到框图（自由画布那条路径上根本没有场景），把型号写进状态会让
+   * 反解结果随「场景载没载入」变化，`compile(parseChain(doc)) === doc` 当场失效。
+   * 型号因此是**编辑范围**——改一次写进同型号每个实体的覆盖里，见 `ChainView` 的范围选择器。
+   */
+  byEntity?: Record<string, Record<string, ParamValue>>
 }
 
 /** 链路视图的完整状态。它由 `parse()` 从框图解出，由 `compile()` 编译回框图。 */
@@ -162,13 +250,33 @@ export interface ChainState {
   mode: ChainMode
   /** 场景引用；回放模式为 null */
   scenario: { scenario_id: string; sha256: string } | null
-  siteId: string | null
-  emitterId: string | null
+  /**
+   * 选中的站点与目标（D-053）。两者都是数组：K 个站各跑一条接收链，N 个源在接收天线后叠加。
+   * N = K = 1 时编译出的框图与单源单站时代逐字节相同（节点不带后缀、无叠加节点）。
+   */
+  siteIds: string[]
+  emitterIds: string[]
   /** 混合模式的背景回放数据 */
   backgroundDataId: string | null
   run: { duration_s: number; seed: number; block_size?: number }
   slots: Record<SlotId, SlotConfig>
   taps: Record<TapId, boolean>
+}
+
+/**
+ * 某个槽位实例化出几份，以及卡片右上角写什么（D-053 §5.2）。
+ * N = K = 1 时返回空串——画面与单源单站时代一模一样。
+ */
+export function instanceBadge(chain: ChainState, id: SlotId): string {
+  const N = Math.max(chain.emitterIds.length, 1)
+  const K = Math.max(chain.siteIds.length, 1)
+  if (N <= 1 && K <= 1) return ''
+  switch (SLOT_BY_ID[id].per ?? 'site') {
+    case 'emitter': return N > 1 ? `×${N}` : ''
+    case 'link': return N * K > 1 ? `×${N * K}` : ''
+    case 'single': return K > 1 ? `${K} 站` : ''
+    default: return K > 1 ? `×${K}` : ''
+  }
 }
 
 /** 某个槽位在当前模式与目录下的实际状态。 */
@@ -187,6 +295,102 @@ export function variantOf(chain: ChainState, id: SlotId): SlotVariant {
   return def.variants[chain.slots[id].variant] ?? def.variants[0]!
 }
 
+/** 槽位的参数归属维度（D-054）。缺省 `site`，与 `per` 的缺省一致。 */
+export function ownerOf(id: SlotId): SlotOwner {
+  return SLOT_BY_ID[id].owner ?? 'site'
+}
+
+/**
+ * 这个槽位在某条 (源, 站) 链路上取谁的参数。`shared` 返回空串——全图一份，没有实体维度。
+ * 编译与反解共用它，两处不会对不上。
+ */
+export function ownerEntity(id: SlotId, emitterId: string, siteId: string): string {
+  switch (ownerOf(id)) {
+    case 'emitter': return emitterId
+    case 'site': return siteId
+    default: return ''
+  }
+}
+
+/** 这个槽位当前有哪些实体做过单独设置（按 id 排好序，便于确定性地遍历与显示）。 */
+export function overriddenEntities(chain: ChainState, id: SlotId): string[] {
+  return Object.keys(chain.slots[id].byEntity ?? {}).sort()
+}
+
+/**
+ * 某个实体在这个槽位上的**有效参数** = 共用底值叠上它自己的覆盖。
+ * `entityId` 为空（`shared` 槽位）时就是共用底值。
+ */
+export function effectiveParams(
+  chain: ChainState, id: SlotId, entityId: string,
+): Record<string, ParamValue> {
+  const cfg = chain.slots[id]
+  const over = entityId ? cfg.byEntity?.[entityId] : undefined
+  return over ? { ...cfg.params, ...over } : { ...cfg.params }
+}
+
+/**
+ * 一个参数当前的**设置范围**（D-054）：全部实体一致是 `shared`；按型号分组后组内一致、
+ * 组间不同是 `model`；再不齐就是 `entity`。
+ *
+ * 它是**当场派生**的，不存状态。`modelOf` 由调用方传进来（要查场景文档），
+ * 这个模块因此不依赖场景。
+ */
+export type ParamScope = 'shared' | 'model' | 'entity'
+
+export function paramScope(
+  chain: ChainState, id: SlotId, name: string,
+  entities: readonly string[], modelOf: (entityId: string) => string,
+): ParamScope {
+  const byEnt = chain.slots[id].byEntity ?? {}
+  const val = (e: string) => (name in (byEnt[e] ?? {}) ? byEnt[e]![name] : chain.slots[id].params[name])
+  if (entities.length <= 1) return 'shared'
+  const first = val(entities[0]!)
+  if (entities.every((e) => val(e) === first)) return 'shared'
+  const byModel = new Map<string, ParamValue | undefined>()
+  for (const e of entities) {
+    const m = modelOf(e)
+    if (!byModel.has(m)) byModel.set(m, val(e))
+    else if (byModel.get(m) !== val(e)) return 'entity'
+  }
+  return 'model'
+}
+
+/**
+ * 把一个参数写到指定范围里，返回新的槽位配置（纯函数，D-054）。
+ *
+ * - `shared`：写共用底值，并把**所有**实体对该参数的覆盖清掉——否则改了共用值却看不出变化。
+ * - `model` / `entity`：写进目标实体的覆盖。
+ *
+ * 清理后如果某个实体的覆盖空了，把它整条删掉；全空则删掉 `byEntity`。
+ * 不这么收拾的话，框图里会留下 `"byEntity": {}` 这种空壳，往返就不逐字节了。
+ */
+export function writeParam(
+  chain: ChainState, id: SlotId, name: string, v: ParamValue | undefined,
+  scope: ParamScope, targets: readonly string[],
+): SlotConfig {
+  const cfg = chain.slots[id]
+  const params = { ...cfg.params }
+  const byEntity: Record<string, Record<string, ParamValue>> = {}
+  for (const [k, o] of Object.entries(cfg.byEntity ?? {})) byEntity[k] = { ...o }
+
+  if (scope === 'shared') {
+    if (v === undefined) delete params[name]
+    else params[name] = v
+    for (const k of Object.keys(byEntity)) delete byEntity[k]![name]
+  } else {
+    for (const t of targets) {
+      const o = (byEntity[t] ??= {})
+      if (v === undefined) delete o[name]
+      else o[name] = v
+    }
+  }
+  for (const k of Object.keys(byEntity)) if (Object.keys(byEntity[k]!).length === 0) delete byEntity[k]
+  const next: SlotConfig = { variant: cfg.variant, bypass: cfg.bypass, params }
+  if (Object.keys(byEntity).length > 0) next.byEntity = byEntity
+  return next
+}
+
 /**
  * 组件还没实现时给的理由，写在卡片上（不隐藏，隐藏会让人以为链路只有七段）。
  * 表里没有的组件走 `unavailableReason()` 的兜底——那多半不是「本期未实现」，
@@ -198,6 +402,7 @@ export const UNAVAILABLE_REASON: Readonly<Record<string, string>> = {
   FeatureExtractor: '待特征提取组件（C-4）',
   TemplateClassifier: '待模板匹配识别（C-4）',
   Evaluator: '待评价器（C-5）',
+  MultiSiteLocator: '待多站定位组件（L-4 / L-5）',
 }
 
 /** 某个组件不在目录里时该说什么。 */
@@ -216,8 +421,8 @@ export function emptyChain(mode: ChainMode = 'synthetic', id = 'chain-1'): Chain
     name: `典型链路 · ${MODE_LABEL[mode]}`,
     mode,
     scenario: null,
-    siteId: null,
-    emitterId: null,
+    siteIds: [],
+    emitterIds: [],
     backgroundDataId: null,
     run: { duration_s: 20, seed: 20260907 },
     slots,
@@ -230,6 +435,8 @@ export function missingParams(
   chain: ChainState, id: SlotId, cat: Catalog | null,
   /** 当前算得出来的派生量；算不出来的仍按必填看待，不静默留空（铁律 15） */
   derivable: readonly string[] = ALL_DERIVED,
+  /** 场景当前能不能给出这个由场景带出的参数（D-054）；不传即一律按「给不出」看待 */
+  sceneHas: (f: FromSceneParam) => boolean = () => false,
 ): string[] {
   if (!cat) return []
   const v = variantOf(chain, id)
@@ -237,6 +444,10 @@ export function missingParams(
   if (!spec) return []
   const fixed = v.fixed ?? {}
   const derived = (DERIVED_PARAMS[id] ?? []).filter((n) => derivable.includes(n))
+    // 由场景带出的那些同样不必用户填——**但只在场景真的给得出值时**（D-054）。
+    // 无条件放行等于把「场景里没写天线增益」这件事咽掉，引擎那边才报「缺必填参数」，
+    // 报错还指向组件而不是指向场景（铁律 15）。缺省判据是「给不出」，最保守的那一侧。
+    .concat(fromSceneOf(id).filter(sceneHas).map((f) => f.name))
   const out: string[] = []
   for (const p of spec.params as ParamSpec[]) {
     if (!p.required || p.internal) continue
@@ -256,6 +467,38 @@ export const DERIVED_PARAMS: Partial<Record<SlotId, string[]>> = {
   tx: ['sample_rate_Hz', 'total_samples', 'center_frequency_Hz'],
   det: ['band_lo_Hz', 'band_hi_Hz'],
   ch: ['frequency_Hz'],
+}
+
+/**
+ * 由场景**逐实体**带出的组件参数（D-054）。
+ *
+ * 与 `DERIVED_PARAMS` 的区别有两点：那些由频率计划算出、全局一个值、只读；这些逐实体不同，
+ * 而且**可以在框图页反向编辑**——编辑写的是场景文件，不是框图。
+ *
+ * 这么改是为了消掉两处真理源。在此之前 `ReceiverFrontEnd.nf_dB` 与站点的 `receiver.nf_dB`、
+ * `AntennaGain.gain_dBi` 与站点／无人机的天线增益各存各的，只是碰巧填了相同的值；
+ * demo-03 的 `uav-3` 就没碰巧——场景里它是 0 dBi 而链路里被迫跟着别人用 2 dBi。
+ *
+ * `rel` 是 `deviceFields.ts` 里的相对路径，两边指的是同一个字段。
+ */
+export interface FromSceneParam {
+  /** 组件参数名 */
+  name: string
+  /** 取场景里的哪个实体：`emitter` 或 `site`，与槽位的 `owner` 一致 */
+  from: 'emitter' | 'site'
+  /** 相对实体根的点路径 */
+  rel: string
+}
+
+export const FROM_SCENE: Partial<Record<SlotId, FromSceneParam[]>> = {
+  tx_ant: [{ name: 'gain_dBi', from: 'emitter', rel: 'emission.antenna_gain_dBi' }],
+  rx_ant: [{ name: 'gain_dBi', from: 'site', rel: 'antenna.gain_dBi' }],
+  rx_fe: [{ name: 'nf_dB', from: 'site', rel: 'receiver.nf_dB' }],
+}
+
+/** 这个槽位有没有由场景带出的参数；有的话是哪几个。 */
+export function fromSceneOf(id: SlotId): FromSceneParam[] {
+  return FROM_SCENE[id] ?? []
 }
 
 const ALL_DERIVED: readonly string[] = Object.values(DERIVED_PARAMS).flat()

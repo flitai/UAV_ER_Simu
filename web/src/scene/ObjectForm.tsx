@@ -7,12 +7,15 @@
 import { useSyncExternalStore } from 'react'
 import { useAppState, useStore } from '../state/store.js'
 import { fmtDeg, fmtDelay, fmtHz, fmtMeters, parseSi } from '../shell/format.js'
-import { sceneStore } from './sceneStore.js'
+import { sceneStore, type PositionSample } from './sceneStore.js'
 import {
-  activities, addActivity, emitters, insertWaypoint, posOf, removeActivity, removeWaypoint,
-  routeOf, setPath, sites, waypointsOf,
+  activities, addActivity, emitters, insertWaypoint, posOf, removeActivity, removeEmitter,
+  removeWaypoint, routeOf, setPath, sites, waypointsOf, type Obj,
 } from './editor/scenarioOps.js'
 import { lookAngles, RoutePreview, type Waypoint } from './editor/preview.js'
+import {
+  devicePath, fieldsFor, readField, type DeviceField, type DeviceKind,
+} from './editor/deviceFields.js'
 import type { ScenarioDoc } from '../state/types.js'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -57,6 +60,90 @@ function NumField({
   )
 }
 
+/**
+ * 按 `deviceFields.ts` 的描述渲染一个设备参数字段（D-054）。
+ * 枚举与数值走同一个入口，两处界面因此长得一样、行为也一样。
+ */
+export function DeviceRow({
+  field, entity, kind, index, onCommit,
+}: {
+  field: DeviceField
+  entity: Obj | undefined
+  kind: DeviceKind
+  index: number
+  onCommit: (path: string, v: unknown) => void
+}) {
+  const path = devicePath(kind, index, field.rel)
+  const raw = readField(entity, field.rel)
+  if (field.type === 'enum') {
+    // 缺席时显示缺省值，但**不**写回文件——没选过就是没写过（铁律 15）
+    const cur = typeof raw === 'string' ? raw : (field.fallback ?? '')
+    return (
+      <Row label={field.label}>
+        <select className="form-input" data-field={path} value={cur}
+          onChange={(e) => onCommit(path, e.target.value)}>
+          {(field.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </Row>
+    )
+  }
+  if (field.type === 'text') {
+    // 留空即**删掉**这个键，而不是写空串：场景 schema 要求它非空，写空串会被引擎拒
+    const cur = typeof raw === 'string' ? raw : ''
+    return (
+      <Row label={field.label}>
+        <input className="form-input" defaultValue={cur} placeholder="未设置" data-field={path}
+          onBlur={(e) => {
+            const text = e.currentTarget.value.trim()
+            if (text !== cur) onCommit(path, text === '' ? undefined : text)
+          }} />
+      </Row>
+    )
+  }
+  return (
+    <Row label={field.label}>
+      <input
+        className="form-input"
+        // 字段缺席（站钟那几项本来就可能没有）时留空，不写 0——0 是个合法取值，顶上去就分不清了
+        defaultValue={typeof raw === 'number' ? String(raw) : ''}
+        placeholder={typeof raw === 'number' ? undefined : '未设置'}
+        data-field={path}
+        onBlur={(e) => {
+          const text = e.currentTarget.value.trim()
+          if (text === '') return                       // 留空即不改，不是「改成 0」
+          const v = parseSi(text)
+          if (v === null) {
+            e.currentTarget.classList.add('bad')
+            e.currentTarget.value = typeof raw === 'number' ? String(raw) : ''
+            return
+          }
+          e.currentTarget.classList.remove('bad')
+          if (v !== raw) onCommit(path, v)
+        }}
+      />
+      <span className="form-unit">{field.unit}</span>
+    </Row>
+  )
+}
+
+/** 一个实体的整组设备参数。场景视图与框图页共用。 */
+export function DeviceFieldGroup({
+  kind, index, entity, onCommit,
+}: {
+  kind: DeviceKind
+  index: number
+  entity: Obj | undefined
+  onCommit: (path: string, v: unknown) => void
+}) {
+  return (
+    <>
+      {fieldsFor(kind, entity).map((f) => (
+        <DeviceRow key={f.key} field={f} entity={entity} kind={kind} index={index} onCommit={onCommit} />
+      ))}
+    </>
+  )
+}
+
 export function ObjectPanel() {
   const s = useAppState()
   const store = useStore()
@@ -65,7 +152,7 @@ export function ObjectPanel() {
   const measure = s.scene.editor.measure
 
   const edit = (next: ScenarioDoc) => store.dispatch({ type: 'scene/edit', doc: next })
-  const commit = (path: string, v: number) => { if (doc) edit(setPath(doc, path, v)) }
+  const commit = (path: string, v: unknown) => { if (doc) edit(setPath(doc, path, v)) }
 
   if (measure.length === 2) return <MeasureReadout a={measure[0]} b={measure[1]} />
   if (!doc) return <div className="group placeholder">载入场景后在这里编辑对象</div>
@@ -78,20 +165,14 @@ export function ObjectPanel() {
     const site = sites(doc)[i]
     if (!site) return <div className="group placeholder">对象已不存在</div>
     const p = site.position as Record<string, number>
-    const ant = site.antenna as Record<string, number>
-    const rx = site.receiver as Record<string, number>
     return (
       <div className="group" data-form="site">
         <div className="group-title">站点 {String(site.name ?? site.id)}</div>
         <Row label="经度"><span className="mono">{p.lon.toFixed(6)}°</span></Row>
         <Row label="纬度"><span className="mono">{p.lat.toFixed(6)}°</span></Row>
         <NumField label="离地高" value={p.alt_m} unit="m（AGL）" path={`sites.${i}.position.alt_m`} onCommit={commit} />
-        <NumField label="天线增益" value={ant.gain_dBi} unit="dBi" path={`sites.${i}.antenna.gain_dBi`} onCommit={commit} />
-        <div className="form-sub">接收机</div>
-        <NumField label="采样率" value={rx.fs_Hz} unit="Hz" path={`sites.${i}.receiver.fs_Hz`} onCommit={commit} />
-        <NumField label="中心频率" value={rx.center_Hz} unit="Hz" path={`sites.${i}.receiver.center_Hz`} onCommit={commit} />
-        <NumField label="带宽" value={rx.bw_Hz} unit="Hz" path={`sites.${i}.receiver.bw_Hz`} onCommit={commit} />
-        <NumField label="噪声系数" value={rx.nf_dB} unit="dB" path={`sites.${i}.receiver.nf_dB`} onCommit={commit} />
+        <div className="form-sub">设备参数</div>
+        <DeviceFieldGroup kind="site" index={i} entity={site} onCommit={commit} />
       </div>
     )
   }
@@ -100,27 +181,21 @@ export function ObjectPanel() {
     const i = emitters(doc).findIndex((x) => x.id === sel.id)
     const em = emitters(doc)[i]
     if (!em) return <div className="group placeholder">对象已不存在</div>
-    const e = em.emission as Record<string, unknown>
-    const w = e.waveform as Record<string, unknown>
+    const w = (em.emission as Record<string, unknown>).waveform as Record<string, unknown>
     return (
       <div className="group" data-form="emitter">
         <div className="group-title">辐射源 {String(em.name ?? em.id)}</div>
         <Row label="机型"><span>{String(em.platform_type)}</span></Row>
-        <NumField label="中心频率" value={Number(e.center_Hz)} unit="Hz" path={`emitters.${i}.emission.center_Hz`} onCommit={commit} />
-        <NumField label="占用带宽" value={Number(e.bw_Hz)} unit="Hz" path={`emitters.${i}.emission.bw_Hz`} onCommit={commit} />
-        <NumField label="发射功率" value={Number(e.tx_power_dBm)} unit="dBm" path={`emitters.${i}.emission.tx_power_dBm`} onCommit={commit} />
-        <NumField label="天线增益" value={Number(e.antenna_gain_dBi)} unit="dBi" path={`emitters.${i}.emission.antenna_gain_dBi`} onCommit={commit} />
-        <div className="form-sub">波形 {String(w.type)}</div>
-        {typeof w.offset_Hz === 'number'
-          ? <NumField label="频偏" value={w.offset_Hz} unit="Hz" path={`emitters.${i}.emission.waveform.offset_Hz`} onCommit={commit} />
-          : null}
-        {typeof w.period_s === 'number'
-          ? <NumField label="突发周期" value={w.period_s} unit="s" path={`emitters.${i}.emission.waveform.period_s`} onCommit={commit} />
-          : null}
-        {typeof w.duty === 'number'
-          ? <NumField label="占空比" value={w.duty} unit="" path={`emitters.${i}.emission.waveform.duty`} onCommit={commit} />
-          : null}
+        <div className="form-sub">设备参数（波形 {String(w.type)}）</div>
+        <DeviceFieldGroup kind="emitter" index={i} entity={em} onCommit={commit} />
         <ActivityEditor doc={doc} emitterId={String(em.id)} />
+        <EmitterLinks doc={doc} emitterId={String(em.id)} />
+        <EmitterFixes emitterId={String(em.id)} />
+        <button className="btn danger" data-action="remove-emitter"
+          onClick={() => {
+            store.dispatch({ type: 'scene/edit', doc: removeEmitter(doc, String(em.id)) })
+            store.dispatch({ type: 'scene/select', selection: null })
+          }}>删除目标</button>
       </div>
     )
   }
@@ -181,6 +256,86 @@ function RouteSummary({ wps }: { wps: Waypoint[] }) {
   return (
     <div className="form-note">
       航线全程 {p.durationS.toFixed(1)} s（浏览器预览，只做直线插值；物理量由引擎给出）
+    </div>
+  )
+}
+
+/**
+ * 这个辐射源对每个站的链路读数（D-053 §5.3）。多站之后「链路」有 K 条，
+ * 挨个列出来比让用户去对象树里逐条点开省事；数值来自 `derivedLinks()` 已经算好的那一份。
+ */
+function EmitterLinks({ doc, emitterId }: { doc: ScenarioDoc; emitterId: string }) {
+  const list = sites(doc)
+  if (list.length === 0) return null
+  const ep = posOf(emitters(doc).find((x) => x.id === emitterId))
+  if (!ep) return null
+  return (
+    <div data-form-links={emitterId}>
+      <div className="form-sub">链路（{list.length} 个站）</div>
+      {list.map((st) => {
+        const sp = posOf(st)
+        if (!sp) return null
+        const g = lookAngles(sp, ep)
+        return (
+          <Row key={String(st.id)} label={String(st.name ?? st.id)}>
+            <span>{(g.distance_m / 1000).toFixed(2)} km · {g.azimuth_deg.toFixed(1)}° · {g.elevation_deg.toFixed(1)}°</span>
+          </Row>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * 这个辐射源的测向与定位读数（D-053 §5.6）。数据来自 sceneStore（实时 WS 或结束后的文件回放），
+ * 没跑过任务时整块不出现——空表格比不显示更让人以为「跑了但没结果」。
+ */
+function EmitterFixes({ emitterId }: { emitterId: string }) {
+  const st = useSyncExternalStore(sceneStore.subscribe, sceneStore.get, sceneStore.get)
+  const bs: Array<{ site: string; deg: number; sigma: number; q: string; state: string; mix: boolean }> = []
+  st.bearings.forEach((b) => {
+    if (b.emitter_id === emitterId) {
+      bs.push({ site: b.site_id, deg: b.bearing_deg, sigma: b.bearing_std_deg,
+                q: b.df_quality, state: b.df_result_state, mix: b.mixture })
+    }
+  })
+  bs.sort((a, b) => (a.site < b.site ? -1 : 1))
+  const ps: Array<{ key: string; p: PositionSample }> = []
+  st.positions.forEach((p, k) => { if (p.emitter_id === emitterId) ps.push({ key: k, p }) })
+  ps.sort((a, b) => (a.key < b.key ? -1 : 1))
+  if (!bs.length && !ps.length) return null
+  return (
+    <div data-form-fixes={emitterId}>
+      {bs.length > 0 && <div className="form-sub">测向</div>}
+      {bs.map((b) => (
+        <Row key={b.site} label={b.site}>
+          <span className={b.state === 'valid' ? '' : 'muted'}>
+            {b.state === 'invalid'
+              ? '本时刻无有效量测'
+              : `${b.deg.toFixed(1)}° · σ ${b.sigma.toFixed(2)}° · ${b.q}${b.mix ? ' · 同频混叠' : ''}`}
+          </span>
+        </Row>
+      ))}
+      {ps.length > 0 && <div className="form-sub">定位</div>}
+      {ps.map(({ key, p }) => (
+        <div key={key}>
+          <Row label={p.method}>
+            <span>{p.lat.toFixed(5)}, {p.lon.toFixed(5)}</span>
+          </Row>
+          <Row label="CEP / GDOP">
+            <span>{p.cep_m.toFixed(0)} m · {p.gdop.toFixed(2)} · {p.geometry_quality}
+              {p.time_quality ? ` · ${p.time_quality}` : ''}</span>
+          </Row>
+          <Row label="最小交会角">
+            <span className={p.min_crossing_angle_deg < 15 ? 'muted' : ''}>
+              {p.min_crossing_angle_deg.toFixed(1)}°{p.min_crossing_angle_deg < 15 ? '（交汇偏平，椭圆偏乐观）' : ''}
+            </span>
+          </Row>
+          <Row label="参与站">
+            <span>{p.participating_sites.join('、') || '—'}</span>
+          </Row>
+        </div>
+      ))}
     </div>
   )
 }

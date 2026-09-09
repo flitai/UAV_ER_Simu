@@ -7,6 +7,7 @@ import { fmtHz, fmtInt } from '../shell/format.js'
 import { SOURCE_LABEL, scaleLabel } from '../state/selectors.js'
 import { useAppState } from '../state/store.js'
 import { signalBuffer } from './buffer.js'
+import { tapLabel } from '../chain/model.js'
 
 export function SignalHead() {
   const s = useAppState()
@@ -20,7 +21,7 @@ export function SignalHead() {
   return (
     <div className="signal-head" data-signal-version={version}>
       <div className="row">
-        <span className="k">观测点</span><span className="v" data-signal-op>{op ?? '—'}</span>
+        <span className="k">观测点</span><span className="v" data-signal-op>{op ? tapLabel(op) : '—'}</span>
         <span className="k">行数</span><span className="v" data-signal-rows>{fmtInt(rows)}</span>
         <span className="k">纵轴</span><span className="v unit" data-signal-unit>{label ?? '—'}</span>
         {badge && <span className={`badge result ${badge.tone}${badge.hollow ? ' hollow' : ''}`}>{badge.glyph} {badge.text}{badge.suffix}</span>}

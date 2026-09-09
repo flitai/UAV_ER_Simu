@@ -18,7 +18,8 @@ export interface NodeCardData extends Record<string, unknown> {
   onTapClick?: (id: string) => void
 }
 
-const SHAPE_CLASS = { circle: 'h-circle', diamond: 'h-diamond', square: 'h-square', triangle: 'h-triangle' } as const
+const SHAPE_CLASS = { circle: 'h-circle', diamond: 'h-diamond', square: 'h-square',
+                      triangle: 'h-triangle', hexagon: 'h-hexagon' } as const
 
 function PortHandles({ ports, side, errorPorts }: { ports: PortSpec[]; side: 'in' | 'out'; errorPorts: string[] }) {
   const pos = side === 'in' ? Position.Left : Position.Right

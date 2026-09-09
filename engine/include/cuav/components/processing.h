@@ -43,6 +43,46 @@ private:
     ComponentStatus status_;
 };
 
+// 多路叠加（D-053，11 报告 §3.1）。N 个辐射源各走一条前四环节的支路，在**接收天线之后、
+// 接收机前端之前**汇成一路——物理上电磁场在天线口面叠加，接收机只有一条通道。
+//
+// 为什么不把 AddMixer 改成八口：AddMixer 已进目录黄金基准并被混合增强模式使用，
+// 改端口表属于铁律 10 意义上的基准变更，而收益只是省一个类。
+//
+// 八个输入口全部 optional，因此「一个都没连」在 Graph::validate 眼里合法——
+// 真正的下限由 check_wiring() 按 min_inputs 声明（D-053 启用的 port_optional）。
+class Superposition : public IComponent {
+public:
+    std::string type_name() const override { return "Superposition"; }
+    std::vector<PortSpec> inputs() const override {
+        std::vector<PortSpec> v;
+        for (int k = 1; k <= 8; ++k) {
+            PortSpec p;
+            p.name = std::string("in") + static_cast<char>('0' + k);
+            p.type = PortType::IQStream;
+            p.optional = true;
+            v.push_back(p);
+        }
+        return v;
+    }
+    std::vector<PortSpec> outputs() const override {
+        return {PortSpec{"out", PortType::IQStream}};
+    }
+    ComponentInfo describe() const override;
+    bool check_wiring(const std::vector<std::string>& wired, std::string& err) const override;
+    bool configure(const std::map<std::string, double>& params,
+                   const std::map<std::string, std::string>& text_params,
+                   std::string& err) override;
+    bool init(IRandom& rng, std::string& err) override;
+    Step process(PortMap& in, PortMap& out, std::string& err) override;
+    void reset() override;
+    ComponentStatus status() const override { return status_; }
+
+private:
+    std::size_t min_inputs_ = 2;
+    ComponentStatus status_;
+};
+
 // 能量检测器。参数与参考实现同名同义。
 class EnergyDetector : public IComponent {
 public:

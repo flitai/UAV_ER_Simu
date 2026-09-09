@@ -11,9 +11,13 @@
 import { useEffect, useRef } from 'react'
 import type { Map as MLMap } from 'maplibre-gl'
 
-import { getLinks, getTrack } from '../api/client.js'
+import { getBearings, getLinks, getPositions, getTrack } from '../api/client.js'
 import { useAppState } from '../state/store.js'
-import { sceneStore, type EntitySample, type LinkSample } from './sceneStore.js'
+import {
+  bearingFromPayload, positionFromPayload, sceneStore,
+  type BearingSample, type EntitySample, type LinkSample, type PositionSample,
+} from './sceneStore.js'
+import { attachFixOverlay } from './layers/fixOverlay.js'
 import {
   addSituationLayers, loadSituationIcons,
   setLinks, setPlannedRoute, setSites, setTargets, setTrails,
@@ -51,12 +55,15 @@ export function useScenarioLayers(
 }
 
 /** 运行态与回看：目标、航迹、链路线。 */
-export function useLiveSituation(map: MLMap | null, ready: boolean, doc: ScenarioDoc | null): void {
+export function useLiveSituation(map: MLMap | null, ready: boolean, doc: ScenarioDoc | null, showFix = true): void {
   const s = useAppState()
   const taskId = s.task.id
   const runState = s.task.runState
   const docRef = useRef(doc)
   docRef.current = doc
+  // 图层开关用 ref 传进定频 tick：把它挂到 useEffect 依赖上会在每次切换时重建叠加层
+  const fixRef = useRef(showFix)
+  fixRef.current = showFix
 
   // 换任务即清空实时数据：上一个任务的航迹不该留在图上。
   // **只挂 taskId**：挂上 map / ready 会在地图就绪那一刻把已经取回的航迹又清掉——
@@ -78,6 +85,24 @@ export function useLiveSituation(map: MLMap | null, ready: boolean, doc: Scenari
         ])
         if (!alive || !track.length) return
         sceneStore.replaceFromTrack(track as unknown as EntitySample[], links as unknown as LinkSample[])
+        // 测向与定位同样从文件补齐（D-053）：突发下 WS 会丢帧，只有文件才完整。
+        // 两个端点在没有测向节点的任务上 404，getJsonlWindow 会返回空数组，不当错误。
+        const [bs, ps] = await Promise.all([
+          getBearings(taskId, 0, 1e9, 1),
+          getPositions(taskId, 0, 1e9, 1),
+        ])
+        if (!alive) return
+        const bearings: BearingSample[] = []
+        for (const r of bs) {
+          const b = bearingFromPayload(typeof r.t_s === 'number' ? r.t_s : 0, r)
+          if (b) bearings.push(b)
+        }
+        const positions: PositionSample[] = []
+        for (const r of ps) {
+          const q = positionFromPayload(typeof r.t_s === 'number' ? r.t_s : 0, r)
+          if (q) positions.push(q)
+        }
+        if (bearings.length || positions.length) sceneStore.replaceFromReports(bearings, positions)
       } catch {
         /* 端点 404（无场景绑定的任务）属正常，保持 WS 收到的内容 */
       }
@@ -88,11 +113,15 @@ export function useLiveSituation(map: MLMap | null, ready: boolean, doc: Scenari
   // 定频取值画图
   useEffect(() => {
     if (!map || !ready) return
+    const overlay = attachFixOverlay(map)
     let rev = -1
+    let fixShown = fixRef.current
     const timer = window.setInterval(() => {
       const st = sceneStore.get()
-      if (st.rev === rev) return
+      // 数据没变但图层开关翻了也要重画一次，否则关掉的层会一直留在屏上
+      if (st.rev === rev && fixShown === fixRef.current) return
       rev = st.rev
+      fixShown = fixRef.current
       const targets: Array<EntitySample> = []
       st.entities.forEach((e) => targets.push(e))
       setTargets(map, targets)
@@ -118,9 +147,38 @@ export function useLiveSituation(map: MLMap | null, ready: boolean, doc: Scenari
         })
       })
       setLinks(map, lines)
+
+      // 测向线与定位椭圆走 Canvas 叠加层，与上面同一次 tick 重画（D-053 §5.4）
+      if (overlay && fixRef.current) {
+        const sitePos = new Map<string, { lon: number; lat: number }>()
+        for (const x of sites(d)) {
+          const q = posOf(x)
+          if (q) sitePos.set(String(x.id), { lon: q.lon, lat: q.lat })
+        }
+        const bs: BearingSample[] = []
+        st.bearings.forEach((b) => bs.push(b))
+        const ps: PositionSample[] = []
+        st.positions.forEach((q) => ps.push(q))
+        overlay.draw({ sites: sitePos, bearings: bs, positions: ps, dev: devMode() })
+      } else if (overlay) {
+        // 关掉图层要真的清空，不是留着上一帧
+        overlay.draw({ sites: new Map(), bearings: [], positions: [], dev: false })
+      }
     }, TICK_MS)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      if (overlay) overlay.destroy()
+    }
   }, [map, ready])
+}
+
+/** 开发者模式：地址栏带 ?dev=1 时才画标签（D-039，界面不主动解释）。 */
+function devMode(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('dev') === '1'
+  } catch {
+    return false
+  }
 }
 
 /** 图层与图标的一次性挂载。style.load 与 idle 都会调，内部去重。 */

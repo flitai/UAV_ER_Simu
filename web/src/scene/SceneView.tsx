@@ -23,10 +23,10 @@ import { ObjectPanel } from './ObjectForm.js'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { cursorStore } from '../shell/cursorStore.js'
 import { useAppState, useStore } from '../state/store.js'
-import { putScenario } from '../api/client.js'
+import { saveScenario } from '../shell/actions.js'
 import { mountSituation, useLiveSituation, useScenarioLayers } from './useSituation.js'
 import { clearSituation } from './layers/situation.js'
-import { addSite, addWaypoint, emitters, moveSite, moveWaypoint } from './editor/scenarioOps.js'
+import { addEmitter, addSite, addWaypoint, emitters, moveSite, moveWaypoint } from './editor/scenarioOps.js'
 
 export function SceneView({ active }: { active: boolean }) {
   const s = useAppState()
@@ -39,6 +39,7 @@ export function SceneView({ active }: { active: boolean }) {
   const [bySrc, setBySrc] = useState(false)
   const [flat, setFlat] = useState(false)
   const [situation, setSituation] = useState(true)
+  const [fix, setFix] = useState(true)
   const [ready, setReady] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -137,6 +138,16 @@ export function SceneView({ active }: { active: boolean }) {
         st.dispatch({ type: 'scene/tool', tool: 'select' })   // 放完回到选择（09 §5.2）
         return
       }
+      if (tool === 'emitter') {
+        if (scene && !bboxContains(scene.bbox, lng, lat)) {
+          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '目标放在了观测区域之外：那里没有建筑数据，视距判定不可信' })
+        }
+        const r = addEmitter(doc, lng, lat)
+        st.dispatch({ type: 'scene/edit', doc: r.doc })
+        st.dispatch({ type: 'scene/select', selection: { kind: 'emitter', id: r.id } })
+        st.dispatch({ type: 'scene/tool', tool: 'select' })
+        return
+      }
       if (tool === 'waypoint') {
         const em = currentEmitter()
         if (!em) return
@@ -156,10 +167,9 @@ export function SceneView({ active }: { active: boolean }) {
         const em = currentEmitter()
         if (em) st.dispatch({ type: 'scene/select', selection: { kind: 'waypoint', id: em, index: Number(f.properties?.index ?? 0) } })
       } else {
-        const id = String(f.properties?.id)
-        const site = live.current.state.scene.scenario.doc
-        const sites0 = site && Array.isArray(site.sites) ? (site.sites as Array<Record<string, unknown>>)[0] : null
-        if (sites0) st.dispatch({ type: 'scene/select', selection: { kind: 'link', id: `${String(sites0.id)}-${id}` } })
+        // 点目标就选中那个辐射源（D-053 §5.3）。原来这里硬接 sites[0] 拼出一条链路，
+        // 多站之后「第一个站」不再有意义，而用户点的本来就是目标不是链路。
+        st.dispatch({ type: 'scene/select', selection: { kind: 'emitter', id: String(f.properties?.id) } })
       }
     }
 
@@ -227,7 +237,7 @@ export function SceneView({ active }: { active: boolean }) {
   const selEmitter = s.scene.editor.selection && 'id' in s.scene.editor.selection ? s.scene.editor.selection.id : null
   const selWp = s.scene.editor.selection?.kind === 'waypoint' ? s.scene.editor.selection.index : -1
   useScenarioLayers(situation ? mapRef.current : null, ready, s.scene.scenario.doc, selEmitter, selWp)
-  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc)
+  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc, fix)
 
   useEffect(() => {
     const map = mapRef.current
@@ -262,19 +272,12 @@ export function SceneView({ active }: { active: boolean }) {
     mapRef.current?.easeTo({ center: [lon, lat], duration: 500 })
   }, [])
 
+  // 保存的实现搬到 `shell/actions.ts` 了（D-054）：框图页也要保存场景，两处得是同一条路径
   const onSave = useCallback(async () => {
-    const doc = live.current.state.scene.scenario.doc
-    const id = live.current.state.scene.scenario.id
-    if (!doc || !id) return
     setSaving(true)
     try {
-      const r = await putScenario(id, doc)
-      if (r.ok) {
-        // 回传的是落盘字节的哈希：框图 scenario_ref 用它，两端各自序列化再算必然对不上
-        live.current.store.dispatch({ type: 'scene/saved', sha256: r.sha256 })
-        live.current.store.dispatch({ type: 'ui/toast', kind: 'info', text: `场景已保存（${r.bytes} 字节）` })
-      } else {
-        live.current.store.dispatch({ type: 'ui/toast', kind: 'error', text: `场景保存失败 [${r.code}] ${r.message}` })
+      if (await saveScenario(live.current.store)) {
+        live.current.store.dispatch({ type: 'ui/toast', kind: 'info', text: '场景已保存' })
       }
     } finally {
       setSaving(false)
@@ -291,7 +294,8 @@ export function SceneView({ active }: { active: boolean }) {
         <div className="scene">
           <div ref={box} className="scene-map" />
           <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat}
-                      situation={situation} onSituation={setSituation} onSave={() => void onSave()} saving={saving} />
+                      situation={situation} onSituation={setSituation} fix={fix} onFix={setFix}
+                      onSave={() => void onSave()} saving={saving} />
         </div>
       }
       right={<ObjectPanel />}

@@ -49,6 +49,117 @@ struct SpectrumFrame {
     BlockMeta meta;                   // start_sample = 本帧第一段的首样点
 };
 
+// ---------------------------------------------------------------- 测向与定位报告（D-053）
+//
+// 三种报告都是 M2 效应级模型的输出：从链路参数帧取真值几何与电平，按误差预算给出量测。
+// 它们是「测向 / 定位算法的统计模型」，不是被测算法本身——04 §5.2「真值只进评价器」约束的
+// 是被测的 M3 算法（检测器、识别器），01 §6.2 允许模型的输入是真值。因此每一行都必须带
+// truth_consumed = true，且 trace 里 model_layer = M2、credibility 不高于 V2（11 报告 §1.3）。
+// 05 P1 的阵列估计器将来接同一个端口替换，届时 truth_consumed 才变成 false。
+
+// 单站测向误差预算的六个分量（EM-S-05 §10.14）。bias 不在此列，它不进方差、直接加在方位上。
+struct DfSigma {
+    double method_deg = 0.0;      // 测向体制固有分辨力
+    double snr_deg = 0.0;         // 信噪比相关项
+    double cal_deg = 0.0;         // 标校残差
+    double att_deg = 0.0;         // 平台姿态 / 方位基准
+    double multipath_deg = 0.0;   // 多径（按帧的 LOS 二选一）
+    double mixture_deg = 0.0;     // 同站同频多源混叠
+};
+
+struct BearingReport {
+    double t_s = 0.0;
+    std::string site_id, emitter_id, link_id;
+    // 站址随报告走（D-053 §6.4 的同一原则：身份与位置都自带）。
+    // 这样融合节点是**纯函数式**的——不必再绑一次场景、不必读场景文件，
+    // 而「绑一个站」对全图唯一的融合节点本来就没有语义。
+    double site_lon = 0.0, site_lat = 0.0, site_alt_m = 0.0;
+    double bearing_deg = 0.0;         // 含噪量测方位，真北顺时针 [0, 360)
+    double bearing_std_deg = 0.0;     // 合成 1σ
+    double elevation_deg = 0.0;       // 真值俯仰（本档不加噪）
+    double snr_dB = 0.0;
+    double level_dBm = 0.0;
+    std::string df_quality;           // DF-Q1..DF-Q4 / invalid
+    State df_result_state = State::Valid;   // 这次测向裁决的状态，与本行数据的 state 正交
+    std::string use_policy;           // normal / low_weight / exclude
+    std::string method;               // amplitude_compare 等
+    double bias_deg = 0.0;
+    DfSigma sigma;
+    bool line_of_sight = true;
+    bool mixture = false;
+    std::string signal_role;          // 预留给 C-4 的识别结果，本期恒空
+    bool truth_consumed = true;
+    State state = State::Valid;
+    std::vector<std::string> reasons;
+    ModelTrace trace;
+};
+
+struct ToaSigma {
+    double pick_s = 0.0;      // 相关峰拾取 1/(2πB√SNR)
+    double sync_s = 0.0;      // 站钟同步
+    double rxdelay_s = 0.0;   // 接收通道群时延不确定度
+    double floor_s = 0.0;     // 时戳量化底噪
+};
+
+struct ToaReport {
+    double t_s = 0.0;
+    std::string site_id, emitter_id, link_id;
+    double site_lon = 0.0, site_lat = 0.0, site_alt_m = 0.0;
+    double toa_s = 0.0;               // 含噪量测到达时刻
+    double toa_std_s = 0.0;
+    ToaSigma sigma;
+    double snr_dB = 0.0;
+    std::string time_quality;         // TQ-1..TQ-4
+    std::string sync_state;           // locked / holdover / unsynced（场景声明值）
+    bool truth_consumed = true;
+    State state = State::Valid;
+    std::vector<std::string> reasons;
+    ModelTrace trace;
+};
+
+struct FixEllipse {
+    double semi_major_m = 0.0;
+    double semi_minor_m = 0.0;
+    double rotation_deg = 0.0;        // 相对 ENU 东向
+    // 2σ 椭圆在**二维**下的包含概率是 1 − exp(−2) = 86.47%，不是一维的 95.4%。
+    // em-demo 的注释写「2σ (~95%)」是把一维置信搬到了二维，这里显式写出以免下游再算错。
+    const char* scale = "2sigma";
+    double confidence = 0.8646647167633873;
+};
+
+struct FixResidual {
+    std::string site_id;
+    double value = 0.0;
+    std::string unit;                 // deg（AOA 方位残差）/ m（TDOA 距离差残差）
+};
+
+struct PositionReport {
+    double t_s = 0.0;
+    std::string emitter_id;
+    std::string method;               // aoa / tdoa / aoa_tdoa
+    double lon = 0.0, lat = 0.0;
+    std::string crs = "EPSG:4326";
+    std::string coord_version;
+    double origin_lon = 0.0, origin_lat = 0.0, origin_alt_m = 0.0;   // ENU 原点（05 §6.2.3）
+    double cov_m2[3] = {0.0, 0.0, 0.0};   // ENU 平面协方差上三角 [Pxx, Pxy, Pyy]
+    FixEllipse ellipse;
+    double cep_m = 0.0;
+    double gdop = 0.0;
+    // 最小两两交会角（度）。分级 geometry_quality 沿用 emcore 的最大张角口径（守 golden），
+    // 这个量是**另加**的：两条近乎平行的测向线加一条好线，最大张角看不出问题，它能。
+    double min_crossing_angle_deg = 0.0;
+    std::string geometry_quality;     // good / fair / poor / degenerate
+    std::string time_quality;         // 仅 tdoa / aoa_tdoa 有值，否则空
+    std::vector<std::string> participating_sites;
+    std::string reference_site;       // 仅 tdoa 有值
+    std::vector<FixResidual> residuals;
+    std::vector<std::string> outlier_sites;
+    bool truth_consumed = true;
+    State state = State::Valid;
+    std::vector<std::string> reasons;
+    ModelTrace trace;
+};
+
 // 端口上流动的数据。C++14 没有 variant，这里用带标志的聚合体，够用且不引依赖。
 struct PortData {
     PortType type = PortType::IQStream;
@@ -60,6 +171,10 @@ struct PortData {
     // 单帧字段只能表达后者。生产端每轮交出**恰好覆盖本轮样点窗口的全部帧**（至少一帧），
     // 消费端按块的 start_sample 对齐取用并自己缓存上一帧做零阶保持（08 报告 §9.3）。
     std::vector<SceneParamFrame> scenes;
+    // 报告类端口同样是「一轮可能产出多行」，与 scenes 同一模式（D-053）。
+    std::vector<BearingReport> bearings;
+    std::vector<ToaReport> toas;
+    std::vector<PositionReport> positions;
 
     void clear() {
         has_data = false;
@@ -67,6 +182,9 @@ struct PortData {
         detections.items.clear();
         spectra.clear();
         scenes.clear();          // 原来漏了这一句：缓冲里会长期挂着上一轮的帧
+        bearings.clear();
+        toas.clear();
+        positions.clear();
     }
 };
 
@@ -150,6 +268,15 @@ public:
         i.inputs = inputs();
         i.outputs = outputs();
         return i;
+    }
+
+    // 连线检查（D-053）。固定的可选输入口（in1..in8 / scene1..scene8 / b1..b8 / t1..t8）
+    // 取代了动态端口，代价是「一个口都没连」在 Graph::validate 眼里也合法——每个口自己是 optional。
+    // 于是把「到底要连几个」交给组件自己声明：validate 在悬空口检查之后对每个节点调一次，
+    // wired_inputs 是该节点已被连上的输入口名。失败映射到装载器错误码 port_optional。
+    virtual bool check_wiring(const std::vector<std::string>& wired_inputs, std::string& err) const {
+        (void)wired_inputs; (void)err;
+        return true;
     }
 
     // 参数配置。失败必须写 err 并返回 false，不得吞掉。

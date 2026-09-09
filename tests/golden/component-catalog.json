@@ -341,6 +341,254 @@
     },
     {
       "category": "algorithm",
+      "description": "按误差预算给出本站对每条链路的方位量测（EM-S-05 的 E2 档效应模型，D-053）。从链路参数帧取真值方位与电平，按站点噪声系数算信噪比，七个分量合成 1σ 后抽一个高斯样本。**它是测向算法的统计模型，不是被测的测向算法**：每一行带 truth_consumed = true，溯源 model_layer = M2、credibility = V2，指标只能当作模型自洽性检查，不得当作设备定位精度。后置能力包 P1 的阵列估计器（MUSIC / 相位干涉）将来从 ArrayIQStream 出发算方位，输出同一个端口替换本组件，框图形状不变。同站同频多源时给较弱的那个源加混叠项并标 use_policy = low_weight——比幅与干涉测向在两个同频信号功率接近时会指向能量质心。发射不在（tx_on 为假）或信噪比低于 min_snr_dB 时仍出一行，只是 df_result_state = invalid 并写明原因，不是不输出（铁律 15）。",
+      "display_name": "单站测向",
+      "implementation": "cpp",
+      "model_id": "EM-S-05",
+      "model_layer": "M2",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": "amplitude_compare",
+          "description": "测向体制。本档只影响报告里的标注与 sigma_method_deg 的取值口径，不改变算法——两种体制的样点级差异要等 P1 的阵列估计器",
+          "enum": [
+            "amplitude_compare",
+            "interferometer"
+          ],
+          "name": "method",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 1.5,
+          "description": "体制固有分辨力（通道一致性、基线量化）",
+          "min": 0.0,
+          "name": "sigma_method_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 2.0,
+          "description": "参考信噪比处的信噪比项；σ_snr = 本值 · √(SNR_ref / max(SNR, 1))",
+          "min": 0.0,
+          "name": "sigma_snr_ref_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 10.0,
+          "description": "上一项的参考信噪比",
+          "name": "snr_ref_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 0.5,
+          "description": "标校残差",
+          "min": 0.0,
+          "name": "sigma_cal_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 0.3,
+          "description": "平台姿态与方位基准误差",
+          "min": 0.0,
+          "name": "sigma_att_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 0.5,
+          "description": "视距下的多径项",
+          "min": 0.0,
+          "name": "sigma_mp_los_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 5.0,
+          "description": "非视距下的多径项。D3 的遮挡接入之前帧里的视距恒为真，本项实际不生效",
+          "min": 0.0,
+          "name": "sigma_mp_nlos_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 8.0,
+          "description": "同站同频多源混叠项，只加在被压住的那个源上",
+          "min": 0.0,
+          "name": "sigma_mix_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 0.0,
+          "description": "系统偏差。不进方差，直接加在方位上；模型卡说明它模拟未标校的固定指向偏差",
+          "name": "bias_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 3.0,
+          "description": "低于此信噪比即判 invalid，不出方位",
+          "name": "min_snr_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 10.0,
+          "description": "同频两源的电平差小于它才判混叠；差得多时弱信号被强信号压住，不算混叠",
+          "min": 0.0,
+          "name": "mixture_separation_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 2.0,
+          "description": "DF-Q1 的 σ 上限",
+          "min": 0.0,
+          "name": "q_thr1_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 5.0,
+          "description": "DF-Q2 的 σ 上限",
+          "min": 0.0,
+          "name": "q_thr2_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 15.0,
+          "description": "DF-Q3 的 σ 上限",
+          "min": 0.0,
+          "name": "q_thr3_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 45.0,
+          "description": "DF-Q4 的 σ 上限；超出即 invalid",
+          "min": 0.0,
+          "name": "q_thr4_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 10.0,
+          "description": "出报告的速率。按样点序号推进，不按墙钟（D-049 ③）",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "report_rate_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "本测向站的标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "scene1",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene2",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene3",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene4",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene5",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene6",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene7",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene8",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "det",
+            "optional": true,
+            "type": "DetectionList"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "BearingReport"
+          }
+        ]
+      },
+      "scene_bindable": true,
+      "stateful": true,
+      "type": "DirectionFinder",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
       "description": "切帧不加窗不重叠，每帧 DFT 后取频段能量，除以逐频点帧维中位数噪声估计，与门限比较；口径与 algos/reference/energy_detector.py 一致（EM-S-02，决策 D-026）",
       "display_name": "能量检测",
       "implementation": "cpp",
@@ -540,6 +788,212 @@
       "scene_bindable": false,
       "stateful": false,
       "type": "FreeSpaceChannel",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
+      "description": "把各站的方位量测（与到达时间量测）融合成一个位置解（EM-S-06 交叉定位 / EM-S-07 时差定位，D-053）。aoa 用测向线的两遍加权最小二乘交汇（等权取初值，再按站距加权）；输出 2σ 误差椭圆、CEP、GDOP 与几何质量分级，椭圆的二维包含概率是 86.5%（不是一维的 95%）。站址随测向报告走，因此本组件不绑场景、不读场景文件。站数不足或几何退化时仍出一行并写明原因，不是不输出（铁律 15）。**指标是模型自洽性检查，不是设备定位精度**：上游的方位量测本身来自 M2 效应模型（truth_consumed）。",
+      "display_name": "多站定位",
+      "implementation": "cpp",
+      "model_id": "EM-S-06",
+      "model_layer": "M2",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": "aoa",
+          "description": "定位体制：测向交叉 / 时差 / 两者融合（后者用交叉解作时差迭代的初值）",
+          "enum": [
+            "aoa",
+            "tdoa",
+            "aoa_tdoa"
+          ],
+          "name": "method",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 10.0,
+          "description": "测向线最大张角低于它即判几何退化。仍出解，只是标降级",
+          "max": 180.0,
+          "min": 0.0,
+          "name": "min_crossing_angle_deg",
+          "required": false,
+          "type": "number",
+          "unit": "deg"
+        },
+        {
+          "default": 15.0,
+          "description": "GDOP 上限，超过标退化（tdoa 用；aoa 按张角分级）",
+          "min": 1.0,
+          "name": "geometry_condition_threshold",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 50.0,
+          "description": "|Δr| 超过基线加这个余量即判可行性违例（EM-S-07 §10.4）。**降级不剔除**：粗大违例多半是符号或关联错误，剔掉就看不见了",
+          "min": 0.0,
+          "name": "max_tdoa_feasibility_margin_m",
+          "required": false,
+          "type": "number",
+          "unit": "m"
+        },
+        {
+          "default": 299792458.0,
+          "description": "传播速度。1 ns 时差约 0.3 m 距离差，光速精度直接进误差预算",
+          "min": 1.0,
+          "name": "propagation_speed_mps",
+          "required": false,
+          "type": "number",
+          "unit": "m/s"
+        },
+        {
+          "default": "best_snr",
+          "description": "时差定位的参考站选取：信噪比最高的那一站拾取最稳（EM-S-07 §10.5）",
+          "enum": [
+            "best_snr",
+            "first"
+          ],
+          "name": "reference_station_rule",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": "correlated_reference",
+          "description": "时差量测的加权口径。correlated_reference 显式构造 R = c²(diag σ² + σ_0²·11ᵀ)，参考站的噪声在各站对间相关；independent_pairs 是 emcore 的旧口径，把站对当独立。两者并列保留、数值进模型卡，实测见 11 报告 §11.3",
+          "enum": [
+            "correlated_reference",
+            "independent_pairs"
+          ],
+          "name": "weighting",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 3.0,
+          "description": "时统质量差于第几档（1..4）的站剔除；缺省 3 表示只剔 TQ-4（含失锁）",
+          "max": 4.0,
+          "min": 1.0,
+          "name": "sync_quality_threshold",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 1e-06,
+          "description": "各站报告按时刻配对的容差；差得比它多就不算同一时刻的量测",
+          "min": 0.0,
+          "name": "time_tolerance_s",
+          "required": false,
+          "type": "number",
+          "unit": "s"
+        },
+        {
+          "default": "wgs84-2026-09",
+          "description": "坐标版本，随定位产物落盘（05 §6.2.3）",
+          "name": "coord_version",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "b1",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "b2",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "b3",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "b4",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "b5",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "b6",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "b7",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "b8",
+            "optional": true,
+            "type": "BearingReport"
+          },
+          {
+            "name": "t1",
+            "optional": true,
+            "type": "ToaReport"
+          },
+          {
+            "name": "t2",
+            "optional": true,
+            "type": "ToaReport"
+          },
+          {
+            "name": "t3",
+            "optional": true,
+            "type": "ToaReport"
+          },
+          {
+            "name": "t4",
+            "optional": true,
+            "type": "ToaReport"
+          },
+          {
+            "name": "t5",
+            "optional": true,
+            "type": "ToaReport"
+          },
+          {
+            "name": "t6",
+            "optional": true,
+            "type": "ToaReport"
+          },
+          {
+            "name": "t7",
+            "optional": true,
+            "type": "ToaReport"
+          },
+          {
+            "name": "t8",
+            "optional": true,
+            "type": "ToaReport"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "PositionReport"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": false,
+      "type": "MultiSiteLocator",
       "version": "0.1.0"
     },
     {
@@ -1018,6 +1472,14 @@
           "required": false,
           "type": "string",
           "unit": ""
+        },
+        {
+          "description": "绑定的站点标识，由装载器按 scene_binding 注入（D-053）。单站场景可省略，此时取唯一站点；多站场景必填，否则不知道接收天线增益取哪个站的",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
         }
       ],
       "ports": {
@@ -1209,6 +1671,197 @@
       "version": "0.1.0"
     },
     {
+      "category": "channel",
+      "description": "把 N 路复基带逐样点相加，用于多辐射源在接收天线端汇成一路（D-053）。落点选在接收天线之后、接收机前端之前：物理上电磁场在天线口面叠加，接收机只有一条通道；放在前端之后等于给每个源配一台接收机。八个输入口都是可选的，实际连上的路数不得少于 min_inputs。各支路的采样率、中心频率、首样点序号与块长必须一致，任一项不一致即报错不截断——调度器每轮无条件覆盖下游缓冲，截断会让较长那一路的尾部样点被静默丢掉（08 报告约定四）。",
+      "display_name": "多路叠加",
+      "implementation": "cpp",
+      "model_id": "EM-B-09",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": 2.0,
+          "description": "至少要连上几路；连得少于它即校验失败，免得「以为接了三路其实只接了一路」而无声出错",
+          "max": 8.0,
+          "min": 1.0,
+          "name": "min_inputs",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in1",
+            "optional": true,
+            "type": "IQStream"
+          },
+          {
+            "name": "in2",
+            "optional": true,
+            "type": "IQStream"
+          },
+          {
+            "name": "in3",
+            "optional": true,
+            "type": "IQStream"
+          },
+          {
+            "name": "in4",
+            "optional": true,
+            "type": "IQStream"
+          },
+          {
+            "name": "in5",
+            "optional": true,
+            "type": "IQStream"
+          },
+          {
+            "name": "in6",
+            "optional": true,
+            "type": "IQStream"
+          },
+          {
+            "name": "in7",
+            "optional": true,
+            "type": "IQStream"
+          },
+          {
+            "name": "in8",
+            "optional": true,
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": false,
+      "type": "Superposition",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
+      "description": "给出本站对每条链路的到达时刻量测（EM-S-07 的 E2 档效应模型，D-053）。从链路参数帧取真值时延，按 σ_pick ⊕ σ_floor ⊕ σ_sync ⊕ σ_rxdelay 的预算加噪，并加上站钟的固定偏差与接收通道群时延。**σ_pick 的相关带宽取本站的实际采样率**，不是写死的标称值——写死会给出与配置无关的假精度。站钟全部来自场景的 sites[].clock；**缺 clock 即拒绝运行，不默认一个完美时钟**（铁律 15）。与测向同为 M2 效应模型：每行带 truth_consumed，指标不得当作设备时统性能。典型链路视图把它作为隐含节点自动接上，用户不单独配置——时差定位的到达时间只应该有一种口径。",
+      "display_name": "到达时间估计",
+      "implementation": "cpp",
+      "model_id": "EM-S-07",
+      "model_layer": "M2",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": 3.0,
+          "description": "低于此信噪比即判 invalid，不出到达时刻",
+          "name": "min_snr_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 0.3,
+          "description": "不可消减的时戳底噪（量化与群时延残差）",
+          "min": 0.0,
+          "name": "sigma_floor_ns",
+          "required": false,
+          "type": "number",
+          "unit": "ns"
+        },
+        {
+          "default": 10.0,
+          "description": "出报告的速率，按样点序号推进",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "report_rate_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "本站标识，由装载器按 scene_binding 注入",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "scene1",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene2",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene3",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene4",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene5",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene6",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene7",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene8",
+            "optional": true,
+            "type": "SceneParamFrame"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "ToaReport"
+          }
+        ]
+      },
+      "scene_bindable": true,
+      "stateful": true,
+      "type": "ToaEstimator",
+      "version": "0.1.0"
+    },
+    {
       "category": "source",
       "description": "确定型复指数 x[n] = A·exp(j2πfn/Fs + jφ)，带起止样点可作突发开关；04 §15.2 标准算例第 1、3 项",
       "display_name": "单音源",
@@ -1365,6 +2018,24 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "IQStream",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "IQStream",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "IQStream",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "SceneParamFrame",
       "IQStream",
       false,
@@ -1406,6 +2077,24 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "SceneParamFrame",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SceneParamFrame",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SceneParamFrame",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "ChannelPathSet",
       "IQStream",
       false,
@@ -1447,6 +2136,24 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "ChannelPathSet",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ChannelPathSet",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ChannelPathSet",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "SpectrumFrame",
       "IQStream",
       false,
@@ -1488,6 +2195,24 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "SpectrumFrame",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SpectrumFrame",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "SpectrumFrame",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "DetectionList",
       "IQStream",
       false,
@@ -1529,6 +2254,24 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "DetectionList",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "DetectionList",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "DetectionList",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "FeatureVector",
       "IQStream",
       false,
@@ -1570,6 +2313,24 @@
       "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
     ],
     [
+      "FeatureVector",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "FeatureVector",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
       "RecognitionList",
       "IQStream",
       false,
@@ -1608,6 +2369,201 @@
     [
       "RecognitionList",
       "RecognitionList",
+      true
+    ],
+    [
+      "RecognitionList",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "RecognitionList",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "BearingReport",
+      true
+    ],
+    [
+      "BearingReport",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "BearingReport",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "ToaReport",
+      "ToaReport",
+      true
+    ],
+    [
+      "ToaReport",
+      "PositionReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "IQStream",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "SceneParamFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "ChannelPathSet",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "SpectrumFrame",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "DetectionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "FeatureVector",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "RecognitionList",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "BearingReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "ToaReport",
+      false,
+      "端口类型不同；跨类型必须由显式组件承担，IQ 流与参数流不得直连（决策 D-013）"
+    ],
+    [
+      "PositionReport",
+      "PositionReport",
       true
     ]
   ],
@@ -1618,7 +2574,10 @@
     "SpectrumFrame",
     "DetectionList",
     "FeatureVector",
-    "RecognitionList"
+    "RecognitionList",
+    "BearingReport",
+    "ToaReport",
+    "PositionReport"
   ],
   "schema_version": "cuav-catalog/1"
 }

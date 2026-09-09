@@ -35,7 +35,7 @@ export interface ResultRouteDeps {
 
 const RE_PRODUCT = /^\/api\/v1\/results\/([^/]+)\/([^/]+)\/(spectrum|envelope|scatter)$/
 const RE_INDEX = /^\/api\/v1\/results\/([^/]+)\/([^/]+)\/(spectrum|envelope)\/index$/
-const RE_JSONL = /^\/api\/v1\/results\/([^/]+)\/(track|links|detections|features|recognitions|truth)$/
+const RE_JSONL = /^\/api\/v1\/results\/([^/]+)\/(track|links|detections|features|recognitions|truth|bearings|positions)$/
 const RE_METRICS = /^\/api\/v1\/results\/([^/]+)\/metrics$/
 
 const NUM_RE = /^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/
@@ -50,6 +50,21 @@ const JSONL_KINDS: Record<string, { file: string; key?: (r: JsonlRecord) => stri
   features: { file: 'features.jsonl', key: (r) => String(r.segment_id ?? '') },
   recognitions: { file: 'recognitions.jsonl', key: (r) => String(r.segment_id ?? '') },
   truth: { file: 'truth.jsonl' },
+  // 测向与定位报告（D-053，L-3 / L-4）。抽稀键取「一条曲线」的自然身份：
+  // 测向是逐链路的一串方位，定位是逐目标逐方法的一串位置。
+  bearings: { file: 'bearings.jsonl', key: (r) => String(r.link_id ?? '') },
+  positions: { file: 'positions.jsonl', key: (r) => `${String(r.emitter_id ?? '')}:${String(r.method ?? '')}` },
+}
+
+/**
+ * 各 JSONL 端点支持的精确过滤字段（D-053）。查询串给了就按等值过滤，
+ * 多个字段之间取交集。与 `stride` 抽稀正交：先过滤再抽稀。
+ */
+const JSONL_FILTERS: Record<string, readonly string[]> = {
+  links: ['link_id'],
+  bearings: ['site_id', 'emitter_id', 'link_id'],
+  positions: ['emitter_id', 'method'],
+  detections: ['site_id', 'node_id'],
 }
 
 /** 命中结果路由返回 true（含 405 与各种错误）；不是结果路由返回 false，交回主路由。 */
@@ -157,13 +172,20 @@ export async function handleResultRoutes(req: IncomingMessage, res: ServerRespon
       const t1 = numParam(url.searchParams, 't1')
       if (t0 !== null && t1 !== null && t1 < t0) throw badRequest('t1', 't1 不得小于 t0')
       const stride = intParam(url.searchParams, 'stride') ?? 1
-      const linkId = url.searchParams.get('link_id')
+      // 等值过滤：本端点声明支持的字段里，查询串给了哪个就按哪个过滤，多个取交集
+      const wanted: Array<[string, string]> = []
+      for (const f of JSONL_FILTERS[mj[2]] ?? []) {
+        const v = url.searchParams.get(f)
+        if (v !== null) wanted.push([f, v])
+      }
       const win = await readJsonlWindow(join(dir, spec.file), {
         t0,
         t1,
         stride,
         strideKey: spec.key,
-        filter: linkId ? (r) => String(r.link_id ?? '') === linkId : undefined,
+        filter: wanted.length
+          ? (r) => wanted.every(([f, v]) => String(r[f] ?? '') === v)
+          : undefined,
       })
       if (!win) return missingFile(res, rec.run_state, mj[2])
       const body = Buffer.from(JSON.stringify(win.records), 'utf8')

@@ -78,6 +78,10 @@ ComponentInfo SceneBoundChannel::describe() const {
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("scenario_id", "场景标识，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("entity_id", "绑定的辐射源标识，由装载器按 scene_binding 注入").internal_only(),
+        ParamSpec::text("site_id",
+                        "绑定的站点标识，由装载器按 scene_binding 注入（D-053）。"
+                        "单站场景可省略，此时取唯一站点；多站场景必填，否则不知道接收天线增益取哪个站的")
+            .internal_only(),
     };
     return i;
 }
@@ -88,6 +92,7 @@ bool SceneBoundChannel::configure(const std::map<std::string, double>& params,
     get_text(text_params, "scenario_path", scenario_path_);
     get_text(text_params, "scenario_id", scenario_id_);
     get_text(text_params, "entity_id", entity_id_);
+    get_text(text_params, "site_id", site_id_);
     get_text(text_params, "gain_mode", gain_mode_);
     if (gain_mode_.empty()) gain_mode_ = "link_budget";
     if (gain_mode_ != "link_budget" && gain_mode_ != "path_loss_only") {
@@ -122,15 +127,30 @@ bool SceneBoundChannel::configure(const std::map<std::string, double>& params,
         err = "场景 " + ls.scenario.scenario_id + " 里没有辐射源 " + entity_id_;
         return false;
     }
-    // 首期单站：接收天线增益取唯一站点的。多站要等 05 P0 的 MultiSiteIQSet，不在这里猜。
-    if (ls.scenario.sites.size() != 1) {
-        err = "首期只支持单站场景，本场景有 " + std::to_string(ls.scenario.sites.size()) +
-              " 个站点；多站接收待后置能力的多站 IQ 集合端口";
-        return false;
+    // 接收天线增益取哪个站的（D-053 替换了原来「首期只支持单站场景」的守卫）。
+    // 三分支，第一支就是旧行为，所以既有的单站框图一字不用改：
+    //   site_id 为空 + 单站 → 取唯一站；site_id 为空 + 多站 → 报错（不猜）；site_id 非空 → 按 id 找。
+    // 原守卫的理由是「接收天线增益取唯一站点的」，而 C-2 之后增益已拆到 AntennaGain，
+    // 典型链路用 gain_mode = path_loss_only，这条守卫早就名不副实了。
+    const geo::Site* site = nullptr;
+    if (site_id_.empty()) {
+        if (ls.scenario.sites.size() != 1) {
+            err = "多站场景（" + std::to_string(ls.scenario.sites.size()) +
+                  " 个站点）的场景绑定信道必须在 scene_binding 里绑定 site_id，"
+                  "否则不知道接收天线增益取哪个站的";
+            return false;
+        }
+        site = &ls.scenario.sites[0];
+    } else {
+        site = ls.scenario.find_site(site_id_);
+        if (site == 0) {
+            err = "场景 " + ls.scenario.scenario_id + " 里没有站点 " + site_id_;
+            return false;
+        }
     }
     tx_power_dBm_ = em->emission.tx_power_dBm;
     tx_gain_dBi_ = em->emission.antenna_gain_dBi;
-    rx_gain_dBi_ = ls.scenario.sites[0].antenna.gain_dBi;
+    rx_gain_dBi_ = site->antenna.gain_dBi;
     return true;
 }
 

@@ -107,6 +107,133 @@ Step AddMixer::process(PortMap& in, PortMap& out, std::string& err) {
 
 void AddMixer::reset() { status_ = ComponentStatus(); }
 
+// --------------------------------------------------------------- Superposition
+
+ComponentInfo Superposition::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Channel;
+    i.display_name = "多路叠加";
+    i.description = "把 N 路复基带逐样点相加，用于多辐射源在接收天线端汇成一路（D-053）。"
+                    "落点选在接收天线之后、接收机前端之前：物理上电磁场在天线口面叠加，"
+                    "接收机只有一条通道；放在前端之后等于给每个源配一台接收机。"
+                    "八个输入口都是可选的，实际连上的路数不得少于 min_inputs。"
+                    "各支路的采样率、中心频率、首样点序号与块长必须一致，任一项不一致即报错不截断"
+                    "——调度器每轮无条件覆盖下游缓冲，截断会让较长那一路的尾部样点被静默丢掉（08 报告约定四）。";
+    i.model_layer = "M3";
+    i.model_level = "E2";
+    i.model_id = "EM-B-09";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.params = {
+        ParamSpec::number("min_inputs", "", "至少要连上几路；连得少于它即校验失败，"
+                                            "免得「以为接了三路其实只接了一路」而无声出错")
+            .def(2.0).at_least(1.0).at_most(8.0),
+    };
+    return i;
+}
+
+bool Superposition::check_wiring(const std::vector<std::string>& wired, std::string& err) const {
+    if (wired.size() >= min_inputs_) return true;
+    err = "多路叠加要求至少连上 " + std::to_string(min_inputs_) + " 路，实际只连了 " +
+          std::to_string(wired.size()) + " 路";
+    return false;
+}
+
+bool Superposition::configure(const std::map<std::string, double>& params,
+                              const std::map<std::string, std::string>&, std::string& err) {
+    const double m = get(params, "min_inputs", 2.0);
+    if (!(m >= 1.0) || !(m <= 8.0)) { err = "min_inputs 必须在 1 到 8 之间"; return false; }
+    min_inputs_ = static_cast<std::size_t>(m);
+    return true;
+}
+
+bool Superposition::init(IRandom&, std::string&) { status_ = ComponentStatus(); return true; }
+
+Step Superposition::process(PortMap& in, PortMap& out, std::string& err) {
+    // 收齐本轮到手的支路。任一已连的口本轮没数据就整轮 Idle：少加一路等于凭空少了一个辐射源，
+    // 而下一轮的块会把这一轮覆盖掉，缺的样点再也补不回来。
+    std::vector<const Block*> parts;
+    std::vector<std::string> names;
+    for (int k = 1; k <= 8; ++k) {
+        const std::string name = std::string("in") + static_cast<char>('0' + k);
+        PortMap::iterator it = in.find(name);
+        if (it == in.end()) continue;              // 这个口没连
+        if (!it->second.has_data) return Step::Idle;
+        parts.push_back(&it->second.iq);
+        names.push_back(name);
+    }
+    if (parts.empty()) return Step::Idle;
+
+    const Block& a = *parts[0];
+    for (std::size_t k = 1; k < parts.size(); ++k) {
+        const Block& b = *parts[k];
+        const char* what = 0;
+        if (a.meta.sample_rate_Hz != b.meta.sample_rate_Hz) what = "采样率";
+        else if (a.meta.center_frequency_Hz != b.meta.center_frequency_Hz) what = "中心频率";
+        else if (a.meta.start_sample != b.meta.start_sample) what = "首样点序号";
+        else if (a.size() != b.size()) what = "块长";
+        if (what != 0) {
+            err = std::string("多路叠加的 ") + names[0] + " 与 " + names[k] + " 两路" + what +
+                  "不一致，拒绝相加（截断会让较长一路的尾部样点被下一轮静默覆盖）";
+            return Step::Error;
+        }
+    }
+
+    const std::size_t n = a.size();
+    PortData d;
+    d.type = PortType::IQStream;
+    d.has_data = true;
+    d.iq.samples.assign(a.samples.begin(), a.samples.end());
+    for (std::size_t k = 1; k < parts.size(); ++k) {
+        const std::vector<Complex>& v = parts[k]->samples;
+        for (std::size_t i = 0; i < n; ++i) d.iq.samples[i] += v[i];
+    }
+    d.iq.meta = a.meta;
+    d.iq.meta.trace = make_trace("EM-B-09", "M3", "E2", "V2");
+    d.iq.meta.clip_count = 0;
+    d.iq.meta.state_reasons.clear();
+    State st = State::Valid;
+    bool all_cal = true;
+    std::string weak;
+    for (std::size_t k = 0; k < parts.size(); ++k) {
+        const BlockMeta& m = parts[k]->meta;
+        st = worst(st, m.state);
+        d.iq.meta.clip_count += m.clip_count;
+        for (std::size_t r = 0; r < m.state_reasons.size(); ++r) {
+            d.iq.meta.state_reasons.push_back(m.state_reasons[r]);
+        }
+        // 标定：全部支路都标定才算标定，来源取最弱的一路（与 AddMixer 同口径，D-047 ⑤）
+        if (!m.calibration.calibrated) all_cal = false;
+        else weak = weak.empty() ? m.calibration.source : weaker_source(weak, m.calibration.source);
+    }
+    d.iq.meta.state = st;
+    PowerCalibration c;
+    if (all_cal) {
+        c.calibrated = true;
+        c.source = weak;
+        for (std::size_t k = 0; k < parts.size(); ++k) {
+            if (parts[k]->meta.calibration.source == weak) {
+                c.offset_dB = parts[k]->meta.calibration.offset_dB;
+                break;
+            }
+        }
+        c.note = "叠加 " + std::to_string(parts.size()) + " 路，取最弱来源 " + weak +
+                 "；各路已在源端换算到 mW";
+    }
+    d.iq.meta.calibration = c;
+
+    out["out"] = d;
+    status_.blocks_in += parts.size();
+    status_.blocks_out++;
+    status_.samples_out += n;
+    status_.state = worst(status_.state, st);
+    return Step::Produced;
+}
+
+void Superposition::reset() { status_ = ComponentStatus(); }
+
 // -------------------------------------------------------------- EnergyDetector
 
 bool EnergyDetector::configure(const std::map<std::string, double>& params,

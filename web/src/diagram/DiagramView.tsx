@@ -19,6 +19,7 @@ import { ParamPanel } from './ParamPanel.jsx'
 import { summarize } from './format.js'
 import { autoLayout } from './layout.js'
 import { EXAMPLES } from './examples/index.js'
+import { parseChain } from '../chain/compile.js'
 import {
   emptyDoc, nextId, parse, pruneEdges, removeNode, renameNode, serialize,
   type DiagramDoc, type DiagramNode, type ObservationPoint,
@@ -48,6 +49,7 @@ function Canvas() {
   const [sel, setSel] = useState<{ kind: 'node' | 'tap'; id: string } | null>(null)
   const [hint, setHint] = useState<string | null>(null)
   const [tab, setTab] = useState<'canvas' | 'source'>('canvas')
+  const [backAsk, setBackAsk] = useState(false)
   const dragFrom = useRef<OnConnectStartParams | null>(null)
 
   const catalog: Catalog | null = isCatalog(s.components.catalog) ? s.components.catalog : null
@@ -58,6 +60,14 @@ function Canvas() {
     const r = parse(s.diagram.text)
     return autoLayout(r.ok ? r.doc : emptyDoc(s.context.diagramId ?? 'untitled'))
   }, [s.diagram.text, s.context.diagramId])
+
+  // 「回到典型链路」的判据：当前文档还解不解得回九个槽位（10 报告 §5.6）。
+  // 用原始文本而不是上面那个 doc——`autoLayout` 会补 position，那是渲染用的加工品。
+  // 解得开就直接回；解不开说明画布里增删过节点，回去只能新建一条链，必须先问（铁律 15）。
+  const isChain = useMemo(() => {
+    const r = parse(s.diagram.text)
+    return r.ok && parseChain(r.doc) !== null
+  }, [s.diagram.text])
 
   // 场景清单：下拉取 GET /api/v1/scenarios 的摘要；实体与站点的**标识**只有场景文档里才有，
   // 而文档只在场景视图载入了那个场景时才在手上。未载入时下拉为空并给提示，不猜标识。
@@ -252,6 +262,11 @@ function Canvas() {
       center={
         <div className="diagram-canvas" ref={wrap} onDrop={onDrop} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }} data-canvas>
           <div className="diagram-tools">
+            <button type="button" data-action="open-chain" title="回到框图页的默认形态（典型链路视图）"
+              onClick={() => {
+                if (isChain) dispatch({ type: 'ui/navigate', view: 'diagram', canvas: false })
+                else setBackAsk(true)
+              }}>← 回到典型链路</button>
             <label>示例框图
               <select data-action="example" value="" onChange={(e) => {
                 const ex = EXAMPLES.find((x) => x.id === e.target.value)
@@ -275,6 +290,15 @@ function Canvas() {
             )}
             <span className="muted right">Ctrl+Enter 校验并运行</span>
           </div>
+          {backAsk && !isChain && (
+            <div className="diagram-back-ask" role="alertdialog" data-chain-back-ask>
+              <span>当前框图已不是典型链路的形状（画布里增删过节点或连线），解不回九个槽位。
+                回去只能新建一条链——<b>新建那一下</b>当前改动才会丢；在那之前改动还在，可以再回画布。</span>
+              <button type="button" data-action="open-chain-confirm"
+                onClick={() => { setBackAsk(false); dispatch({ type: 'ui/navigate', view: 'diagram', canvas: false }) }}>仍要回去</button>
+              <button type="button" data-action="open-chain-cancel" onClick={() => setBackAsk(false)}>留在画布</button>
+            </div>
+          )}
           <textarea className="diagram-text" spellCheck={false} value={s.diagram.text} data-diagram-text
             hidden={!(s.ui.devMode && tab === 'source')}
             onChange={(e) => dispatch({ type: 'diagram/setText', text: e.target.value })} />

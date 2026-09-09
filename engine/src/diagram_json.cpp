@@ -262,9 +262,25 @@ bool inject_scene(const ComponentInfo& info, const std::string& node_id, const n
                   LoadedDiagram& diag, const LoadOptions& options, ScenarioCache& cache,
                   std::map<std::string, double>& num, std::map<std::string, std::string>& txt,
                   DiagramError& err) {
+    if (binding == nullptr) return true;            // 缺必填交给 validate_params 报
+
+    // 双绑定的闸（D-053）：只有目录里同时声明了两个内部参数的组件才收得下两个键。
+    // 否则多写的那个会被静默丢掉，用户以为绑上了其实没绑（铁律 15）。
+    // 放在「组件不吃场景」的早退**之前**：不吃场景的组件带两个键同样该被挡下，
+    // 否则闸门会被早退绕过去。
+    if (binding->contains("entity_id") && binding->contains("site_id")) {
+        const ParamSpec* e_sp = find_spec(info, "entity_id");
+        const ParamSpec* s_sp = find_spec(info, "site_id");
+        if (!e_sp || !e_sp->internal || !s_sp || !s_sp->internal) {
+            err = fail("scene_binding", node_id, "",
+                       "组件 " + info.type + " 的 scene_binding 只能带 entity_id 或 site_id 之一："
+                       "它的目录条目没有同时声明这两个内部参数，多给的那个会被丢掉");
+            return false;
+        }
+    }
+
     const ParamSpec* sp = find_spec(info, "scenario_path");
     if (!sp || !sp->internal) return true;          // 组件不吃场景，早退
-    if (binding == nullptr) return true;            // 缺必填交给 validate_params 报
 
     const std::string bound_id = (*binding)["scenario_id"].get<std::string>();
     if (bound_id != diag.scenario_id) {
@@ -321,7 +337,9 @@ bool inject_scene(const ComponentInfo& info, const std::string& node_id, const n
     }
 
     const geo::Scenario& sc = cache.scenario.scenario;
-    if (binding->contains("entity_id")) {
+    const bool has_entity = binding->contains("entity_id");
+    const bool has_site = binding->contains("site_id");
+    if (has_entity) {
         const std::string eid = (*binding)["entity_id"].get<std::string>();
         if (sc.find_emitter(eid) == nullptr) {
             std::string avail;
@@ -331,7 +349,8 @@ bool inject_scene(const ComponentInfo& info, const std::string& node_id, const n
             return false;
         }
         txt["entity_id"] = eid;
-    } else {
+    }
+    if (has_site) {
         const std::string sid = (*binding)["site_id"].get<std::string>();
         if (sc.find_site(sid) == nullptr) {
             std::string avail;
@@ -692,9 +711,12 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
             static const std::set<std::string> kBind = {"scenario_id", "entity_id", "site_id"};
             if (!check_keys(b, kBind, who + " 的 scene_binding", id, err)) return false;
             if (!need(b, "scenario_id", who + " 的 scene_binding", id, err)) return false;
+            // D-053：由「必须且只能二选一」放宽为「至少一个」。多站场景里的 SceneBoundChannel
+            // 需要同时说清「哪个源」与「哪个站」，二选一不够用。两个同时出现时的闸放在
+            // inject_scene 里（组件目录必须同时声明两个内部参数），此处只管结构。
             const bool has_entity = b.contains("entity_id"), has_site = b.contains("site_id");
-            if (has_entity == has_site) {
-                err = fail("schema", id, "", who + " 的 scene_binding 必须且只能带 entity_id 或 site_id 之一");
+            if (!has_entity && !has_site) {
+                err = fail("schema", id, "", who + " 的 scene_binding 至少要带 entity_id 或 site_id 之一");
                 return false;
             }
             for (auto it = b.begin(); it != b.end(); ++it) {
@@ -921,6 +943,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
         switch (gf) {
             case GraphFault::Cycle:            err = fail("cycle", "", "", e); break;
             case GraphFault::InputUnconnected: err = fail("input_unconnected", out.node_names.at(gn), gp, e); break;
+            case GraphFault::PortOptional:     err = fail("port_optional", out.node_names.at(gn), gp, e); break;
             default:                           err = fail("graph", "", "", e); break;
         }
         return false;

@@ -7,6 +7,15 @@
 namespace cuav {
 namespace geo {
 
+const char* to_string(SyncState s) {
+    switch (s) {
+        case SyncState::Locked: return "locked";
+        case SyncState::Holdover: return "holdover";
+        case SyncState::Unsynced: return "unsynced";
+    }
+    return "unsynced";
+}
+
 const Site* Scenario::find_site(const std::string& id) const {
     for (std::size_t i = 0; i < sites.size(); ++i)
         if (sites[i].id == id) return &sites[i];

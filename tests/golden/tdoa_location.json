@@ -1,0 +1,6853 @@
+{
+ "_meta": {
+  "source": "em-demo/src/models/tdoa-location.ts",
+  "tolerance_rel": 1e-09,
+  "note": "TOA 由真距/c + 固定 ns 扰动确定性合成; 噪声注入属引擎侧, 不入黄金向量",
+  "origin": "C-UAV Model Demo/emcore/tests/golden/tdoa_location.json",
+  "ported_to": "geo/locate_tdoa.h（D-053，L-5）；求解器改平面坐标接口，本基准经 geo::legacy 的 111320 投影与 legacy::toa_sigma_s 回放，加权取 independent_pairs（emcore 口径）"
+ },
+ "_configs": {
+  "sa": {
+   "id": "sa",
+   "name": "w4-a",
+   "position": {
+    "lon": 108.926,
+    "lat": 34.352,
+    "alt": 40
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2,
+   "scanRate_Hz": 5
+  },
+  "sb": {
+   "id": "sb",
+   "name": "w4-b",
+   "position": {
+    "lon": 108.948,
+    "lat": 34.338,
+    "alt": 42
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -112,
+   "bearingAccuracy_deg": 1.8,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 1
+  },
+  "sc": {
+   "id": "sc",
+   "name": "w4-c",
+   "position": {
+    "lon": 108.955,
+    "lat": 34.356,
+    "alt": 38
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -108,
+   "bearingAccuracy_deg": 2.5,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 10
+  },
+  "sd": {
+   "id": "sd",
+   "name": "w4-d",
+   "position": {
+    "lon": 108.935,
+    "lat": 34.362,
+    "alt": 35
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2.2,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 30
+  },
+  "se": {
+   "id": "se",
+   "name": "w4-e",
+   "position": {
+    "lon": 108.94,
+    "lat": 34.352,
+    "alt": 40
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2,
+   "scanRate_Hz": 5
+  },
+  "sf": {
+   "id": "sf",
+   "name": "w4-f",
+   "position": {
+    "lon": 108.954,
+    "lat": 34.352,
+    "alt": 41
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -111,
+   "bearingAccuracy_deg": 1.9,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 3
+  },
+  "sg": {
+   "id": "sg",
+   "name": "w4-g",
+   "position": {
+    "lon": 108.93,
+    "lat": 34.345,
+    "alt": 36
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -109,
+   "bearingAccuracy_deg": 3,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 400
+  },
+  "sh": {
+   "id": "sh",
+   "name": "w4-h",
+   "position": {
+    "lon": 108.92665,
+    "lat": 34.352,
+    "alt": 40
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 3
+  },
+  "si": {
+   "id": "si",
+   "name": "w4-i",
+   "position": {
+    "lon": 108.942,
+    "lat": 34.366,
+    "alt": 37
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2.4,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 90
+  }
+ },
+ "toaSigma_s": [
+  {
+   "in": [
+    -10,
+    0
+   ],
+   "out": 1.5918321491471532e-08
+  },
+  {
+   "in": [
+    -10,
+    1
+   ],
+   "out": 1.5949700909604685e-08
+  },
+  {
+   "in": [
+    -10,
+    3
+   ],
+   "out": 1.619854805548462e-08
+  },
+  {
+   "in": [
+    -10,
+    10
+   ],
+   "out": 1.8798748870758513e-08
+  },
+  {
+   "in": [
+    -10,
+    30
+   ],
+   "out": 3.3961639523230394e-08
+  },
+  {
+   "in": [
+    -10,
+    100
+   ],
+   "out": 1.0125903890076108e-07
+  },
+  {
+   "in": [
+    0,
+    0
+   ],
+   "out": 1.5918321491471532e-08
+  },
+  {
+   "in": [
+    0,
+    1
+   ],
+   "out": 1.5949700909604685e-08
+  },
+  {
+   "in": [
+    0,
+    3
+   ],
+   "out": 1.619854805548462e-08
+  },
+  {
+   "in": [
+    0,
+    10
+   ],
+   "out": 1.8798748870758513e-08
+  },
+  {
+   "in": [
+    0,
+    30
+   ],
+   "out": 3.3961639523230394e-08
+  },
+  {
+   "in": [
+    0,
+    100
+   ],
+   "out": 1.0125903890076108e-07
+  },
+  {
+   "in": [
+    5,
+    0
+   ],
+   "out": 8.95496671593455e-09
+  },
+  {
+   "in": [
+    5,
+    1
+   ],
+   "out": 9.010628661946713e-09
+  },
+  {
+   "in": [
+    5,
+    3
+   ],
+   "out": 9.44412139288222e-09
+  },
+  {
+   "in": [
+    5,
+    10
+   ],
+   "out": 1.3423540102502604e-08
+  },
+  {
+   "in": [
+    5,
+    30
+   ],
+   "out": 3.130800902139093e-08
+  },
+  {
+   "in": [
+    5,
+    100
+   ],
+   "out": 1.0040015651822211e-07
+  },
+  {
+   "in": [
+    10,
+    0
+   ],
+   "out": 5.041854411879069e-09
+  },
+  {
+   "in": [
+    10,
+    1
+   ],
+   "out": 5.1400676951363626e-09
+  },
+  {
+   "in": [
+    10,
+    3
+   ],
+   "out": 5.866881276332804e-09
+  },
+  {
+   "in": [
+    10,
+    10
+   ],
+   "out": 1.1199120318604692e-08
+  },
+  {
+   "in": [
+    10,
+    30
+   ],
+   "out": 3.0420721488988135e-08
+  },
+  {
+   "in": [
+    10,
+    100
+   ],
+   "out": 1.0012702080812445e-07
+  },
+  {
+   "in": [
+    20,
+    0
+   ],
+   "out": 1.6195769790468262e-09
+  },
+  {
+   "in": [
+    20,
+    1
+   ],
+   "out": 1.9034257513910136e-09
+  },
+  {
+   "in": [
+    20,
+    3
+   ],
+   "out": 3.4092564572144534e-09
+  },
+  {
+   "in": [
+    20,
+    10
+   ],
+   "out": 1.0130302541931235e-08
+  },
+  {
+   "in": [
+    20,
+    30
+   ],
+   "out": 3.004368535301651e-08
+  },
+  {
+   "in": [
+    20,
+    100
+   ],
+   "out": 1.0001311428803255e-07
+  },
+  {
+   "in": [
+    40,
+    0
+   ],
+   "out": 3.396031447301165e-10
+  },
+  {
+   "in": [
+    40,
+    1
+   ],
+   "out": 1.0560919921628914e-09
+  },
+  {
+   "in": [
+    40,
+    3
+   ],
+   "out": 3.0191605283440272e-09
+  },
+  {
+   "in": [
+    40,
+    10
+   ],
+   "out": 1.0005764853118955e-08
+  },
+  {
+   "in": [
+    40,
+    30
+   ],
+   "out": 3.00019221100234e-08
+  },
+  {
+   "in": [
+    40,
+    100
+   ],
+   "out": 1.0000057664981694e-07
+  }
+ ],
+ "computeTDOAFix": [
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9405010268895,
+     "lat": 34.350597170388404,
+     "alt": 0
+    },
+    "cep_m": 2.212789989951414,
+    "refStationId": "sa",
+    "gdop": 1.107668664560822,
+    "errorEllipse": {
+     "semiMajor_m": 5.764765344796159,
+     "semiMinor_m": 1.7527817588267869,
+     "rotation_deg": 61.7165212094138
+    },
+    "residuals_m": [
+     -9.398905831403681e-08,
+     3.4793788472597953e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.940501026888,
+     "lat": 34.35059717038582,
+     "alt": 0
+    },
+    "cep_m": 2.212801849758212,
+    "refStationId": "sa",
+    "gdop": 1.10766866453417,
+    "errorEllipse": {
+     "semiMajor_m": 5.764826587982019,
+     "semiMinor_m": 1.7527608071537446,
+     "rotation_deg": 61.71624673068176
+    },
+    "residuals_m": [
+     -2.0605739337042905e-10,
+     -5.434230843093246e-11
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050070943705,
+     "lat": 34.35059830819373,
+     "alt": 0
+    },
+    "cep_m": 2.365991018465903,
+    "refStationId": "sb",
+    "gdop": 0.9517065135311248,
+    "errorEllipse": {
+     "semiMajor_m": 5.1451826803291185,
+     "semiMinor_m": 2.8928367471072765,
+     "rotation_deg": 47.035961947322015
+    },
+    "residuals_m": [
+     9.503020237389137e-08,
+     4.4308200131126796e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050070943555,
+     "lat": 34.35059830819114,
+     "alt": 0
+    },
+    "cep_m": 2.365998945947866,
+    "refStationId": "sb",
+    "gdop": 0.9517065135467996,
+    "errorEllipse": {
+     "semiMajor_m": 5.145252948219839,
+     "semiMinor_m": 2.892793411378823,
+     "rotation_deg": 47.03605171170374
+    },
+    "residuals_m": [
+     2.0742163542308845e-10,
+     1.5148771126405336e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050218407986,
+     "lat": 34.35059374105468,
+     "alt": 0
+    },
+    "cep_m": 2.2126381167675553,
+    "refStationId": "sa",
+    "gdop": 1.1075270690636347,
+    "errorEllipse": {
+     "semiMajor_m": 5.7643421690730525,
+     "semiMinor_m": 1.7526889733341329,
+     "rotation_deg": 61.708292767824794
+    },
+    "residuals_m": [
+     -8.99383678643062e-08,
+     3.47337987705032e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050218407835,
+     "lat": 34.35059374105212,
+     "alt": 0
+    },
+    "cep_m": 2.2126498862807416,
+    "refStationId": "sa",
+    "gdop": 1.1075270690381793,
+    "errorEllipse": {
+     "semiMajor_m": 5.764403049463578,
+     "semiMinor_m": 1.7526680777004835,
+     "rotation_deg": 61.708016382165866
+    },
+    "residuals_m": [
+     -2.0193624550302047e-10,
+     -4.851585799769964e-11
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050186640916,
+     "lat": 34.3505948784412,
+     "alt": 0
+    },
+    "cep_m": 2.365881319259545,
+    "refStationId": "sb",
+    "gdop": 0.9516790623161789,
+    "errorEllipse": {
+     "semiMajor_m": 5.145166650933896,
+     "semiMinor_m": 2.8924800936203594,
+     "rotation_deg": 47.02336458077837
+    },
+    "residuals_m": [
+     9.096768849303771e-08,
+     4.384270937407564e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050186640766,
+     "lat": 34.350594878438635,
+     "alt": 0
+    },
+    "cep_m": 2.3658891887977487,
+    "refStationId": "sb",
+    "gdop": 0.9516790623320726,
+    "errorEllipse": {
+     "semiMajor_m": 5.145236661583245,
+     "semiMinor_m": 2.892436818280008,
+     "rotation_deg": 47.0234498677897
+    },
+    "residuals_m": [
+     2.028457402047934e-10,
+     1.525108928035479e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049573428103,
+     "lat": 34.350603474724565,
+     "alt": 0
+    },
+    "cep_m": 2.2132559456255954,
+    "refStationId": "sa",
+    "gdop": 1.108036208501884,
+    "errorEllipse": {
+     "semiMajor_m": 5.766281383368863,
+     "semiMinor_m": 1.7528487189773077,
+     "rotation_deg": 61.734659046760854
+    },
+    "residuals_m": [
+     -9.934191780303081e-08,
+     3.5221685834585514e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049573427951,
+     "lat": 34.35060347472192,
+     "alt": 0
+    },
+    "cep_m": 2.2132679538996594,
+    "refStationId": "sa",
+    "gdop": 1.1080362084735687,
+    "errorEllipse": {
+     "semiMajor_m": 5.766343299148117,
+     "semiMinor_m": 1.7528275991011075,
+     "rotation_deg": 61.734384860297816
+    },
+    "residuals_m": [
+     -2.1654500415024813e-10,
+     -6.090772330935579e-11
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049541788115,
+     "lat": 34.35060461330203,
+     "alt": 0
+    },
+    "cep_m": 2.3663227071534507,
+    "refStationId": "sb",
+    "gdop": 0.9518058622685994,
+    "errorEllipse": {
+     "semiMajor_m": 5.145765747086776,
+     "semiMinor_m": 2.893380531674735,
+     "rotation_deg": 47.06766469885796
+    },
+    "residuals_m": [
+     1.004073908461578e-07,
+     4.527302053247695e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049541787963,
+     "lat": 34.350604613299375,
+     "alt": 0
+    },
+    "cep_m": 2.3663307294892557,
+    "refStationId": "sb",
+    "gdop": 0.951805862284153,
+    "errorEllipse": {
+     "semiMajor_m": 5.145836637319149,
+     "semiMinor_m": 2.8933368958531154,
+     "rotation_deg": 47.067758486291766
+    },
+    "residuals_m": [
+     2.1745449885202106e-10,
+     1.5518253349000588e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.9519817766212,
+     "lat": 34.35998406677801,
+     "alt": 0
+    },
+    "cep_m": 5.551865606510729,
+    "refStationId": "sa",
+    "gdop": 3.397283285111539,
+    "errorEllipse": {
+     "semiMajor_m": 16.164004108852506,
+     "semiMinor_m": 2.6974384136911644,
+     "rotation_deg": 57.42846915595174
+    },
+    "residuals_m": [
+     -3.836930773104541e-13,
+     -8.035385690163821e-10
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.95198177662117,
+     "lat": 34.359984066777976,
+     "alt": 0
+    },
+    "cep_m": 5.5518515249893365,
+    "refStationId": "sa",
+    "gdop": 3.397283285071249,
+    "errorEllipse": {
+     "semiMajor_m": 16.163957422107597,
+     "semiMinor_m": 2.697437261056446,
+     "rotation_deg": 57.42848869171087
+    },
+    "residuals_m": [
+     -4.0401459955319297e-11,
+     -3.2546267902944237e-09
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198094849417,
+     "lat": 34.35998834061396,
+     "alt": 0
+    },
+    "cep_m": 5.353592067284439,
+    "refStationId": "sb",
+    "gdop": 2.2554517935056935,
+    "errorEllipse": {
+     "semiMajor_m": 13.387435349968131,
+     "semiMinor_m": 4.800409281540071,
+     "rotation_deg": 58.83283117956605
+    },
+    "residuals_m": [
+     3.836930773104541e-13,
+     -8.249116945080459e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198094849412,
+     "lat": 34.359988340613924,
+     "alt": 0
+    },
+    "cep_m": 5.353578950895649,
+    "refStationId": "sb",
+    "gdop": 2.255451793477848,
+    "errorEllipse": {
+     "semiMajor_m": 13.387393193842906,
+     "semiMinor_m": 4.800406877146223,
+     "rotation_deg": 58.83286558251605
+    },
+    "residuals_m": [
+     4.858691227127565e-11,
+     -3.5915945773012936e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.95197756666859,
+     "lat": 34.359972212452924,
+     "alt": 0
+    },
+    "cep_m": 5.535118989760812,
+    "refStationId": "sa",
+    "gdop": 3.386584373631472,
+    "errorEllipse": {
+     "semiMajor_m": 16.108540127669208,
+     "semiMinor_m": 2.6960088438300676,
+     "rotation_deg": 57.439828175548044
+    },
+    "residuals_m": [
+     -5.826450433232822e-13,
+     -7.203198038041592e-10
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.95197756666857,
+     "lat": 34.3599722124529,
+     "alt": 0
+    },
+    "cep_m": 5.535109429757186,
+    "refStationId": "sa",
+    "gdop": 3.3865843736080024,
+    "errorEllipse": {
+     "semiMajor_m": 16.108508434641664,
+     "semiMinor_m": 2.6960080585031836,
+     "rotation_deg": 57.439841342932034
+    },
+    "residuals_m": [
+     -1.7408297026122455e-11,
+     -2.148908606613986e-09
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95197673585992,
+     "lat": 34.35997648073071,
+     "alt": 0
+    },
+    "cep_m": 5.339402836283035,
+    "refStationId": "sb",
+    "gdop": 2.24900870516144,
+    "errorEllipse": {
+     "semiMajor_m": 13.341927063612902,
+     "semiMinor_m": 4.797712264680062,
+     "rotation_deg": 58.857747949901025
+    },
+    "residuals_m": [
+     5.826450433232822e-13,
+     -7.401013135677204e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95197673585989,
+     "lat": 34.35997648073069,
+     "alt": 0
+    },
+    "cep_m": 5.339393637873407,
+    "refStationId": "sb",
+    "gdop": 2.249008705144646,
+    "errorEllipse": {
+     "semiMajor_m": 13.341897505990477,
+     "semiMinor_m": 4.79771057239718,
+     "rotation_deg": 58.85777206083299
+    },
+    "residuals_m": [
+     2.3320012587646488e-11,
+     -2.4185737856896594e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.95198665091954,
+     "lat": 34.36000881649111,
+     "alt": 0
+    },
+    "cep_m": 5.583108373526857,
+    "refStationId": "sa",
+    "gdop": 3.4172511224387527,
+    "errorEllipse": {
+     "semiMajor_m": 16.267445328300138,
+     "semiMinor_m": 2.700138750269103,
+     "rotation_deg": 57.415640814558046
+    },
+    "residuals_m": [
+     2.7000623958883807e-13,
+     -9.979430615203455e-10
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.95198665091947,
+     "lat": 34.360008816491046,
+     "alt": 0
+    },
+    "cep_m": 5.583084594444046,
+    "refStationId": "sa",
+    "gdop": 3.4172511223499713,
+    "errorEllipse": {
+     "semiMajor_m": 16.267366479154514,
+     "semiMinor_m": 2.70013681435337,
+     "rotation_deg": 57.41567392002099
+    },
+    "residuals_m": [
+     -1.184190523417783e-10,
+     -6.374420991051011e-09
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198582774658,
+     "lat": 34.360013100677186,
+     "alt": 0
+    },
+    "cep_m": 5.3800740910202425,
+    "refStationId": "sb",
+    "gdop": 2.267483962666301,
+    "errorEllipse": {
+     "semiMajor_m": 13.472320283713247,
+     "semiMinor_m": 4.805492153929839,
+     "rotation_deg": 58.795330508146776
+    },
+    "residuals_m": [
+     -2.7000623958883807e-13,
+     -1.023863660520874e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9519858277465,
+     "lat": 34.360013100677115,
+     "alt": 0
+    },
+    "cep_m": 5.380052616139975,
+    "refStationId": "sb",
+    "gdop": 2.267483962607107,
+    "errorEllipse": {
+     "semiMajor_m": 13.47225124069806,
+     "semiMinor_m": 4.805488239988112,
+     "rotation_deg": 58.7953866028145
+    },
+    "residuals_m": [
+     1.3297096757014515e-10,
+     -6.842583388788626e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799648031385,
+     "lat": 34.34099892115162,
+     "alt": 0
+    },
+    "cep_m": 6.061088973903548,
+    "refStationId": "sa",
+    "gdop": 2.974658520139092,
+    "errorEllipse": {
+     "semiMajor_m": 18.640848820122578,
+     "semiMinor_m": 1.9505864572803377,
+     "rotation_deg": 45.798573013573176
+    },
+    "residuals_m": [
+     4.3036095576098887e-07,
+     6.622581167903263e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799648030409,
+     "lat": 34.340998921147126,
+     "alt": 0
+    },
+    "cep_m": 6.061332914578433,
+    "refStationId": "sa",
+    "gdop": 2.974658523111958,
+    "errorEllipse": {
+     "semiMajor_m": 18.641644878361074,
+     "semiMinor_m": 1.950619142629015,
+     "rotation_deg": 45.79804796194847
+    },
+    "residuals_m": [
+     3.4640379453776404e-10,
+     1.424723450327292e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92800093637906,
+     "lat": 34.34100020046296,
+     "alt": 0
+    },
+    "cep_m": 6.069552771141196,
+    "refStationId": "sb",
+    "gdop": 2.7385127205791178,
+    "errorEllipse": {
+     "semiMajor_m": 17.574441397640527,
+     "semiMinor_m": 3.0457480745565015,
+     "rotation_deg": 41.05103558336116
+    },
+    "residuals_m": [
+     -4.2738668071251595e-07,
+     2.30345904128626e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92800093636939,
+     "lat": 34.34100020045849,
+     "alt": 0
+    },
+    "cep_m": 6.069791428754242,
+    "refStationId": "sb",
+    "gdop": 2.7385127234204294,
+    "errorEllipse": {
+     "semiMajor_m": 17.57520400599214,
+     "semiMinor_m": 3.0457962615609144,
+     "rotation_deg": 41.050633681250574
+    },
+    "residuals_m": [
+     -3.750528776436113e-10,
+     1.07775122160092e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799436055513,
+     "lat": 34.34099307211803,
+     "alt": 0
+    },
+    "cep_m": 6.064301040713258,
+    "refStationId": "sa",
+    "gdop": 2.9762661745986474,
+    "errorEllipse": {
+     "semiMajor_m": 18.651339513675445,
+     "semiMinor_m": 1.951008170079465,
+     "rotation_deg": 45.80157771725604
+    },
+    "residuals_m": [
+     4.344265107647516e-07,
+     6.688583198410925e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799436054527,
+     "lat": 34.34099307211348,
+     "alt": 0
+    },
+    "cep_m": 6.064546866380908,
+    "refStationId": "sa",
+    "gdop": 2.9762661776057433,
+    "errorEllipse": {
+     "semiMajor_m": 18.6521417286212,
+     "semiMinor_m": 1.951041102637194,
+     "rotation_deg": 45.80104941652195
+    },
+    "residuals_m": [
+     2.8830982046201825e-10,
+     1.3269527698867023e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799881835231,
+     "lat": 34.34099435215368,
+     "alt": 0
+    },
+    "cep_m": 6.0726904774176855,
+    "refStationId": "sb",
+    "gdop": 2.740036969106693,
+    "errorEllipse": {
+     "semiMajor_m": 17.584466701372822,
+     "semiMinor_m": 3.046382550937983,
+     "rotation_deg": 41.05568889643704
+    },
+    "residuals_m": [
+     -4.3142586036992725e-07,
+     2.3286565919988789e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799881834253,
+     "lat": 34.34099435214916,
+     "alt": 0
+    },
+    "cep_m": 6.072930974646619,
+    "refStationId": "sb",
+    "gdop": 2.7400369719806394,
+    "errorEllipse": {
+     "semiMajor_m": 17.585235191942214,
+     "semiMinor_m": 3.046431105481324,
+     "rotation_deg": 41.05528456718151
+    },
+    "residuals_m": [
+     -3.1650415621697903e-10,
+     1.038642949424684e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799260188046,
+     "lat": 34.341006655806886,
+     "alt": 0
+    },
+    "cep_m": 6.059733079446739,
+    "refStationId": "sa",
+    "gdop": 2.973962597870268,
+    "errorEllipse": {
+     "semiMajor_m": 18.6364068350584,
+     "semiMinor_m": 1.9504220402490213,
+     "rotation_deg": 45.781604059694416
+    },
+    "residuals_m": [
+     4.288591526346863e-07,
+     6.590310022147605e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799260187077,
+     "lat": 34.341006655802424,
+     "alt": 0
+    },
+    "cep_m": 6.059975703451285,
+    "refStationId": "sa",
+    "gdop": 2.973962600824608,
+    "errorEllipse": {
+     "semiMajor_m": 18.63719858923778,
+     "semiMinor_m": 1.9504545565114477,
+     "rotation_deg": 45.781080312322366
+    },
+    "residuals_m": [
+     3.9824499253882095e-10,
+     1.546140993013978e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9279970598493,
+     "lat": 34.34100793497497,
+     "alt": 0
+    },
+    "cep_m": 6.068253507366069,
+    "refStationId": "sb",
+    "gdop": 2.7378874478914836,
+    "errorEllipse": {
+     "semiMajor_m": 17.570291667810704,
+     "semiMinor_m": 3.0454837946186117,
+     "rotation_deg": 41.03329057311241
+    },
+    "residuals_m": [
+     -4.258916987964767e-07,
+     2.2863059712108225e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799705983968,
+     "lat": 34.34100793497054,
+     "alt": 0
+    },
+    "cep_m": 6.068490886562337,
+    "refStationId": "sb",
+    "gdop": 2.7378874507154496,
+    "errorEllipse": {
+     "semiMajor_m": 17.571050190154633,
+     "semiMinor_m": 3.045531724444777,
+     "rotation_deg": 41.03288935128209
+    },
+    "residuals_m": [
+     -4.298499334254302e-10,
+     1.1457359505584463e-09
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96178878124675,
+     "lat": 34.33816050303902,
+     "alt": 0
+    },
+    "cep_m": 7.195033984427966,
+    "refStationId": "sa",
+    "gdop": 4.274131494729162,
+    "errorEllipse": {
+     "semiMajor_m": 18.46945525503744,
+     "semiMinor_m": 5.974349686114138,
+     "rotation_deg": -26.30485928002421
+    },
+    "residuals_m": [
+     -7.961843948578462e-07,
+     -1.511086793470895e-07
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.9617887812714,
+     "lat": 34.33816050301833,
+     "alt": 0
+    },
+    "cep_m": 7.195542004603344,
+    "refStationId": "sa",
+    "gdop": 4.274131514081878,
+    "errorEllipse": {
+     "semiMajor_m": 18.47090367805727,
+     "semiMinor_m": 5.974627168225537,
+     "rotation_deg": -26.30644937588223
+    },
+    "residuals_m": [
+     0,
+     2.2737367544323206e-13
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96177084531008,
+     "lat": 34.33816953981993,
+     "alt": 0
+    },
+    "cep_m": 10.780922661314786,
+    "refStationId": "sb",
+    "gdop": 5.907233557075744,
+    "errorEllipse": {
+     "semiMajor_m": 31.47978458330546,
+     "semiMinor_m": 5.146417765309407,
+     "rotation_deg": -31.53083752390451
+    },
+    "residuals_m": [
+     7.737717169220559e-07,
+     6.270156518439762e-07
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96177084533396,
+     "lat": 34.338169539799864,
+     "alt": 0
+    },
+    "cep_m": 10.781759848403658,
+    "refStationId": "sb",
+    "gdop": 5.90723358164554,
+    "errorEllipse": {
+     "semiMajor_m": 31.482428103070976,
+     "semiMinor_m": 5.146618434736591,
+     "rotation_deg": -31.531798150102336
+    },
+    "residuals_m": [
+     9.094947017729282e-13,
+     4.547473508864641e-13
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96180523164057,
+     "lat": 34.338146501127504,
+     "alt": 0
+    },
+    "cep_m": 7.212009909166136,
+    "refStationId": "sa",
+    "gdop": 4.287190394215272,
+    "errorEllipse": {
+     "semiMajor_m": 18.51783244081888,
+     "semiMinor_m": 5.983645083102085,
+     "rotation_deg": -26.35896600833941
+    },
+    "residuals_m": [
+     -8.285614967462607e-07,
+     -1.572948349348735e-07
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96180523166629,
+     "lat": 34.33814650110589,
+     "alt": 0
+    },
+    "cep_m": 7.212530347310013,
+    "refStationId": "sa",
+    "gdop": 4.287190414482416,
+    "errorEllipse": {
+     "semiMajor_m": 18.519316748420195,
+     "semiMinor_m": 5.983928868396565,
+     "rotation_deg": -26.360587186783448
+    },
+    "residuals_m": [
+     0,
+     -4.547473508864641e-13
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.9617872512005,
+     "lat": 34.338155569629954,
+     "alt": 0
+    },
+    "cep_m": 10.809299245452165,
+    "refStationId": "sb",
+    "gdop": 5.924280580605016,
+    "errorEllipse": {
+     "semiMajor_m": 31.569388233142472,
+     "semiMinor_m": 5.153218342200362,
+     "rotation_deg": -31.56421935072184
+    },
+    "residuals_m": [
+     8.052425073401537e-07,
+     6.524779792016488e-07
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96178725122545,
+     "lat": 34.33815556960899,
+     "alt": 0
+    },
+    "cep_m": 10.810157041573516,
+    "refStationId": "sb",
+    "gdop": 5.924280606326342,
+    "errorEllipse": {
+     "semiMajor_m": 31.572097171821515,
+     "semiMinor_m": 5.153423608112292,
+     "rotation_deg": -31.5651986648797
+    },
+    "residuals_m": [
+     0,
+     3.410605131648481e-13
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96173541496327,
+     "lat": 34.338198722470935,
+     "alt": 0
+    },
+    "cep_m": 7.145556954478919,
+    "refStationId": "sa",
+    "gdop": 4.236626432136665,
+    "errorEllipse": {
+     "semiMajor_m": 18.32803061588511,
+     "semiMinor_m": 5.947685213837737,
+     "rotation_deg": -26.16409791982603
+    },
+    "residuals_m": [
+     -7.090825420164037e-07,
+     -1.3432963896775618e-07
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.961735414985,
+     "lat": 34.33819872245268,
+     "alt": 0
+    },
+    "cep_m": 7.146030545476561,
+    "refStationId": "sa",
+    "gdop": 4.236626449068675,
+    "errorEllipse": {
+     "semiMajor_m": 18.32937960125743,
+     "semiMinor_m": 5.947945166796118,
+     "rotation_deg": -26.165601665660013
+    },
+    "residuals_m": [
+     -9.094947017729282e-13,
+     0
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96171761282085,
+     "lat": 34.33820767004141,
+     "alt": 0
+    },
+    "cep_m": 10.698549810995898,
+    "refStationId": "sb",
+    "gdop": 5.857850703532344,
+    "errorEllipse": {
+     "semiMajor_m": 31.21966778722687,
+     "semiMinor_m": 5.126687949127459,
+     "rotation_deg": -31.448166251603862
+    },
+    "residuals_m": [
+     6.89103217155207e-07,
+     5.586450697592227e-07
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.9617176128419,
+     "lat": 34.338207670023706,
+     "alt": 0
+    },
+    "cep_m": 10.699329896886878,
+    "refStationId": "sb",
+    "gdop": 5.857850725048862,
+    "errorEllipse": {
+     "semiMajor_m": 31.22213010962814,
+     "semiMinor_m": 5.126875825098815,
+     "rotation_deg": -31.4490749134486
+    },
+    "residuals_m": [
+     4.547473508864641e-13,
+     1.1368683772161603e-12
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073042893987,
+     "lat": 34.350645444288915,
+     "alt": 0
+    },
+    "cep_m": 2.200655908616081,
+    "refStationId": "sa",
+    "gdop": 1.1014661625259594,
+    "errorEllipse": {
+     "semiMajor_m": 5.714057878676108,
+     "semiMinor_m": 1.7622659148217037,
+     "rotation_deg": 61.59617360409595
+    },
+    "residuals_m": [
+     -2.3974101281964977e-07,
+     1.2997485043797496e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9407304289396,
+     "lat": 34.35064544428648,
+     "alt": 0
+    },
+    "cep_m": 2.200670776865236,
+    "refStationId": "sa",
+    "gdop": 1.101466162460066,
+    "errorEllipse": {
+     "semiMajor_m": 5.714124619351867,
+     "semiMinor_m": 1.7622496862884802,
+     "rotation_deg": 61.596195058603875
+    },
+    "residuals_m": [
+     -1.2735767995764036e-10,
+     -7.631228982063476e-12
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073006395439,
+     "lat": 34.350646587937895,
+     "alt": 0
+    },
+    "cep_m": 2.3576825199683236,
+    "refStationId": "sb",
+    "gdop": 0.9484232050137317,
+    "errorEllipse": {
+     "semiMajor_m": 5.103127236552916,
+     "semiMinor_m": 2.906665595002456,
+     "rotation_deg": 46.54002934368272
+    },
+    "residuals_m": [
+     2.4064141257440497e-07,
+     3.703832049950506e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073006395412,
+     "lat": 34.35064658793546,
+     "alt": 0
+    },
+    "cep_m": 2.3576924918986144,
+    "refStationId": "sb",
+    "gdop": 0.9484232050092648,
+    "errorEllipse": {
+     "semiMajor_m": 5.103189169915544,
+     "semiMinor_m": 2.906637539439355,
+     "rotation_deg": 46.54053827683458
+    },
+    "residuals_m": [
+     1.2803980098397005e-10,
+     1.1927170362469042e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073160233445,
+     "lat": 34.350642023618974,
+     "alt": 0
+    },
+    "cep_m": 2.2004998709769463,
+    "refStationId": "sa",
+    "gdop": 1.1013223214463321,
+    "errorEllipse": {
+     "semiMajor_m": 5.71361939185112,
+     "semiMinor_m": 1.7621742924598918,
+     "rotation_deg": 61.587917848290736
+    },
+    "residuals_m": [
+     -2.3626262191100977e-07,
+     1.3092200390474318e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073160233417,
+     "lat": 34.35064202361655,
+     "alt": 0
+    },
+    "cep_m": 2.2005146305129,
+    "refStationId": "sa",
+    "gdop": 1.1013223213814816,
+    "errorEllipse": {
+     "semiMajor_m": 5.713685733909098,
+     "semiMinor_m": 1.7621580932113374,
+     "rotation_deg": 61.58793612838363
+    },
+    "residuals_m": [
+     -1.2391865311656147e-10,
+     -5.215383680479135e-12
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073123711928,
+     "lat": 34.350643166847874,
+     "alt": 0
+    },
+    "cep_m": 2.3575693425450255,
+    "refStationId": "sb",
+    "gdop": 0.9483943474165362,
+    "errorEllipse": {
+     "semiMajor_m": 5.103103658662272,
+     "semiMinor_m": 2.9063046734084774,
+     "rotation_deg": 46.52717048260752
+    },
+    "residuals_m": [
+     2.3715801944490522e-07,
+     3.678533317952315e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.940731237119,
+     "lat": 34.35064316684545,
+     "alt": 0
+    },
+    "cep_m": 2.3575792406993634,
+    "refStationId": "sb",
+    "gdop": 0.9483943474123528,
+    "errorEllipse": {
+     "semiMajor_m": 5.103165359003383,
+     "semiMinor_m": 2.906276600226661,
+     "rotation_deg": 46.52767300327272
+    },
+    "residuals_m": [
+     1.248281478183344e-10,
+     1.1938539046241203e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 9
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94072510126468,
+     "lat": 34.35065175659553,
+     "alt": 0
+    },
+    "cep_m": 2.2011266524182553,
+    "refStationId": "sa",
+    "gdop": 1.1018366175758196,
+    "errorEllipse": {
+     "semiMajor_m": 5.715594718093774,
+     "semiMinor_m": 1.7623283409116797,
+     "rotation_deg": 61.61449263397908
+    },
+    "residuals_m": [
+     -2.4603951942481217e-07,
+     1.3051057123902865e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9407251012644,
+     "lat": 34.350651756593045,
+     "alt": 0
+    },
+    "cep_m": 2.2011417111548837,
+    "refStationId": "sa",
+    "gdop": 1.101836617508005,
+    "errorEllipse": {
+     "semiMajor_m": 5.7156622251873115,
+     "semiMinor_m": 1.7623119931068398,
+     "rotation_deg": 61.61451714136976
+    },
+    "residuals_m": [
+     -1.3488943295669742e-10,
+     -1.0786038728838321e-11
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94072473735567,
+     "lat": 34.350652901019714,
+     "alt": 0
+    },
+    "cep_m": 2.3580170157334432,
+    "refStationId": "sb",
+    "gdop": 0.9485229454596366,
+    "errorEllipse": {
+     "semiMajor_m": 5.103711136195208,
+     "semiMinor_m": 2.907218083215166,
+     "rotation_deg": 46.572631945578365
+    },
+    "residuals_m": [
+     2.469549258421466e-07,
+     3.772210703800738e-07
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 10
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94072473735541,
+     "lat": 34.35065290101722,
+     "alt": 0
+    },
+    "cep_m": 2.3580271166766997,
+    "refStationId": "sb",
+    "gdop": 0.9485229454547679,
+    "errorEllipse": {
+     "semiMajor_m": 5.1037736599338706,
+     "semiMinor_m": 2.9071898755738577,
+     "rotation_deg": 46.57314917061962
+    },
+    "residuals_m": [
+     1.362536750093568e-10,
+     1.2433076790330233e-10
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.666666666666666
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565345823613,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9405010060017,
+     "lat": 34.35059713945822,
+     "alt": 0
+    },
+    "cep_m": 2.1320858949826724,
+    "refStationId": "sa",
+    "gdop": 0.859142774324479,
+    "errorEllipse": {
+     "semiMajor_m": 5.490831753654295,
+     "semiMinor_m": 1.7525380271599478,
+     "rotation_deg": 61.81388128409212
+    },
+    "residuals_m": [
+     0.0007373932812129169,
+     -0.0046717634295418975,
+     0.03893992039731842
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565345823613,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9405010060017,
+     "lat": 34.35059713945822,
+     "alt": 0
+    },
+    "cep_m": 2.132085627563544,
+    "refStationId": "sa",
+    "gdop": 0.8591427743244847,
+    "errorEllipse": {
+     "semiMajor_m": 5.490829661856836,
+     "semiMinor_m": 1.7525392104500908,
+     "rotation_deg": 61.81390934973573
+    },
+    "residuals_m": [
+     0.0007373935142709342,
+     -0.004671763366104642,
+     0.03893992031068905
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565345823613,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050068346046,
+     "lat": 34.35059811718982,
+     "alt": 0
+    },
+    "cep_m": 2.30056756413838,
+    "refStationId": "sb",
+    "gdop": 0.8504550564291483,
+    "errorEllipse": {
+     "semiMajor_m": 5.0388457682700905,
+     "semiMinor_m": 2.7769095031359905,
+     "rotation_deg": 44.332381712225164
+    },
+    "residuals_m": [
+     -0.018129492105742884,
+     -0.02894930042083388,
+     0.2805691661393155
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884172903718,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565345823613,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050068346067,
+     "lat": 34.3505981171898,
+     "alt": 0
+    },
+    "cep_m": 2.3005673581911315,
+    "refStationId": "sb",
+    "gdop": 0.850455056427948,
+    "errorEllipse": {
+     "semiMajor_m": 5.038842431701232,
+     "semiMinor_m": 2.776912140036941,
+     "rotation_deg": 44.33239636933185
+    },
+    "residuals_m": [
+     -0.018129523286404492,
+     -0.028949294929759617,
+     0.2805691448898813
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004567645823612,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050204850295,
+     "lat": 34.35059354036775,
+     "alt": 0
+    },
+    "cep_m": 2.131983940585749,
+    "refStationId": "sa",
+    "gdop": 0.8591587679634429,
+    "errorEllipse": {
+     "semiMajor_m": 5.490588246681147,
+     "semiMinor_m": 1.752435162816895,
+     "rotation_deg": 61.80536499632584
+    },
+    "residuals_m": [
+     0.00478412163826647,
+     -0.030320152008783907,
+     0.2527846181939708
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004567645823612,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050204850298,
+     "lat": 34.350593540367704,
+     "alt": 0
+    },
+    "cep_m": 2.1319836918082906,
+    "refStationId": "sa",
+    "gdop": 0.859158767963597,
+    "errorEllipse": {
+     "semiMajor_m": 5.490586233190671,
+     "semiMinor_m": 1.752436331131703,
+     "rotation_deg": 61.80539351305717
+    },
+    "residuals_m": [
+     0.0047841309419425215,
+     -0.03032014736558608,
+     0.2527846163508798
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004567645823612,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9405018211501,
+     "lat": 34.35059454575901,
+     "alt": 0
+    },
+    "cep_m": 2.3004961453150634,
+    "refStationId": "sb",
+    "gdop": 0.8504916969479376,
+    "errorEllipse": {
+     "semiMajor_m": 5.0389518517699186,
+     "semiMinor_m": 2.7765607873164195,
+     "rotation_deg": 44.32169227734179
+    },
+    "residuals_m": [
+     -0.031584766192708,
+     -0.05043130402219731,
+     0.48888875854137837
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448413304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005218497405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884572903718,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004567645823612,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050182115045,
+     "lat": 34.35059454575895,
+     "alt": 0
+    },
+    "cep_m": 2.3004959565498435,
+    "refStationId": "sb",
+    "gdop": 0.8504916969461184,
+    "errorEllipse": {
+     "semiMajor_m": 5.038948572824598,
+     "semiMinor_m": 2.7765634249666142,
+     "rotation_deg": 44.32170855569288
+    },
+    "residuals_m": [
+     -0.03158482111368244,
+     -0.05043129725805784,
+     0.4888887188994602
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565945823612,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049502888846,
+     "lat": 34.35060242949845,
+     "alt": 0
+    },
+    "cep_m": 2.132430983458534,
+    "refStationId": "sa",
+    "gdop": 0.8591258099942003,
+    "errorEllipse": {
+     "semiMajor_m": 5.491999057009338,
+     "semiMinor_m": 1.7525430984468666,
+     "rotation_deg": 61.83077897659959
+    },
+    "residuals_m": [
+     0.024918030230679733,
+     -0.15781201746037254,
+     1.3144436926918637
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565945823612,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049502888868,
+     "lat": 34.350602429498316,
+     "alt": 0
+    },
+    "cep_m": 2.1324307430398157,
+    "refStationId": "sa",
+    "gdop": 0.8591258099945475,
+    "errorEllipse": {
+     "semiMajor_m": 5.491997250927286,
+     "semiMinor_m": 1.7525440877505314,
+     "rotation_deg": 61.83080157957075
+    },
+    "residuals_m": [
+     0.024918074061730522,
+     -0.15781198412966546,
+     1.314443692735292
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565945823612,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049527646179,
+     "lat": 34.35060357503762,
+     "alt": 0
+    },
+    "cep_m": 2.3007973221485365,
+    "refStationId": "sb",
+    "gdop": 0.850425252525752,
+    "errorEllipse": {
+     "semiMajor_m": 5.039190017877425,
+     "semiMinor_m": 2.7773458141203196,
+     "rotation_deg": 44.358173137212844
+    },
+    "residuals_m": [
+     -0.09846332753150477,
+     -0.15731391359406643,
+     1.5236099150489508
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448023304719,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005221097405663,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883372903718,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004565945823612,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.9415,
+     "lat": 34.3498,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94049527646277,
+     "lat": 34.35060357503742,
+     "alt": 0
+    },
+    "cep_m": 2.3007971682518558,
+    "refStationId": "sb",
+    "gdop": 0.8504252525212193,
+    "errorEllipse": {
+     "semiMajor_m": 5.0391871994179995,
+     "semiMinor_m": 2.7773481097440724,
+     "rotation_deg": 44.35818807948586
+    },
+    "residuals_m": [
+     -0.09846347879525297,
+     -0.15731389956079056,
+     1.5236098023298155
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005265810679547,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198237188877,
+     "lat": 34.35998487521655,
+     "alt": 0
+    },
+    "cep_m": 5.296719555841571,
+    "refStationId": "sa",
+    "gdop": 2.01636429489919,
+    "errorEllipse": {
+     "semiMajor_m": 15.299895427453139,
+     "semiMinor_m": 2.694735304130254,
+     "rotation_deg": 57.27284729847318
+    },
+    "residuals_m": [
+     -0.014431299212830595,
+     0.03536592819227735,
+     -0.34680608669441426
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005265810679547,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198237188656,
+     "lat": 34.359984875213776,
+     "alt": 0
+    },
+    "cep_m": 5.296691039067061,
+    "refStationId": "sa",
+    "gdop": 2.0163642936517703,
+    "errorEllipse": {
+     "semiMajor_m": 15.299801155111007,
+     "semiMinor_m": 2.6947326959746434,
+     "rotation_deg": 57.27289109234697
+    },
+    "residuals_m": [
+     -0.014431262891704932,
+     0.035365782712005966,
+     -0.3468062273452688
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005265810679547,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9519809693217,
+     "lat": 34.359988411420005,
+     "alt": 0
+    },
+    "cep_m": 5.040196202808727,
+    "refStationId": "sb",
+    "gdop": 1.703373528205184,
+    "errorEllipse": {
+     "semiMajor_m": 12.583752221842248,
+     "semiMinor_m": 4.5393875872582345,
+     "rotation_deg": 56.044447152678046
+    },
+    "residuals_m": [
+     0.0035339183308877864,
+     0.002409354862948021,
+     -0.027476891386754687
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005265810679547,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198096932151,
+     "lat": 34.35998841141979,
+     "alt": 0
+    },
+    "cep_m": 5.040169535962929,
+    "refStationId": "sb",
+    "gdop": 1.7033735280868503,
+    "errorEllipse": {
+     "semiMajor_m": 12.583666337307639,
+     "semiMinor_m": 4.5393828760877355,
+     "rotation_deg": 56.04450943607855
+    },
+    "residuals_m": [
+     0.0035339176665019068,
+     0.002409339322184678,
+     -0.02747690255080215
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005268110679547,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95197838528102,
+     "lat": 34.359973324923644,
+     "alt": 0
+    },
+    "cep_m": 5.282227027276026,
+    "refStationId": "sa",
+    "gdop": 2.0123628195893577,
+    "errorEllipse": {
+     "semiMajor_m": 15.252038899578798,
+     "semiMinor_m": 2.6933561310854626,
+     "rotation_deg": 57.28353195343228
+    },
+    "residuals_m": [
+     -0.019930551683174258,
+     0.048808124108063566,
+     -0.4796515906092509
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005268110679547,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95197838527857,
+     "lat": 34.359973324920574,
+     "alt": 0
+    },
+    "cep_m": 5.28220393632604,
+    "refStationId": "sa",
+    "gdop": 2.0123628182096645,
+    "errorEllipse": {
+     "semiMajor_m": 15.251962568942597,
+     "semiMinor_m": 2.6933540144650467,
+     "rotation_deg": 57.28356749704225
+    },
+    "residuals_m": [
+     -0.019930510830036496,
+     0.048807963008812294,
+     -0.4796517468688535
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005268110679547,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95197684457918,
+     "lat": 34.359976852550446,
+     "alt": 0
+    },
+    "cep_m": 5.027609564352331,
+    "refStationId": "sb",
+    "gdop": 1.698711033141727,
+    "errorEllipse": {
+     "semiMajor_m": 12.543301442850549,
+     "semiMinor_m": 4.537077576522071,
+     "rotation_deg": 56.06216100521827
+    },
+    "residuals_m": [
+     0.018619500844252457,
+     0.012670413968407956,
+     -0.1448097300481095
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008507155232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008260493806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175293368233,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005268110679547,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95197684457855,
+     "lat": 34.35997685254976,
+     "alt": 0
+    },
+    "cep_m": 5.02758747541946,
+    "refStationId": "sb",
+    "gdop": 1.698711032757134,
+    "errorEllipse": {
+     "semiMajor_m": 12.543230313701132,
+     "semiMinor_m": 4.537073662583768,
+     "rotation_deg": 56.06221256728022
+    },
+    "residuals_m": [
+     0.018619496747433573,
+     0.012670363794541117,
+     -0.14480976918730448
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005266410679546,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9519834370846,
+     "lat": 34.36000445429437,
+     "alt": 0
+    },
+    "cep_m": 5.316388429004941,
+    "refStationId": "sa",
+    "gdop": 2.021862577034611,
+    "errorEllipse": {
+     "semiMajor_m": 15.364793148026775,
+     "semiMinor_m": 2.696658963421981,
+     "rotation_deg": 57.270342313113574
+    },
+    "residuals_m": [
+     0.07741851846394354,
+     -0.18989902686939786,
+     1.8569711558754989
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005266410679546,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198343710678,
+     "lat": 34.36000445432222,
+     "alt": 0
+    },
+    "cep_m": 5.316333344453264,
+    "refStationId": "sa",
+    "gdop": 2.021862589573478,
+    "errorEllipse": {
+     "semiMajor_m": 15.364611055901715,
+     "semiMinor_m": 2.696653915911651,
+     "rotation_deg": 57.27042203476632
+    },
+    "residuals_m": [
+     0.07741814390219304,
+     -0.1898975901015092,
+     1.8569725686636502
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005266410679546,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198434998623,
+     "lat": 34.36000812118909,
+     "alt": 0
+    },
+    "cep_m": 5.058981071051426,
+    "refStationId": "sb",
+    "gdop": 1.7103335706109202,
+    "errorEllipse": {
+     "semiMajor_m": 12.64407230624417,
+     "semiMinor_m": 4.542885638554287,
+     "rotation_deg": 56.026153043411206
+    },
+    "residuals_m": [
+     -0.24717415691775102,
+     -0.168983299249021,
+     1.9210570533529108
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008503255232514,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008263093806067,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175173368233,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012005266410679546,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.953,
+     "lat": 34.3592,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95198435000127,
+     "lat": 34.36000812120594,
+     "alt": 0
+    },
+    "cep_m": 5.058937991106694,
+    "refStationId": "sb",
+    "gdop": 1.7103335799516723,
+    "errorEllipse": {
+     "semiMajor_m": 12.643933544915447,
+     "semiMinor_m": 4.542878043692313,
+     "rotation_deg": 56.02625177930973
+    },
+    "residuals_m": [
+     -0.24717404875063664,
+     -0.1689821033746739,
+     1.9210580075492771
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008087823272904,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799668532086,
+     "lat": 34.340999090823345,
+     "alt": 0
+    },
+    "cep_m": 5.862166509300169,
+    "refStationId": "sa",
+    "gdop": 2.4517171435257046,
+    "errorEllipse": {
+     "semiMajor_m": 17.966133603419085,
+     "semiMinor_m": 1.9494991783039297,
+     "rotation_deg": 45.85459776060588
+    },
+    "residuals_m": [
+     -0.0007239582274678469,
+     0.01028935929571162,
+     -0.09417435082787051
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008087823272904,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799668532106,
+     "lat": 34.34099909082351,
+     "alt": 0
+    },
+    "cep_m": 5.862152853641193,
+    "refStationId": "sa",
+    "gdop": 2.4517171434583096,
+    "errorEllipse": {
+     "semiMajor_m": 17.96608904833091,
+     "semiMinor_m": 1.9494973408017293,
+     "rotation_deg": 45.854613233020686
+    },
+    "residuals_m": [
+     -0.0007239588090897087,
+     0.010289369116662783,
+     -0.09417434386273271
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008087823272904,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92800088802237,
+     "lat": 34.341000149515565,
+     "alt": 0
+    },
+    "cep_m": 5.953612728236628,
+    "refStationId": "sb",
+    "gdop": 2.5732021410485277,
+    "errorEllipse": {
+     "semiMajor_m": 17.252178314437266,
+     "semiMinor_m": 2.974126181015862,
+     "rotation_deg": 40.621329346095884
+    },
+    "residuals_m": [
+     -0.001589185896023082,
+     -0.0034940962339078396,
+     0.03717584839705523
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004130364989977,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006232370278723,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977593778849,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008087823272904,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92800088802232,
+     "lat": 34.34100014951554,
+     "alt": 0
+    },
+    "cep_m": 5.95359892574031,
+    "refStationId": "sb",
+    "gdop": 2.573202141063917,
+    "errorEllipse": {
+     "semiMajor_m": 17.252134130980167,
+     "semiMinor_m": 2.9741234730297186,
+     "rotation_deg": 40.621336992082604
+    },
+    "residuals_m": [
+     -0.0015891852650611327,
+     -0.0034940981533964077,
+     0.03717584740252278
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008090123272903,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799372647114,
+     "lat": 34.340992547287605,
+     "alt": 0
+    },
+    "cep_m": 5.865962762863937,
+    "refStationId": "sa",
+    "gdop": 2.453456392677453,
+    "errorEllipse": {
+     "semiMajor_m": 17.978523905969983,
+     "semiMinor_m": 1.9500059491818318,
+     "rotation_deg": 45.856766042085816
+    },
+    "residuals_m": [
+     0.0022375446326350357,
+     -0.03180485069333372,
+     0.291158827453728
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008090123272903,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799372647065,
+     "lat": 34.34099254728718,
+     "alt": 0
+    },
+    "cep_m": 5.865949023958986,
+    "refStationId": "sa",
+    "gdop": 2.4534563928535214,
+    "errorEllipse": {
+     "semiMajor_m": 17.978479078497518,
+     "semiMinor_m": 1.9500041012510347,
+     "rotation_deg": 45.85678093483091
+    },
+    "residuals_m": [
+     0.002237547721961164,
+     -0.03180487541885668,
+     0.2911588095385014
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008090123272903,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9279982737231,
+     "lat": 34.34099377820912,
+     "alt": 0
+    },
+    "cep_m": 5.957149210106362,
+    "refStationId": "sb",
+    "gdop": 2.574931768922421,
+    "errorEllipse": {
+     "semiMajor_m": 17.263495325704003,
+     "semiMinor_m": 2.9748237166141958,
+     "rotation_deg": 40.626163532808945
+    },
+    "residuals_m": [
+     -0.017899857544534825,
+     -0.039343220251794264,
+     0.4186795084034429
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008090123272903,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799827372234,
+     "lat": 34.34099377820858,
+     "alt": 0
+    },
+    "cep_m": 5.957135334381644,
+    "refStationId": "sb",
+    "gdop": 2.574931769186193,
+    "errorEllipse": {
+     "semiMajor_m": 17.26345090785402,
+     "semiMinor_m": 2.9748209942409183,
+     "rotation_deg": 40.626170742734224
+    },
+    "residuals_m": [
+     -0.017899846756108673,
+     -0.039343253117749555,
+     0.41867949137224514
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008088423272903,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799084669001,
+     "lat": 34.34100520408744,
+     "alt": 0
+    },
+    "cep_m": 5.862329819136637,
+    "refStationId": "sa",
+    "gdop": 2.451834651368975,
+    "errorEllipse": {
+     "semiMajor_m": 17.966654938546643,
+     "semiMinor_m": 1.9495326583163999,
+     "rotation_deg": 45.83577358418973
+    },
+    "residuals_m": [
+     0.006196399404529984,
+     -0.08807080531846623,
+     0.8061618417377758
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008088423272903,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799084668842,
+     "lat": 34.34100520408609,
+     "alt": 0
+    },
+    "cep_m": 5.8623145839904724,
+    "refStationId": "sa",
+    "gdop": 2.4518346519282153,
+    "errorEllipse": {
+     "semiMajor_m": 17.966605230348698,
+     "semiMinor_m": 1.9495306079066874,
+     "rotation_deg": 45.83579110201208
+    },
+    "residuals_m": [
+     0.006196408506525586,
+     -0.08807088433832178,
+     0.8061617846603895
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008088423272903,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799585195083,
+     "lat": 34.341006662937126,
+     "alt": 0
+    },
+    "cep_m": 5.953300195843171,
+    "refStationId": "sb",
+    "gdop": 2.5730947717336803,
+    "errorEllipse": {
+     "semiMajor_m": 17.25118780761968,
+     "semiMinor_m": 2.974054916495048,
+     "rotation_deg": 40.60333010043131
+    },
+    "residuals_m": [
+     -0.03970194878786515,
+     -0.08728102093709822,
+     0.9287021360919425
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004127164989978,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006233870278722,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009976793778849,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012008088423272903,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.929,
+     "lat": 34.3402,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92799585194889,
+     "lat": 34.34100666293579,
+     "alt": 0
+    },
+    "cep_m": 5.953284860388812,
+    "refStationId": "sb",
+    "gdop": 2.573094772396266,
+    "errorEllipse": {
+     "semiMajor_m": 17.2511387164627,
+     "semiMinor_m": 2.9740519082657215,
+     "rotation_deg": 40.603339289855924
+    },
+    "residuals_m": [
+     -0.03970192179951937,
+     -0.08728110362994812,
+     0.9287020931499228
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012012176039919241,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96178782315197,
+     "lat": 34.33816043581007,
+     "alt": 0
+    },
+    "cep_m": 7.170266540144211,
+    "refStationId": "sa",
+    "gdop": 4.2188529367006815,
+    "errorEllipse": {
+     "semiMajor_m": 18.430295954807843,
+     "semiMinor_m": 5.929366148620766,
+     "rotation_deg": -26.473944363393965
+    },
+    "residuals_m": [
+     0.011584367188334,
+     -0.05731420018059907,
+     1.1283690150108754
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012012176039919241,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96178782315273,
+     "lat": 34.33816043580939,
+     "alt": 0
+    },
+    "cep_m": 7.170287887361997,
+    "refStationId": "sa",
+    "gdop": 4.218852937300485,
+    "errorEllipse": {
+     "semiMajor_m": 18.43035710984014,
+     "semiMinor_m": 5.929377516835576,
+     "rotation_deg": -26.474007273348963
+    },
+    "residuals_m": [
+     0.01158439344544604,
+     -0.057314197414825685,
+     1.1283690076562465
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012012176039919241,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96177427203563,
+     "lat": 34.3381670090519,
+     "alt": 0
+    },
+    "cep_m": 10.573790131150966,
+    "refStationId": "sb",
+    "gdop": 4.851674664304252,
+    "errorEllipse": {
+     "semiMajor_m": 30.9003736825108,
+     "semiMinor_m": 5.022133982347246,
+     "rotation_deg": -31.119184573865795
+    },
+    "residuals_m": [
+     -0.0939483352035495,
+     -0.0522907383394795,
+     1.1974029985681227
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012212568495587,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004324785579458,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704073917145,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012012176039919241,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.961774272039,
+     "lat": 34.338167009049926,
+     "alt": 0
+    },
+    "cep_m": 10.573828134805028,
+    "refStationId": "sb",
+    "gdop": 4.851674666410817,
+    "errorEllipse": {
+     "semiMajor_m": 30.90049360364539,
+     "semiMinor_m": 5.022143171639231,
+     "rotation_deg": -31.119226186185607
+    },
+    "residuals_m": [
+     -0.09394840260210913,
+     -0.05229073518921723,
+     1.197402932809382
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217833991924,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96180399056882,
+     "lat": 34.33814641368013,
+     "alt": 0
+    },
+    "cep_m": 7.187144287100487,
+    "refStationId": "sa",
+    "gdop": 4.231420648818657,
+    "errorEllipse": {
+     "semiMajor_m": 18.47853798147697,
+     "semiMinor_m": 5.938463163759953,
+     "rotation_deg": -26.527931117868224
+    },
+    "residuals_m": [
+     0.015025737702217157,
+     -0.0741996470601407,
+     1.4609118340158815
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217833991924,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96180399056983,
+     "lat": 34.33814641367923,
+     "alt": 0
+    },
+    "cep_m": 7.187166391682978,
+    "refStationId": "sa",
+    "gdop": 4.2314206496188325,
+    "errorEllipse": {
+     "semiMajor_m": 18.478601324117168,
+     "semiMinor_m": 5.9384749173741795,
+     "rotation_deg": -26.52799601618763
+    },
+    "residuals_m": [
+     0.015025772529043024,
+     -0.07419964341806917,
+     1.4609118242338113
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217833991924,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.9617915839631,
+     "lat": 34.33815236915274,
+     "alt": 0
+    },
+    "cep_m": 10.602626951069917,
+    "refStationId": "sb",
+    "gdop": 4.8647820889761135,
+    "errorEllipse": {
+     "semiMajor_m": 30.991345145757084,
+     "semiMinor_m": 5.029130312268793,
+     "rotation_deg": -31.154247838238025
+    },
+    "residuals_m": [
+     -0.11838851650918514,
+     -0.06584820493674215,
+     1.507960985714817
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012213268495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004323685579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200704113917145,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217833991924,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96179158396752,
+     "lat": 34.338152369150144,
+     "alt": 0
+    },
+    "cep_m": 10.602666782513552,
+    "refStationId": "sb",
+    "gdop": 4.864782091749888,
+    "errorEllipse": {
+     "semiMajor_m": 30.991470851746328,
+     "semiMinor_m": 5.029139926285103,
+     "rotation_deg": -31.15429105832157
+    },
+    "residuals_m": [
+     -0.11838860474290414,
+     -0.06584820065711483,
+     1.5079608996238676
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217663991924,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96173333891758,
+     "lat": 34.33819857806144,
+     "alt": 0
+    },
+    "cep_m": 7.120435033089671,
+    "refStationId": "sa",
+    "gdop": 4.182257191785712,
+    "errorEllipse": {
+     "semiMajor_m": 18.287342503279852,
+     "semiMinor_m": 5.903026217935272,
+     "rotation_deg": -26.335854192386428
+    },
+    "residuals_m": [
+     0.025039535618361697,
+     -0.12447325069251747,
+     2.450618690922161
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217663991924,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96173333891907,
+     "lat": 34.33819857806012,
+     "alt": 0
+    },
+    "cep_m": 7.120454888827803,
+    "refStationId": "sa",
+    "gdop": 4.182257192948852,
+    "errorEllipse": {
+     "semiMajor_m": 18.287399327708236,
+     "semiMinor_m": 5.903036849726119,
+     "rotation_deg": -26.335913769172606
+    },
+    "residuals_m": [
+     0.025039587368610228,
+     -0.12447324509912505,
+     2.450618676553054
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217663991924,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96172450007762,
+     "lat": 34.338202584401735,
+     "alt": 0
+    },
+    "cep_m": 10.499231887382782,
+    "refStationId": "sb",
+    "gdop": 4.817386508961054,
+    "errorEllipse": {
+     "semiMajor_m": 30.66510476187071,
+     "semiMinor_m": 5.004104979535037,
+     "rotation_deg": -31.041494253157513
+    },
+    "residuals_m": [
+     -0.19057365250137082,
+     -0.10622157725924808,
+     2.432360995898307
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012012209368495588,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012004326285579457,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200703993917145,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.01201217663991924,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.96300000000001,
+     "lat": 34.3372,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96172450008413,
+     "lat": 34.33820258439792,
+     "alt": 0
+    },
+    "cep_m": 10.499269157643084,
+    "refStationId": "sb",
+    "gdop": 4.81738651301774,
+    "errorEllipse": {
+     "semiMajor_m": 30.6652223357695,
+     "semiMinor_m": 5.00411402449238,
+     "rotation_deg": -31.041535009435638
+    },
+    "residuals_m": [
+     -0.19057378389015867,
+     -0.10622157055536263,
+     2.432360868071555
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004802639193306,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073131565385,
+     "lat": 34.350646753443925,
+     "alt": 0
+    },
+    "cep_m": 2.122900473366285,
+    "refStationId": "sa",
+    "gdop": 0.8586261860467985,
+    "errorEllipse": {
+     "semiMajor_m": 5.4500218090325205,
+     "semiMinor_m": 1.7621421908529373,
+     "rotation_deg": 61.6878096655891
+    },
+    "residuals_m": [
+     -0.03185567333869699,
+     0.1993563430934131,
+     -1.6898134633479653
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004802639193306,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073131565426,
+     "lat": 34.350646753445815,
+     "alt": 0
+    },
+    "cep_m": 2.122900724084195,
+    "refStationId": "sa",
+    "gdop": 0.8586261860391542,
+    "errorEllipse": {
+     "semiMajor_m": 5.450020917877792,
+     "semiMinor_m": 1.7621439337756644,
+     "rotation_deg": 61.68787773537783
+    },
+    "residuals_m": [
+     -0.03185583266920844,
+     0.19935647983275828,
+     -1.6898132687897682
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004802639193306,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073017195336,
+     "lat": 34.35064752530097,
+     "alt": 0
+    },
+    "cep_m": 2.2936723475076195,
+    "refStationId": "sb",
+    "gdop": 0.8482158623173418,
+    "errorEllipse": {
+     "semiMajor_m": 5.004005849886831,
+     "semiMinor_m": 2.7883241909068475,
+     "rotation_deg": 43.83949348356205
+    },
+    "residuals_m": [
+     0.0916802540882884,
+     0.14220860943932223,
+     -1.4015182984023795
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004784966907543,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005438849458436,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046414581388,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004802639193306,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073017195234,
+     "lat": 34.35064752530191,
+     "alt": 0
+    },
+    "cep_m": 2.2936724652383034,
+    "refStationId": "sb",
+    "gdop": 0.8482158623134308,
+    "errorEllipse": {
+     "semiMajor_m": 5.004001978618853,
+     "semiMinor_m": 2.7883284621431765,
+     "rotation_deg": 43.83955076338559
+    },
+    "residuals_m": [
+     0.09168049257644384,
+     0.14220870166663246,
+     -1.4015180321489424
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004804939193306,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073237634866,
+     "lat": 34.350643165982916,
+     "alt": 0
+    },
+    "cep_m": 2.122792276703824,
+    "refStationId": "sa",
+    "gdop": 0.8586385715778754,
+    "errorEllipse": {
+     "semiMajor_m": 5.44975597008185,
+     "semiMinor_m": 1.7620404515380719,
+     "rotation_deg": 61.67927540240845
+    },
+    "residuals_m": [
+     -0.02779317787258151,
+     0.17399177176049818,
+     -1.4751685817578677
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004804939193306,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073237634905,
+     "lat": 34.350643165984614,
+     "alt": 0
+    },
+    "cep_m": 2.12279254658821,
+    "refStationId": "sa",
+    "gdop": 0.8586385715709879,
+    "errorEllipse": {
+     "semiMajor_m": 5.449755158126355,
+     "semiMinor_m": 1.762042180376141,
+     "rotation_deg": 61.67934407060992
+    },
+    "residuals_m": [
+     -0.02779331836086385,
+     0.17399189743038335,
+     -1.475168406447989
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004804939193306,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073132902459,
+     "lat": 34.35064396426508,
+     "alt": 0
+    },
+    "cep_m": 2.2935962385779374,
+    "refStationId": "sb",
+    "gdop": 0.8482501076450817,
+    "errorEllipse": {
+     "semiMajor_m": 5.004099166814869,
+     "semiMinor_m": 2.7879723078851044,
+     "rotation_deg": 43.82858959509895
+    },
+    "residuals_m": [
+     0.07801115056554409,
+     0.1209979434804751,
+     -1.1927738133821322
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004785666907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005437749458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005046814581389,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004804939193306,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073132902375,
+     "lat": 34.350643964265906,
+     "alt": 0
+    },
+    "cep_m": 2.2935963718744743,
+    "refStationId": "sb",
+    "gdop": 0.8482501076411514,
+    "errorEllipse": {
+     "semiMajor_m": 5.004095339606322,
+     "semiMinor_m": 2.7879765879441254,
+     "rotation_deg": 43.82864857048558
+    },
+    "residuals_m": [
+     0.07801135348495336,
+     0.12099802801323278,
+     -1.1927735823340981
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004803239193305,
+      "snr_dB": 14
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94072531419451,
+     "lat": 34.350652071181386,
+     "alt": 0
+    },
+    "cep_m": 2.1232518267322673,
+    "refStationId": "sa",
+    "gdop": 0.8586127922756371,
+    "errorEllipse": {
+     "semiMajor_m": 5.451214598463819,
+     "semiMinor_m": 1.762143059875802,
+     "rotation_deg": 61.70493220879243
+    },
+    "residuals_m": [
+     -0.007653988205277074,
+     0.047882081435901114,
+     -0.40557197205363593
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004803239193305,
+      "snr_dB": 14
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9407253141946,
+     "lat": 34.35065207118183,
+     "alt": 0
+    },
+    "cep_m": 2.12325209087539,
+    "refStationId": "sa",
+    "gdop": 0.8586127922738592,
+    "errorEllipse": {
+     "semiMajor_m": 5.451213969407702,
+     "semiMinor_m": 1.7621445863096075,
+     "rotation_deg": 61.70499388260576
+    },
+    "residuals_m": [
+     -0.00765402561665951,
+     0.04788211278527399,
+     -0.4055719268988156
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004803239193305,
+      "snr_dB": 8
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94072474911472,
+     "lat": 34.35065300287535,
+     "alt": 0
+    },
+    "cep_m": 2.2939055560975903,
+    "refStationId": "sb",
+    "gdop": 0.8481892861779972,
+    "errorEllipse": {
+     "semiMajor_m": 5.004354762821938,
+     "semiMinor_m": 2.7887675612738327,
+     "rotation_deg": 43.86597603520668
+    },
+    "residuals_m": [
+     0.009953657763901447,
+     0.015447926486061192,
+     -0.15214131405258513
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004781766907544,
+      "snr_dB": 6
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005440349458435,
+      "snr_dB": 25
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012005045614581388,
+      "snr_dB": 10
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004803239193305,
+      "snr_dB": 8
+     }
+    ],
+    {
+     "lon": 108.94170000000001,
+     "lat": 34.349900000000005,
+     "alt": 0
+    }
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94072474911462,
+     "lat": 34.35065300287547,
+     "alt": 0
+    },
+    "cep_m": 2.293905704312602,
+    "refStationId": "sb",
+    "gdop": 0.848189286177305,
+    "errorEllipse": {
+     "semiMajor_m": 5.004351355441394,
+     "semiMinor_m": 2.788771472187625,
+     "rotation_deg": 43.86603208515336
+    },
+    "residuals_m": [
+     0.009953684549202535,
+     0.015447939446133319,
+     -0.1521412821854824
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-2",
+    "syncSigma_ns": 11.000000000000002
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012005952111722704,
+      "snr_dB": 15
+     },
+     {
+      "sensorId": "se",
+      "toa_s": 0.012002543322414768,
+      "snr_dB": 13
+     },
+     {
+      "sensorId": "sf",
+      "toa_s": 0.012003791378649821,
+      "snr_dB": 11
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94399809755623,
+     "lat": 34.3579931169277,
+     "alt": 0
+    },
+    "cep_m": 3.2598152394554405,
+    "refStationId": "sa",
+    "gdop": 2.412679099526254,
+    "errorEllipse": {
+     "semiMajor_m": 8.856964803774916,
+     "semiMinor_m": 2.217658058312531,
+     "rotation_deg": 78.17438214073283
+    },
+    "residuals_m": [
+     5.591004992311355e-09,
+     -1.5413775145134423e-08
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 3.0000000000000004
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012005673320668871,
+      "snr_dB": 15
+     },
+     {
+      "sensorId": "se",
+      "toa_s": 0.012001384911124818,
+      "snr_dB": 13
+     },
+     {
+      "sensorId": "sf",
+      "toa_s": 0.012002916125611733,
+      "snr_dB": 11
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.25,
+    "position": {
+     "lon": 108.94449869812964,
+     "lat": 34.35230165222655,
+     "alt": 0
+    },
+    "cep_m": 17.735876218281824,
+    "refStationId": "sa",
+    "gdop": 16.354746950445552,
+    "errorEllipse": {
+     "semiMajor_m": 58.213283268118666,
+     "semiMinor_m": 2.041094915274655,
+     "rotation_deg": 89.43324532048318
+    },
+    "residuals_m": [
+     -0.0025914253903920326,
+     -0.0007960673599427537
+    ],
+    "geometryQuality": "degenerate",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 3.0000000000000004
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sg",
+      "toa_s": 0.012003843592184755,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004883272903718,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004567345823614,
+      "snr_dB": 16
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94050878888726,
+     "lat": 34.350599330393685,
+     "alt": 0
+    },
+    "cep_m": 50.05825465001504,
+    "refStationId": "sd",
+    "gdop": 0.9735858199783988,
+    "errorEllipse": {
+     "semiMajor_m": 156.1944321478958,
+     "semiMinor_m": 13.869283326930208,
+     "rotation_deg": 67.98784751263675
+    },
+    "residuals_m": [
+     -5.684341886080801e-13,
+     -5.684341886080801e-13
+    ],
+    "geometryQuality": "good",
+    "timeQuality": "TQ-4",
+    "syncSigma_ns": 146.66666666666669
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "si",
+      "toa_s": 0.012005744318995863,
+      "snr_dB": 11
+     },
+     {
+      "sensorId": "sd",
+      "toa_s": 0.012004563845823614,
+      "snr_dB": 14
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012004884772903717,
+      "snr_dB": 10
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.94049857650201,
+     "lat": 34.350604467106756,
+     "alt": 0
+    },
+    "cep_m": 76.84744194918112,
+    "refStationId": "sd",
+    "gdop": 4.546521549424861,
+    "errorEllipse": {
+     "semiMajor_m": 247.1822392362278,
+     "semiMinor_m": 13.892814098853258,
+     "rotation_deg": 68.30049866763525
+    },
+    "residuals_m": [
+     3.979039320256561e-13,
+     3.836930773104541e-13
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-3",
+    "syncSigma_ns": 43.33333333333334
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sh",
+      "toa_s": 0.012010320072113561,
+      "snr_dB": 7
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.4,
+    "position": {
+     "lon": 108.952173357045,
+     "lat": 34.360248377016624,
+     "alt": 0
+    },
+    "cep_m": 6.047151412800565,
+    "refStationId": "sa",
+    "gdop": 3.7121847066956506,
+    "errorEllipse": {
+     "semiMajor_m": 17.806934989223425,
+     "semiMinor_m": 2.7371499871671485,
+     "rotation_deg": 56.93145010852907
+    },
+    "residuals_m": [
+     -4.883373892066558,
+     10.380382542143252,
+     599.428516476051
+    ],
+    "geometryQuality": "poor",
+    "timeQuality": "TQ-4",
+    "syncSigma_ns": 4.25
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012008506455232514,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012008261593806068,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.01200175253368233,
+      "snr_dB": 9
+     },
+     {
+      "sensorId": "sh",
+      "toa_s": 0.012008320072113561,
+      "snr_dB": 7
+     }
+    ],
+    null
+   ],
+   "out": {
+    "model_id": "EM-CM-S-007",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.95198178267893,
+     "lat": 34.35998407528967,
+     "alt": 0
+    },
+    "cep_m": 5.551166413032056,
+    "refStationId": "sa",
+    "gdop": 3.396650807825451,
+    "errorEllipse": {
+     "semiMajor_m": 16.16165400137375,
+     "semiMinor_m": 2.6974131398936354,
+     "rotation_deg": 57.42798214559047
+    },
+    "residuals_m": [
+     -0.0001671459453262969,
+     0.0003441688024850009,
+     0.02195797614599826
+    ],
+    "geometryQuality": "fair",
+    "timeQuality": "TQ-1",
+    "syncSigma_ns": 4.25
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.01200448343304719,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012005219597405664,
+      "snr_dB": 12
+     }
+    ],
+    null
+   ],
+   "out": null
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "toa_s": 0.012004131064989978,
+      "snr_dB": 18
+     },
+     {
+      "sensorId": "sb",
+      "toa_s": 0.012006231270278722,
+      "snr_dB": 12
+     },
+     {
+      "sensorId": "sc",
+      "toa_s": 0.012009977993778849,
+      "snr_dB": 9
+     }
+    ],
+    {
+     "lon": 108.978,
+     "lat": 34.371,
+     "alt": 0
+    }
+   ],
+   "out": null
+  }
+ ]
+}

@@ -233,6 +233,10 @@ Step ScenarioSource::process(PortMap&, PortMap& out, std::string& err) {
             sp.tx_on = f.tx_on;
             sp.tx_center_Hz = f.center_Hz;
             sp.state = f.valid ? State::Valid : State::Invalid;
+            // 身份三件（D-053）：消费端按它们分流，不去解析 trace_id
+            sp.link_id = links_[li].link_id();
+            sp.site_id = links_[li].site_id();
+            sp.emitter_id = links_[li].emitter_id();
             sp.trace = make_trace("ScenarioSource", scene_.scenario_id + ":" + links_[li].link_id());
             d.scenes.push_back(sp);
         }

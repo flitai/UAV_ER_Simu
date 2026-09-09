@@ -88,8 +88,14 @@ export function parseDiagram(text: string): { json: Record<string, unknown> | nu
 
 function provisional(rs: RunState | null): boolean { return rs === 'queued' || rs === 'running' }
 
+/**
+ * 打开任务时先看哪个观测点。**S4 优先**：它是 04 §5.2 的主产品，
+ * 勾了 S1 / S2 之类的中间点不该把默认视图从主产品挪走（2026-09-08 用户反馈）。
+ */
 function firstSpectrumOp(ops: TaskRecord['observation_points']): string | null {
-  const op = ops.find((o) => o.products.includes('spectrum')) ?? ops[0]
+  const withSpectrum = ops.filter((o) => o.products.includes('spectrum'))
+  const pool = withSpectrum.length ? withSpectrum : ops
+  const op = pool.find((o) => o.op_id === 's4') ?? pool[0]
   return op ? op.op_id : null
 }
 
@@ -198,7 +204,11 @@ export function reducer(s: AppState, a: Action): AppState {
         ui: {
           ...s.ui, view: a.view,
           resultsTab: a.view === 'results' && a.resultsTab ? a.resultsTab : s.ui.resultsTab,
-          diagramCanvas: a.view === 'diagram' ? (a.canvas ?? s.ui.diagramCanvas) : s.ui.diagramCanvas,
+          // 不带 canvas 的导航 = 回框图页的**默认形态**，也就是典型链路（D-051 ④）。
+          // 保留原值曾让 Alt+2 与顶栏「框图」按钮在 `#/diagram/canvas` 上变成空操作，
+          // 人被困在画布里（2026-09-08 用户实测）。要进画布须显式给 canvas: true，
+          // 走画布入口或直接用地址；Router 每次 hashchange 都显式传，故不受影响。
+          diagramCanvas: a.view === 'diagram' ? (a.canvas ?? false) : s.ui.diagramCanvas,
           popover: null,
         },
       }

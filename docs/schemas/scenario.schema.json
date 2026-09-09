@@ -73,6 +73,7 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "name": { "type": "string", "minLength": 1 },
+        "equipment_model": { "type": "string", "minLength": 1, "maxLength": 64 },
         "position": { "$ref": "#/$defs/position" },
         "antenna": {
           "type": "object",
@@ -89,6 +90,18 @@
             "center_Hz": { "type": "number", "exclusiveMinimum": 0 },
             "bw_Hz": { "type": "number", "exclusiveMinimum": 0 },
             "nf_dB": { "type": "number", "minimum": 0 }
+          }
+        },
+        "clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sync_sigma_ns"],
+          "properties": {
+            "sync_sigma_ns": { "type": "number", "minimum": 0 },
+            "bias_ns": { "type": "number" },
+            "rx_delay_ns": { "type": "number" },
+            "rx_delay_sigma_ns": { "type": "number", "minimum": 0 },
+            "sync_state": { "enum": ["locked", "holdover", "unsynced"] }
           }
         }
       }
@@ -109,6 +122,7 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "name": { "type": "string", "minLength": 1 },
+        "equipment_model": { "type": "string", "minLength": 1, "maxLength": 64 },
         "platform_type": { "enum": ["multirotor", "fixed_wing", "racing", "medium"] },
         "position": { "$ref": "#/$defs/position" },
         "emission": {

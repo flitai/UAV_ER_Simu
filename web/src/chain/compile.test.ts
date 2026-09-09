@@ -13,8 +13,8 @@ import { dirname, join } from 'node:path'
 import type { Catalog } from '../api/catalog.js'
 import { serialize, parse as parseDoc, type DiagramDoc } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
-import { compile, parseChain, switchMode } from './compile.js'
-import { emptyChain, missingParams, slotState, SLOTS, TAP_ORDER, type ChainState } from './model.js'
+import { compile, nodeId, parseChain, splitNodeId, switchMode } from './compile.js'
+import { emptyChain, missingParams, slotState, SLOTS, TAP_ORDER, tapLabel, type ChainState } from './model.js'
 import { freqPlan, planChecks, planOk } from './plan.js'
 import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
 
@@ -23,13 +23,35 @@ const cat = JSON.parse(readFileSync(join(ROOT, 'tests/golden/component-catalog.j
 const scenario = JSON.parse(
   readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'), 'utf8'),
 ) as ScenarioDoc
+/** 三站三源，多站用例用它——demo-01 只有一个站，拿它测多站等于测了个假的。 */
+const scenario3 = JSON.parse(
+  readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-03.scenario.json'), 'utf8'),
+) as ScenarioDoc
+
+/** 解一份必定合法的框图文本，省掉每处都写 if (!r.ok)。 */
+function parseOk(text: string): DiagramDoc {
+  const r = parseDoc(text)
+  assert.equal(r.ok, true)
+  if (!r.ok) throw new Error('unreachable')
+  return r.doc
+}
+
+/** demo-03 上的全合成链，可指定选几个站几个源。 */
+function multi(siteIds: string[], emitterIds: string[]): ChainState {
+  const c = synthetic()
+  c.diagram_id = 'chain-multi'
+  c.scenario = { scenario_id: 'demo-03', sha256: 'b'.repeat(64) }
+  c.siteIds = siteIds
+  c.emitterIds = emitterIds
+  return c
+}
 
 /** demo-01 绑定齐全的全合成链。 */
 function synthetic(): ChainState {
   const c = emptyChain('synthetic', 'chain-synthetic')
   c.scenario = { scenario_id: 'demo-01', sha256: 'a'.repeat(64) }
-  c.siteId = 'site-1'
-  c.emitterId = 'uav-1'
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1']
   c.run = { duration_s: 5, seed: 20260907 }
   c.slots.tx_ant.params = { gain_dBi: 2 }
   c.slots.rx_ant.params = { gain_dBi: 3 }
@@ -184,7 +206,7 @@ test('频率计划：demo-01 的派生量与六项检查', () => {
   assert.equal(p.decim, 1, 'DDC 旁路时抽取比为 1')
   assert.equal(p.fs_s4, 500000)
 
-  const checks = planChecks(c, p)
+  const checks = planChecks(c, p, scenario)
   // demo-01 的带宽 400 kHz + 保护带 25 kHz ≤ 500 kHz
   assert.equal(p.guard, 25000)
   assert.equal(checks.find((x) => x.id === 'bandwidth')!.ok, true)
@@ -194,7 +216,7 @@ test('频率计划：demo-01 的派生量与六项检查', () => {
   // 把带宽推到超采样率：第一项必须报出来
   const wide = JSON.parse(JSON.stringify(scenario)) as ScenarioDoc
   ;((wide.emitters as Array<Record<string, unknown>>)[0]!.emission as Record<string, unknown>).bw_Hz = 900000
-  const c2 = planChecks(c, freqPlan(c, wide))
+  const c2 = planChecks(c, freqPlan(c, wide), wide)
   assert.equal(c2.find((x) => x.id === 'bandwidth')!.ok, false)
   assert.equal(planOk(c2), false)
 })
@@ -246,7 +268,7 @@ test('内置缺省链路：解得开、重新编译后逐字节相同、六项�
   // 重新编译后逐字节相同：生成器与运行时用的是同一套代码，改一边另一边必须跟着变
   assert.equal(serialize(compile(chain!, cat, scenario).doc, cat), DEFAULT_CHAIN_TEXT)
 
-  const checks = planChecks(chain!, freqPlan(chain!, scenario))
+  const checks = planChecks(chain!, freqPlan(chain!, scenario), scenario)
   for (const k of checks) assert.equal(k.ok, true, `${k.label}：${k.detail}`)
 })
 
@@ -256,16 +278,203 @@ test('ADC 量化噪声检查：不给接收机增益就拦下来（实测逼出�
   if (!r.ok) return
   const chain = parseChain(r.doc)!
   // 缺省有 20 dB 增益：过
-  const withGain = planChecks(chain, freqPlan(chain, scenario)).find((k) => k.id === 'adc_floor')!
+  // 噪声系数自 D-054 起由场景逐站带出，这条检查因此必须拿到场景才算得对
+  const withGain = planChecks(chain, freqPlan(chain, scenario), scenario).find((k) => k.id === 'adc_floor')!
   assert.equal(withGain.ok, true)
   assert.match(withGain.detail, /余量 15\.0 dB/)
 
   // 去掉增益：−111 dBm 的热噪声落到 −20 dBm 满量程、14 位 ADC 的最低有效位之下
   const noGain: ChainState = {
     ...chain,
-    slots: { ...chain.slots, rx_fe: { ...chain.slots.rx_fe, params: { nf_dB: 6 } } },
+    slots: { ...chain.slots, rx_fe: { ...chain.slots.rx_fe, params: {} } },
   }
-  const k = planChecks(noGain, freqPlan(noGain, scenario)).find((x) => x.id === 'adc_floor')!
+  const k = planChecks(noGain, freqPlan(noGain, scenario), scenario).find((x) => x.id === 'adc_floor')!
   assert.equal(k.ok, false)
   assert.match(k.detail, /加大接收机增益/)
+})
+
+// ------------------------------------------------------------ 多源 / 多站实例化（L-2，D-053）
+
+test('实例 id：只有取值多于一个的维度才加后缀，N = K = 1 时一个后缀都不出现', () => {
+  assert.equal(nodeId('ch', { id: 'uav-1', many: false }, { id: 'site-1', many: false }), 'ch')
+  assert.equal(nodeId('ch', { id: 'uav-1', many: true }, { id: 'site-1', many: false }), 'ch__uav-1')
+  assert.equal(nodeId('ch', { id: 'uav-1', many: false }, { id: 'site-1', many: true }), 'ch__site-1')
+  assert.equal(nodeId('ch', { id: 'uav-1', many: true }, { id: 'site-1', many: true }), 'ch__uav-1__site-1')
+})
+
+test('splitNodeId：按已知基名切分，tx 与 tx_ant 不会混', () => {
+  assert.deepEqual(splitNodeId('tx'), { base: 'tx', rest: '' })
+  assert.deepEqual(splitNodeId('tx__uav-1'), { base: 'tx', rest: 'uav-1' })
+  assert.deepEqual(splitNodeId('tx_ant'), { base: 'tx_ant', rest: '' })
+  assert.deepEqual(splitNodeId('tx_ant__uav-1__site-2'), { base: 'tx_ant', rest: 'uav-1__site-2' })
+  assert.deepEqual(splitNodeId('sup__site-1'), { base: 'sup', rest: 'site-1' })
+  assert.equal(splitNodeId('user_block_7'), null)
+})
+
+test('多源：前四环节按源分支，接收天线后叠加成一路（11 报告 §2.2）', () => {
+  const r = compile(multi(['site-1'], ['uav-1', 'uav-2']), cat, scenario3)
+  const ids = r.doc.nodes.map((n) => n.id)
+  assert.deepEqual(ids, [
+    'scn',
+    'tx__uav-1', 'tx__uav-2',
+    'tx_ant__uav-1', 'ch__uav-1', 'rx_ant__uav-1',
+    'tx_ant__uav-2', 'ch__uav-2', 'rx_ant__uav-2',
+    'sup', 'rx_fe', 'adc', 'det',
+  ])
+  // 两条支路各自进叠加，此后只有一路
+  const toSup = r.doc.edges.filter((e) => e.to.node === 'sup').map((e) => `${e.from.node}→${e.to.port}`)
+  assert.deepEqual(toSup, ['rx_ant__uav-1→in1', 'rx_ant__uav-2→in2'])
+  const iq = r.doc.edges.filter((e) => e.to.port === 'in').map((e) => `${e.from.node}→${e.to.node}`)
+  assert.ok(iq.includes('sup→rx_fe'))
+  assert.ok(iq.includes('rx_fe→adc'))
+  // 每条链路各取自己那个源的参数帧
+  const scene = r.doc.edges.filter((e) => e.to.port === 'scene')
+  assert.equal(scene.length, 6)
+  for (const e of scene) {
+    assert.equal(e.from.node, 'scn')
+    assert.equal(e.from.port, e.to.node.endsWith('uav-1') ? 'link:uav-1' : 'link:uav-2')
+  }
+})
+
+test('多源：S1 挂在叠加之后——接收机看到的就是各源之和', () => {
+  const c = multi(['site-1'], ['uav-1', 'uav-2'])
+  c.taps.s1 = true
+  c.taps.s0 = true
+  const r = compile(c, cat, scenario3)
+  const ops = (r.doc.observation_points ?? []).map((o) => `${o.id}@${o.node}`)
+  // S0 在辐射源上，按**源**实例化；S1 起按站（此处 K = 1，故无后缀）
+  // S4 缺省就勾着（emptyChain），K = 1 故无后缀；DDC 未实现时兜底落在链尾
+  assert.deepEqual(ops, ['s0__uav-1@tx__uav-1', 's0__uav-2@tx__uav-2', 's1@sup', 's4@adc'])
+})
+
+test('多站：接收天线之后每环节一站一份，场景参数源也一站一个且只第一个报实体', () => {
+  const r = compile(multi(['site-1', 'site-2'], ['uav-1']), cat, scenario3)
+  const ids = r.doc.nodes.map((n) => n.id)
+  assert.deepEqual(ids, [
+    'scn__site-1', 'scn__site-2',
+    'tx',
+    'tx_ant__site-1', 'ch__site-1', 'rx_ant__site-1', 'rx_fe__site-1', 'adc__site-1', 'det__site-1',
+    'tx_ant__site-2', 'ch__site-2', 'rx_ant__site-2', 'rx_fe__site-2', 'adc__site-2', 'det__site-2',
+  ])
+  const scn = r.doc.nodes.filter((n) => n.id.startsWith('scn'))
+  assert.equal(scn[0]!.params.report_entities, undefined, '第一个照常报实体（不写即缺省真）')
+  assert.equal(scn[1]!.params.report_entities, false, '其余关掉，否则 track.jsonl 涨 K 倍')
+  // 单源多站时不需要叠加节点
+  assert.ok(!ids.includes('sup__site-1'))
+  // 信道同时绑源与站：它既要知道发射功率，又要知道接收端是谁
+  const ch = r.doc.nodes.find((n) => n.id === 'ch__site-1')!
+  assert.deepEqual(ch.scene_binding, { scenario_id: 'demo-03', entity_id: 'uav-1', site_id: 'site-1' })
+  // 辐射源只绑源：它一份波形扇出到全部站，绑站是错的（引擎也会拒，因为目录没声明 site_id）
+  assert.deepEqual(r.doc.nodes.find((n) => n.id === 'tx')!.scene_binding,
+    { scenario_id: 'demo-03', entity_id: 'uav-1' })
+})
+
+test('多站：观测点每站各一份，产品目录名带站后缀', () => {
+  const c = multi(['site-1', 'site-2'], ['uav-1'])
+  c.taps.s1 = true
+  c.taps.s4 = true
+  const r = compile(c, cat, scenario3)
+  const ops = (r.doc.observation_points ?? []).map((o) => o.id)
+  assert.deepEqual(ops, ['s1__site-1', 's1__site-2', 's4__site-1', 's4__site-2'])
+  assert.equal(tapLabel('s4__site-2'), 'S4 主产品 · site-2')
+  assert.equal(tapLabel('s4'), 'S4 主产品')
+})
+
+test('往返：1×1 / 3×1 / 1×3 / 3×3 编译再反解都逐字节相同', () => {
+  const combos: Array<[string[], string[]]> = [
+    [['site-1'], ['uav-1']],
+    [['site-1'], ['uav-1', 'uav-2', 'uav-3']],
+    [['site-1', 'site-2', 'site-3'], ['uav-1']],
+    [['site-1', 'site-2', 'site-3'], ['uav-1', 'uav-2', 'uav-3']],
+  ]
+  for (const [siteIds, emitterIds] of combos) {
+    const single = siteIds.length === 1 && emitterIds.length === 1
+    const c = single ? synthetic() : multi(siteIds, emitterIds)
+    const sc = single ? scenario : scenario3
+    const label = `${emitterIds.length}×${siteIds.length}`
+    const once = serialize(compile(c, cat, sc).doc, cat)
+    const r = parseDoc(once)
+    assert.equal(r.ok, true, label)
+    if (!r.ok) continue
+    const back = parseChain(r.doc)
+    assert.ok(back, `${label} 应解得开`)
+    assert.deepEqual(back!.siteIds, siteIds)
+    assert.deepEqual(back!.emitterIds, emitterIds)
+    assert.equal(serialize(compile(back!, cat, sc).doc, cat), once, `${label} 往返应逐字节相同`)
+  }
+})
+
+test('反解：同一实体的多个实例参数不一致即返回 null（被手改过，不猜）', () => {
+  // rx_ant 归**站**（D-054）：同一个站对 N 个源是同一副接收天线，两份参数必须一模一样。
+  // 拿馈线损耗做手脚而不是增益——增益已改为由场景带出，不再是链路状态里的参数
+  const doc = compile(multi(['site-1'], ['uav-1', 'uav-2']), cat, scenario3).doc
+  const hacked = JSON.parse(JSON.stringify(doc)) as DiagramDoc
+  const one = hacked.nodes.find((n) => n.id === 'rx_ant__uav-2')!
+  one.params = { ...one.params, feeder_loss_dB: 1.5 }
+  assert.equal(parseChain(hacked), null)
+})
+
+test('反解：共用槽位（传播信道）的实例之间不一致同样返回 null', () => {
+  const doc = compile(multi(['site-1'], ['uav-1', 'uav-2']), cat, scenario3).doc
+  const hacked = JSON.parse(JSON.stringify(doc)) as DiagramDoc
+  const one = hacked.nodes.find((n) => n.id === 'ch__uav-2')!
+  one.params = { ...one.params, delay_mode: 'off' }
+  assert.equal(parseChain(hacked), null)
+})
+
+test('逐实体设置：不同实体可以不同，且往返逐字节相同（D-054）', () => {
+  // 三个站各配一台不同的接收机前端；发射天线的馈线损耗按源分别设
+  const c = multi(['site-1', 'site-2', 'site-3'], ['uav-1', 'uav-2', 'uav-3'])
+  c.slots.rx_fe.byEntity = { 'site-2': { gain_dB: 30 }, 'site-3': { gain_dB: 10, lo_offset_Hz: 1000 } }
+  c.slots.tx_ant.byEntity = { 'uav-3': { feeder_loss_dB: 2 } }
+
+  const once = serialize(compile(c, cat, scenario3).doc, cat)
+  const doc = parseDoc(once)
+  assert.equal(doc.ok, true)
+  if (!doc.ok) return
+
+  // 编译时逐实例写的是各自的有效值
+  const g = (id: string) => doc.doc.nodes.find((n) => n.id === id)!.params.gain_dB
+  assert.equal(g('rx_fe__site-1'), 20)
+  assert.equal(g('rx_fe__site-2'), 30)
+  assert.equal(g('rx_fe__site-3'), 10)
+  assert.equal(doc.doc.nodes.find((n) => n.id === 'rx_fe__site-3')!.params.lo_offset_Hz, 1000)
+  // 发射天线归源：同一架机对三个站是同一副天线
+  for (const site of ['site-1', 'site-2', 'site-3']) {
+    assert.equal(doc.doc.nodes.find((n) => n.id === `tx_ant__uav-3__${site}`)!.params.feeder_loss_dB, 2)
+    assert.equal(doc.doc.nodes.find((n) => n.id === `tx_ant__uav-1__${site}`)!.params.feeder_loss_dB, undefined)
+  }
+
+  const back = parseChain(doc.doc)
+  assert.ok(back)
+  assert.equal(serialize(compile(back!, cat, scenario3).doc, cat), once, '往返应逐字节相同')
+})
+
+test('归约是确定性的：众数作共用底值，票数并列取实体 id 字典序最小者（D-054）', () => {
+  // 三个站的 gain_dB 取值 20 / 20 / 30：众数 20 进共用底值，只有 site-3 进覆盖
+  const c = multi(['site-1', 'site-2', 'site-3'], ['uav-1'])
+  c.slots.rx_fe.byEntity = { 'site-3': { gain_dB: 30 } }
+  const r1 = parseChain(parseOk(serialize(compile(c, cat, scenario3).doc, cat)))!
+  assert.equal(r1.slots.rx_fe.params.gain_dB, 20)
+  assert.deepEqual(r1.slots.rx_fe.byEntity, { 'site-3': { gain_dB: 30 } })
+
+  // 两票对一票（30 / 30 / 20）：众数 30 成底值，site-1 进覆盖——
+  // 有效值一个没变，所以往返仍逐字节相同
+  const c2 = multi(['site-1', 'site-2', 'site-3'], ['uav-1'])
+  c2.slots.rx_fe.byEntity = { 'site-2': { gain_dB: 30 }, 'site-3': { gain_dB: 30 } }
+  const doc2 = serialize(compile(c2, cat, scenario3).doc, cat)
+  const r2 = parseChain(parseOk(doc2))!
+  assert.equal(r2.slots.rx_fe.params.gain_dB, 30)
+  assert.deepEqual(r2.slots.rx_fe.byEntity, { 'site-1': { gain_dB: 20 } })
+  assert.equal(serialize(compile(r2, cat, scenario3).doc, cat), doc2, '往返应逐字节相同')
+
+  // 归约两次结果相同（幂等），说明划分唯一
+  assert.deepEqual(parseChain(parseOk(serialize(compile(r2, cat, scenario3).doc, cat))), r2)
+})
+
+test('单源单站：byEntity 不产生，编译结果与 D-053 时代一模一样（D-054 的退化）', () => {
+  const back = parseChain(parseOk(serialize(compile(synthetic(), cat, scenario).doc, cat)))!
+  for (const id of Object.keys(back.slots)) {
+    assert.equal(back.slots[id as keyof typeof back.slots].byEntity, undefined, id)
+  }
 })

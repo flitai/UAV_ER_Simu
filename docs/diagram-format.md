@@ -47,7 +47,7 @@
 | `label` | string | 否 | 显示名 |
 | `params` | object | 是 | 参数名到值；名与类型按目录 `params[]` 校验；单位在目录不在框图；缺省值由目录补，框图里不写 |
 | `position` | `{x, y}` | 否 | 仅画布使用，引擎忽略 |
-| `scene_binding` | object | 否 | `{scenario_id, entity_id}` 或 `{scenario_id, site_id}`；只有目录 `scene_bindable = true` 的组件可带；回放源永远不可带（06 防线二、三） |
+| `scene_binding` | object | 否 | `{scenario_id}` 加 `entity_id` 与 `site_id` **至少一个**（D-053 起，原为二选一）；两个同时出现时，该组件的目录条目必须**同时**声明这两个内部参数，否则报 `scene_binding`——多写的键被静默丢掉会让用户以为绑上了（铁律 15）。只有目录 `scene_bindable = true` 的组件可带；回放源永远不可带（06 防线二、三） |
 
 参数值只有四种类型：`number` / `string` / `enum`（string，取值受目录 `enum[]` 限制）/ `bool`。
 数组与嵌套对象不允许；需要时拆成多个参数，或用版本号引用随组件包走的外部数据（如 FIR
@@ -107,7 +107,7 @@
 | `observation_port` | 观测点不在 `IQStream` 输出口上 | 节点与端口 |
 | `product_unsupported` | 观测点要求本版本未实现的产品（`iq`） | 观测点 |
 | `template` | `template_ref` 的取值错误：`template_id` 不匹配正则、`mode` 不在三种之内、`version` 不是不小于 1 的整数（D-051）。缺字段与未知键仍归 `schema` | — |
-| `port_optional` | **预留**：组件按参数要求某个可选输入口而它没有连线。本版本不产生该码 | 节点与输入口 |
+| `port_optional` | 组件的 `check_wiring()` 拒绝：固定的可选输入口连得不够（如 `Superposition` 少于 `min_inputs` 路、`MultiSiteLocator` 的 `aoa` 少于 2 站 / `tdoa` 少于 3 站）。**自 D-053 起启用**，此前是预留码 | 节点（端口为空：缺的是「几个口」不是「哪个口」）|
 | `graph` | 兜底：引擎内部一致性错误，正常路径不可达 | — |
 
 规则只在引擎 `Graph::connect / validate` 一处解释；装载器拿它们的失败分类（`LinkFault` / `GraphFault`）映射成

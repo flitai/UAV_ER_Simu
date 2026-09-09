@@ -253,7 +253,7 @@ export async function getMetrics(task: string, base = ''): Promise<Record<string
 
 /** 航迹与链路读数（B-7 的 JSONL 端点，生产者是 G-2）。终态任务没有这类记录时返回空数组。 */
 async function getJsonlWindow<T>(
-  task: string, kind: 'track' | 'links', q: string, base: string,
+  task: string, kind: 'track' | 'links' | 'bearings' | 'positions', q: string, base: string,
 ): Promise<T[]> {
   const r = await fetch(`${base}/api/v1/results/${encodeURIComponent(task)}/${kind}${q}`)
   if (r.status === 404) return []
@@ -271,4 +271,18 @@ export function getLinks(
   task: string, t0: number, t1: number, stride = 1, base = '',
 ): Promise<Array<Record<string, unknown>>> {
   return getJsonlWindow(task, 'links', `?t0=${t0}&t1=${t1}&stride=${stride}`, base)
+}
+
+/** 测向报告（D-053）。任务没有测向节点时端点 404，这里返回空数组不当错误。 */
+export function getBearings(
+  task: string, t0: number, t1: number, stride = 1, base = '',
+): Promise<Array<Record<string, unknown>>> {
+  return getJsonlWindow(task, 'bearings', `?t0=${t0}&t1=${t1}&stride=${stride}`, base)
+}
+
+/** 定位解（D-053）。 */
+export function getPositions(
+  task: string, t0: number, t1: number, stride = 1, base = '',
+): Promise<Array<Record<string, unknown>>> {
+  return getJsonlWindow(task, 'positions', `?t0=${t0}&t1=${t1}&stride=${stride}`, base)
 }

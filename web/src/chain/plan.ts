@@ -9,7 +9,7 @@
 // 避免出现前端放行、引擎拒绝的情况。
 
 import type { ScenarioDoc } from '../state/types.js'
-import { emitters, sites } from '../scene/editor/scenarioOps.js'
+import { emitters, sites, type Obj } from '../scene/editor/scenarioOps.js'
 import type { ChainState } from './model.js'
 
 export interface FreqPlan {
@@ -55,6 +55,23 @@ function num(v: unknown, fallback = 0): number {
 }
 
 /**
+ * 多源时挑出「最难放进接收带」的那个源：按 |Δf| + B/2 排序取最大者。
+ * 频率计划的带宽与边缘两项检查因此对全部选中的源都成立（D-053 §4 的 `plan.ts` 一条）。
+ */
+function worstEmitter(list: readonly Obj[], site: Obj | undefined): Obj | undefined {
+  if (list.length <= 1) return list[0]
+  const fRx = num(((site?.receiver ?? {}) as Record<string, unknown>).center_Hz)
+  let best = list[0]
+  let bestCost = -Infinity
+  for (const e of list) {
+    const em = (e.emission ?? {}) as Record<string, unknown>
+    const cost = Math.abs(num(em.center_Hz, fRx) - fRx) + num(em.bw_Hz) / 2
+    if (cost > bestCost) { bestCost = cost; best = e }
+  }
+  return best
+}
+
+/**
  * 从链路状态与场景算出频率计划。场景缺失（回放模式）时用槽位里已填的值，
  * 算不出的项留 0 并由检查项报出来，不拿默认值顶替（铁律 15）。
  */
@@ -62,8 +79,12 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null): FreqP
   // 回放模式不看场景：数据自带采样率与中心频率，场景与它无关（防线二、三）。
   // 采样率此时只能由用户在检测段给出频段，或等 U-4 的数据中心把它带出来。
   const doc = chain.mode === 'replay' ? null : scenario
-  const site = sites(doc).find((x) => x.id === chain.siteId) ?? sites(doc)[0]
-  const emitter = emitters(doc).find((x) => x.id === chain.emitterId) ?? emitters(doc)[0]
+  // 多站多源（D-053）：参数按槽位共享，频率计划取**最差**的那一个实例——
+  // 带宽与边缘检查必须对每个选中的源都成立，取第一个源会放过其它源的越界配置。
+  const selSites = sites(doc).filter((x) => chain.siteIds.includes(String(x.id)))
+  const selEms = emitters(doc).filter((x) => chain.emitterIds.includes(String(x.id)))
+  const site = selSites[0] ?? sites(doc)[0]
+  const emitter = worstEmitter(selEms.length ? selEms : emitters(doc).slice(0, 1), site)
   const rx = (site?.receiver ?? {}) as Record<string, unknown>
   const em = (emitter?.emission ?? {}) as Record<string, unknown>
 
@@ -91,6 +112,11 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null): FreqP
   }
 }
 
+/** 回放模式不看场景（防线二、三），与 freqPlan 同一口径。 */
+function scenarioOf(chain: ChainState, scenario: ScenarioDoc | null): ScenarioDoc | null {
+  return chain.mode === 'replay' ? null : scenario
+}
+
 function fmt(hz: number): string {
   const a = Math.abs(hz)
   if (a >= 1e9) return `${(hz / 1e9).toFixed(4)} GHz`
@@ -103,7 +129,7 @@ function fmt(hz: number): string {
  * 04 §9.3 的六项检查。回放模式下前四项不适用（数据自带采样率与中心频率），
  * 此时只保留标度一致性那一项。
  */
-export function planChecks(chain: ChainState, plan: FreqPlan): PlanCheck[] {
+export function planChecks(chain: ChainState, plan: FreqPlan, scenario: ScenarioDoc | null = null): PlanCheck[] {
   const out: PlanCheck[] = []
   const replay = chain.mode === 'replay'
 
@@ -154,7 +180,13 @@ export function planChecks(chain: ChainState, plan: FreqPlan): PlanCheck[] {
   // 不需要几何，因此在没有场景的模式下同样有效。
   const fsDbm = chain.slots.adc.params.full_scale_dBm
   const bits = Number(chain.slots.adc.params.bits ?? 14)
-  const nf = Number(chain.slots.rx_fe.params.nf_dB ?? 0)
+  // 噪声系数自 D-054 起由场景逐站带出，不再存在槽位参数里。多站时取**最差**的那一个：
+  // 这条检查要对每个站都成立，取第一个会放过噪声系数更高的那些站。
+  const nfDoc = scenarioOf(chain, scenario)
+  const nfSites = sites(nfDoc).filter((x) => chain.siteIds.includes(String(x.id)))
+  const nfs = (nfSites.length ? nfSites : sites(nfDoc).slice(0, 1))
+    .map((x) => num((x.receiver as Record<string, unknown> | undefined)?.nf_dB))
+  const nf = nfs.length ? Math.max(...nfs) : 0
   const gain = Number(chain.slots.rx_fe.params.gain_dB ?? 0)
   if (typeof fsDbm === 'number' && plan.fs_rf > 0 && Number.isFinite(bits)) {
     // 量化噪声总功率 q²/6，q = 2·10^(fs/20)/2^bits
@@ -171,6 +203,47 @@ export function planChecks(chain: ChainState, plan: FreqPlan): PlanCheck[] {
     })
   } else {
     out.push({ id: 'adc_floor', label: 'ADC 量化噪声不淹没热噪声', ok: false, detail: '缺满量程或采样率，算不出' })
+  }
+
+  // 多源多站的可行性（D-053 §2.5、§4）。这两项算不出几何也成立，因此不受模式限制。
+  const N = chain.emitterIds.length
+  const K = chain.siteIds.length
+  {
+    let ok = true
+    let detail = `${N} 个目标 × ${K} 个站，共 ${N * K} 条链路`
+    if (replay && (N > 1 || K > 1)) {
+      ok = false
+      detail = '实测回放的片段是已经过完整接收链的 S4 数据，它对应一个录制时的站位；'
+        + '把它复制到多个站等于假装同一份录音在几个地方同时被收到。多源多站请用全合成或混合模式'
+    } else if (chain.mode === 'mixed' && K > 1) {
+      ok = false
+      detail = '混合增强的背景片段同样只对应一个站，K 必须为 1；合成目标那一支可以有多个源'
+    } else if (!replay && (N === 0 || K === 0)) {
+      ok = false
+      detail = '站点与目标各至少选一个，否则没有链路可算'
+    } else if (N > 8 || K > 8) {
+      ok = false
+      detail = `固定可选口上限为 8（源 ${N}、站 ${K}）；再多要改端口表，本期不做`
+    }
+    out.push({ id: 'stations', label: '多源多站可行', ok, detail })
+  }
+
+  if (!replay && K > 1) {
+    const sel = sites(scenarioOf(chain, scenario)).filter((x) => chain.siteIds.includes(String(x.id)))
+    const key = (x: Obj): string => {
+      const rx = (x.receiver ?? {}) as Record<string, unknown>
+      return `${num(rx.fs_Hz)}/${num(rx.center_Hz)}`
+    }
+    const keys = new Set(sel.map(key))
+    out.push({
+      id: 'sites_consistent',
+      label: '各站采样率与中心频率一致',
+      ok: keys.size <= 1,
+      detail: keys.size <= 1
+        ? `${K} 个站同为 ${fmt(plan.fs_rf)} @ ${fmt(plan.f_rx)}`
+        : `选中的站有 ${keys.size} 种配置（${[...keys].join('、')}）；`
+          + '同一框图里各站必须同采样率同中心频率，否则参数帧与 IQ 块的样点窗口对不上',
+    })
   }
 
   out.push({

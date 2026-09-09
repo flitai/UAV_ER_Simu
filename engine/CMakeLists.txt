@@ -34,6 +34,7 @@ add_library(cuav_engine STATIC
   src/graph.cpp
   src/sources.cpp
   src/processing.cpp
+  src/locate.cpp
   src/spectrum.cpp
   src/platform.cpp
   src/tap.cpp
@@ -90,6 +91,8 @@ add_executable(cuav_engine_tests
   tests/test_geo.cpp
   tests/test_scenario.cpp
   tests/test_channel.cpp
+  tests/test_locate.cpp
+  tests/test_locate_golden.cpp
   tests/test_receiver_chain.cpp
 )
 target_link_libraries(cuav_engine_tests PRIVATE cuav_runner)

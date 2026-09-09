@@ -50,6 +50,11 @@ public:
     virtual void on_entity(const EntityState&) {}
     virtual void on_link(const LinkFrame&) {}
     virtual void on_log(const std::string& level, const std::string& message) { (void)level; (void)message; }
+    // 测向与定位报告（D-053）。与 on_link 同法：不是数据流，走回调，由运行器落 JSONL 并发事件。
+    virtual void on_bearing(const BearingReport&) {}
+    // 到达时间报告不单独落盘（它是隐含节点的中间量），但留一个回调供诊断与将来的产品
+    virtual void on_toa(const ToaReport&) {}
+    virtual void on_position(const PositionReport&) {}
     // 一行显示产品：kind ∈ {spectrum, envelope}；row 为 float32，len 个元素；t_s 为该行首样点的逻辑时间。
     virtual void on_product_row(const std::string& op_id, const std::string& kind, std::uint64_t row_index,
                                 const float* row, std::size_t len, double t_s) {

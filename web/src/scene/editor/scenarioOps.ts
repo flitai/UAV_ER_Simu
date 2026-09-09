@@ -9,7 +9,7 @@
 import type { ScenarioDoc } from '../../state/types.js'
 import type { Lla, Waypoint } from './preview.js'
 
-type Obj = Record<string, unknown>
+export type Obj = Record<string, unknown>
 
 function clone(doc: ScenarioDoc): ScenarioDoc {
   return JSON.parse(JSON.stringify(doc)) as ScenarioDoc
@@ -81,6 +81,55 @@ export function addSite(doc: ScenarioDoc, lon: number, lat: number): { doc: Scen
     receiver: { ...rx },
   })
   return { doc: d, id }
+}
+
+/**
+ * 布目标（D-053 §5.3）。照 `addSite` 的模式：新源复制第一个源的 `emission` 作为参数模板，
+ * 并建一条**只有一个航点**的航线——静止的目标同样要有航线，否则运行时取不到位置。
+ * 新源的中心频率沿用模板，用户随后在表单里改；同频是多源混叠演示要的，不在这里替用户避开。
+ */
+export function addEmitter(doc: ScenarioDoc, lon: number, lat: number): { doc: ScenarioDoc; id: string } {
+  const d = clone(doc)
+  const list = (d.emitters ??= []) as Obj[]
+  const id = freshId(new Set(list.map((x) => String(x.id))), 'uav')
+  const first = list[0] as Obj | undefined
+  const em = (first?.emission as Obj | undefined) ?? {
+    center_Hz: 2440500000, bw_Hz: 400000, tx_power_dBm: 20, antenna_gain_dBi: 2,
+    waveform: { type: 'tone', offset_Hz: 0 },
+  }
+  const alt = Number((posOf(first)?.alt_m ?? 80))
+  list.push({
+    id,
+    name: `目标 ${list.length + 1}`,
+    platform_type: String(first?.platform_type ?? 'multirotor'),
+    position: { lon: round6(lon), lat: round6(lat), alt_m: alt },
+    emission: clone(em) as Obj,
+  })
+  const rs = (d.routes ??= []) as Obj[]
+  rs.push({ emitter_id: id, waypoints: [{ position: { lon: round6(lon), lat: round6(lat), alt_m: alt }, speed_mps: 0 }] })
+  return { doc: d, id }
+}
+
+/** 删目标：连同它的航线与活动一起删，留下悬空引用会让场景的跨引用校验失败。 */
+export function removeEmitter(doc: ScenarioDoc, id: string): ScenarioDoc {
+  const d = clone(doc)
+  d.emitters = emitters(d).filter((x) => x.id !== id)
+  d.routes = routes(d).filter((r) => r.emitter_id !== id)
+  if (Array.isArray(d.activities)) d.activities = activities(d).filter((a) => a.emitter_id !== id)
+  return d
+}
+
+/** 移动目标：没有航线时改 `position`，有航线时改第一个航点（拖的是它的起点）。 */
+export function moveEmitter(doc: ScenarioDoc, id: string, lon: number, lat: number): ScenarioDoc {
+  const d = clone(doc)
+  const r = routeOf(d, id)
+  const wps = Array.isArray(r?.waypoints) ? (r!.waypoints as Obj[]) : []
+  if (wps.length) {
+    wps[0]!.position = { ...(wps[0]!.position as Obj), lon: round6(lon), lat: round6(lat) }
+  }
+  const e = emitters(d).find((x) => x.id === id)
+  if (e) e.position = { ...(e.position as Obj), lon: round6(lon), lat: round6(lat) }
+  return d
 }
 
 export function removeSite(doc: ScenarioDoc, id: string): ScenarioDoc {
@@ -163,17 +212,39 @@ export function removeWaypoint(doc: ScenarioDoc, emitterId: string, index: numbe
   return d
 }
 
-/** 按点路径改一个数值字段，如 `sites.0.receiver.fs_Hz`。路径不存在即原样返回。 */
+/**
+ * 按点路径改一个字段，如 `sites.0.receiver.fs_Hz`。
+ *
+ * 中间的**对象**缺席时按需建出来（D-054）：场景里 `clock` 与 `equipment_model` 这类可选字段
+ * 一开始就不存在，不建的话「给这个站配一个站钟」这件事在界面上永远做不成，而且是静默做不成——
+ * 用户填了数字、面板没报错、文件里什么也没有（铁律 15）。
+ *
+ * 只建对象，**不建数组元素**：`sites.7.xxx` 在只有三个站时仍原样返回。凭一个下标去补一个空站
+ * 会造出没有 id 的半个对象，引擎那边直接是「缺必填字段」，报错还指不到真正的原因。
+ */
 export function setPath(doc: ScenarioDoc, path: string, value: unknown): ScenarioDoc {
   const d = clone(doc)
   const parts = path.split('.')
   let cur: unknown = d
   for (let i = 0; i < parts.length - 1; i++) {
     if (cur === null || typeof cur !== 'object') return doc
-    cur = (cur as Obj)[parts[i]]
+    const holder = cur as Obj
+    const key = parts[i]
+    const next = holder[key]
+    if (next === undefined || next === null) {
+      // 下一段是数字下标说明这里该是数组，而数组元素不凭空造（见上）
+      if (/^\d+$/.test(parts[i + 1] ?? '')) return doc
+      if (Array.isArray(holder)) return doc
+      holder[key] = {}
+    }
+    cur = holder[key]
   }
   if (cur === null || typeof cur !== 'object') return doc
-  ;(cur as Obj)[parts[parts.length - 1]] = value
+  const last = parts[parts.length - 1]!
+  // `undefined` 表示「清掉这个可选字段」。写 undefined 进去虽然 JSON.stringify 会丢掉它，
+  // 但内存里的文档就留了一个值为 undefined 的键，读回来分不清「没设过」与「设成了空」。
+  if (value === undefined) delete (cur as Obj)[last]
+  else (cur as Obj)[last] = value
   return d
 }
 

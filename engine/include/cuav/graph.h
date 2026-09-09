@@ -52,6 +52,7 @@ enum class GraphFault {
     None = 0,
     Cycle,
     InputUnconnected,
+    PortOptional,     // 组件的 check_wiring() 拒绝：可选口连得不够（D-053）
 };
 
 class Graph {

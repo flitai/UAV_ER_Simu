@@ -1,0 +1,1588 @@
+{
+  "schema_version": "cuav-diagram/1",
+  "diagram_id": "chain-3x3-tdoa",
+  "name": "三站三源 · 时差定位",
+  "scenario_ref": {
+    "scenario_id": "demo-03",
+    "sha256": "dbfe3d7a31d69b991351bacfbff42cc9245093d10914365a704dbfcddc298036"
+  },
+  "nodes": [
+    {
+      "id": "scn__site-1",
+      "type": "ScenarioSource",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-1"
+      },
+      "params": {
+        "sample_rate_Hz": 500000,
+        "total_samples": 10000000
+      }
+    },
+    {
+      "id": "scn__site-2",
+      "type": "ScenarioSource",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-2"
+      },
+      "params": {
+        "sample_rate_Hz": 500000,
+        "total_samples": 10000000,
+        "report_entities": false
+      }
+    },
+    {
+      "id": "scn__site-3",
+      "type": "ScenarioSource",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-3"
+      },
+      "params": {
+        "sample_rate_Hz": 500000,
+        "total_samples": 10000000,
+        "report_entities": false
+      }
+    },
+    {
+      "id": "tx__uav-1",
+      "type": "SceneEmitterSource",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-1"
+      },
+      "params": {
+        "sample_rate_Hz": 500000,
+        "total_samples": 10000000,
+        "center_frequency_Hz": 2440500000,
+        "emit_at_tx_power": true
+      }
+    },
+    {
+      "id": "tx__uav-2",
+      "type": "SceneEmitterSource",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-2"
+      },
+      "params": {
+        "sample_rate_Hz": 500000,
+        "total_samples": 10000000,
+        "center_frequency_Hz": 2440500000,
+        "emit_at_tx_power": true
+      }
+    },
+    {
+      "id": "tx__uav-3",
+      "type": "SceneEmitterSource",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-3"
+      },
+      "params": {
+        "sample_rate_Hz": 500000,
+        "total_samples": 10000000,
+        "center_frequency_Hz": 2440500000,
+        "emit_at_tx_power": true
+      }
+    },
+    {
+      "id": "tx_ant__uav-1__site-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-1__site-1",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-1",
+        "site_id": "site-1"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-1__site-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__uav-2__site-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-2__site-1",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-2",
+        "site_id": "site-1"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-2__site-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__uav-3__site-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 0
+      }
+    },
+    {
+      "id": "ch__uav-3__site-1",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-3",
+        "site_id": "site-1"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-3__site-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "sup__site-1",
+      "type": "Superposition",
+      "params": {}
+    },
+    {
+      "id": "rx_fe__site-1",
+      "type": "ReceiverFrontEnd",
+      "params": {
+        "nf_dB": 6,
+        "gain_dB": 20
+      }
+    },
+    {
+      "id": "adc__site-1",
+      "type": "AdcQuantizer",
+      "params": {
+        "full_scale_dBm": -20
+      }
+    },
+    {
+      "id": "det__site-1",
+      "type": "EnergyDetector",
+      "params": {
+        "band_lo_Hz": -225000,
+        "band_hi_Hz": 225000
+      }
+    },
+    {
+      "id": "df__site-1",
+      "type": "DirectionFinder",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
+      "id": "toa__site-1",
+      "type": "ToaEstimator",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
+      "id": "tx_ant__uav-1__site-2",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-1__site-2",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-1",
+        "site_id": "site-2"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-1__site-2",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__uav-2__site-2",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-2__site-2",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-2",
+        "site_id": "site-2"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-2__site-2",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__uav-3__site-2",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 0
+      }
+    },
+    {
+      "id": "ch__uav-3__site-2",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-3",
+        "site_id": "site-2"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-3__site-2",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "sup__site-2",
+      "type": "Superposition",
+      "params": {}
+    },
+    {
+      "id": "rx_fe__site-2",
+      "type": "ReceiverFrontEnd",
+      "params": {
+        "nf_dB": 6,
+        "gain_dB": 20
+      }
+    },
+    {
+      "id": "adc__site-2",
+      "type": "AdcQuantizer",
+      "params": {
+        "full_scale_dBm": -20
+      }
+    },
+    {
+      "id": "det__site-2",
+      "type": "EnergyDetector",
+      "params": {
+        "band_lo_Hz": -225000,
+        "band_hi_Hz": 225000
+      }
+    },
+    {
+      "id": "df__site-2",
+      "type": "DirectionFinder",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-2"
+      },
+      "params": {}
+    },
+    {
+      "id": "toa__site-2",
+      "type": "ToaEstimator",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-2"
+      },
+      "params": {}
+    },
+    {
+      "id": "tx_ant__uav-1__site-3",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-1__site-3",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-1",
+        "site_id": "site-3"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-1__site-3",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__uav-2__site-3",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-2__site-3",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-2",
+        "site_id": "site-3"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-2__site-3",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__uav-3__site-3",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 0
+      }
+    },
+    {
+      "id": "ch__uav-3__site-3",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "entity_id": "uav-3",
+        "site_id": "site-3"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-3__site-3",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "sup__site-3",
+      "type": "Superposition",
+      "params": {}
+    },
+    {
+      "id": "rx_fe__site-3",
+      "type": "ReceiverFrontEnd",
+      "params": {
+        "nf_dB": 6,
+        "gain_dB": 20
+      }
+    },
+    {
+      "id": "adc__site-3",
+      "type": "AdcQuantizer",
+      "params": {
+        "full_scale_dBm": -20
+      }
+    },
+    {
+      "id": "det__site-3",
+      "type": "EnergyDetector",
+      "params": {
+        "band_lo_Hz": -225000,
+        "band_hi_Hz": 225000
+      }
+    },
+    {
+      "id": "df__site-3",
+      "type": "DirectionFinder",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-3"
+      },
+      "params": {}
+    },
+    {
+      "id": "toa__site-3",
+      "type": "ToaEstimator",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-3"
+      },
+      "params": {}
+    },
+    {
+      "id": "loc",
+      "type": "MultiSiteLocator",
+      "params": {
+        "method": "tdoa"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "tx__uav-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-1__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "tx_ant__uav-1__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "tx_ant__uav-1__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-1__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "ch__uav-1__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "ch__uav-1__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-1__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "rx_ant__uav-1__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "tx__uav-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-2__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "tx_ant__uav-2__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "tx_ant__uav-2__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-2__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "ch__uav-2__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "ch__uav-2__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-2__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "rx_ant__uav-2__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "tx__uav-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-3__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "tx_ant__uav-3__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "tx_ant__uav-3__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-3__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "ch__uav-3__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e17",
+      "from": {
+        "node": "ch__uav-3__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-3__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e18",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "rx_ant__uav-3__site-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "rx_ant__uav-1__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-1",
+        "port": "in1"
+      }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "rx_ant__uav-2__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-1",
+        "port": "in2"
+      }
+    },
+    {
+      "id": "e21",
+      "from": {
+        "node": "rx_ant__uav-3__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-1",
+        "port": "in3"
+      }
+    },
+    {
+      "id": "e22",
+      "from": {
+        "node": "sup__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_fe__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e23",
+      "from": {
+        "node": "rx_fe__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "adc__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e24",
+      "from": {
+        "node": "adc__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "det__site-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e25",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "df__site-1",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e26",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "df__site-1",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e27",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "df__site-1",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e28",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "toa__site-1",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e29",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "toa__site-1",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e30",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "toa__site-1",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e31",
+      "from": {
+        "node": "tx__uav-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-1__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e32",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "tx_ant__uav-1__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e33",
+      "from": {
+        "node": "tx_ant__uav-1__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-1__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e34",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "ch__uav-1__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e35",
+      "from": {
+        "node": "ch__uav-1__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-1__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e36",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "rx_ant__uav-1__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e37",
+      "from": {
+        "node": "tx__uav-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-2__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e38",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "tx_ant__uav-2__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e39",
+      "from": {
+        "node": "tx_ant__uav-2__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-2__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e40",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "ch__uav-2__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e41",
+      "from": {
+        "node": "ch__uav-2__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-2__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e42",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "rx_ant__uav-2__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e43",
+      "from": {
+        "node": "tx__uav-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-3__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e44",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "tx_ant__uav-3__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e45",
+      "from": {
+        "node": "tx_ant__uav-3__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-3__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e46",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "ch__uav-3__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e47",
+      "from": {
+        "node": "ch__uav-3__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-3__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e48",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "rx_ant__uav-3__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e49",
+      "from": {
+        "node": "rx_ant__uav-1__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-2",
+        "port": "in1"
+      }
+    },
+    {
+      "id": "e50",
+      "from": {
+        "node": "rx_ant__uav-2__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-2",
+        "port": "in2"
+      }
+    },
+    {
+      "id": "e51",
+      "from": {
+        "node": "rx_ant__uav-3__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-2",
+        "port": "in3"
+      }
+    },
+    {
+      "id": "e52",
+      "from": {
+        "node": "sup__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_fe__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e53",
+      "from": {
+        "node": "rx_fe__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "adc__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e54",
+      "from": {
+        "node": "adc__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "det__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e55",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "df__site-2",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e56",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "df__site-2",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e57",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "df__site-2",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e58",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "toa__site-2",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e59",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "toa__site-2",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e60",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "toa__site-2",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e61",
+      "from": {
+        "node": "tx__uav-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-1__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e62",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "tx_ant__uav-1__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e63",
+      "from": {
+        "node": "tx_ant__uav-1__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-1__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e64",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "ch__uav-1__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e65",
+      "from": {
+        "node": "ch__uav-1__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-1__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e66",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "rx_ant__uav-1__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e67",
+      "from": {
+        "node": "tx__uav-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-2__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e68",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "tx_ant__uav-2__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e69",
+      "from": {
+        "node": "tx_ant__uav-2__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-2__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e70",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "ch__uav-2__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e71",
+      "from": {
+        "node": "ch__uav-2__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-2__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e72",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "rx_ant__uav-2__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e73",
+      "from": {
+        "node": "tx__uav-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-3__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e74",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "tx_ant__uav-3__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e75",
+      "from": {
+        "node": "tx_ant__uav-3__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-3__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e76",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "ch__uav-3__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e77",
+      "from": {
+        "node": "ch__uav-3__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-3__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e78",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "rx_ant__uav-3__site-3",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e79",
+      "from": {
+        "node": "rx_ant__uav-1__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-3",
+        "port": "in1"
+      }
+    },
+    {
+      "id": "e80",
+      "from": {
+        "node": "rx_ant__uav-2__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-3",
+        "port": "in2"
+      }
+    },
+    {
+      "id": "e81",
+      "from": {
+        "node": "rx_ant__uav-3__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup__site-3",
+        "port": "in3"
+      }
+    },
+    {
+      "id": "e82",
+      "from": {
+        "node": "sup__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_fe__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e83",
+      "from": {
+        "node": "rx_fe__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "adc__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e84",
+      "from": {
+        "node": "adc__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "det__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e85",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "df__site-3",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e86",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "df__site-3",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e87",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "df__site-3",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e88",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "toa__site-3",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e89",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "toa__site-3",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e90",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "toa__site-3",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e91",
+      "from": {
+        "node": "df__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "loc",
+        "port": "b1"
+      }
+    },
+    {
+      "id": "e92",
+      "from": {
+        "node": "toa__site-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "loc",
+        "port": "t1"
+      }
+    },
+    {
+      "id": "e93",
+      "from": {
+        "node": "df__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "loc",
+        "port": "b2"
+      }
+    },
+    {
+      "id": "e94",
+      "from": {
+        "node": "toa__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "loc",
+        "port": "t2"
+      }
+    },
+    {
+      "id": "e95",
+      "from": {
+        "node": "df__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "loc",
+        "port": "b3"
+      }
+    },
+    {
+      "id": "e96",
+      "from": {
+        "node": "toa__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "loc",
+        "port": "t3"
+      }
+    }
+  ],
+  "observation_points": [
+    {
+      "id": "s4__site-1",
+      "label": "S4 主产品 · site-1",
+      "node": "adc__site-1",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
+      "id": "s4__site-2",
+      "label": "S4 主产品 · site-2",
+      "node": "adc__site-2",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
+      "id": "s4__site-3",
+      "label": "S4 主产品 · site-3",
+      "node": "adc__site-3",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    }
+  ],
+  "run": {
+    "seed": 20260909,
+    "duration_s": 20,
+    "time_basis": "LogicalSim"
+  },
+  "template_ref": {
+    "template_id": "chain-v1",
+    "mode": "synthetic",
+    "version": 1
+  }
+}

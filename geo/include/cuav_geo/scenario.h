@@ -35,12 +35,35 @@ struct Receiver {
     Receiver() : fs_Hz(0.0), center_Hz(0.0), bw_Hz(0.0), nf_dB(0.0) {}
 };
 
+// 站钟与时统（D-053）。在 time.basis = LogicalSim 下这些是**建模的**同步误差，
+// 不是任何真实设备的时统指标；真实站钟与卫星驯服属 05 P2 的 DeviceStatus。
+// has_clock = false 时 TDOA 相关组件必须报错而不是假定一个完美时钟（铁律 15）。
+enum class SyncState { Locked = 0, Holdover, Unsynced };
+
+struct Clock {
+    bool has_clock;
+    double sync_sigma_ns;        // 站钟同步 1σ；卫星驯服 / 共视同步的固定网约 3 ns（≈ 0.9 m）
+    double bias_ns;              // 固定钟差（未标定的系统偏差）
+    double rx_delay_ns;          // 接收通道群时延
+    double rx_delay_sigma_ns;    // 群时延不确定度
+    SyncState sync_state;
+    Clock()
+        : has_clock(false), sync_sigma_ns(0.0), bias_ns(0.0), rx_delay_ns(0.0),
+          rx_delay_sigma_ns(0.0), sync_state(SyncState::Locked) {}
+};
+
+const char* to_string(SyncState s);
+
 struct Site {
     std::string id;
     std::string name;
+    // 设备型号（D-054）。只作前端的参数分组与显示，不进任何物理计算；与 name 同性质，
+    // 引擎收下并原样保存。缺席即空串。
+    std::string equipment_model;
     Lla position;
     Antenna antenna;
     Receiver receiver;
+    Clock clock;
 };
 
 enum class WaveformType { Tone = 0, Noise, Burst };
@@ -72,6 +95,8 @@ enum class PlatformType { Multirotor = 0, FixedWing, Racing, Medium };
 struct Emitter {
     std::string id;
     std::string name;
+    // 同站点（D-054）。缺席时前端回退 platform_type 作分组键。
+    std::string equipment_model;
     PlatformType platform_type;
     Lla position;
     Emission emission;

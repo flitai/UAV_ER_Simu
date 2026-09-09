@@ -201,7 +201,7 @@ export interface AppState {
 }
 
 /** 场景编辑器的工具（09 §5.2）。 */
-export type SceneTool = 'select' | 'site' | 'waypoint' | 'measure'
+export type SceneTool = 'select' | 'site' | 'emitter' | 'waypoint' | 'measure'
 
 /** 选中的场景对象。链路是派生对象，不入场景文件（09 §5.1）。 */
 export type SceneSelection =

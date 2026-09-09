@@ -174,7 +174,8 @@
 - 类型：`task.state`（运行态 `run_state ∈ {queued, running, finished, failed, cancelled}` 与结果四态 `result`，两者正交）、
   `progress`、`log`、`entity`（`EntityState`，见 `docs/scenario-format.md` §7）、`link`（每条链路每帧的 `SceneParamFrame`
   读数：`link_id, t_s, line_of_sight, distance_m, azimuth_deg, elevation_deg, path_loss_dB, delay_s, doppler_Hz, valid_from_s,
-  valid_to_s, update_rate_Hz, state`）、`detection`、`error`（含 `node_id`、`port`，与引擎 `--validate` 的定位一致）、
+  valid_to_s, update_rate_Hz, state`）、`detection`、`bearing`（单站测向报告，D-053）、`position`（多站定位报告，D-053）、
+  `error`（含 `node_id`、`port`，与引擎 `--validate` 的定位一致）、
   `heartbeat`、`dropped{from, to, count}`。日志与错误文本里的服务器路径由服务端替换为 `data_id` 或相对名后再下发（04 §8.6）。
 - 二进制帧只承载 `spectrum` / `envelope` 行：帧头 `{seq, task_id, op_id, kind, row_index, row_len}` + Float32 载荷
   （`docs/display-products.md` §4）。铁律 7 禁的是 JSON / Base64 封装二进制，不禁二进制帧。
@@ -232,10 +233,12 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 | `log` | 装载摘要、种子覆盖、组件日志 | `level`、`message` |
 | `product_row` | 观测点每写一行 | `op_id`、`kind ∈ {spectrum, envelope}`、`row_index`、`row_len`。**不带数据**：该行已逐行刷到 `<out>/<op_id>/<kind>.f32`，服务端按 `row_index × row_len × 4` 的偏移读出并转成二进制帧（§4） |
 | `entity`、`link` | 场景运行时（G-2 起） | 字段同 §4 |
+| `bearing` | `DirectionFinder` 每产出一行（D-053，L-3 起） | 载荷 = `bearings.jsonl` 的行去掉 `t_s`（信封里已有）：`site_id, emitter_id, link_id, bearing_deg, bearing_std_deg, elevation_deg, snr_dB, level_dBm, df_quality, df_result_state, use_policy, method, bias_deg, sigma{method,snr,cal,att,multipath,mixture}, line_of_sight, mixture, signal_role, truth_consumed, state, reasons, trace`（`docs/display-products.md` §5）|
+| `position` | `MultiSiteLocator` 每产出一行（D-053，L-4 / L-5 起） | 载荷 = `positions.jsonl` 的行去掉 `t_s`：`emitter_id, method, lon, lat, crs, coord_version, enu_origin, cov_m2, ellipse, cep_m, gdop, geometry_quality, time_quality, participating_sites, reference_site, residuals, outlier_sites, truth_consumed, state, reasons, trace` |
 | `error` | 装载失败或运行失败 | `{code, node_id, port, message}`（`docs/diagram-format.md` §4）；运行失败 `code = run_failed`，`node_id` 为出错节点 |
 | `validate` | `--validate` 成功时一条 | `ok`、`diagram_id`、`name`、`nodes[]`、`edges`、`observation_points[]`、`run`、`engine_version` |
 
-`t_s`：`product_row` / `entity` / `link` 为该行或该帧的逻辑时间；`progress`、`log` 与结束的 `task.state` 取此前见过的
+`t_s`：`product_row` / `entity` / `link` / `bearing` / `position` 为该行或该帧的逻辑时间；`progress`、`log` 与结束的 `task.state` 取此前见过的
 最大逻辑时间；开始的 `task.state` 与 `validate` 为 0。`detection` 事件待 P1-4d 的 `detections.jsonl`。
 
 退出码：

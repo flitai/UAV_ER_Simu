@@ -8,7 +8,7 @@ import { CATEGORY_COLOR, findComponent } from '../api/catalog.js'
 import { formatEng } from '../diagram/format.js'
 import type { ParamValue } from '../diagram/doc.js'
 import {
-  SLOT_BY_ID, unavailableReason, variantOf,
+  SLOT_BY_ID, instanceBadge, unavailableReason, variantOf,
   type ChainState, type SlotId, type SlotState,
 } from './model.js'
 
@@ -55,6 +55,7 @@ export function SlotCard(p: SlotCardProps) {
   const dim = p.state === 'not_applicable' || p.state === 'unavailable' || p.state === 'bypass'
   const badge = p.error ? '✕' : p.missing.length ? '待填' : p.state === 'active' ? '✓' : STATE_TEXT[p.state]
   const color = spec ? CATEGORY_COLOR[spec.category] : '#94a3b8'
+  const count = instanceBadge(p.chain, p.id)
 
   return (
     <div
@@ -69,6 +70,8 @@ export function SlotCard(p: SlotCardProps) {
     >
       <div className="slot-head" style={{ borderTopColor: color }}>
         <span className="slot-name">{def.label}</span>
+        {/* 实例角标（D-053）：这个环节在多源多站下展开成几份。单源单站时不显示 */}
+        {count && <span className="slot-count" data-slot-count={p.id}>{count}</span>}
         <span className={`slot-badge${p.error ? ' bad' : p.missing.length ? ' warn' : ''}`} data-slot-badge>{badge}</span>
       </div>
 

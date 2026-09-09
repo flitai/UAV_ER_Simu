@@ -67,7 +67,7 @@ try {
 
   // ---------- 四个工具：布站 → 撤销 → 重做 ----------
   const tools = await page.evaluate("Array.from(document.querySelectorAll('[data-tool]')).map(b => b.dataset.tool)")
-  check('工具条四件齐全（选择 / 布站 / 航点 / 测量）', JSON.stringify(tools) === JSON.stringify(['select', 'site', 'waypoint', 'measure']), JSON.stringify(tools))
+  check('工具条五件齐全（选择 / 布站 / 布目标 / 航点 / 测量；布目标自 D-053 起）', JSON.stringify(tools) === JSON.stringify(['select', 'site', 'emitter', 'waypoint', 'measure']), JSON.stringify(tools))
 
   await page.evaluate("(document.querySelector('[data-tool=site]').click(), true)")
   st = await waitApp(page, (a) => a.scene.tool === 'site', '切到布站工具')

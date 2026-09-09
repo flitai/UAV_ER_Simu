@@ -2,7 +2,7 @@
 
 import { parse as parseDoc } from '../diagram/doc.js'
 import { parseChain } from '../chain/compile.js'
-import { SLOTS, TAP_ORDER, slotState } from '../chain/model.js'
+import { SLOTS, TAP_ORDER, effectiveParams, slotState } from '../chain/model.js'
 import { freqPlan, planChecks } from '../chain/plan.js'
 import { isCatalog } from '../api/catalog.js'
 
@@ -59,6 +59,8 @@ export interface ProbeExtras {
   /** 态势快照（切片 ②）：实体位置与链路读数，供 e2e 与黄金航迹对拍 */
   entities: Array<{ id: string; t_s: number; lon: number; lat: number; alt_m: number; heading_deg: number; speed_mps: number; tx_on: boolean }>
   links: Array<{ id: string; t_s: number; los: boolean; distance_m: number; pathLoss_dB: number; doppler_Hz: number }>
+  bearings: Array<{ id: string; t_s: number; bearing_deg: number; sigma_deg: number; quality: string; state: string; mixture: boolean }>
+  positions: Array<{ id: string; t_s: number; method: string; lon: number; lat: number; cep_m: number; crossing_deg: number; sites: number }>
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -108,6 +110,9 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       const val = s.diagram.validation
       return {
         id: s.context.diagramId,
+        // 框图页当前的子形态：true = 自由画布，false = 典型链路。放在这里而不是 chain 下，
+        // 是因为 chain 探针在文档解不开时只剩 {template: null}，读不到形态（2026-09-08）。
+        canvas: s.ui.diagramCanvas,
         nodes: j?.nodes?.length ?? 0,
         edges: j?.edges?.length ?? 0,
         taps: j?.observation_points?.length ?? 0,
@@ -123,7 +128,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       const chain = r.ok ? parseChain(r.doc) : null
       if (!chain) return { template: null as string | null }
       const plan = freqPlan(chain, s.scene.scenario.doc)
-      const checks = planChecks(chain, plan)
+      const checks = planChecks(chain, plan, s.scene.scenario.doc)
       const slots: Record<string, string> = {}
       for (const d of SLOTS) slots[d.id] = slotState(chain, d.id, isCatalog(s.components.catalog) ? s.components.catalog : null)
       return {
@@ -131,9 +136,29 @@ export function probeApp(s: AppState, x: ProbeExtras) {
         mode: chain.mode,
         canvas: s.ui.diagramCanvas,
         scenarioId: chain.scenario?.scenario_id ?? null,
-        siteId: chain.siteId,
-        emitterId: chain.emitterId,
+        // 数组是新口径（D-053）；两个标量保留是为了让 slice4-smoke 之类的既有断言继续成立
+        siteIds: chain.siteIds,
+        emitterIds: chain.emitterIds,
+        // 多站定位的方法（aoa / tdoa / aoa_tdoa）。它决定编译时插不插隐含的到达时间节点，
+        // 所以要能从探针上看见
+        locMethod: String(chain.slots.loc.params.method ?? 'aoa'),
+        siteId: chain.siteIds[0] ?? null,
+        emitterId: chain.emitterIds[0] ?? null,
         slots,
+        // 逐实体的单独设置（D-054）：槽位 → 实体 → 偏离共用底值的那几个参数。
+        // 注意它是**归约后**的形式：底值取众数，这里只留偏离者。要断言「谁和谁一样」
+        // 得看下面的 effective，而不是这里——切片 ⑥ 的用例踩过这个坑。
+        byEntity: Object.fromEntries(
+          SLOTS.map((d) => [d.id, chain.slots[d.id].byEntity ?? null]).filter(([, v]) => v !== null),
+        ),
+        // 逐实体的**有效**参数（共用底值叠上覆盖）。这才是「这个站到底按什么参数跑」，
+        // 与编译进框图的值一一对应
+        effective: Object.fromEntries(
+          SLOTS.filter((d) => (d.owner ?? 'site') !== 'shared').map((d) => {
+            const ents = (d.owner ?? 'site') === 'emitter' ? chain.emitterIds : chain.siteIds
+            return [d.id, Object.fromEntries(ents.map((e) => [e, effectiveParams(chain, d.id, e)]))]
+          }),
+        ),
         taps: TAP_ORDER.filter((t) => chain.taps[t]),
         plan: { fs_rf: plan.fs_rf, f_rx: plan.f_rx, fs_s4: plan.fs_s4, decim: plan.decim },
         checks: Object.fromEntries(checks.map((k) => [k.id, k.ok])),
@@ -153,6 +178,9 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     },
     entities: x.entities,
     links: x.links,
+    // 逐项挑而不是整包展开——这里漏了新字段就在探针上看不见，切片 ⑥b 踩过一次
+    bearings: x.bearings,
+    positions: x.positions,
     signal: {
       opId: s.signal.opId,
       viewport: s.signal.viewport,

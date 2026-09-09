@@ -246,7 +246,7 @@ test('索引端点：索引原文加 rows_available、index_final、run_state', 
 })
 
 test('JSONL 端点：文件不存在按运行态 404；有文件时时间窗与按键抽稀生效', async () => {
-  for (const k of ['track', 'links', 'detections', 'features', 'recognitions', 'truth']) {
+  for (const k of ['track', 'links', 'detections', 'features', 'recognitions', 'truth', 'bearings', 'positions']) {
     const r = await fetch(url(`${taskId}/${k}`))
     assert.equal(r.status, 404, k)
     assert.equal(((await r.json()) as Record<string, unknown>).kind, k)
@@ -362,6 +362,67 @@ test('评价指标端点：没文件按运行态 404；有文件时整份回，�
   const head = await fetch(url(`${taskId}/metrics`), { method: 'HEAD' })
   assert.equal(head.status, 200)
   assert.equal(head.headers.get('content-length'), String(Buffer.byteLength(JSON.stringify(metrics, null, 2) + '\n')))
+})
+
+test('测向端点：按 link_id 抽稀，site_id / emitter_id 可精确过滤（D-053，L-3）', async () => {
+  const rows: string[] = []
+  for (let i = 0; i < 4; i++) {
+    for (const site of ['site-1', 'site-2']) {
+      for (const em of ['uav-1', 'uav-2']) {
+        rows.push(JSON.stringify({
+          t_s: i * 0.1, site_id: site, emitter_id: em, link_id: `${site}-${em}`,
+          bearing_deg: 100 + i, bearing_std_deg: 1.5, df_quality: 'DF-Q1',
+          df_result_state: 'valid', truth_consumed: true,
+        }))
+      }
+    }
+  }
+  await fsp.writeFile(join(dir, 'bearings.jsonl'), rows.join('\n') + '\n')
+
+  const all = await fetch(url(`${taskId}/bearings`))
+  assert.equal(all.status, 200)
+  assert.equal(all.headers.get('x-cuav-rows'), '16')
+
+  // 抽稀键是 link_id：四条链路各留第 0、2 条
+  const thin = (await (await fetch(url(`${taskId}/bearings?stride=2`))).json()) as Array<{ link_id: string }>
+  assert.equal(thin.length, 8)
+
+  // 等值过滤：单字段
+  const one = (await (await fetch(url(`${taskId}/bearings?site_id=site-2`))).json()) as Array<{ site_id: string }>
+  assert.equal(one.length, 8)
+  assert.ok(one.every((r) => r.site_id === 'site-2'))
+
+  // 多字段取交集
+  const both = (await (await fetch(url(`${taskId}/bearings?site_id=site-2&emitter_id=uav-1`))).json()) as Array<{ link_id: string }>
+  assert.equal(both.length, 4)
+  assert.ok(both.every((r) => r.link_id === 'site-2-uav-1'))
+
+  // 时间窗与过滤同时生效
+  const win = (await (await fetch(url(`${taskId}/bearings?site_id=site-1&t0=0.1&t1=0.2`))).json()) as unknown[]
+  assert.equal(win.length, 4, '两个源 × 两个时刻')
+})
+
+test('定位端点：抽稀键是 emitter_id:method，method 可精确过滤（D-053，L-4）', async () => {
+  const rows: string[] = []
+  for (let i = 0; i < 3; i++) {
+    for (const m of ['aoa', 'tdoa']) {
+      rows.push(JSON.stringify({
+        t_s: i * 0.5, emitter_id: 'uav-1', method: m, lon: 116.4, lat: 39.99,
+        cep_m: 20 + i, ellipse: { semi_major_m: 40, semi_minor_m: 30, rotation_deg: 10, scale: '2sigma', confidence: 0.8646647167633873 },
+        truth_consumed: true, state: 'valid',
+      }))
+    }
+  }
+  await fsp.writeFile(join(dir, 'positions.jsonl'), rows.join('\n') + '\n')
+
+  const all = await fetch(url(`${taskId}/positions`))
+  assert.equal(all.headers.get('x-cuav-rows'), '6')
+  const aoa = (await (await fetch(url(`${taskId}/positions?method=aoa`))).json()) as Array<{ method: string }>
+  assert.equal(aoa.length, 3)
+  assert.ok(aoa.every((r) => r.method === 'aoa'))
+  // 两条曲线（aoa / tdoa）各自抽稀，不会把两种方法混成一串
+  const thin = (await (await fetch(url(`${taskId}/positions?stride=2`))).json()) as Array<{ method: string }>
+  assert.equal(thin.length, 4)
 })
 
 test('新增三个 JSONL 端点按 segment_id 抽稀（features / recognitions / truth，C-6）', async () => {

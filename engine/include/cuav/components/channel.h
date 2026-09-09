@@ -49,7 +49,7 @@ public:
 private:
     const SceneParamFrame* frame_for(double t_s);
 
-    std::string scenario_path_, scenario_id_, entity_id_;
+    std::string scenario_path_, scenario_id_, entity_id_, site_id_;
     double tx_power_dBm_ = 0.0, tx_gain_dBi_ = 0.0, rx_gain_dBi_ = 0.0;
     bool apply_gain_ = true, apply_doppler_ = true;
     // 增益口径（D-051）：link_budget 保持原有的 tx_power + G_t + G_r − 路损（既有基准照旧）；

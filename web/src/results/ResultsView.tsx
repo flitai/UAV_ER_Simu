@@ -5,6 +5,7 @@ import { resultBadge, runStateGlyph } from '../shell/badges.js'
 import { InstrumentPanel } from '../signal/InstrumentPanel.js'
 import { SignalView } from '../signal/SignalView.js'
 import { useAppState, useDispatch } from '../state/store.js'
+import { tapLabel } from '../chain/model.js'
 import type { ResultsTab } from '../state/types.js'
 
 const TABS: Array<{ id: ResultsTab; label: string }> = [{ id: 'signal', label: '信号' }, { id: 'detections', label: '检测' }, { id: 'tasks', label: '任务' }]
@@ -29,7 +30,7 @@ export function ResultsView() {
             {s.task.observationPoints.map((o) => (
               <li key={o.op_id} className={o.op_id === s.signal.opId ? 'on' : ''}>
                 <button type="button" onClick={() => dispatch({ type: 'signal/selectOp', opId: o.op_id })}>
-                  <b>{o.op_id}</b> <span className="muted">{o.node}.{o.port} · {o.products.join(' / ')}</span>
+                  <b>{tapLabel(o.op_id)}</b> <span className="muted">{o.node}.{o.port} · {o.products.join(' / ')}</span>
                 </button>
               </li>
             ))}
@@ -44,6 +45,18 @@ export function ResultsView() {
                 onClick={() => dispatch({ type: 'ui/resultsTab', tab: t.id })}>{t.label}</button>
             ))}
           </div>
+          {/* 观测点切换也放在中栏顶上：左栏可以收起，收起后就只剩这一处能换观测点
+              ——原来只在左栏，收着栏的人会以为勾了观测点没生效（2026-09-08 用户反馈）。 */}
+          {s.ui.resultsTab === 'signal' && s.task.observationPoints.length > 0 && (
+            <div className="op-tabs" role="tablist" data-op-tabs>
+              {s.task.observationPoints.map((o) => (
+                <button key={o.op_id} type="button" role="tab" data-op-tab={o.op_id}
+                  className={o.op_id === s.signal.opId ? 'on' : ''}
+                  title={`${o.node}.${o.port} · ${o.products.join(' / ')}`}
+                  onClick={() => dispatch({ type: 'signal/selectOp', opId: o.op_id })}>{tapLabel(o.op_id)}</button>
+              ))}
+            </div>
+          )}
           {s.ui.resultsTab === 'signal' && <SignalView />}
           {s.ui.resultsTab === 'detections' && <div className="placeholder">检测（U-4 启用）</div>}
           {s.ui.resultsTab === 'tasks' && <div className="placeholder">任务列表（U-4 启用）</div>}

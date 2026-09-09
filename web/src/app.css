@@ -115,6 +115,10 @@ details.scene-panel > summary::-webkit-details-marker { display: none; }
 .diagram-json { display: flex; flex-direction: column; height: 100%; padding: 8px; gap: 6px; }
 .diagram-tools { display: flex; align-items: center; gap: 12px; }
 .diagram-tools .right { margin-left: auto; }
+/* 「回到典型链路」解不开时的当场确认条：不静默丢改动（铁律 15，2026-09-08） */
+.diagram-back-ask { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--warn);
+  background: #fdf6e3; border: 1px solid var(--warn); border-radius: 6px; padding: 6px 10px; }
+.diagram-back-ask span { flex: 1; }
 .diagram-text { flex: 1; min-height: 0; resize: none; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--white); border: 1px solid var(--border); border-radius: 6px; padding: 8px; white-space: pre; }
 .diagram-errors { margin: 0; padding: 0 0 0 20px; max-height: 120px; overflow: auto; }
 .diagram-errors li.error { color: var(--bad); }
@@ -281,6 +285,8 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .rf-handle.h-diamond { transform: rotate(45deg); border-radius: 1px; }
 .rf-handle.h-square { border-radius: 1px; }
 .rf-handle.h-triangle { border-radius: 0; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+/* 报告族（BearingReport / ToaReport / PositionReport，D-053）：六边形，与前四种一眼可分 */
+.rf-handle.h-hexagon { border-radius: 0; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
 .rf-handle.bad { background: #b91c1c; }
 
 /* 参数面板 */
@@ -310,37 +316,104 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .chain-mode { font-weight: 600; }
 .chain-id { color: var(--muted, #7b7367); font-family: ui-monospace, monospace; }
 
-/* 九张卡片一行排开；窄窗自动折行，2K 基线一行放得下（09 §11） */
-.chain-strip { display: flex; flex-wrap: wrap; align-items: stretch; gap: 2px; }
-.chain-cell { display: flex; align-items: center; gap: 2px; }
-.chain-arrow { color: var(--poi, #9a9187); font-size: 14px; }
+/* 实体选择行（D-054）：选中哪一架无人机、哪一个站，右栏就配谁的设备参数。
+   与上面的工具条分开——那行是文档级操作，这行是配置焦点，混一行两种语义会打架。 */
+.chain-entity-bar { display: flex; align-items: center; gap: 16px; padding: 6px 2px 8px;
+  border-bottom: 1px solid var(--border); margin-bottom: 8px; font-size: 12px; }
+.chain-entity-bar .spacer { flex: 1; }
+.chain-entity { display: inline-flex; align-items: center; gap: 6px; }
+.chain-entity > span { color: var(--muted, #7b7367); }
+.chain-entity select { max-width: 280px; }
+.chain-scene-state { color: var(--muted, #7b7367); }
+.chain-scene-state[data-scene-save-state="dirty"] { color: #b45309; }
+/* 参数的设置范围：共用 / 同型号 / 单独 */
+.pp-scope { font-size: 11px; max-width: 76px; }
 
-.slot-card { width: 168px; min-height: 96px; background: var(--white); border: 1px solid var(--border);
+/* 链条块占满工具条以下的高度并纵向居中，不把一行卡片吊在顶上（2026-09-08 用户反馈） */
+.chain-body { flex: 1; min-height: 0; display: flex; flex-direction: column;
+  justify-content: center; gap: 14px; overflow: auto;
+  background: var(--white); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
+
+/* 卡片按**每行四张、蛇形**排（2026-09-09 用户指定）：第一行从左往右，第二行从右往左，
+   如此往复。十一个槽位排成 4 + 4 + 3 的三行。
+   蛇形的好处是链条连续可读——一行读到头，下一张卡片就在正下方，视线不必甩回行首。
+   行的首尾因此在列上对齐：第 0 行末尾在第 4 列，第 1 行开头也在第 4 列。
+
+   卡片在各自的网格列里**居中**，连接件绝对定位到卡片与列边之间。
+   不用「卡片 + flex 撑开的箭头」那种写法，是因为蛇形下相邻两行的卡片会被挤到列的两侧、
+   上下对不齐；居中之后各列严格对齐，转折处才看得出是同一条链。 */
+.chain-strip { --card-w: 176px; --conn: var(--poi, #9a9187);
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  align-items: stretch; column-gap: 4px; row-gap: 56px; }
+.chain-cell { position: relative; display: flex; align-items: center; justify-content: center; }
+
+/* 行内连接件：一条横线加一个箭头，从卡片边缘铺到列边（再跨过 4px 的列间距）。
+   `to-left` 用 row-reverse 把箭头甩到左端，正好贴着左边那张卡片。 */
+.chain-conn { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 4px;
+  color: var(--conn); font-size: 14px; pointer-events: none; }
+/* 两端都要贴到卡片边：起点是本张卡片的边缘（`50% + 半张卡片`），
+   终点要**越过本列**、跨过 4px 列间距、再穿过下一列里卡片左侧的留白，才够到下一张卡片。
+   那段留白也是「半列宽减半张卡片」，所以终点写成负的同一个量。
+   只写 `right: -4px` 只能铺到列边，箭头会停在两张卡片中间的半空里（第一版就是这样）。 */
+.chain-conn.to-right { left: calc(50% + var(--card-w) / 2);
+  right: calc(var(--card-w) / 2 - 50% - 4px); }
+.chain-conn.to-left { right: calc(50% + var(--card-w) / 2);
+  left: calc(var(--card-w) / 2 - 50% - 4px); flex-direction: row-reverse; }
+.chain-conn::before { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* 行末的转折：一条竖线加向下的箭头，落在 56px 的行距里，正对下一行那张卡片 */
+.chain-turn { position: absolute; left: 50%; transform: translateX(-50%);
+  top: 100%; height: 56px; display: flex; flex-direction: column; align-items: center;
+  color: var(--conn); font-size: 14px; pointer-events: none; }
+.chain-turn::before { content: ''; flex: 1; width: 1px; background: var(--border); }
+
+.slot-card { width: var(--card-w, 176px); min-height: 128px; background: var(--earth); border: 1px solid var(--border);
   border-radius: 6px; padding: 0 0 6px; cursor: pointer; display: flex; flex-direction: column;
   font-size: 12px; }
 .slot-card.on { border-color: #1e40af; box-shadow: 0 0 0 1px #1e40af inset; }
 .slot-card.bad { border-color: #b91c1c; }
 .slot-card.dim { background: #faf9f7; color: var(--muted, #7b7367); }
 .slot-head { display: flex; align-items: center; justify-content: space-between; gap: 4px;
-  padding: 5px 8px; border-top: 3px solid #94a3b8; border-radius: 5px 5px 0 0; }
+  padding: 7px 10px; border-top: 3px solid #94a3b8; border-radius: 5px 5px 0 0; font-size: 13px; }
 .slot-name { font-weight: 600; }
 .slot-badge { font-size: 11px; color: #15803d; }
+/* 实例角标（D-053）：这个环节在多源多站下展开成几份 */
+.slot-count {
+  font-size: 11px; color: #334155; background: #e2e8f0;
+  border-radius: 8px; padding: 0 6px; margin-left: auto; margin-right: 6px;
+}
+/* 站点 / 目标多选（D-053 §5.1） */
+.pp-multi { align-items: flex-start; }
+.pp-checks { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.pp-check { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
 .slot-badge.warn { color: #a16207; }
 .slot-badge.bad { color: #b91c1c; }
-.slot-variant { margin: 0 8px 4px; width: calc(100% - 16px); font-size: 11px; }
-.slot-body { padding: 0 8px; display: flex; flex-direction: column; gap: 2px; }
-.slot-param { font-family: ui-monospace, monospace; font-size: 11px; white-space: nowrap;
+.slot-variant { margin: 0 10px 6px; width: calc(100% - 20px); font-size: 12px; }
+.slot-body { padding: 2px 10px; display: flex; flex-direction: column; gap: 5px; }
+.slot-param { font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
-.slot-note { padding: 0 8px; font-size: 11px; color: var(--muted, #7b7367); }
+.slot-note { padding: 0 10px; font-size: 11px; color: var(--muted, #7b7367); }
 .slot-error { padding: 4px 8px 0; font-size: 11px; color: #b91c1c; }
 .slot-bypass { padding: 4px 8px 0; font-size: 11px; display: flex; align-items: center; gap: 4px; }
 
-/* 观测点一行，勾选即产出频谱与包络 */
-.tap-row { display: flex; align-items: center; gap: 12px; font-size: 12px;
-  border-top: 1px solid var(--border); padding-top: 6px; }
-.tap { display: flex; align-items: center; gap: 4px; }
-.tap.dim { color: var(--poi, #9a9187); }
-.tap-hint { margin-left: auto; }
+/* 观测点一行，写全名而不只写编号（2026-09-08）；2K 基线下六个全名一行放得下 */
+.tap-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; font-size: 12px;
+  border-top: 1px solid var(--border); padding-top: 8px; }
+.tap-lead { font-weight: 600; }
+.tap { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.tap input { margin: 0; cursor: pointer; }
+.tap.dim { color: var(--poi, #9a9187); cursor: not-allowed; }
+.tap.dim input { cursor: not-allowed; }
+.tap-hint { margin-left: auto; font-size: 11px; }
+
+/* 观测点与当前任务不一致：勾选只改框图，产品要下次运行才有 */
+.chain-stale { font-size: 11px; color: #a16207; background: #fdf6e3;
+  border: 1px solid #dfbe83; border-radius: 4px; padding: 1px 8px; }
+
+/* 结果页中栏的观测点页签（左栏可收起，这一处不会跟着没） */
+.op-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px 0 0; }
+.op-tabs button { font-size: 11px; padding: 2px 8px; border-radius: 10px; color: var(--dim); }
+.op-tabs button.on { background: var(--earth); border-color: var(--bound); color: var(--ink); font-weight: 600; }
 
 .chain-errors { margin: 0; padding: 6px 10px; list-style: none; font-size: 12px;
   background: #fdf6e3; border: 1px solid #dfbe83; border-radius: 4px; max-height: 120px; overflow: auto; }

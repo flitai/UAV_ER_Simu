@@ -1,0 +1,2076 @@
+{
+ "_meta": {
+  "source": "em-demo/src/models/aoa-location.ts",
+  "tolerance_rel": 1e-09,
+  "origin": "C-UAV Model Demo/emcore/tests/golden/aoa_location.json",
+  "ported_to": "geo/{fix_geometry,locate_aoa}.h（D-053，L-4）；求解器改平面坐标接口，本基准经 geo::legacy 的 111320 投影回放（D-009）"
+ },
+ "_configs": {
+  "sa": {
+   "id": "sa",
+   "name": "w4-a",
+   "position": {
+    "lon": 108.926,
+    "lat": 34.352,
+    "alt": 40
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2,
+   "scanRate_Hz": 5
+  },
+  "sb": {
+   "id": "sb",
+   "name": "w4-b",
+   "position": {
+    "lon": 108.948,
+    "lat": 34.338,
+    "alt": 42
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -112,
+   "bearingAccuracy_deg": 1.8,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 1
+  },
+  "sc": {
+   "id": "sc",
+   "name": "w4-c",
+   "position": {
+    "lon": 108.955,
+    "lat": 34.356,
+    "alt": 38
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -108,
+   "bearingAccuracy_deg": 2.5,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 10
+  },
+  "sd": {
+   "id": "sd",
+   "name": "w4-d",
+   "position": {
+    "lon": 108.935,
+    "lat": 34.362,
+    "alt": 35
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2.2,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 30
+  },
+  "se": {
+   "id": "se",
+   "name": "w4-e",
+   "position": {
+    "lon": 108.94,
+    "lat": 34.352,
+    "alt": 40
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2,
+   "scanRate_Hz": 5
+  },
+  "sf": {
+   "id": "sf",
+   "name": "w4-f",
+   "position": {
+    "lon": 108.954,
+    "lat": 34.352,
+    "alt": 41
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -111,
+   "bearingAccuracy_deg": 1.9,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 3
+  },
+  "sg": {
+   "id": "sg",
+   "name": "w4-g",
+   "position": {
+    "lon": 108.93,
+    "lat": 34.345,
+    "alt": 36
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -109,
+   "bearingAccuracy_deg": 3,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 400
+  },
+  "sh": {
+   "id": "sh",
+   "name": "w4-h",
+   "position": {
+    "lon": 108.92665,
+    "lat": 34.352,
+    "alt": 40
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 3
+  },
+  "si": {
+   "id": "si",
+   "name": "w4-i",
+   "position": {
+    "lon": 108.942,
+    "lat": 34.366,
+    "alt": 37
+   },
+   "frequency_min_Hz": 400000000,
+   "frequency_max_Hz": 6000000000,
+   "sensitivity_dBm": -110,
+   "bearingAccuracy_deg": 2.4,
+   "scanRate_Hz": 5,
+   "syncAccuracy_ns": 90
+  }
+ },
+ "aoaLocalization": [
+  {
+   "in": [
+    [
+     {
+      "position": {
+       "lon": 108.93,
+       "lat": 34.34,
+       "alt": 40
+      },
+      "bearing_deg": 52,
+      "bearingError_deg": 2
+     },
+     {
+      "position": {
+       "lon": 108.952,
+       "lat": 34.341,
+       "alt": 42
+      },
+      "bearing_deg": 318,
+      "bearingError_deg": 1.5
+     }
+    ]
+   ],
+   "out": {
+    "lon": 108.94355493803938,
+    "lat": 34.34874444229728,
+    "cep_m": 50.46533729612552,
+    "gdop": 44.65355933793911,
+    "ellipse": {
+     "semiMajor_m": 110.76867838014083,
+     "semiMinor_m": 60.67802553059645,
+     "rotation_deg": -46.27765872351989
+    }
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "position": {
+       "lon": 108.926,
+       "lat": 34.352,
+       "alt": 40
+      },
+      "bearing_deg": 110.4,
+      "bearingError_deg": 2
+     },
+     {
+      "position": {
+       "lon": 108.948,
+       "lat": 34.338,
+       "alt": 42
+      },
+      "bearing_deg": 21.7,
+      "bearingError_deg": 1.8
+     },
+     {
+      "position": {
+       "lon": 108.955,
+       "lat": 34.356,
+       "alt": 38
+      },
+      "bearing_deg": 247.9,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "lon": 108.95284077172806,
+    "lat": 34.351603568067695,
+    "cep_m": 49.423292989706496,
+    "gdop": 35.80286730657129,
+    "ellipse": {
+     "semiMajor_m": 109.30913155351041,
+     "semiMinor_m": 58.597418436999156,
+     "rotation_deg": 50.051198587268765
+    }
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "position": {
+       "lon": 108.93,
+       "lat": 34.34,
+       "alt": 40
+      },
+      "bearing_deg": 45,
+      "bearingError_deg": 2
+     },
+     {
+      "position": {
+       "lon": 108.932,
+       "lat": 34.3395,
+       "alt": 40
+      },
+      "bearing_deg": 46.5,
+      "bearingError_deg": 2
+     }
+    ]
+   ],
+   "out": null
+  },
+  {
+   "in": [
+    [
+     {
+      "position": {
+       "lon": 108.93,
+       "lat": 34.34,
+       "alt": 40
+      },
+      "bearing_deg": 45,
+      "bearingError_deg": 2
+     },
+     {
+      "position": {
+       "lon": 108.94,
+       "lat": 34.345,
+       "alt": 40
+      },
+      "bearing_deg": 45,
+      "bearingError_deg": 2
+     }
+    ]
+   ],
+   "out": null
+  },
+  {
+   "in": [
+    [
+     {
+      "position": {
+       "lon": 108.93,
+       "lat": 34.34,
+       "alt": 40
+      },
+      "bearing_deg": 90,
+      "bearingError_deg": 2
+     }
+    ]
+   ],
+   "out": null
+  },
+  {
+   "in": [
+    [
+     {
+      "position": {
+       "lon": 108.94,
+       "lat": 34.35,
+       "alt": 40
+      },
+      "bearing_deg": 90,
+      "bearingError_deg": 0.02
+     },
+     {
+      "position": {
+       "lon": 108.9405,
+       "lat": 34.3495,
+       "alt": 40
+      },
+      "bearing_deg": 10,
+      "bearingError_deg": 0.02
+     }
+    ]
+   ],
+   "out": {
+    "lon": 108.94060678637007,
+    "lat": 34.35,
+    "cep_m": 0.207871124832619,
+    "gdop": 0.17722537689776838,
+    "ellipse": {
+     "semiMajor_m": 0.38399438038025374,
+     "semiMinor_m": 0.32220954295121906,
+     "rotation_deg": 39.99999999999998
+    }
+   }
+  }
+ ],
+ "computeAOAFix": [
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 97.47039797516351,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 333.3257632648658,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9404314333909,
+     "lat": 34.35043770177775,
+     "alt": 0
+    },
+    "cep_m": 64.85095522630517,
+    "gdop": 57.63007023367475,
+    "errorEllipse": {
+     "semiMajor_m": 144.06775305387663,
+     "semiMinor_m": 76.2514425510331,
+     "rotation_deg": -33.64288843607198
+    },
+    "residuals_deg": [
+     5.002220859751105e-12,
+     0.0038376107327735554
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.87039797516348,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 336.3257632648658,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94176808352498,
+     "lat": 34.34973493974242,
+     "alt": 0
+    },
+    "cep_m": 65.04270045326784,
+    "gdop": 57.81808537205759,
+    "errorEllipse": {
+     "semiMajor_m": 144.61331402932265,
+     "semiMinor_m": 76.3573007261312,
+     "rotation_deg": -43.864440216934085
+    },
+    "residuals_deg": [
+     -1.7109869077103212e-11,
+     0.0035181389758349724
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 70.35980617449417,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 8.038145461303372,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9516894457065,
+     "lat": 34.35956890434064,
+     "alt": 0
+    },
+    "cep_m": 105.66880871132133,
+    "gdop": 92.63825924889841,
+    "errorEllipse": {
+     "semiMajor_m": 225.41761860318388,
+     "semiMinor_m": 133.57272864098576,
+     "rotation_deg": 58.156349476722866
+    },
+    "residuals_deg": [
+     5.5706550483591855e-12,
+     -0.001324638396397404
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 72.75980617449414,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 11.038145461303372,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95293867257087,
+     "lat": 34.35890159395883,
+     "alt": 0
+    },
+    "cep_m": 106.96467678848654,
+    "gdop": 94.09854947282184,
+    "errorEllipse": {
+     "semiMajor_m": 230.73274902369675,
+     "semiMinor_m": 132.660071728763,
+     "rotation_deg": 57.93649075702394
+    },
+    "residuals_deg": [
+     -8.185452315956354e-12,
+     -0.0017978371653271097
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 172.26325896982235,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 279.79599996294326,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9278307254142,
+     "lat": 34.34087501303701,
+     "alt": 0
+    },
+    "cep_m": 62.69468682898504,
+    "gdop": 54.47061044247854,
+    "errorEllipse": {
+     "semiMajor_m": 129.44490081357677,
+     "semiMinor_m": 83.5487694054993,
+     "rotation_deg": -67.52451040267574
+    },
+    "residuals_deg": [
+     -1.1368683772161603e-11,
+     0.001603755398150497
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 174.6632589698222,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 282.79599996294326,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92714154223687,
+     "lat": 34.34191112858682,
+     "alt": 0
+    },
+    "cep_m": 61.903212474447386,
+    "gdop": 54.495871833106975,
+    "errorEllipse": {
+     "semiMajor_m": 133.82598307095392,
+     "semiMinor_m": 76.47879856467502,
+     "rotation_deg": -74.82306904020325
+    },
+    "residuals_deg": [
+     -6.0254023992456496e-12,
+     0.0020659673314185056
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 116.02257352508798,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 89.5,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.4,
+    "position": {
+     "lon": 108.96050996515403,
+     "lat": 34.33809013160129,
+     "alt": 0
+    },
+    "cep_m": 188.559482790011,
+    "gdop": 203.29765818416337,
+    "errorEllipse": {
+     "semiMajor_m": 570.7554426525165,
+     "semiMinor_m": 69.84072785881686,
+     "rotation_deg": -1.3685057354999333
+    },
+    "residuals_deg": [
+     2.7853275241795927e-12,
+     -8.347027971922216e-05
+    ],
+    "geometryQuality": "poor"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 118.42257352508796,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 92.5,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.4,
+    "position": {
+     "lon": 108.95815198296282,
+     "lat": 34.33763406278282,
+     "alt": 0
+    },
+    "cep_m": 178.77899803123987,
+    "gdop": 195.55249878274645,
+    "errorEllipse": {
+     "semiMajor_m": 550.1370443785627,
+     "semiMinor_m": 57.23172759779149,
+     "rotation_deg": -3.8562458204400354
+    },
+    "residuals_deg": [
+     -3.467448550509289e-12,
+     0.0004168431548237095
+    ],
+    "geometryQuality": "poor"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 96.91410909599671,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 334.10962948927784,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94063043780237,
+     "lat": 34.35053529961494,
+     "alt": 0
+    },
+    "cep_m": 64.5082445217638,
+    "gdop": 57.11901078647484,
+    "errorEllipse": {
+     "semiMajor_m": 141.8746341092541,
+     "semiMinor_m": 77.28026489452988,
+     "rotation_deg": -34.17027002105948
+    },
+    "residuals_deg": [
+     -7.219114195322618e-12,
+     0.0037580605645644027
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.31410909599668,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 337.10962948927784,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94194427440188,
+     "lat": 34.34984108565479,
+     "alt": 0
+    },
+    "cep_m": 64.70849936808315,
+    "gdop": 57.335364478523395,
+    "errorEllipse": {
+     "semiMajor_m": 142.59014390569646,
+     "semiMinor_m": 77.2450841156494,
+     "rotation_deg": -44.543476721589094
+    },
+    "residuals_deg": [
+     -4.490630090003833e-12,
+     0.003428159948271059
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 97.47039797516351,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 333.3257632648658,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 246.0193171693295,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94033970745745,
+     "lat": 34.35050910389656,
+     "alt": 0
+    },
+    "cep_m": 53.22687030296195,
+    "gdop": 37.73103842449152,
+    "errorEllipse": {
+     "semiMajor_m": 109.57281568247578,
+     "semiMinor_m": 71.25568882903075,
+     "rotation_deg": -18.61589662925013
+    },
+    "residuals_deg": [
+     0.29267220277529304,
+     0.14943119820651418,
+     0.4226137431997472
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.87039797516348,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 336.3257632648658,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 241.61931716932952,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94161956467184,
+     "lat": 34.34987275932328,
+     "alt": 0
+    },
+    "cep_m": 50.92632168111922,
+    "gdop": 35.68163931065265,
+    "errorEllipse": {
+     "semiMajor_m": 98.98510410537743,
+     "semiMinor_m": 74.0277094876894,
+     "rotation_deg": -27.801535189617358
+    },
+    "residuals_deg": [
+     0.5031070105966933,
+     0.25479216789466363,
+     0.6361506218197519
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 70.35980617449417,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 8.038145461303372,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 328.53585106819276,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9520682089334,
+     "lat": 34.35991814072635,
+     "alt": 0
+    },
+    "cep_m": 55.40978797795068,
+    "gdop": 43.72737322586205,
+    "errorEllipse": {
+     "semiMajor_m": 145.24463488055,
+     "semiMinor_m": 42.999931037407116,
+     "rotation_deg": -60.20213736928835
+    },
+    "residuals_deg": [
+     0.5592148107558614,
+     -0.6753212278935621,
+     0.24049396238365262
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 72.75980617449414,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 11.038145461303372,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 324.1358510681928,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95268793626126,
+     "lat": 34.35865210058087,
+     "alt": 0
+    },
+    "cep_m": 50.22082234374224,
+    "gdop": 41.10215780083911,
+    "errorEllipse": {
+     "semiMajor_m": 138.77639341631658,
+     "semiMinor_m": 31.839615905043164,
+     "rotation_deg": -54.959574947699245
+    },
+    "residuals_deg": [
+     -0.44046736965879063,
+     0.42204311695047636,
+     -0.12157263503092963
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 172.26325896982235,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 279.79599996294326,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 236.3612450553494,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92781305965376,
+     "lat": 34.3409037731516,
+     "alt": 0
+    },
+    "cep_m": 58.83840217858173,
+    "gdop": 41.385312377831546,
+    "errorEllipse": {
+     "semiMajor_m": 116.89319548010734,
+     "semiMinor_m": 82.9994567318231,
+     "rotation_deg": -70.17789193941995
+    },
+    "residuals_deg": [
+     -0.05414046301234521,
+     -0.08596419011712442,
+     0.2865932145618899
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 174.6632589698222,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 282.79599996294326,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 231.96124505534942,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92748201071728,
+     "lat": 34.34139812750378,
+     "alt": 0
+    },
+    "cep_m": 58.43317675376555,
+    "gdop": 41.070749429489126,
+    "errorEllipse": {
+     "semiMajor_m": 115.64977833831462,
+     "semiMinor_m": 82.8661950055466,
+     "rotation_deg": -71.74219014382913
+    },
+    "residuals_deg": [
+     1.2464573848270675,
+     1.4545718825191898,
+     -5.307398342451222
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 116.02257352508798,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 89.5,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 162.5009751503169,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.961718139678,
+     "lat": 34.33806820611757,
+     "alt": 0
+    },
+    "cep_m": 76.90549961174302,
+    "gdop": 57.95446340208561,
+    "errorEllipse": {
+     "semiMajor_m": 186.19256965994404,
+     "semiMinor_m": 75.07972390806353,
+     "rotation_deg": -5.138457164467975
+    },
+    "residuals_deg": [
+     0.734193055944445,
+     -0.15500691420487556,
+     -0.3126619119670977
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 118.42257352508796,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 92.5,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 158.1009751503168,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.96347856946666,
+     "lat": 34.33730369015446,
+     "alt": 0
+    },
+    "cep_m": 87.11295393219969,
+    "gdop": 66.04106698585883,
+    "errorEllipse": {
+     "semiMajor_m": 213.3348844697819,
+     "semiMinor_m": 82.61535820798163,
+     "rotation_deg": -9.533266446861768
+    },
+    "residuals_deg": [
+     3.016435597926545,
+     -0.6183878293564362,
+     -1.3743068607600435
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 96.91410909599671,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 334.10962948927784,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 246.12230438751283,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9405397297251,
+     "lat": 34.350608286900595,
+     "alt": 0
+    },
+    "cep_m": 52.98529579150654,
+    "gdop": 37.47738808137756,
+    "errorEllipse": {
+     "semiMajor_m": 108.07668957568838,
+     "semiMinor_m": 71.93110995380556,
+     "rotation_deg": -17.85366212664212
+    },
+    "residuals_deg": [
+     0.30080113042345147,
+     0.14872955377859398,
+     0.4289399443520665
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.31410909599668,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 337.10962948927784,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 241.72230438751285,
+      "bearingError_deg": 2.5
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94179887898304,
+     "lat": 34.34997975189734,
+     "alt": 0
+    },
+    "cep_m": 50.73201487838493,
+    "gdop": 35.48860477191248,
+    "errorEllipse": {
+     "semiMajor_m": 97.5905391397385,
+     "semiMinor_m": 74.76215282012198,
+     "rotation_deg": -26.947771306171518
+    },
+    "residuals_deg": [
+     0.5096812460760134,
+     0.2525878932804062,
+     0.6390139466895448
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 97.47039797516351,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 333.3257632648658,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 246.0193171693295,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 158.0844985497863,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94045472279068,
+     "lat": 34.35051239682897,
+     "alt": 0
+    },
+    "cep_m": 45.599547867739915,
+    "gdop": 27.85407203247591,
+    "errorEllipse": {
+     "semiMajor_m": 91.84715844871658,
+     "semiMinor_m": 63.06892059915132,
+     "rotation_deg": -39.75125332054198
+    },
+    "residuals_deg": [
+     0.36476385366057684,
+     -0.20406700494510233,
+     0.5798490245095422,
+     -0.5117579822504013
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.87039797516348,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 336.3257632648658,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 241.61931716932952,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 159.68449854978633,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94119071445829,
+     "lat": 34.34984587977342,
+     "alt": 0
+    },
+    "cep_m": 45.67447918884373,
+    "gdop": 27.830104922363667,
+    "errorEllipse": {
+     "semiMajor_m": 90.8757584953502,
+     "semiMinor_m": 64.29488593761646,
+     "rotation_deg": -47.2321393388291
+    },
+    "residuals_deg": [
+     0.12421646740676806,
+     1.7169047784768736,
+     -0.019405275731287475,
+     2.489461674191375
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 70.35980617449417,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 8.038145461303372,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 328.53585106819276,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 97.91106934669119,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95202984900598,
+     "lat": 34.35998263163002,
+     "alt": 0
+    },
+    "cep_m": 44.048383044106856,
+    "gdop": 28.77936357288669,
+    "errorEllipse": {
+     "semiMajor_m": 106.87796468180996,
+     "semiMinor_m": 42.76831710554137,
+     "rotation_deg": -56.099807494361755
+    },
+    "residuals_deg": [
+     0.7378149617297822,
+     -0.5694581655008619,
+     0.15534509409036446,
+     -0.2553437895646766
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 72.75980617449414,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 11.038145461303372,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 324.1358510681928,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 99.51106934669122,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95239517755383,
+     "lat": 34.35904524007805,
+     "alt": 0
+    },
+    "cep_m": 42.64678696634648,
+    "gdop": 29.09703234271931,
+    "errorEllipse": {
+     "semiMajor_m": 111.49624906707419,
+     "semiMinor_m": 33.388367771201615,
+     "rotation_deg": -52.92191006806647
+    },
+    "residuals_deg": [
+     0.6759388213681063,
+     1.2538466156620416,
+     -0.6362293892420325,
+     -2.1164020272551056
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 172.26325896982235,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 279.79599996294326,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 236.3612450553494,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 195.18491602709184,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92785692792863,
+     "lat": 34.34087905242158,
+     "alt": 0
+    },
+    "cep_m": 55.52374049802518,
+    "gdop": 33.861043119568166,
+    "errorEllipse": {
+     "semiMajor_m": 110.9616444445189,
+     "semiMinor_m": 77.67005420683212,
+     "rotation_deg": -79.06806969068901
+    },
+    "residuals_deg": [
+     0.11217792501338408,
+     -0.02440032188621899,
+     0.372909670578224,
+     -0.41368947667965017
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 174.6632589698222,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 282.79599996294326,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 231.96124505534942,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 196.78491602709187,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92747167977815,
+     "lat": 34.3413901597634,
+     "alt": 0
+    },
+    "cep_m": 55.61123007567911,
+    "gdop": 33.980823301891334,
+    "errorEllipse": {
+     "semiMajor_m": 112.18552007443418,
+     "semiMinor_m": 76.74340832943572,
+     "rotation_deg": -81.68947884810366
+    },
+    "residuals_deg": [
+     1.196098068234278,
+     1.4860255157993265,
+     -5.3029636297700335,
+     0.0051462723986333
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 116.02257352508798,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 89.5,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 162.5009751503169,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 136.91794014655886,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.96178826633445,
+     "lat": 34.33807287925996,
+     "alt": 0
+    },
+    "cep_m": 72.37928505721234,
+    "gdop": 46.71655409620845,
+    "errorEllipse": {
+     "semiMajor_m": 171.35597454848207,
+     "semiMinor_m": 74.53933734964036,
+     "rotation_deg": -7.786344664206248
+    },
+    "residuals_deg": [
+     0.7849858468288744,
+     -0.13324512968415547,
+     -0.13973462310832474,
+     -0.3380130875013947
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 118.42257352508796,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 92.5,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 158.1009751503168,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 138.51794014655889,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.96306081403324,
+     "lat": 34.33730432558474,
+     "alt": 0
+    },
+    "cep_m": 80.01359320453874,
+    "gdop": 52.14261066018657,
+    "errorEllipse": {
+     "semiMajor_m": 193.16717819932344,
+     "semiMinor_m": 78.66429183478135,
+     "rotation_deg": -11.682547354819674
+    },
+    "residuals_deg": [
+     2.767630688315762,
+     -0.7017890833566867,
+     -2.3062283011024647,
+     1.6847377966760746
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 96.91410909599671,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 334.10962948927784,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 246.12230438751283,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 157.19332048295655,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94065360243897,
+     "lat": 34.350614406894046,
+     "alt": 0
+    },
+    "cep_m": 45.51855097474529,
+    "gdop": 27.778692756989532,
+    "errorEllipse": {
+     "semiMajor_m": 91.27730275059449,
+     "semiMinor_m": 63.36360424701139,
+     "rotation_deg": -39.88940728044928
+    },
+    "residuals_deg": [
+     0.38035057853454646,
+     -0.20809195762097943,
+     0.5747832499606886,
+     -0.517841601429609
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.31410909599668,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 337.10962948927784,
+      "bearingError_deg": 1.8
+     },
+     {
+      "sensorId": "sc",
+      "bearing_deg": 241.72230438751285,
+      "bearingError_deg": 2.5
+     },
+     {
+      "sensorId": "sd",
+      "bearing_deg": 158.79332048295646,
+      "bearingError_deg": 2.2
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94139025973625,
+     "lat": 34.349941353679164,
+     "alt": 0
+    },
+    "cep_m": 45.55507147790037,
+    "gdop": 27.728331217448645,
+    "errorEllipse": {
+     "semiMajor_m": 90.14309902862158,
+     "semiMinor_m": 64.62187966307322,
+     "rotation_deg": -47.579316063882665
+    },
+    "residuals_deg": [
+     0.11092407232928281,
+     1.6725107352427813,
+     0.05772523166484689,
+     2.420405316727738
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 97.47039797516351,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 163.07172477727,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 263.1404517866713,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.9405289836372,
+     "lat": 34.350563317155725,
+     "alt": 0
+    },
+    "cep_m": 22.64790474415398,
+    "gdop": 19.146460713491123,
+    "errorEllipse": {
+     "semiMajor_m": 65.29455002560772,
+     "semiMinor_m": 11.647541851932553,
+     "rotation_deg": -72.52690963608158
+    },
+    "residuals_deg": [
+     0.6403817197405033,
+     -0.020092324509960235,
+     0.5012021356774881
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.87039797516348,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 166.07172477727,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 258.7404517866712,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94064889680627,
+     "lat": 34.34984239730201,
+     "alt": 0
+    },
+    "cep_m": 24.212433204033413,
+    "gdop": 19.420871705858822,
+    "errorEllipse": {
+     "semiMajor_m": 65.03379326653048,
+     "semiMinor_m": 17.223496368371553,
+     "rotation_deg": -75.2089213507055
+    },
+    "residuals_deg": [
+     -0.24496274225737125,
+     0.015950793395745677,
+     -0.1841970031434812
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 70.35980617449417,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 50.57889188637523,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 348.63810124601014,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95203092500302,
+     "lat": 34.36001866152134,
+     "alt": 0
+    },
+    "cep_m": 45.82981336019635,
+    "gdop": 33.00562068595726,
+    "errorEllipse": {
+     "semiMajor_m": 99.6604373275323,
+     "semiMinor_m": 56.037926389798585,
+     "rotation_deg": 88.44465496502218
+    },
+    "residuals_deg": [
+     0.8214072696775361,
+     -0.5068273884224936,
+     0.0984829357922763
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 72.75980617449414,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 53.57889188637523,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 344.23810124601005,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.95161277529434,
+     "lat": 34.35893990927368,
+     "alt": 0
+    },
+    "cep_m": 40.51084262355458,
+    "gdop": 29.05059697566609,
+    "errorEllipse": {
+     "semiMajor_m": 86.93165660187955,
+     "semiMinor_m": 50.69648208864052,
+     "rotation_deg": -83.4506801933409
+    },
+    "residuals_deg": [
+     0.929485231443266,
+     -0.5217951419420501,
+     0.09208454740735306
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 172.26325896982235,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 221.50746007358066,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 243.1668481989501,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92786509804029,
+     "lat": 34.340846907972605,
+     "alt": 0
+    },
+    "cep_m": 62.29374672266567,
+    "gdop": 45.21527457246472,
+    "errorEllipse": {
+     "semiMajor_m": 138.5197211541899,
+     "semiMinor_m": 73.11182877842661,
+     "rotation_deg": 75.89417924966939
+    },
+    "residuals_deg": [
+     0.12384305449916155,
+     -0.42472423627225453,
+     0.5015752427318603
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 174.6632589698222,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 224.50746007358066,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 238.76684819895013,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.92719357525846,
+     "lat": 34.340183982091,
+     "alt": 0
+    },
+    "cep_m": 69.79718054817087,
+    "gdop": 50.83276971421242,
+    "errorEllipse": {
+     "semiMajor_m": 156.6007771144466,
+     "semiMinor_m": 80.52230951090037,
+     "rotation_deg": 72.02516761060087
+    },
+    "residuals_deg": [
+     -0.5695768873081306,
+     2.685714759137653,
+     -3.1348596729118583
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 116.02257352508798,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 127.12510313008232,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 155.0437617248358,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96196911731971,
+     "lat": 34.33794201656163,
+     "alt": 0
+    },
+    "cep_m": 128.4600305527338,
+    "gdop": 102.27614917773917,
+    "errorEllipse": {
+     "semiMajor_m": 341.28283834161033,
+     "semiMinor_m": 95.13649426492539,
+     "rotation_deg": -53.447398841015506
+    },
+    "residuals_deg": [
+     0.6895763185533497,
+     -0.6535276749233958,
+     0.12355481527310985
+    ],
+    "geometryQuality": "fair"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 118.42257352508796,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 130.12510313008232,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 150.64376172483583,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.65,
+    "position": {
+     "lon": 108.96636403431728,
+     "lat": 34.333807972666776,
+     "alt": 0
+    },
+    "cep_m": 189.34439095654528,
+    "gdop": 155.33128781470703,
+    "errorEllipse": {
+     "semiMajor_m": 524.90486629192,
+     "semiMinor_m": 118.35788538650797,
+     "rotation_deg": -50.24231684836373
+    },
+    "residuals_deg": [
+     -0.20815472516835598,
+     0.23594804234977573,
+     -0.059375185003545994
+    ],
+    "geometryQuality": "fair"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 96.91410909599671,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 155.53262432003498,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 263.54796335530955,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94073403503903,
+     "lat": 34.35066703501319,
+     "alt": 0
+    },
+    "cep_m": 23.39607968190872,
+    "gdop": 19.94167184341318,
+    "errorEllipse": {
+     "semiMajor_m": 68.14264202935084,
+     "semiMinor_m": 11.341236625001873,
+     "rotation_deg": -64.82417213078445
+    },
+    "residuals_deg": [
+     0.6605431207142942,
+     -0.01927968279403558,
+     0.4871603850630777
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 99.31410909599668,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "se",
+      "bearing_deg": 158.53262432003498,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sf",
+      "bearing_deg": 259.14796335530957,
+      "bearingError_deg": 1.9
+     }
+    ]
+   ],
+   "out": {
+    "model_id": "EM-CM-S-006",
+    "confidence": 0.85,
+    "position": {
+     "lon": 108.94097613201647,
+     "lat": 34.34995133719895,
+     "alt": 0
+    },
+    "cep_m": 24.671861733809646,
+    "gdop": 19.898776476127974,
+    "errorEllipse": {
+     "semiMajor_m": 66.7967804778972,
+     "semiMinor_m": 17.021333107323272,
+     "rotation_deg": -67.21731302814634
+    },
+    "residuals_deg": [
+     -0.09401192317113782,
+     0.005786388675346643,
+     -0.06465359977653407
+    ],
+    "geometryQuality": "good"
+   }
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 60,
+      "bearingError_deg": 2
+     },
+     {
+      "sensorId": "sb",
+      "bearing_deg": 60,
+      "bearingError_deg": 1.8
+     }
+    ]
+   ],
+   "out": null
+  },
+  {
+   "in": [
+    [
+     {
+      "sensorId": "sa",
+      "bearing_deg": 90,
+      "bearingError_deg": 2
+     }
+    ]
+   ],
+   "out": null
+  }
+ ]
+}

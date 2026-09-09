@@ -36,7 +36,7 @@
         "entity_id": { "$ref": "#/$defs/id" },
         "site_id": { "$ref": "#/$defs/id" }
       },
-      "oneOf": [ { "required": ["entity_id"] }, { "required": ["site_id"] } ]
+      "anyOf": [ { "required": ["entity_id"] }, { "required": ["site_id"] } ]
     },
     "node": {
       "type": "object",

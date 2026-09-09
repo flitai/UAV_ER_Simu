@@ -66,6 +66,30 @@ class ScenarioExampleTest(unittest.TestCase):
     def test_at_least_one_example_exists(self):
         self.assertTrue(self.files, f"没有找到任何场景文件：{_PATTERN}")
 
+    def test_all_scenarios_are_in_canonical_form(self):
+        """入库的场景文件必须**已经**是编辑器的规范序列化形式（D-049 ⑧、D-054）。
+
+        规范形式 = ``JSON.stringify(doc, null, 2)`` 加末尾换行。不守这一条的后果是隐蔽的：
+        文件照样能用、引擎照样认，但任何人第一次在界面上改一个数字并保存，整份文件就被
+        规范化重写，字节哈希随之变化，于是所有记着这份场景哈希的地方（航迹黄金基准、
+        回归夹具的 ``scenario_ref.sha256``）一起失效——而这与他改的那个数字毫无关系。
+
+        2026-09-09 实测撞到过一次：``demo-03`` 的浮点写成 ``120.0`` / ``130.0``，
+        规范形式里是 ``120`` / ``130``，相差 24 个字节，第一次自动保存就把三处哈希打掉了。
+        """
+        for path in self.files:
+            with self.subTest(path=os.path.relpath(path, _ROOT)):
+                with open(path, "rb") as fh:
+                    raw = fh.read()
+                doc = json.loads(raw)
+                canonical = (json.dumps(doc, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                self.assertEqual(
+                    raw, canonical,
+                    f"{os.path.basename(path)} 不是规范序列化形式："
+                    f"盘上 {len(raw)} 字节，规范形式 {len(canonical)} 字节。"
+                    "用编辑器保存一次，或按规范形式重写这个文件",
+                )
+
     def test_all_scenarios_match_schema(self):
         for path in self.files:
             with self.subTest(path=os.path.relpath(path, _ROOT)):
