@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import type { Catalog } from '../api/catalog.js'
 import { serialize, parse as parseDoc, type DiagramDoc } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
-import { compile, nodeId, parseChain, splitNodeId, switchMode } from './compile.js'
+import { compile, nodeId, parseChain, splitNodeId, switchMode, switchTxVariant } from './compile.js'
 import { emptyChain, missingParams, slotState, SLOTS, TAP_ORDER, tapLabel, type ChainState } from './model.js'
 import { freqPlan, planChecks, planOk } from './plan.js'
 import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
@@ -477,4 +477,47 @@ test('单源单站：byEntity 不产生，编译结果与 D-053 时代一模一�
   for (const id of Object.keys(back.slots)) {
     assert.equal(back.slots[id as keyof typeof back.slots].byEntity, undefined, id)
   }
+})
+
+test('换变体：上一个变体的参数不写进新组件（2026-09-09 用户实测）', () => {
+  // 走真实路径：链路是从框图解出来的，`parseChain` 会把三个由频率计划派生的参数留在状态里。
+  // 换成回放源后它们一个都不该写出去，否则引擎报「FileReplaySource 未知参数 center_frequency_Hz」，
+  // 而报文指向的是用户刚选的那个组件，看不出问题出在换变体上
+  const c = parseChain(parseOk(DEFAULT_CHAIN_TEXT))!
+  assert.equal(c.slots.tx.params.center_frequency_Hz, 2440500000, '前提：派生参数确实留在状态里')
+  const replay = { ...c, slots: { ...c.slots, tx: { ...c.slots.tx, variant: 1 } } }
+  const tx = compile(replay, cat, scenario).doc.nodes.find((n) => n.id === 'tx')!
+  assert.equal(tx.type, 'FileReplaySource')
+  const known = new Set(cat.components.find((x) => x.type === 'FileReplaySource')!.params.map((x) => x.name))
+  assert.deepEqual(Object.keys(tx.params).filter((k) => !known.has(k)), [])
+
+  // 不写 ≠ 丢弃：状态里还留着，换回去照旧写出来
+  assert.equal(replay.slots.tx.params.center_frequency_Hz, 2440500000)
+  const backNode = compile(c, cat, scenario).doc.nodes.find((n) => n.id === 'tx')!
+  assert.equal(backNode.params.center_frequency_Hz, 2440500000)
+})
+
+test('换变体：目录还没到手时不做过滤（不知道谁认识谁，交给引擎判）', () => {
+  const c = parseChain(parseOk(DEFAULT_CHAIN_TEXT))!
+  const replay = { ...c, slots: { ...c.slots, tx: { ...c.slots.tx, variant: 1 } } }
+  const tx = compile(replay, null, scenario).doc.nodes.find((n) => n.id === 'tx')!
+  assert.ok('center_frequency_Hz' in tx.params)
+})
+
+test('辐射源变体与信号源模式联动，不造出「全合成 + 回放源」这种状态（2026-09-09）', () => {
+  const c = synthetic()
+  const r = switchTxVariant(c, 1)
+  assert.equal(r.mode, 'replay', '选回放源即进实测回放模式')
+  assert.equal(r.scenario, null, '回放数据与场景无关（防线二、三）')
+  // 编译出来就是回放模式该有的样子：只剩回放源与检测，没有场景绑定
+  const ids = compile(r, cat, null).doc.nodes.map((n) => n.id)
+  assert.deepEqual(ids, ['tx', 'det'])
+
+  // 换回场景辐射源落到全合成；混合增强用的也是变体 0，从回放态分不出来，取更基础的那个
+  const back = switchTxVariant(r, 0)
+  assert.equal(back.mode, 'synthetic')
+  assert.equal(back.slots.tx.variant, 0)
+  // 混合增强里选变体 0 不该把模式改掉
+  const mixed = switchMode(synthetic(), 'mixed')
+  assert.equal(switchTxVariant(mixed, 0).mode, 'mixed')
 })

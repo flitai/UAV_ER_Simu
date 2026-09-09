@@ -436,6 +436,37 @@ try {
     foreign === true && st.app.diagram.nodes === nodes0 + 1 && st.app.chain?.template === null,
     `${st.app.diagram.nodes} 节点，foreign ${foreign}`)
 
+  // ---------- 辐射源换成实测片段回放（2026-09-09 用户实测的报错）----------
+  // 放在最后跑：走一遍回放模式会把前端六个环节的参数留在文档之外，切回来时它们不在框图里
+  // 也就不在链路状态里（见 WORKLOG 同日「换模式会丢前端参数」），后面的步骤会因此提交不了。
+  // 先从画布留下的「不是本模板」状态新建一条干净的链。
+  await page.evaluate("(document.querySelector('[data-action=chain-new]').click(), true)")
+  await page.waitFor((s) => s.app?.chain?.template === 'chain-v1', { label: '新建一条干净的典型链路' })
+  await sleep(400)
+
+  // ---------- ②c 辐射源换成实测片段回放（2026-09-09 用户实测的报错）----------
+  // 曾经的毛病：变体与模式各管各的，切成回放源后模式仍是「全合成」，上一个变体的
+  // center_frequency_Hz 照样写进 FileReplaySource，运行时报「[param] 未知参数」；
+  // 同时回放源不绑场景，emitterIds 反解成空，整条链的场景绑定静默消失
+  await page.evaluate("(document.querySelector('[data-slot=tx]').click(), true)")
+  await sleep(200)
+  await page.evaluate(`(() => { const el = document.querySelector('[data-slot-variant=tx]');
+    el.value = '1'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  const rp = await page.waitFor((s) => s.app?.chain?.mode === 'replay', { label: '切回放源即进回放模式' })
+  check('辐射源选「实测片段回放」即切到实测回放模式，不留下「全合成 + 回放源」', rp.app.chain.mode === 'replay')
+  const txErr = await page.evaluate("document.querySelector('[data-slot=tx] [data-slot-error]')?.textContent ?? ''")
+  check('辐射源卡片上不再报未知参数', !txErr.includes('未知参数'), txErr || '（无错误）')
+  const txPending = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
+  check('改为提示回放源真正缺的那一项（数据标识）', txPending.includes('data_id'), txPending)
+
+  // 切回场景辐射源：模式回全合成，场景与目标自动认回来
+  await page.evaluate(`(() => { const el = document.querySelector('[data-slot-variant=tx]');
+    el.value = '0'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  const rb = await page.waitFor((s) => s.app?.chain?.mode === 'synthetic'
+    && (s.app?.chain?.emitterIds ?? []).length > 0, { label: '切回后场景认回来' })
+  check('切回「场景辐射源」后场景与目标自动认回来，不停在「先选场景」',
+    rb.app.chain.scenarioId === 'demo-01' && rb.app.chain.emitterIds.includes('uav-1'),
+    `${rb.app.chain.scenarioId} / ${rb.app.chain.emitterIds.join()}`)
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 } catch (e) {
   check('端到端流程未抛异常', false, String(e).slice(0, 300))

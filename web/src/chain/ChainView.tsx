@@ -19,7 +19,7 @@ import { emitters as sceneEmitters, setPath, sites as sceneSites, type Obj } fro
 import { fieldsFor, modelOf, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
 import { DeviceRow } from '../scene/ObjectForm.js'
 import type { ScenarioDoc } from '../state/types.js'
-import { compile, parseChain, switchMode } from './compile.js'
+import { compile, parseChain, switchMode, switchTxVariant } from './compile.js'
 import {
   INST_SEP,
   MODE_LABEL, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER,
@@ -73,9 +73,16 @@ function useSceneSync(
   // 效应会拿旧场景的站源列表把选择填上；旧场景的 id 恰好在新场景里也存在时
   // （demo-01 的 site-1 / uav-1 在 demo-03 里都有），之后就再也不会重填——
   // 切到三站场景只勾中一个站。这是切片 ⑥b 实测撞到的。
+  const sceneLoaded = s.scene.scenario.status === 'ok' && !!s.scene.scenario.id
   const sceneInSync = !!chain && !!chain.scenario
     && chain.scenario.scenario_id === s.scene.scenario.id
     && s.scene.scenario.status === 'ok'
+  // 非回放模式却没有场景引用时，认下当前载入的这份。
+  // 「全合成而没有场景」是个跑不起来的状态——`SceneEmitterSource` 要靠场景绑定拿内部参数，
+  // 没有绑定引擎直接拒。它最容易在「切到实测回放再切回来」之后出现：进回放模式会把
+  // `scenario` 置空（防线二、三：回放数据与场景无关），切回来却没人把它填回去，
+  // 界面上只剩「无人机（先选场景）」（2026-09-09 用户实测撞到）。
+  const needAdopt = !!chain && chain.mode !== 'replay' && !chain.scenario && sceneLoaded
   const needPick = !!chain && chain.mode !== 'replay' && sceneInSync
     && ((siteIdList.length > 0 && chain.siteIds.length === 0)
       || (emitterIdList.length > 0 && chain.emitterIds.length === 0))
@@ -84,18 +91,21 @@ function useSceneSync(
   const needSha = !!chain && chain.mode !== 'replay' && sceneInSync
     && !!chain.scenario && chain.scenario.sha256 !== s.scene.scenario.sha256
     && !!s.scene.scenario.sha256
-  const needSync = needPick || needSha
+  const needSync = needPick || needSha || needAdopt
   useEffect(() => {
     if (!needSync || !chain) return
+    const scenario = chain.scenario
+      ? { ...chain.scenario, sha256: s.scene.scenario.sha256 }
+      : (needAdopt ? { scenario_id: s.scene.scenario.id!, sha256: s.scene.scenario.sha256 } : null)
     const next: ChainState = {
       ...chain,
-      scenario: chain.scenario ? { ...chain.scenario, sha256: s.scene.scenario.sha256 } : null,
+      scenario,
       siteIds: chain.siteIds.length ? chain.siteIds : siteIdList,
       emitterIds: chain.emitterIds.length ? chain.emitterIds : emitterIdList,
     }
     const { doc } = compile(next, catalog, scenarioDoc)
     dispatch({ type: 'diagram/setDoc', text: serialize(doc, catalog), label: '按载入的场景补齐站点、目标与哈希' })
-  }, [needSync, siteIdList.join(','), emitterIdList.join(','), s.scene.scenario.sha256])
+  }, [needSync, needAdopt, siteIdList.join(','), emitterIdList.join(','), s.scene.scenario.sha256])
 }
 
 /**
@@ -303,7 +313,11 @@ export function ChainView() {
                     error={errBySlot.get(def.id) ?? null}
                     onSelect={setSelected}
                     onVariant={(id, variant) =>
-                      commit({ ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], variant } } }, '换变体')}
+                      // 辐射源的变体就是信号源模式，两个入口必须联动（见 switchTxVariant）
+                      commit(id === 'tx'
+                        ? switchTxVariant(chain, variant)
+                        : { ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], variant } } },
+                        '换变体')}
                     onBypass={(id, bypass) =>
                       commit({ ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], bypass } } }, bypass ? '旁路' : '启用')}
                   />

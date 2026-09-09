@@ -116,8 +116,15 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
     for (const k of keys) {
       const v = params[k]
       if (v === undefined || v === '') continue
-      // 与目录缺省相同的不写：目录缺省变了，既有框图自动跟随
       const ps = spec?.params.find((p) => p.name === k)
+      // 这个组件不认识的参数一律不写。槽位的参数是**按槽位**存的，换了变体（辐射源由
+      // 「场景辐射源」换成「实测片段回放」、信道由场景绑定换成自由空间）之后，上一个变体的
+      // 参数还留在状态里；照原样写进去，引擎装载时报 `param 未知参数`，而报文指向的是
+      // 用户刚选的那个组件，看不出问题出在换变体上（2026-09-09 用户实测撞到）。
+      // 不写 ≠ 丢弃：它们仍留在链路状态里，换回原变体即恢复。目录还没到手（spec 为 null）时
+      // 不做这个判断——那时候不知道谁认识谁，宁可原样写出去让引擎去判。
+      if (spec && !ps) continue
+      // 与目录缺省相同的不写：目录缺省变了，既有框图自动跟随
       if (ps && ps.default !== undefined && ps.default !== null && ps.default === v) continue
       out[k] = v
     }
@@ -584,6 +591,26 @@ function def_replay_variant(): number {
 }
 
 /** 切模式时保留已填参数，只改变体与不适用状态（10 报告 §2.2 最后一句）。 */
+/**
+ * 辐射源变体与信号源模式是**同一件事**（10 报告 §2.2「一条链、三种信号源模式」）：
+ * 「场景辐射源」= 全合成或混合增强，「实测片段回放」= 实测回放。
+ *
+ * 卡片上的变体下拉与试验设置栏的模式下拉因此是同一个设置的两个入口，必须联动。
+ * 不联动的后果是造出一个设计里没有的状态——模式说「全合成」而辐射源是回放源：
+ * 回放源不绑场景，`emitterIds` 反解出来是空的，于是 `hasScene` 为假，
+ * 整条链的场景绑定连同 `scn` 节点一起**静默消失**，界面上只看到「无人机（先选场景）」
+ * （2026-09-09 用户实测撞到）。
+ *
+ * 由「实测回放」换回「场景辐射源」时落到**全合成**：混合增强也用变体 0，从回放态分不出
+ * 用户想要哪一个，取更基础的那个。
+ */
+export function switchTxVariant(chain: ChainState, variant: number): ChainState {
+  const wantReplay = variant === def_replay_variant()
+  if (wantReplay && chain.mode !== 'replay') return switchMode(chain, 'replay')
+  if (!wantReplay && chain.mode === 'replay') return switchMode(chain, 'synthetic')
+  return { ...chain, slots: { ...chain.slots, tx: { ...chain.slots.tx, variant } } }
+}
+
 export function switchMode(chain: ChainState, mode: ChainMode): ChainState {
   const next: ChainState = { ...chain, mode, slots: { ...chain.slots } }
   const txVariant = mode === 'replay' ? def_replay_variant() : 0
