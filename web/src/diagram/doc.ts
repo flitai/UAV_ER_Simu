@@ -56,7 +56,27 @@ export interface DiagramDoc {
 }
 
 export type ChainMode = 'synthetic' | 'replay' | 'mixed'
-export interface TemplateRef { template_id: string; mode: ChainMode; version: number }
+export interface TemplateRef {
+  template_id: string
+  mode: ChainMode
+  version: number
+  /**
+   * 这一版没有编译成节点的槽位，它们的参数暂存在这里（D-055）。
+   *
+   * 回放模式下的前端环节、旁路的环节、组件还没实现的环节都不会变成节点；而典型链路视图
+   * 每次都从框图重新解出来，**不在文档里的参数就等于不存在**。不存这一段的话，
+   * 「全合成 → 实测回放 → 全合成」走一圈，接收机与 ADC 的参数就悄没声地没了（铁律 15）。
+   *
+   * 引擎与服务端只校验取值、不解释语义——槽位是视图概念，它们看到的是一张普通框图。
+   */
+  inactive_slots?: Record<string, InactiveSlot>
+}
+
+export interface InactiveSlot {
+  variant?: number
+  params?: Record<string, ParamValue>
+  by_entity?: Record<string, Record<string, ParamValue>>
+}
 
 export const SCHEMA_VERSION = 'cuav-diagram/1'
 

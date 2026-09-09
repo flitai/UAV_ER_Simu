@@ -521,3 +521,63 @@ test('辐射源变体与信号源模式联动，不造出「全合成 + 回放�
   const mixed = switchMode(synthetic(), 'mixed')
   assert.equal(switchTxVariant(mixed, 0).mode, 'mixed')
 })
+
+test('换模式不丢前端参数：暂存进 template_ref 再取回来（D-055）', () => {
+  // 界面每改一次都「编译成文档 → 再解回来」，视图不持有第二份状态。
+  // 回放模式下前端六个环节不变成节点，参数只能存在 template_ref 里，否则一去不返（铁律 15）
+  const cycle = (c: ChainState): ChainState =>
+    parseChain(parseOk(serialize(compile(c, cat, scenario).doc, cat)))!
+
+  const start = parseChain(parseOk(DEFAULT_CHAIN_TEXT))!
+  assert.equal(start.slots.adc.params.full_scale_dBm, -20)
+  assert.equal(start.slots.rx_fe.params.gain_dB, 20)
+
+  const replay = cycle(switchTxVariant(start, 1))
+  assert.equal(replay.mode, 'replay')
+  // 前端两个环节的参数确实被存下来了
+  const doc = compile(replay, cat, scenario).doc
+  assert.deepEqual(Object.keys(doc.template_ref!.inactive_slots ?? {}), ['rx_fe', 'adc'])
+  assert.equal(doc.template_ref!.inactive_slots!.adc!.params!.full_scale_dBm, -20)
+
+  const back = cycle(switchTxVariant(replay, 0))
+  assert.equal(back.mode, 'synthetic')
+  assert.equal(back.slots.adc.params.full_scale_dBm, -20, 'ADC 满量程要活着回来')
+  assert.equal(back.slots.rx_fe.params.gain_dB, 20, '前端增益要活着回来')
+})
+
+test('旁路与未实现的环节同样不丢参数（D-055）', () => {
+  const cycle = (c: ChainState): ChainState =>
+    parseChain(parseOk(serialize(compile(c, cat, scenario).doc, cat)))!
+  const c = parseChain(parseOk(DEFAULT_CHAIN_TEXT))!
+  const withParams: ChainState = {
+    ...c,
+    slots: {
+      ...c.slots,
+      chan: { ...c.slots.chan, params: { channels: 16 }, bypass: true },  // 用户勾了旁路
+      ddc: { ...c.slots.ddc, params: { decim: 4 } },                      // 组件还没实现
+    },
+  }
+  const back = cycle(withParams)
+  assert.equal(back.slots.chan.params.channels, 16)
+  assert.equal(back.slots.ddc.params.decim, 4)
+})
+
+test('逐实体的单独设置也跟着暂存（D-055 + D-054）', () => {
+  const cycle = (c: ChainState): ChainState =>
+    parseChain(parseOk(serialize(compile(c, cat, scenario3).doc, cat)))!
+  const c = multi(['site-1', 'site-2', 'site-3'], ['uav-1'])
+  const withOverride: ChainState = {
+    ...c,
+    slots: { ...c.slots, ddc: { ...c.slots.ddc, params: { decim: 4 }, byEntity: { 'site-2': { decim: 8 } } } },
+  }
+  const back = cycle(withOverride)
+  assert.equal(back.slots.ddc.params.decim, 4)
+  assert.deepEqual(back.slots.ddc.byEntity, { 'site-2': { decim: 8 } })
+})
+
+test('槽位全是活的时候不写 inactive_slots，既有框图逐字节不变（D-055）', () => {
+  const doc = compile(parseChain(parseOk(DEFAULT_CHAIN_TEXT))!, cat, scenario).doc
+  // 缺省链里 ddc / chan / df / loc 都不活，但参数全空，所以整段不写
+  assert.equal(doc.template_ref!.inactive_slots, undefined)
+  assert.equal(serialize(doc, cat), DEFAULT_CHAIN_TEXT)
+})

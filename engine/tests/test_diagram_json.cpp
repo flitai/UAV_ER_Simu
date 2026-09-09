@@ -597,6 +597,58 @@ TEST_CASE("装载器：template_ref 只校验取值不解释语义（D-051）") 
     j = slice1();
     j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "synthetic"}, {"version", 0}};
     expect_fail(j, "template");
+}
+
+TEST_CASE("装载器：template_ref.inactive_slots 收下但不解释，取值仍要校验（D-055）") {
+    json base = {{"template_id", "chain-v1"}, {"mode", "replay"}, {"version", 1}};
+    LoadedDiagram d;
+    DiagramError e;
+
+    // 合法：三种键都给，原样带出——引擎不知道也不需要知道「槽位」是什么
+    json j = slice1();
+    json t = base;
+    t["inactive_slots"] = {
+        {"rx_fe", {{"params", {{"gain_dB", 20}, {"noise_mode", "thermal"}}}}},
+        {"adc", {{"variant", 0}, {"params", {{"full_scale_dBm", -20}}}}},
+        {"ddc", {{"by_entity", {{"site-2", {{"decim", 8}}}}}}},
+    };
+    j["template_ref"] = t;
+    REQUIRE_MESSAGE(try_load(j, d, e), e.message);
+    CHECK(d.template_ref["inactive_slots"]["adc"]["params"]["full_scale_dBm"] == -20);
+
+    // 不给也合法：这一段是可选的，既有框图不写它
+    j = slice1();
+    j["template_ref"] = base;
+    REQUIRE_MESSAGE(try_load(j, d, e), e.message);
+    CHECK_FALSE(d.template_ref.contains("inactive_slots"));
+
+    // 未知键一律拒绝，这一段不能是例外。按既有分工报 schema 而不是 template：
+    // 「取值错误报 template，缺字段与未知键仍报 schema」（docs/diagram-format.md §7.1）
+    j = slice1();
+    t = base;
+    t["inactive_slots"] = {{"adc", {{"bypass", true}}}};
+    j["template_ref"] = t;
+    CHECK(contains(expect_fail(j, "schema").message, "bypass"));
+
+    // 参数取值只能是数值、字符串或布尔
+    j = slice1();
+    t = base;
+    t["inactive_slots"] = {{"adc", {{"params", {{"bits", json::array({1, 2})}}}}}};
+    j["template_ref"] = t;
+    CHECK(contains(expect_fail(j, "template").message, "bits"));
+
+    // 形状不对也拦得住
+    j = slice1();
+    t = base;
+    t["inactive_slots"] = "adc";
+    j["template_ref"] = t;
+    expect_fail(j, "template");
+
+    j = slice1();
+    t = base;
+    t["inactive_slots"] = {{"adc", {{"variant", -1}}}};
+    j["template_ref"] = t;
+    CHECK(contains(expect_fail(j, "template").message, "variant"));
 
     j = slice1();
     j["template_ref"] = {{"template_id", "chain-v1"}, {"mode", "synthetic"}, {"version", 1.5}};

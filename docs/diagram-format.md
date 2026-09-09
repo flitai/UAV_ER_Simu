@@ -161,10 +161,37 @@
 | `template_id` | string | 是 | `[a-z0-9_-]{1,64}`，当前只有 `chain-v1` |
 | `mode` | enum | 是 | `synthetic` / `replay` / `mixed`，即三种信号源模式（04 §4.3） |
 | `version` | integer | 是 | 描述符版本，不小于 1；与 `template_id` 一起决定槽位表 |
+| `inactive_slots` | object | 否 | **这一版没有编译成节点的槽位，参数暂存在这里**（2026-09-09，D-055）。见下 |
 
 ```json
 "template_ref": { "template_id": "chain-v1", "mode": "synthetic", "version": 1 }
 ```
+
+`inactive_slots` 的形状是 `{ 槽位标识: { variant?, params?, by_entity? } }`：
+
+```json
+"template_ref": {
+  "template_id": "chain-v1", "mode": "replay", "version": 1,
+  "inactive_slots": {
+    "rx_fe": { "params": { "gain_dB": 20, "noise_mode": "thermal" } },
+    "adc":   { "params": { "full_scale_dBm": -20 } },
+    "ddc":   { "params": { "decim": 4 }, "by_entity": { "site-2": { "decim": 8 } } }
+  }
+}
+```
+
+**为什么要有这一段。** 典型链路视图不持有第二份状态——画面每次都从框图重新解出来，改完再编译回去。
+好处是撤销重做与脏标记全都白得，代价是**不在文档里的参数就等于不存在**。而回放模式下的前端六个环节
+（发射天线、传播信道、接收天线、接收机前端、ADC、DDC）是「不适用」的，用户勾了旁路的环节与组件还没实现的
+环节也一样，它们都不会变成节点。不存这一段的话，「全合成 → 实测回放 → 全合成」走一圈，接收机增益与
+ADC 满量程就悄没声地没了，再点运行报「缺必填参数」，而报文与用户刚做的那个动作毫无关系（铁律 15）。
+
+**写入规则**（它决定了既有框图逐字节不变）：只存用户改过的东西——`variant` 非零、`params` 非空、
+`by_entity` 非空；三样都空就不为那个槽位写条目，一个条目都没有就整段不写。槽位按链路顺序排、
+参数名按字母序排，序要稳，否则往返就不是逐字节相同了。
+
+**引擎与服务端只校验取值、不解释语义**：槽位是视图概念，它们看到的是一张普通框图。
+取值错误报 `template`，未知键仍报 `schema`（与本节其余字段同一分工）。
 
 载入时若节点 `id` 与 `type` 与描述符不符（用户在自由画布改过），前端按普通框图打开并提示，
 不试图猜测对应关系。取值错误报 `template`，缺字段与未知键仍报 `schema`。

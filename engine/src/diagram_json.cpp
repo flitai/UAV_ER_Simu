@@ -564,6 +564,69 @@ bool FileScenarioResolver::resolve(const std::string& scenario_id, std::string& 
     return true;
 }
 
+bool check_param_scalar(const nlohmann::json& v) {
+    return v.is_number() || v.is_string() || v.is_boolean();
+}
+
+// `template_ref.inactive_slots`：{ 槽位 → { variant?, params?, by_entity? } }（D-055）。
+bool check_inactive_slots(const nlohmann::json& j, DiagramError& err) {
+    const char* where = "template_ref.inactive_slots";
+    if (!j.is_object()) {
+        err = fail("template", "", "", std::string(where) + " 必须是对象");
+        return false;
+    }
+    static const std::set<std::string> kSlot = {"variant", "params", "by_entity"};
+    for (nlohmann::json::const_iterator it = j.begin(); it != j.end(); ++it) {
+        const std::string at = std::string(where) + "." + it.key();
+        if (!it.value().is_object()) {
+            err = fail("template", "", "", at + " 必须是对象");
+            return false;
+        }
+        if (!check_keys(it.value(), kSlot, at.c_str(), "", err)) return false;
+        if (it.value().contains("variant")) {
+            const nlohmann::json& v = it.value()["variant"];
+            if (!v.is_number_integer() || v.get<long long>() < 0) {
+                err = fail("template", "", "", at + ".variant 必须是不小于 0 的整数");
+                return false;
+            }
+        }
+        if (it.value().contains("params")) {
+            const nlohmann::json& p = it.value()["params"];
+            if (!p.is_object()) {
+                err = fail("template", "", "", at + ".params 必须是对象");
+                return false;
+            }
+            for (nlohmann::json::const_iterator q = p.begin(); q != p.end(); ++q) {
+                if (!check_param_scalar(q.value())) {
+                    err = fail("template", "", "", at + ".params." + q.key() + " 必须是数值、字符串或布尔");
+                    return false;
+                }
+            }
+        }
+        if (it.value().contains("by_entity")) {
+            const nlohmann::json& b = it.value()["by_entity"];
+            if (!b.is_object()) {
+                err = fail("template", "", "", at + ".by_entity 必须是对象");
+                return false;
+            }
+            for (nlohmann::json::const_iterator e = b.begin(); e != b.end(); ++e) {
+                if (!e.value().is_object()) {
+                    err = fail("template", "", "", at + ".by_entity." + e.key() + " 必须是对象");
+                    return false;
+                }
+                for (nlohmann::json::const_iterator q = e.value().begin(); q != e.value().end(); ++q) {
+                    if (!check_param_scalar(q.value())) {
+                        err = fail("template", "", "",
+                                   at + ".by_entity." + e.key() + "." + q.key() + " 必须是数值、字符串或布尔");
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
 bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolver* resolver,
                   const LoadOptions& options, LoadedDiagram& out, DiagramError& err) {
     out = LoadedDiagram();
@@ -630,7 +693,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
     if (j.contains("template_ref")) {
         const nlohmann::json& t = j["template_ref"];
         if (!need_object(t, "template_ref", "", err)) return false;
-        static const std::set<std::string> kKeys = {"template_id", "mode", "version"};
+        static const std::set<std::string> kKeys = {"template_id", "mode", "version", "inactive_slots"};
         if (!check_keys(t, kKeys, "template_ref", "", err)) return false;
         for (const char* k : {"template_id", "mode", "version"}) {
             if (!need(t, k, "template_ref", "", err)) return false;
@@ -648,6 +711,10 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
             err = fail("template", "", "", "template_ref.version 必须是不小于 1 的整数");
             return false;
         }
+        // 这一版没编译成节点的槽位，参数暂存在这里（D-055）。引擎照样不解释它——
+        // 槽位是视图概念，引擎看到的只是一张普通框图；但取值仍要校验，
+        // 否则「未知键一律拒绝」在这一段就破了个口子。
+        if (t.contains("inactive_slots") && !check_inactive_slots(t["inactive_slots"], err)) return false;
         out.template_ref = t;
     }
 

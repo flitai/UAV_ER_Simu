@@ -111,7 +111,24 @@
       "properties": {
         "template_id": { "$ref": "#/$defs/id" },
         "mode": { "enum": ["synthetic", "replay", "mixed"] },
-        "version": { "type": "integer", "minimum": 1 }
+        "version": { "type": "integer", "minimum": 1 },
+        "inactive_slots": { "$ref": "#/$defs/inactive_slots" }
+      }
+    },
+    "inactive_slots": {
+      "description": "这一版没有编译成节点的槽位，它们的参数暂存在这里（D-055）。回放模式下的前端环节、旁路的环节、组件还没实现的环节都属于此列；不存的话切一次模式就把用户填的值丢了。引擎与服务端只校验取值、不解释语义。",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "variant": { "type": "integer", "minimum": 0 },
+          "params": { "type": "object", "additionalProperties": { "$ref": "#/$defs/param_value" } },
+          "by_entity": {
+            "type": "object",
+            "additionalProperties": { "type": "object", "additionalProperties": { "$ref": "#/$defs/param_value" } }
+          }
+        }
       }
     },
     "trace": {

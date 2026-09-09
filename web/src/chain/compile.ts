@@ -14,7 +14,9 @@
 
 import type { Catalog } from '../api/catalog.js'
 import { findComponent } from '../api/catalog.js'
-import type { DiagramDoc, DiagramEdge, DiagramNode, ObservationPoint, ParamValue } from '../diagram/doc.js'
+import type {
+  DiagramDoc, DiagramEdge, DiagramNode, InactiveSlot, ObservationPoint, ParamValue,
+} from '../diagram/doc.js'
 import { SCHEMA_VERSION } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { emitters as sceneEmitters, sites as sceneSites } from '../scene/editor/scenarioOps.js'
@@ -75,6 +77,52 @@ export function splitNodeId(id: string): { base: string; rest: string } | null {
     if (id.startsWith(b + INST_SEP)) return { base: b, rest: id.slice(b.length + INST_SEP.length) }
   }
   return null
+}
+
+/** 键按名排序后原样拷贝；空对象返回 undefined。序要稳，否则往返就不是逐字节相同了。 */
+function sortedCopy<T>(o: Record<string, T> | undefined): Record<string, T> | undefined {
+  if (!o) return undefined
+  const keys = Object.keys(o).sort()
+  if (keys.length === 0) return undefined
+  const out: Record<string, T> = {}
+  for (const k of keys) out[k] = o[k]!
+  return out
+}
+
+/**
+ * 把「这一版没有编译成节点」的槽位参数收进 `template_ref.inactive_slots`（D-055）。
+ *
+ * 哪些槽位会落到这里：回放模式下不适用的前端六个环节、用户勾了旁路的 DDC 与信道化、
+ * 组件还没实现的那几个。它们不变成节点，而链路状态每次都从框图重解，
+ * 不存下来就等于用户填的值被静默丢掉（铁律 15）。
+ *
+ * 只存**用户改过的东西**：`variant` 非零、`params` 非空、`byEntity` 非空。三样都空就不为这个
+ * 槽位写条目；一个条目都没有就整段不写——`DEFAULT_CHAIN_TEXT` 与既有回归夹具因此逐字节不变。
+ */
+function stashInactive(
+  chain: ChainState, activeSlots: readonly SlotId[],
+): Record<string, InactiveSlot> | undefined {
+  const active = new Set<SlotId>(activeSlots)
+  const out: Record<string, InactiveSlot> = {}
+  for (const def of SLOTS) {
+    if (active.has(def.id)) continue
+    const cfg = chain.slots[def.id]
+    const entry: InactiveSlot = {}
+    if (cfg.variant !== 0) entry.variant = cfg.variant
+    const params = sortedCopy(cfg.params)
+    if (params) entry.params = params
+    const byEnt = cfg.byEntity ? sortedCopy(
+      Object.fromEntries(Object.entries(cfg.byEntity).map(([k, v]) => [k, sortedCopy(v)!]).filter(([, v]) => v)),
+    ) : undefined
+    if (byEnt) entry.by_entity = byEnt as Record<string, Record<string, ParamValue>>
+    if (Object.keys(entry).length > 0) out[def.id] = entry
+  }
+  // 槽位按链路顺序写，不按字母序：读框图源码的人是顺着链读的
+  const ids = SLOTS.map((d) => d.id).filter((id) => id in out)
+  if (ids.length === 0) return undefined
+  const ordered: Record<string, InactiveSlot> = {}
+  for (const id of ids) ordered[id] = out[id]!
+  return ordered
 }
 
 /**
@@ -377,6 +425,10 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
     },
     template_ref: { template_id: TEMPLATE_ID, mode: chain.mode, version: TEMPLATE_VERSION },
   }
+  // 没编译成节点的槽位，把参数暂存进 template_ref（D-055）。
+  // 全空就整段不写——既有框图因此逐字节不变。
+  const stash = stashInactive(chain, activeSlots)
+  if (stash) doc.template_ref!.inactive_slots = stash
   if (taps.length) doc.observation_points = taps
   if (chain.scenario && chain.mode !== 'replay') doc.scenario_ref = { ...chain.scenario }
   return { doc, nodeSlot, activeSlots, tapAt }
@@ -570,10 +622,21 @@ export function parseChain(doc: DiagramDoc): ChainState | null {
     // 绑源的槽位都不在（例如整条前段被跳过）：留空，由界面提示重选
   }
 
-  // 没出现的可旁路槽位记为旁路；不可旁路又没出现的（回放模式的前端环节）保持缺省
+  // 没出现的可旁路槽位记为旁路；不可旁路又没出现的（回放模式的前端环节）保持缺省。
+  // 参数从 `template_ref.inactive_slots` 取回来（D-055）——这些槽位没有节点，
+  // 参数只可能存在那里；不取的话切一次模式就把用户填的值丢了。
+  const stash = t.inactive_slots ?? {}
   for (const def of SLOTS) {
     if (seen.has(def.id)) continue
     if (def.bypassable) chain.slots[def.id].bypass = true
+    const kept = stash[def.id]
+    if (!kept) continue
+    chain.slots[def.id] = {
+      ...chain.slots[def.id],
+      ...(typeof kept.variant === 'number' ? { variant: kept.variant } : {}),
+      params: { ...(kept.params ?? {}) },
+      ...(kept.by_entity ? { byEntity: kept.by_entity } : {}),
+    }
   }
   if (mode === 'replay') chain.slots.tx.variant = def_replay_variant()
 

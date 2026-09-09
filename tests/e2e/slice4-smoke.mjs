@@ -437,12 +437,15 @@ try {
     `${st.app.diagram.nodes} 节点，foreign ${foreign}`)
 
   // ---------- 辐射源换成实测片段回放（2026-09-09 用户实测的报错）----------
-  // 放在最后跑：走一遍回放模式会把前端六个环节的参数留在文档之外，切回来时它们不在框图里
-  // 也就不在链路状态里（见 WORKLOG 同日「换模式会丢前端参数」），后面的步骤会因此提交不了。
-  // 先从画布留下的「不是本模板」状态新建一条干净的链。
+  // 先从画布留下的「不是本模板」状态新建一条干净的链
   await page.evaluate("(document.querySelector('[data-action=chain-new]').click(), true)")
   await page.waitFor((s) => s.app?.chain?.template === 'chain-v1', { label: '新建一条干净的典型链路' })
   await sleep(400)
+  // 新建的链是空的，先把 ADC 满量程填上——待会儿要验它转一圈还在不在
+  await page.evaluate("(document.querySelector('[data-slot=adc]').click(), true)")
+  await sleep(250)
+  await page.evaluate(setInput('[data-form=slot] [data-field=full_scale_dBm]', '-20'))
+  await sleep(300)
 
   // ---------- ②c 辐射源换成实测片段回放（2026-09-09 用户实测的报错）----------
   // 曾经的毛病：变体与模式各管各的，切成回放源后模式仍是「全合成」，上一个变体的
@@ -467,6 +470,14 @@ try {
   check('切回「场景辐射源」后场景与目标自动认回来，不停在「先选场景」',
     rb.app.chain.scenarioId === 'demo-01' && rb.app.chain.emitterIds.includes('uav-1'),
     `${rb.app.chain.scenarioId} / ${rb.app.chain.emitterIds.join()}`)
+
+  // 前端参数要活着回来（D-055）：回放模式下这六个环节不变成节点，
+  // 参数暂存在 template_ref.inactive_slots 里，不存就一去不返（铁律 15）
+  await page.evaluate("(document.querySelector('[data-slot=adc]').click(), true)")
+  await sleep(250)
+  const fs = await page.evaluate("document.querySelector('[data-form=slot] [data-field=full_scale_dBm]')?.value ?? ''")
+  const pend = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
+  check('转一圈回来 ADC 满量程还在，不用重填（D-055）', fs === '-20' && pend === '', `满量程 ${fs || '空'}；${pend || '无待填'}`)
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 } catch (e) {
   check('端到端流程未抛异常', false, String(e).slice(0, 300))
