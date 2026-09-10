@@ -136,10 +136,20 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
   施加时一律用样点区间。生产端**每一轮都必须产出至少一帧**（哪怕重发上一帧），
   否则下游信道会因输入不齐而跳过一轮，调度器随即把没被消费的 IQ 块静默覆盖掉（08 报告 §9.3）。
 - `update_rate_Hz` 取值范围 [10, 100]，越界拒绝。
-- 首期 `path_loss_dB` = 自由空间路损（`c = 299792458`，D-009），**只装纯传播损耗**，不含发射功率与
-  收发天线增益——那三项在首期是全程常量，由施加类信道按场景绑定读取，不进 10–100 Hz 的慢变帧，
-  否则 `link` 事件与场景视图里的「路损」读数就名不副实了。`line_of_sight` 在平地假设下恒为真；
-  D3 落地后换刀口衍射附加损耗，帧结构不变。
+- `path_loss_dB` **只装纯传播损耗**，不含发射功率与收发天线增益——那三项在首期是全程常量，
+  由施加类信道按场景绑定读取，不进 10–100 Hz 的慢变帧，否则 `link` 事件与场景视图里的「路损」
+  读数就名不副实了。
+- **传播效应按档位组合**（D-058，自 2026-09-10）。`path_loss_dB = free_space_dB + extra_loss_dB`
+  这个恒等式在任何档位下都成立；**缺省档 E1 与此前逐数值相同**（自由空间路损，`c = 299792458`，D-009，
+  `extra_loss_dB` 恒 0）。E2 档加地面双径 **或** 城市经验（二选一，至多一个「替代型主模型」）、
+  统计阴影、大气与降雨，替代型主模型也走 `extra_loss_dB`（`extra = L_primary − L_fs`）。
+  档位与逐项开关是 `ScenarioSource` 的参数（`docs/component-catalog.md` §8），
+  公式与参数来源见模型卡 `models/channel/README.md`。
+  **帧结构一个字段不加**：`included_loss_terms` 只进链路报告（`link` 事件与 `links.jsonl`），
+  不进 `SceneParamFrame`——帧是 IQ 施加路径，加字段没有消费者。
+- `line_of_sight` 在平地假设下**仍恒为真**；E3（建筑遮挡与刀口绕射、几何视距判定）待 D3（切片 ⑤），
+  引擎收到 `prop_level = E3` 即报错。由此两处本期取不到：阴影 σ 表的 NLOS 一列、
+  测向误差预算的 `sigma_mp_nlos_deg`。**选了「城市」环境不等于做了遮挡判定。**
 - `doppler_Hz = -f · (dr/dt) / c`（远离为负）；`delay_s = d / c`。
 - 实体状态 `EntityState{t_s, id, lon, lat, alt_m, heading_deg, speed_mps, tx_on, center_Hz}`
   经引擎观察者回调上报，不做端口类型（端口只承载数据流）。

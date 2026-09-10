@@ -19,7 +19,8 @@ data/runs/<task_id>/
 ├── diagram.resolved.json        解析旁挂 cuav-resolved/1，只在有回放节点时写（docs/diagram-format.md §9）
 ├── events.jsonl                 引擎 stdout 事件原样落盘，每行带 seq；由 cuav_run 自己写，与 stdout 逐字节相同（B-4）；服务端不改它，也不对外暴露
 ├── track.jsonl                  实体状态，每行一个 EntityState（见 docs/scenario-format.md §7）
-├── links.jsonl                  链路帧读数，每行一条链路一帧（字段同 WS link 事件，docs/api-versions.md §4）
+├── links.jsonl                  链路帧读数，每行一条链路一帧（字段同 WS link 事件，docs/api-versions.md §4；
+│                                自 D-058 起含 free_space_dB / extra_loss_dB / included_loss_terms）
 ├── detections.jsonl             检测列表，每行一个 Detection
 ├── bearings.jsonl               单站测向报告，每行一条链路一帧（D-053，§5；生产者 DirectionFinder，惰性建文件）
 ├── positions.jsonl              多站定位报告，每行一个解（D-053，§5；生产者 MultiSiteLocator）

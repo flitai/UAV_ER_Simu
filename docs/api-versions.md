@@ -201,8 +201,11 @@
 - 文本帧信封 `{seq, task_id, type, t_s, payload}`：`seq` 每任务从 1 单调递增；`t_s` 为逻辑仿真时间（秒）。
 - 类型：`task.state`（运行态 `run_state ∈ {queued, running, finished, failed, cancelled}` 与结果四态 `result`，两者正交）、
   `progress`、`log`、`entity`（`EntityState`，见 `docs/scenario-format.md` §7）、`link`（每条链路每帧的 `SceneParamFrame`
-  读数：`link_id, t_s, line_of_sight, distance_m, azimuth_deg, elevation_deg, path_loss_dB, delay_s, doppler_Hz, valid_from_s,
-  valid_to_s, update_rate_Hz, state`）、`detection`、`bearing`（单站测向报告，D-053）、`position`（多站定位报告，D-053）、
+  读数：`link_id, t_s, line_of_sight, distance_m, azimuth_deg, elevation_deg, path_loss_dB, free_space_dB, extra_loss_dB,
+  included_loss_terms, delay_s, doppler_Hz, valid_from_s, valid_to_s, update_rate_Hz, state`；
+  后三项自 D-058 起有：`path_loss_dB = free_space_dB + extra_loss_dB` 恒成立，
+  `included_loss_terms` 是 `free_space / ground_reflection / urban_mean / shadow / weather` 的有序子集，
+  下游据此判断能不能再叠加同类损耗，E1 缺省档下 `extra` 恒 0、清单只有 `free_space`）、`detection`、`bearing`（单站测向报告，D-053）、`position`（多站定位报告，D-053）、
   `error`（含 `node_id`、`port`，与引擎 `--validate` 的定位一致）、
   `heartbeat`、`dropped{from, to, count}`。日志与错误文本里的服务器路径由服务端替换为 `data_id` 或相对名后再下发（04 §8.6）。
 - 二进制帧只承载 `spectrum` / `envelope` 行：帧头 `{seq, task_id, op_id, kind, row_index, row_len}` + Float32 载荷

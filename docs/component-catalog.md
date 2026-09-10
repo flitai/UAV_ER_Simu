@@ -98,7 +98,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 
 | 组件 | 类别 | M / E | 实现 |
 |---|---|---|---|
-| `ScenarioSource` 场景参数源 | data | M2 / E2 | cpp，`scene_bindable`，绑站点；**动态输出口** `link:<emitter_id>`，每条链路一路 `SceneParamFrame`；内部参数 `scenario_path` / `scenario_id` / `site_id`；实体与链路读数经观察者上报 |
+| `ScenarioSource` 场景参数源 | data | M2 / E2 | cpp，`scene_bindable`，绑站点；**动态输出口** `link:<emitter_id>`，每条链路一路 `SceneParamFrame`；内部参数 `scenario_path` / `scenario_id` / `site_id`；实体与链路读数经观察者上报；**传播效应的十五个参数在这里声明**（D-058，见 §8） |
 | `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | cpp，`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst，**归一化到发射期间单位功率（0 dBm）**；守铁律 4 |
 | `SceneBoundChannel` 场景绑定信道 | channel | M3 / E2 | cpp，`scene_bindable`；施加增益、整数样点时延、多普勒相位斜坡；帧内零阶保持；拒回放数据（防线二、三） |
 | `FreeSpaceChannel` 自由空间信道 | channel | M3 / E2 | cpp，定参 FSPL，原 P1-3 欠项，供解析锚点与标准算例用 |
@@ -130,3 +130,39 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 - [x] D-051 的接口部分（C-1，2026-09-07）：端口类型 `RecognitionList`（`port_types` 6 → 7、`port_compat` 36 → 49，既有 36 行逐字未变）；`PortSpec.optional`（为假时不输出，既有条目字节不变）。黄金基准 `tests/golden/component-catalog.json` 据此更新一次，WORKLOG 有记录
 - [x] D-051 的天线与接收机（C-2，2026-09-07）：新增 `AntennaGain` / `ReceiverFrontEnd` / `AdcQuantizer`，`SceneEmitterSource.emit_at_tx_power` 与 `SceneBoundChannel.gain_mode` 加参；组件 12 → 15，黄金基准更新一次
 - [ ] D-051 的其余组件（C-4 / C-5 / C-10 分批）：`FeatureExtractor` / `TemplateClassifier` / `Evaluator` / `DDC` / `Channelizer`；`EnergyDetector.noise_mode` 等加参（缺省保旧行为）
+- [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
+
+## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）
+
+传播效应的计算落在帧生产端（`geo::link_budget()`），所以参数声明在 `ScenarioSource` 的目录条目里；
+**界面上它们显示在「传播信道」卡片的右栏**——靠典型链路槽位表的代理机制（`SlotDef.proxy`，12 报告 §5.3），
+不是第二份声明。自由画布上它们照常出现在 `ScenarioSource` 节点的参数面板里。
+
+| 参数 | 类型 | 缺省 | 含义 |
+|---|---|---|---|
+| `prop_level` | 枚举 `E1 / E2 / E3` | `E1` | 精度档（01 的 E1–E4），直接写进溯源的 `model_level`。**`E3` 收到即报错**，待 D3（切片 ⑤） |
+| `prop_primary` | 枚举 `free_space / two_ray / urban_empirical` | `free_space` | 替代型主模型，**至多一个**（EM-P-13 §10.9 防重复计损） |
+| `prop_shadow` | 布尔 | `false` | 统计阴影（EM-P-08） |
+| `prop_weather` | 布尔 | `false` | 大气与降雨（EM-P-07） |
+| `env_class` | 枚举 `open / suburban / urban / dense_urban` | `urban` | 环境类别：决定城市经验的 `n` 与偏置、阴影的 σ |
+| `ground_type` | 枚举 `paved / grass / water / dirt / unknown` | `unknown` | 地面反射面材质，查 `εr / σ / 粗糙度` 表 |
+| `ground_roughness_m` | 数值 m | `-1` | RMS 粗糙度；`-1` = 按 `ground_type` 取表值 |
+| `coherence_rho` | 数值 [0, 1] | `1.0` | 双径的相干因子 `ρ_c` |
+| `max_fade_depth_dB` | 数值 dB | `20` | 双径相消的限幅 |
+| `path_loss_exponent` | 数值 | `-1` | 城市经验的 `n`；`-1` = 按 `env_class` 取表值 |
+| `ref_distance_m` | 数值 m | `100` | 城市经验的参考距离 `d0` |
+| `urban_loss_mode` | 枚举 `mean / mean_with_shadow_margin` | `mean` | 城市经验给均值还是「均值 + 90% 分位阴影裕度」 |
+| `shadow_sigma_dB` | 数值 dB | `-1` | 阴影标准差；`-1` = 按 `env_class` × 视距取表值 |
+| `shadow_corr_distance_m` | 数值 m | `50` | 阴影的空间相关距离 |
+| `rain_rate_mmh` | 数值 mm/h | `0` | 降雨率 |
+
+**三处哨兵用 `-1` 不用 `0`**：`0` 在 `ground_roughness_m`（理想光滑面）、`shadow_sigma_dB`（不起伏）、
+`path_loss_exponent`（无意义但可判别）上都是字面取值，不能同时当「按表取」的标记。
+
+**跨参数约束**在 `PropagationConfig::validate()` 一处（`geo/src/propagation.cpp`）：
+`E3` 未实现即拒；`E1` 却选了主模型或效应即拒（不静默忽略）；城市经验取 `mean_with_shadow_margin`
+再开 `prop_shadow` 即同源双计而拒。**还有一条只有前端拦得住**：`FreeSpaceChannel`（自由空间定参）
+不吃场景参数帧，因此只能是 `E1`——引擎的 `configure()` 看不见别的节点的类型，由典型链路的
+频率计划第 11 项 `propagation` 拦（12 报告 §4.5）。
+
+模型公式、参数来源与适用范围见模型卡 `models/channel/README.md`。
