@@ -26,6 +26,7 @@ import { handleTaskRoutes } from './tasks/routes.js'
 import { handleResultRoutes } from './products/routes.js'
 import { handleScenarioRoutes } from './scenarios.js'
 import { handleDiagramRoutes } from './diagrams.js'
+import { handleDatasetRoutes } from './datasets.js'
 import { DataIndex, ScenarioIndex } from './tasks/resolve.js'
 import { WsHub } from './ws/hub.js'
 
@@ -110,6 +111,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   // 框图读写（C-6）：路由自己管方法（PUT / DELETE 只在这里放行）
   if (path === '/api/v1/diagrams' || path.startsWith('/api/v1/diagrams/')) {
     if (handleDiagramRoutes({ root: ROOT, engine, dataIndex, scenarioIndex }, req, res, path)) return
+  }
+  // 实测数据清单（D-056）：只读摘要，供辐射源卡片挑回放片段；不出任何服务器路径
+  if (path === '/api/v1/datasets') {
+    if (await handleDatasetRoutes({ index: dataIndex }, req, res, url)) return
   }
   // 视窗抽取（B-7）：结果路由自己管方法与错误码
   if (path.startsWith('/api/v1/results/')) {

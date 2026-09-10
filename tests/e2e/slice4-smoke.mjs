@@ -462,6 +462,50 @@ try {
   const txPending = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
   check('改为提示回放源真正缺的那一项（数据标识）', txPending.includes('data_id'), txPending)
 
+  // ---------- 从下拉里挑一段录音（D-056）----------
+  // 此前这里是个空文本框，要用户背标识；现在是挑单，服务端按机型分组抽样
+  const picker = await waitDom(page,
+    "document.querySelector('[data-form=data-id] [data-field=data_id]')?.tagName === 'SELECT'", true)
+  check('回放源给的是挑单不是空文本框', picker === true)
+  const opts = await evalJson(page, `(() => {
+    const el = document.querySelector('[data-form=data-id] [data-field=data_id]')
+    return { n: el.options.length, note: document.querySelector('[data-datasets-note]')?.textContent ?? '' }
+  })()`)
+  check('挑单里列出了录音，并如实说明共多少段',
+    opts.n > 1 && /共 \d+ 段/.test(opts.note), `${opts.n} 项；${opts.note}`)
+
+  // 筛选：只留一种机型
+  await page.evaluate(setInput('[data-form=data-id] [data-field="data_id-filter"]', 'Mavic'))
+  await sleep(900)
+  const filtered = await evalJson(page, `(() => {
+    const el = document.querySelector('[data-form=data-id] [data-field=data_id]')
+    return Array.from(el.options).slice(1).map((o) => o.textContent)
+  })()`)
+  check('筛选按机型收窄挑单', filtered.length > 0 && filtered.every((t) => t.includes('Mavic')),
+    `${filtered.length} 项，首项 ${filtered[0] ?? '（无）'}`)
+
+  // 选第一条，标识写进框图
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=data-id] [data-field=data_id]')
+    el.value = el.options[1].value; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(500)
+  const noPending = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
+  check('选中即写进框图，不再提示缺数据标识', !noPending.includes('data_id'), noPending || '（无待填）')
+
+  // 真跑一遍：回放链能提交并跑完
+  for (let i = 0; i < 40; i++) {
+    if (await page.evaluate("(!document.querySelector('[data-action=run]')?.disabled)")) break
+    await sleep(250)
+  }
+  const beforeReplay = await evalJson(page, 'window.__probe().app.context.taskId')
+  await page.evaluate("(document.querySelector('[data-action=run]').click(), true)")
+  const rpTask = await page.waitFor((s) => s.app?.context?.taskId && s.app.context.taskId !== beforeReplay,
+    { label: '回放任务已提交', timeoutMs: 60000 })
+  check('挑完录音即可直接运行，不用手敲标识', !!rpTask.app.context.taskId, rpTask.app.context.taskId)
+  const rpDone = await page.waitFor((s) => ['finished', 'failed', 'cancelled'].includes(s.app?.task?.runState),
+    { label: '回放任务结束', timeoutMs: 180000 })
+  check('回放任务跑完', rpDone.app.task.runState === 'finished',
+    `${rpDone.app.task.runState} / ${rpDone.app.task.result}`)
+
   // 切回场景辐射源：模式回全合成，场景与目标自动认回来
   await page.evaluate(`(() => { const el = document.querySelector('[data-slot-variant=tx]');
     el.value = '0'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)

@@ -154,6 +154,52 @@ export async function getScenario(
   }
 }
 
+// ---------------------------------------------------------------- 实测数据清单（D-056）
+
+export interface DatasetRow {
+  data_id: string
+  kind: string
+  batch: string
+  /** 命中验收集：允许回放但界面要提示（D-038） */
+  holdout: boolean
+  class_name?: string
+  visibility?: string
+  distance_text?: string
+  split?: string
+  center_frequency_Hz?: number
+  sample_count?: number
+  quality?: string
+}
+
+export interface DatasetList {
+  total: number
+  matched: number
+  truncated: boolean
+  items: DatasetRow[]
+}
+
+/**
+ * 列实测数据片段的摘要（D-056）。服务端按机型分组抽样，`truncated` 说明没列全——
+ * 界面要如实说「共多少、列了多少」，不假装列全了。
+ * `dataId` 精确查一条：框图里已经填着的那个可能不在抽样里，也得能显示出来。
+ */
+export async function listDatasets(
+  opts: { q?: string; dataId?: string } = {}, base = '',
+): Promise<DatasetList> {
+  const p = new URLSearchParams()
+  if (opts.dataId) p.set('data_id', opts.dataId)
+  else if (opts.q) p.set('q', opts.q)
+  const r = await fetch(`${base}/api/v1/datasets${p.size ? `?${p}` : ''}`)
+  if (!r.ok) throw new Error(`GET /api/v1/datasets ${r.status}`)
+  const b = (await r.json()) as DatasetList
+  return {
+    total: Number(b.total) || 0,
+    matched: Number(b.matched) || 0,
+    truncated: !!b.truncated,
+    items: Array.isArray(b.items) ? b.items : [],
+  }
+}
+
 export type PutScenarioResult =
   | { ok: true; sha256: string; bytes: number }
   | { ok: false; code: string; message: string }

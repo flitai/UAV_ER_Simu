@@ -71,7 +71,14 @@ export async function makeDataFixture(root: string): Promise<void> {
   }
   await fsp.writeFile(join(dir, 'index.manifest.json'), JSON.stringify({
     schema: 'cuav-batch-index/1', directory: `data/iq/measured/${FX_BATCH}`,
-    products: [FX_IDS.ok, FX_IDS.holdout, FX_IDS.noFile].map((data_id) => ({ data_id })),
+    // 摘要字段（D-056）：列清单端点要用它们，两批真实数据的 truth 形状不同，这里各造一种
+    products: [
+      { data_id: FX_IDS.ok, center_frequency_Hz: 2.44e9, sample_count: 3000, quality: 'degraded',
+        truth: { class_name: '甲型机', visibility: 'LOS', distance_m: 10, split: 'test' } },
+      { data_id: FX_IDS.holdout, center_frequency_Hz: 2.44e9, sample_count: 3000, quality: 'valid',
+        truth: { class_name: '乙型机', distance_range_m: [20, 40] } },
+      { data_id: FX_IDS.noFile },
+    ],
   }))
   await fsp.writeFile(join(root, 'data', 'iq', 'measured', 'holdout.manifest.json'), JSON.stringify({
     schema: 'cuav-holdout-manifest/1', holdout: [{ data_id: FX_IDS.holdout }],

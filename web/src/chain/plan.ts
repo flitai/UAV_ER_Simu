@@ -176,8 +176,13 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
 
   // ADC 的量化噪声不得淹没热噪声。这一条是实测逼出来的：接收机前端不给增益时，
   // −111 dBm 的热噪声落在 −20 dBm 满量程、14 位 ADC 的最低有效位之下，
-  // 整条链的输出就只剩量化噪声，谱上看不出任何物理量。它只用本地参数算得出来，
-  // 不需要几何，因此在没有场景的模式下同样有效。
+  // 整条链的输出就只剩量化噪声，谱上看不出任何物理量。
+  //
+  // **回放模式不做这条检查**：那时 ADC 与接收机前端都是「回放数据已含」、根本不参与计算，
+  // 噪声系数又自 D-054 起由场景逐站带出而回放模式没有场景，于是它永远落到「算不出」那一支，
+  // 界面上挂着一个用户怎么也消不掉的红叉（2026-09-09 用户实测截图）。
+  // 原注释说它「不需要几何、在没有场景的模式下同样有效」，那是 D-054 之前的事了。
+  if (!replay) {
   const fsDbm = chain.slots.adc.params.full_scale_dBm
   const bits = Number(chain.slots.adc.params.bits ?? 14)
   // 噪声系数自 D-054 起由场景逐站带出，不再存在槽位参数里。多站时取**最差**的那一个：
@@ -203,6 +208,7 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
     })
   } else {
     out.push({ id: 'adc_floor', label: 'ADC 量化噪声不淹没热噪声', ok: false, detail: '缺满量程或采样率，算不出' })
+  }
   }
 
   // 多源多站的可行性（D-053 §2.5、§4）。这两项算不出几何也成立，因此不受模式限制。

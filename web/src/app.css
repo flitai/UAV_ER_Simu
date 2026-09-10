@@ -326,6 +326,12 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .chain-entity select { max-width: 280px; }
 .chain-scene-state { color: var(--muted, #7b7367); }
 .chain-scene-state[data-scene-save-state="dirty"] { color: #b45309; }
+/* 挑一段实测录音（D-056）：筛选框 + 下拉 + 说明行，竖排占满参数行的值列 */
+.data-pick { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.data-pick-q, .data-pick-sel { width: 100%; min-width: 0; }
+.data-pick-q { font-size: 12px; }
+.data-pick-note { font-size: 11px; color: var(--muted, #7b7367); line-height: 1.4; }
+
 /* 参数的设置范围：共用 / 同型号 / 单独 */
 .pp-scope { font-size: 11px; max-width: 76px; }
 

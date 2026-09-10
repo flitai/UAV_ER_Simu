@@ -157,12 +157,40 @@
 | GET | `/api/v1/results/{task}/{features\|recognitions\|truth}?t0&t1&stride` | JSON 数组，与 `track` / `links` / `detections` 共用同一个时间窗读取器；`features` 与 `recognitions` 按 `segment_id` 抽稀 |
 | GET | `/api/v1/results/{task}/metrics` | `metrics.json` 整文件（`cuav-metrics/1`，10 报告附录 C）。一次运行一份摘要，不按视窗抽；就绪语义同 JSONL 端点：运行中缺文件回 409，终态缺文件回 404 |
 
+### 3.1d 实测数据清单（2026-09-09，D-056）
+
+框图里对实测数据的引用只写 `data_id`（D-037），但用户得有办法知道**有哪些片段可选**。
+在此之前没有任何接口把清单给出去，回放模式只能手敲标识（2026-09-09 用户实测撞到）。
+这一个端点是 U-4「数据中心」里挑片段所需的最小集，整页仍留 U-4。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/datasets?q=&data_id=` | 实测数据片段的摘要清单 |
+
+响应 `{schema_version: "cuav-datasets/1", total, matched, truncated, items[]}`。
+`items[]` 每条：`data_id / kind / batch / holdout` 加可选的
+`class_name / visibility / distance_text / split / center_frequency_Hz / sample_count / quality`。
+
+四条约定：
+
+1. **只出摘要，不出任何路径**（04 §8.6、D-037）。`manifestRel` 这类字段一律不进响应，
+   服务端测试里有一条专门盯着它。
+2. **缺省按机型分组抽样**，每组最多 12 条、总共最多 400 条——挑片段挑的是机型不是某一片，
+   4714 条全塞进一个下拉既慢又没用。`total` 与 `matched` 如实给出、`truncated` 说明没列全，
+   界面因此能说清「共多少、列了多少」，不假装列全了（铁律 15）。
+3. `q` 在标识、批次、机型、视距、距离、划分上做子串匹配，用来找具体某一片。
+4. `data_id` 精确查一条：框图里已经填着的那个未必落在抽样里，界面要能把它显示出来，
+   不能因为没列到就当它不存在。
+
+**两批数据的真值字段不一样**（DroneRFb 有视距与精确距离，DroneRFa 只有频段状态与距离区间），
+所以 `distance_text` 是一段文字而不是数值：有精确值给 `10 m`，只有区间给 `20–40 m`，
+都没有就不给这个键——缺的就是缺的，不编一个精确值出来。
+
 ### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b，G-4 的场景端点已于 2026-09-06 实现并移入 3.1c）
 
 | 方法 | 路径 | 说明 | 步骤 |
 |---|---|---|---|
-| GET | `/api/v1/datasets` | 各批数据索引的非路径字段：`data_id`、数据集、通道、中心频率、样点数、分段数、质量四态与原因、`holdout` 标记、`calibration{offset_dB, source}`（若有）；不暴露 `.iq`，不暴露任何路径 | U-4 |
-| GET | `/api/v1/datasets/{data_id}` | 单条索引详情（非路径字段）与真值摘要 | U-4 |
+| GET | `/api/v1/datasets/{data_id}` | 单条索引详情（非路径字段）与真值摘要 | U-4（列表端点已先行实现，见 3.1d）|
 
 项目管理、审计日志、分片上传、模型包留 P2。参考实现 `C-UAV Model Demo/emcore/` 的 `emsvc`
 五个端点（`/api/v1/{health, models/catalog, radar/detect, signal/detect, los/check}`）只作命名参考。

@@ -581,3 +581,15 @@ test('槽位全是活的时候不写 inactive_slots，既有框图逐字节不�
   assert.equal(doc.template_ref!.inactive_slots, undefined)
   assert.equal(serialize(doc, cat), DEFAULT_CHAIN_TEXT)
 })
+
+test('回放模式不做 ADC 量化噪声这条检查（2026-09-09 用户实测截图）', () => {
+  // 回放模式下 ADC 与接收机前端都是「回放数据已含」、不参与计算，噪声系数又要靠场景带出，
+  // 这条检查只会永远落到「算不出」那一支，在界面上挂一个消不掉的红叉
+  const rp = switchMode(emptyChain('replay', 'chain-replay'), 'replay')
+  const ids = planChecks(rp, freqPlan(rp, null), null).map((k) => k.id)
+  assert.ok(!ids.includes('adc_floor'), `回放模式不该有这一条：${ids.join()}`)
+
+  // 全合成照常有
+  const syn = synthetic()
+  assert.ok(planChecks(syn, freqPlan(syn, scenario), scenario).map((k) => k.id).includes('adc_floor'))
+})

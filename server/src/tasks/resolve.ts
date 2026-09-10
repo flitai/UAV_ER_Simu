@@ -23,6 +23,28 @@ export interface DataEntry {
   batch: string
   /** 相对仓库根、`/` 分隔的清单路径 */
   manifestRel: string
+  /**
+   * 供人挑片段用的摘要（D-056）。索引本来就读进来了，顺手留住这几个字段，
+   * 免得列清单时再把 4714 条重读一遍。两批数据的 `truth` 字段并不一样
+   * （DroneRFb 有视距与精确距离，DroneRFa 只有频段状态与距离区间），
+   * 所以这里只取两边都能给出或缺了也无妨的那几项，缺的就是缺的，不编（铁律 15）。
+   */
+  label: DataLabel
+}
+
+export interface DataLabel {
+  /** 机型或背景类别；索引里没有就没有 */
+  class_name?: string
+  /** DroneRFb：LOS / NLOS */
+  visibility?: string
+  /** DroneRFb：精确距离；DroneRFa 只有区间，写在 distance_text 里 */
+  distance_text?: string
+  /** 出版方划分的训练 / 测试集 */
+  split?: string
+  center_frequency_Hz?: number
+  sample_count?: number
+  /** 八项质检的总状态：valid / degraded / invalid */
+  quality?: string
 }
 
 /** 各批数据索引的合并视图。懒加载，`load()` 可重复调用以刷新。 */
@@ -65,7 +87,7 @@ export class DataIndex {
             if (prev && prev.manifestRel !== rel) {
               throw new Error(`data_id 在多份索引里重复且位置不同：${id}（${prev.manifestRel} 与 ${rel}）`)
             }
-            table.set(id, { data_id: id, kind, batch: e.name, manifestRel: rel })
+            table.set(id, { data_id: id, kind, batch: e.name, manifestRel: rel, label: labelOf(p) })
           }
         }
         await readHoldout(join(kindDir, e.name, 'holdout.manifest.json'), holdout)
@@ -80,9 +102,49 @@ export class DataIndex {
     return this.table.get(dataId)
   }
 
+  /** 全部条目，按 data_id 排序。列清单用（D-056）。 */
+  all(): DataEntry[] {
+    return [...this.table.values()].sort((a, b) => a.data_id.localeCompare(b.data_id))
+  }
+
   isHoldout(dataId: string): boolean {
     return this.holdout.has(dataId)
   }
+}
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length > 0 ? v : undefined
+}
+
+function numOrUndef(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
+}
+
+/** 从索引里的一条产物提取展示摘要（D-056）。两批数据的 truth 形状不同，各取各的。 */
+function labelOf(p: Record<string, unknown>): DataLabel {
+  const t = (p.truth ?? {}) as Record<string, unknown>
+  const out: DataLabel = {}
+  const cls = str(t.class_name)
+  if (cls) out.class_name = cls
+  const vis = str(t.visibility)
+  if (vis) out.visibility = vis
+  const d = numOrUndef(t.distance_m)
+  const range = t.distance_range_m
+  if (d !== undefined) out.distance_text = `${d} m`
+  else if (Array.isArray(range) && range.length === 2) out.distance_text = `${range[0]}–${range[1]} m`
+  else {
+    const bin = str(t.distance_bin)
+    if (bin) out.distance_text = bin
+  }
+  const split = str(t.split)
+  if (split) out.split = split
+  const f = numOrUndef(p.center_frequency_Hz)
+  if (f !== undefined) out.center_frequency_Hz = f
+  const n = numOrUndef(p.sample_count)
+  if (n !== undefined) out.sample_count = n
+  const q = str(p.quality)
+  if (q) out.quality = q
+  return out
 }
 
 async function readJson(path: string): Promise<Record<string, unknown> | null> {

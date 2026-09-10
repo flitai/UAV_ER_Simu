@@ -3,6 +3,7 @@
 // 约束即时校验（提交时引擎再校验一次，这里只是便利）；清空即回缺省，框图不写该键。
 
 import { useMemo } from 'react'
+import { DataIdField } from '../data/DataIdField.js'
 import type { Catalog, ComponentSpec, ParamSpec } from '../api/catalog.js'
 import { findComponent } from '../api/catalog.js'
 import { formatEng, parseEng } from './format.js'
@@ -38,6 +39,12 @@ export function groupParams(spec: ComponentSpec): ParamSpec[][] {
 export function Field({ ps, value, onChange }: { ps: ParamSpec; value: ParamValue | undefined; onChange: (v: ParamValue | undefined) => void }) {
   const isDefault = value === undefined
   const shown = value !== undefined ? value : (ps.default ?? '')
+  // 实测数据的标识不是随便一个字符串：它必须是索引里真有的那一条。
+  // 渲染成普通文本框等于要用户背标识（2026-09-09 用户实测），换成挑单（D-056）。
+  // 放在 Field 里而不是各视图各写一份，典型链路与自由画布因此拿到的是同一个控件。
+  if (ps.name === 'data_id') {
+    return <DataIdField value={typeof shown === 'string' ? shown : ''} onChange={onChange} />
+  }
   if (ps.type === 'bool') {
     return (
       <select className={isDefault ? 'dim' : ''} data-field={ps.name} value={String(shown)}
