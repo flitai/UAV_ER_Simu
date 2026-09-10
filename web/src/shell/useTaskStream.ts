@@ -16,6 +16,9 @@ declare global {
       ws: { dropForTest: () => boolean; state: () => unknown }
       signal?: { zoomTo: (vp: { t0?: number; t1?: number; f0?: number; f1?: number }) => void; reset: () => void; csv: () => { name: string; text: string } | null }
       perf?: { reset: () => void }
+      /** 当前框图的规范文本。端到端拿它与盘上字节逐字节对拍（`slice4-smoke`），
+       *  也用来读节点参数——`__probe()` 的 diagram 只给计数，读不到参数（D-058 加）。 */
+      diagramText?: () => string
     }
   }
 }

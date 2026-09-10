@@ -401,6 +401,9 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .slot-param { font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
 .slot-note { padding: 0 10px; font-size: 11px; color: var(--muted, #7b7367); }
+/* 传播信道卡片上的效应清单（D-058）：一行写完这一档包含哪几项，放不下就截断 */
+.slot-effects { margin: 0 10px 4px; font-size: 11px; line-height: 1.35;
+  color: var(--muted, #7b7367); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot-error { padding: 4px 8px 0; font-size: 11px; color: #b91c1c; }
 .slot-bypass { padding: 4px 8px 0; font-size: 11px; display: flex; align-items: center; gap: 4px; }
 

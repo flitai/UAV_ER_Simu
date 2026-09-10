@@ -8,9 +8,10 @@ import { CATEGORY_COLOR, findComponent } from '../api/catalog.js'
 import { formatEng } from '../diagram/format.js'
 import type { ParamValue } from '../diagram/doc.js'
 import {
-  SLOT_BY_ID, instanceBadge, unavailableReason, variantOf,
+  SLOT_BY_ID, instanceBadge, proxyOf, unavailableReason, variantOf,
   type ChainState, type SlotId, type SlotState,
 } from './model.js'
+import { propView } from './effects.js'
 
 export interface SlotCardProps {
   chain: ChainState
@@ -100,6 +101,15 @@ export function SlotCard(p: SlotCardProps) {
         <div className="slot-note" data-slot-note>回放数据已含该环节，参数不可编辑</div>
       )}
       {p.state === 'bypass' && <div className="slot-note" data-slot-note>已旁路，信号直通</div>}
+
+      {/* 传播信道：卡片上只列这一档包含哪几项效应，逐项开关在右栏（D-058，用户拍板第 ① 条）。
+          清单由当前配置直接派生，不读引擎输出——它显示的是用户自己的选择。 */}
+      {proxyOf(p.id) && p.state === 'active' && (() => {
+        const v = propView(p.chain.slots[p.id].params)
+        return (
+          <div className="slot-effects" data-slot-effects={v.terms.join(',')}>{v.text}</div>
+        )
+      })()}
 
       {p.state === 'active' && (
         <div className="slot-body">

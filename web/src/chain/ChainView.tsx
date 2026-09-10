@@ -24,9 +24,12 @@ import {
   INST_SEP,
   MODE_LABEL, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER,
   DERIVED_PARAMS,
-  emptyChain, fromSceneOf, missingParams, ownerOf, paramScope, slotState, variantOf, writeParam,
+  emptyChain, fromSceneOf, missingParams, ownerOf, paramScope, proxyOf, slotState, splitProxy,
+  variantOf, writeParam,
   type ChainMode, type ChainState, type ParamScope, type SlotId, type TapId,
 } from './model.js'
+import { LEVEL_LABEL, LEVEL_UNAVAILABLE, propConflict, propView, visiblePropParams,
+  type PropLevel } from './effects.js'
 import { freqPlan, planChecks } from './plan.js'
 import { SlotCard } from './SlotCard.js'
 
@@ -194,8 +197,16 @@ export function ChainView() {
   // `tapAt` 说每个观测点这一版有没有落点——信道化旁路时 s5 就没有，圆点画灰的
   const { nodeSlot, tapAt } = compile(chain, catalog, scenarioDoc)
   const errBySlot = new Map<string, string>()
+  // 传播参数声明在 `ScenarioSource` 上、编译进隐含节点 `scn`，但用户是在「传播信道」卡片上改的，
+  // 报错落到「试验设置」那一格他会找不到（D-058，12 §5.4）。`nodeSlot` 区分不了同一节点上的两类参数，
+  // 因此按报文里出现的参数名反查代理集合——命中即改挂 `ch`，命不中照旧。
+  const proxySlots = SLOTS.filter((d) => !!d.proxy)
   for (const e of s.diagram.validation?.errors ?? []) {
-    const slot = e.node_id ? nodeSlot[e.node_id] : undefined
+    let slot = e.node_id ? nodeSlot[e.node_id] : undefined
+    if (slot === 'scn') {
+      const hit = proxySlots.find((d) => d.proxy!.params.some((n) => e.message.includes(n)))
+      if (hit) slot = hit.id
+    }
     errBySlot.set(slot ?? '__setup', `[${e.code}] ${e.message}`)
   }
 
@@ -594,6 +605,11 @@ function SlotPanel(p: {
         </div>
       )}
 
+      {/* 传播效应（D-058）：参数声明在 `ScenarioSource` 上、编译进隐含节点 `scn`，
+          但用户要在这张卡片上配。按当前档位决定显隐——十五行一次全摆出来找不到东西。 */}
+      <PropagationGroup slot={p.id} chain={p.chain} catalog={p.catalog}
+        chVariantType={v.type} onParam={p.onParam} />
+
       <div className="group">
         {(spec.params as ParamSpec[]).filter((ps) => !ps.internal).map((ps) => {
           if (ps.name in fixed) {
@@ -656,6 +672,80 @@ function SlotPanel(p: {
         })}
       </div>
     </div>
+  )
+}
+
+/**
+ * 传播效应分组（D-058，12 §5.2）。它渲染的是**别的组件的 `ParamSpec`**——
+ * 参数只声明一次（在真正用它的 `ScenarioSource` 上），这里只负责显示与转发。
+ *
+ * `ch` 的 `owner` 是 `shared`，所以一律按共用底值写（`scope = 'shared'`），
+ * 不给「同型号 / 单独」三档：传播信道全图一份，用户 2026-09-09 明确要求它不随实体选择变化。
+ */
+function PropagationGroup(p: {
+  slot: SlotId
+  chain: ChainState
+  catalog: Catalog | null
+  chVariantType: string
+  onParam: (name: string, v: ParamValue | undefined, scope: ParamScope, targets: readonly string[]) => void
+}) {
+  const px = proxyOf(p.slot)
+  if (!px) return null
+  const host = p.catalog ? findComponent(p.catalog, px.type) : null
+  if (!host) {
+    return (
+      <div className="group placeholder" data-form="propagation">
+        传播效应：目录里没有 {px.type}，重启应用服务即可刷新目录
+      </div>
+    )
+  }
+  const cur = splitProxy(p.slot, p.chain.slots[p.slot].params).proxy
+  const view = propView(p.chain.slots[p.slot].params)
+  const show = new Set(visiblePropParams(view))
+  const conflict = propConflict(view, p.chVariantType)
+
+  return (
+    <div className="group" data-form="propagation">
+      <div className="pp-title">传播效应 · 全图共用</div>
+      <div className="pp-row" data-prop-summary={view.terms.join(',')}>
+        <span>本档包含</span><span className="dim">{view.text}</span>
+      </div>
+      {view.level === 'E1' && (
+        <div className="pp-row"><span /><span className="dim">
+          E1 只算自由空间路损、多普勒与时延
+        </span></div>
+      )}
+      {conflict && <div className="pp-warn" data-prop-conflict>{conflict}</div>}
+
+      {(host.params as ParamSpec[]).filter((ps) => !ps.internal && show.has(ps.name)).map((ps) => (
+        <label className="pp-row" key={ps.name}>
+          <span title={ps.description}>{ps.name}{ps.unit ? ` (${ps.unit})` : ''}</span>
+          {ps.name === 'prop_level'
+            ? <LevelField value={cur[ps.name]} onChange={(x) => p.onParam(ps.name, x, 'shared', [])} />
+            : <Field ps={ps} value={cur[ps.name]} onChange={(x) => p.onParam(ps.name, x, 'shared', [])} />}
+          <em className="pp-range">{range(ps)}</em>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * 档位下拉。**E3 保留但置灰**（D-058）：隐藏会让人以为这条链只有两档。
+ * 界面置灰拦不住手写的框图，所以引擎 `configure()` 那一侧也拒——两头都做（铁律 15）。
+ */
+function LevelField(p: { value: ParamValue | undefined; onChange: (v: ParamValue | undefined) => void }) {
+  const cur = typeof p.value === 'string' ? p.value : 'E1'
+  const levels: PropLevel[] = ['E1', 'E2', 'E3']
+  return (
+    <select className={p.value === undefined ? 'dim' : ''} data-field="prop_level" value={cur}
+      onChange={(e) => p.onChange(e.target.value)}>
+      {levels.map((l) => (
+        <option key={l} value={l} disabled={!!LEVEL_UNAVAILABLE[l]}>
+          {LEVEL_LABEL[l]}{LEVEL_UNAVAILABLE[l] ? `（${LEVEL_UNAVAILABLE[l]}）` : ''}
+        </option>
+      ))}
+    </select>
   )
 }
 

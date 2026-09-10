@@ -78,6 +78,9 @@ export function AppShell() {
         csv: () => signalHooks.csv?.() ?? null,
       },
       perf: { reset: () => longTasks.current?.reset() },
+      // 框图的规范文本。探针里的 diagram 只给节点数与连线数，读不到参数；
+      // 端到端要核对「传播参数写进了 scn、没写进 ch」这类事就得看原文（D-058）。
+      diagramText: () => store.getState().diagram.text,
     }
     return () => { longTasks.current?.dispose(); longTasks.current = null }
   }, [s.ui.devMode, store])

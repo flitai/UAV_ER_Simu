@@ -23,10 +23,12 @@ import { emitters as sceneEmitters, sites as sceneSites } from '../scene/editor/
 import { readField } from '../scene/editor/deviceFields.js'
 import {
   INST_SEP, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER, TEMPLATE_ID, TEMPLATE_VERSION,
-  effectiveParams, emptyChain, fromSceneOf, ownerEntity, slotState, tapOpId, variantOf,
+  effectiveParams, emptyChain, fromSceneOf, ownerEntity, slotState, splitProxy,
+  tapOpId, variantOf,
   type ChainMode, type ChainState, type SlotId, type SlotPer, type TapId,
 } from './model.js'
 import { freqPlan } from './plan.js'
+import { propView, visiblePropParams } from './effects.js'
 
 /** 编译结果里每个节点属于哪个槽位；界面据此把引擎报错反查回卡片。 */
 export type NodeSlotMap = Record<string, SlotId | 'scn' | 'sup' | 'toa' | 'mix' | 'bg'>
@@ -101,12 +103,23 @@ function sortedCopy<T>(o: Record<string, T> | undefined): Record<string, T> | un
  */
 function stashInactive(
   chain: ChainState, activeSlots: readonly SlotId[],
+  /** 代理参数里当前**不生效**的那一部分，按槽位给（D-058）。见 `proxySplit()` */
+  proxyKept: Partial<Record<SlotId, Record<string, ParamValue>>>,
 ): Record<string, InactiveSlot> | undefined {
   const active = new Set<SlotId>(activeSlots)
   const out: Record<string, InactiveSlot> = {}
   for (const def of SLOTS) {
-    if (active.has(def.id)) continue
     const cfg = chain.slots[def.id]
+    if (active.has(def.id)) {
+      // 活跃槽位一般不进这里。唯一的例外是代理参数（D-058）：**写出去的只有当前生效的那些**
+      // ——E1 档下把 `prop_primary = two_ray` 一起写给 `scn`，引擎会（正确地）报
+      // 「E1 与 prop_primary 冲突」，而用户只是刚从 E2 切回来。不生效的那部分收在这里，
+      // 切回 E2 原样恢复，既不丢也不冲突（铁律 15；与 D-055 收非活跃槽位是同一个做法）。
+      const kept = sortedCopy(proxyKept[def.id])
+      if (!kept) continue
+      out[def.id] = { params: kept }
+      continue
+    }
     const entry: InactiveSlot = {}
     if (cfg.variant !== 0) entry.variant = cfg.variant
     const params = sortedCopy(cfg.params)
@@ -140,6 +153,24 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
 
   const hasScene = chain.mode !== 'replay' && !!scenarioId
     && chain.siteIds.length > 0 && chain.emitterIds.length > 0
+
+  /**
+   * 代理参数切成两半（D-058）：`live` 写进代理节点，`kept` 暂存进 `template_ref`。
+   * 判据就是面板上的显隐规则——**显示什么就写什么**，两处用同一个函数，不会分叉。
+   * 没有代理节点（还没选场景、回放模式）时全部暂存。
+   */
+  const proxyLive: Partial<Record<SlotId, Record<string, ParamValue>>> = {}
+  const proxyKept: Partial<Record<SlotId, Record<string, ParamValue>>> = {}
+  for (const def of SLOTS) {
+    if (!def.proxy) continue
+    const all = splitProxy(def.id, chain.slots[def.id].params).proxy
+    const live: Record<string, ParamValue> = {}
+    const kept: Record<string, ParamValue> = {}
+    const on = hasScene ? new Set(visiblePropParams(propView(chain.slots[def.id].params))) : new Set<string>()
+    for (const [k, v] of Object.entries(all)) (on.has(k) ? live : kept)[k] = v
+    proxyLive[def.id] = live
+    proxyKept[def.id] = kept
+  }
   const sitesSel = hasScene ? chain.siteIds : ['']
   const emsSel = hasScene ? chain.emitterIds : ['']
   const manySites = sitesSel.length > 1
@@ -211,8 +242,10 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
    */
   const slotParams = (id: SlotId, emitterId = '', siteId = ''): Record<string, ParamValue> => {
     const v = variantOf(chain, id)
+    // 代理参数不写本槽位的节点（D-058）：它们属于别的组件，写过去引擎会报「未知参数」。
+    // 目录到手时 `push()` 也会再剔一次，这里先剔是为了目录还没到手的那一帧也对。
     const params: Record<string, ParamValue> = {
-      ...effectiveParams(chain, id, ownerEntity(id, emitterId, siteId)),
+      ...splitProxy(id, effectiveParams(chain, id, ownerEntity(id, emitterId, siteId))).own,
       ...(v.fixed ?? {}),
     }
     // 派生参数：一处填、多处派生（10 报告 §2.4）
@@ -257,6 +290,9 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
         sample_rate_Hz: plan.fs_rf,
         total_samples: total,
         update_rate_Hz: 20,
+        // 传播效应的代理参数（D-058）：配在「传播信道」卡片上，算在帧生产端。
+        // `ch` 的 owner 是 shared，所以 K 个站的 scn 节点拿到的是同一份。
+        ...(proxyLive.ch ?? {}),
       }
       if (i > 0) params.report_entities = false
       push(nodeId(SCN, { id: s, many: manySites }), 'ScenarioSource', params, 'scn',
@@ -427,7 +463,7 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
   }
   // 没编译成节点的槽位，把参数暂存进 template_ref（D-055）。
   // 全空就整段不写——既有框图因此逐字节不变。
-  const stash = stashInactive(chain, activeSlots)
+  const stash = stashInactive(chain, activeSlots, proxyKept)
   if (stash) doc.template_ref!.inactive_slots = stash
   if (taps.length) doc.observation_points = taps
   if (chain.scenario && chain.mode !== 'replay') doc.scenario_ref = { ...chain.scenario }
@@ -548,6 +584,8 @@ export function parseChain(doc: DiagramDoc): ChainState | null {
   const siteIds: string[] = []
   const emitterIds: string[] = []
   const seen = new Set<SlotId>()
+  let sawScn = false
+  let proxyFromScn: Record<string, ParamValue> | null = null
   // 槽位 → 实体 → 该实体的有效参数。归约成两层要等站与源的清单齐了才能做，故分两趟。
   const bucket = new Map<SlotId, { variant: number; byEnt: Map<string, Record<string, ParamValue>> }>()
   type Pending = { slot: SlotId; per: SlotPer; rest: string; params: Record<string, ParamValue> }
@@ -560,6 +598,13 @@ export function parseChain(doc: DiagramDoc): ChainState | null {
     if (base === SCN) {
       const s = n.scene_binding?.site_id
       if (s && !siteIds.includes(s)) siteIds.push(s)
+      // 传播效应的代理参数（D-058）：K 个 scn 节点必须完全一致——`ch` 的 owner 是 shared，
+      // 编译时给的就是同一份；不一致说明这份框图被手改过，与「同一实体的多个实例参数必须一致」
+      // 同一判据，返回 null 交由界面在自由画布打开。
+      const px = splitProxy('ch', n.params).proxy
+      if (proxyFromScn === null) proxyFromScn = px
+      else if (paramKey(proxyFromScn) !== paramKey(px)) return null
+      sawScn = true
       continue
     }
     if (base === SUP || base === TOA || base === MIX) continue   // 隐含节点，不占槽位
@@ -638,6 +683,26 @@ export function parseChain(doc: DiagramDoc): ChainState | null {
       ...(kept.by_entity ? { byEntity: kept.by_entity } : {}),
     }
   }
+  // 代理参数合回本槽位的状态（D-058）。两条来源互斥：有 `scn` 节点就从它读，
+  // 没有（还没选场景 / 站源没选全）就从 `inactive_slots` 里取回——后者是 compile 的对称动作。
+  // 注意 `ch` 若本身就没编译成节点，上面的 stash 恢复已经把整份参数（含代理键）放回去了，
+  // 这里只补「ch 有节点但代理参数无处可写」那一支。
+  const pxSlot = SLOTS.find((d) => !!d.proxy)
+  if (pxSlot) {
+    // 两条来源都要合：生效的那部分在代理节点上，不生效的那部分在 `inactive_slots` 里。
+    // 槽位本身没编译成节点时，上面的 stash 恢复已经把整份参数放回去了，这里再合一次是幂等的。
+    const merge = {
+      ...(sawScn ? proxyFromScn ?? {} : {}),
+      ...splitProxy(pxSlot.id, stash[pxSlot.id]?.params ?? {}).proxy,
+    }
+    if (Object.keys(merge).length > 0) {
+      chain.slots[pxSlot.id] = {
+        ...chain.slots[pxSlot.id],
+        params: { ...chain.slots[pxSlot.id].params, ...merge },
+      }
+    }
+  }
+
   if (mode === 'replay') chain.slots.tx.variant = def_replay_variant()
 
   for (const t2 of TAP_ORDER) chain.taps[t2] = false

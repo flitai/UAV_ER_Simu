@@ -209,6 +209,102 @@ try {
   await sleep(200)
   const chOwner = await page.evaluate("document.querySelector('[data-slot-owner]')?.dataset.slotOwner ?? ''")
   check('传播信道标为全图共用，不随实体选择变化', chOwner === 'shared', chOwner)
+
+  // ---------- ②c 传播环境与效应（D-058）----------
+  const eff0 = await evalJson(page, `(() => {
+    const card = document.querySelector('[data-slot-effects]')
+    const grp = document.querySelector('[data-form=propagation]')
+    const lv = document.querySelector('[data-form=propagation] [data-field=prop_level]')
+    return { terms: card && card.dataset.slotEffects, text: card && card.textContent,
+             hasGroup: !!grp, level: lv && lv.value,
+             options: lv ? Array.from(lv.options).map((o) => o.value + (o.disabled ? '(禁)' : '')) : [],
+             shown: Array.from(document.querySelectorAll('[data-form=propagation] [data-field]'))
+                         .map((e) => e.dataset.field) }
+  })()`)
+  check('传播信道卡片上写着这一档包含哪几项效应',
+    eff0.terms === 'free_space' && String(eff0.text).startsWith('E1'), JSON.stringify(eff0.text))
+  check('右栏有「传播效应」分组，缺省 E1', eff0.hasGroup === true && eff0.level === 'E1', eff0.level)
+  check('E1 档下只显示档位一项（十五行不一次全摆出来）',
+    eff0.shown.join(',') === 'prop_level', eff0.shown.join(','))
+  check('E3 保留在下拉里但置灰（不隐藏，也不让选）',
+    eff0.options.includes('E3(禁)'), eff0.options.join(' '))
+
+  // 切到 E2 + 城市经验：卡片跟着变，逐项开关出现
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_level]');
+    el.value = 'E2'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(300)
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_primary]');
+    el.value = 'urban_empirical'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(300)
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_shadow]');
+    el.value = 'true'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(400)
+  const eff2 = await evalJson(page, `(() => {
+    const card = document.querySelector('[data-slot-effects]')
+    return { terms: card && card.dataset.slotEffects, text: card && card.textContent,
+             shown: Array.from(document.querySelectorAll('[data-form=propagation] [data-field]'))
+                         .map((e) => e.dataset.field),
+             conflict: !!document.querySelector('[data-prop-conflict]') }
+  })()`)
+  check('选 E2 + 城市经验 + 统计阴影后，卡片列出三项',
+    eff2.terms === 'free_space,urban_mean,shadow', String(eff2.terms))
+  check('右栏按档位显隐：出现城市经验与阴影的参数，不出现双径的材质',
+    eff2.shown.includes('ref_distance_m') && eff2.shown.includes('shadow_corr_distance_m')
+      && !eff2.shown.includes('ground_type'), eff2.shown.join(','))
+  check('没有冲突时不报警', eff2.conflict === false)
+
+  // 闸二：城市经验取「均值 + 分位裕度」再开阴影 = 同源双计，当场说清楚
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=urban_loss_mode]');
+    el.value = 'mean_with_shadow_margin'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(400)
+  const gate2 = await evalJson(page, `(() => {
+    const w = document.querySelector('[data-prop-conflict]')
+    const k = document.querySelector('[data-check=propagation]')
+    return { warn: w && w.textContent, ok: k && k.dataset.ok }
+  })()`)
+  check('闸二：分位裕度 + 统计阴影被判同源双计，报错不静默禁用',
+    String(gate2.warn).includes('双计') && gate2.ok === '0', JSON.stringify(gate2))
+
+  // 传播参数走代理写进隐含节点 scn，不写 ch 节点（12 §5.3）
+  const proxied = await evalJson(page, `(() => {
+    const d = JSON.parse(window.__probe().app.diagram.text)
+    const scn = d.nodes.find((n) => n.id === 'scn')
+    const ch = d.nodes.find((n) => n.id === 'ch')
+    return { scn: scn && scn.params, chKeys: ch ? Object.keys(ch.params) : [] }
+  })()`)
+  check('传播参数编译进隐含节点 scn（算在帧生产端）',
+    proxied.scn && proxied.scn.prop_level === 'E2' && proxied.scn.prop_primary === 'urban_empirical',
+    JSON.stringify(proxied.scn))
+  check('传播参数不写传播信道节点（那是 M3 施加器，不认识它们）',
+    !proxied.chKeys.some((k) => k.startsWith('prop_') || k === 'env_class'), proxied.chKeys.join(','))
+
+  // 复原：关掉阴影与裕度、退回 E1，后面的断言与保存的框图不受影响
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=urban_loss_mode]');
+    el.value = 'mean'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(300)
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_shadow]');
+    el.value = 'false'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(300)
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_level]');
+    el.value = 'E1'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(400)
+  const back1 = await evalJson(page, `(() => {
+    const card = document.querySelector('[data-slot-effects]')
+    const d = JSON.parse(window.__probe().app.diagram.text)
+    const scn = d.nodes.find((n) => n.id === 'scn')
+    return { terms: card && card.dataset.slotEffects, scn: scn && scn.params,
+             kept: d.template_ref && d.template_ref.inactive_slots
+                   && d.template_ref.inactive_slots.ch }
+  })()`)
+  check('退回 E1 后卡片只剩自由空间，scn 上一个传播参数都不写',
+    back1.terms === 'free_space'
+      && !Object.keys(back1.scn ?? {}).some((k) => k.startsWith('prop_') || k === 'env_class'
+                                                || k === 'urban_loss_mode'),
+    JSON.stringify(back1.scn))
+  check('不生效的那些收进 template_ref.inactive_slots，切回 E2 原样恢复（不丢也不冲突）',
+    back1.kept && back1.kept.params && back1.kept.params.prop_primary === 'urban_empirical',
+    JSON.stringify(back1.kept))
+
   await page.evaluate("(document.querySelector('[data-slot=rx_fe]').click(), true)")
   await sleep(150)
 

@@ -14,7 +14,8 @@ import type { Catalog } from '../api/catalog.js'
 import { serialize, parse as parseDoc, type DiagramDoc } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { compile, nodeId, parseChain, splitNodeId, switchMode } from './compile.js'
-import { emptyChain, missingParams, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
+import { emptyChain, missingParams, PROPAGATION_PARAMS, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
+import { propConflict, propView, visiblePropParams } from './effects.js'
 import { freqPlan, planChecks, planOk } from './plan.js'
 import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
 
@@ -596,4 +597,155 @@ test('回放模式不做 ADC 量化噪声这条检查（2026-09-09 用户实测�
   // 全合成照常有
   const syn = synthetic()
   assert.ok(planChecks(syn, freqPlan(syn, scenario), scenario).map((k) => k.id).includes('adc_floor'))
+})
+
+// ------------------------------------------------------------ 传播效应与代理参数（D-058）
+
+test('缺省链一个传播参数都不写：E1 是目录缺省，既有框图逐字节不变', () => {
+  const r = compile(synthetic(), cat, scenario)
+  const scn = r.doc.nodes.find((n) => n.id === 'scn')!
+  for (const name of PROPAGATION_PARAMS) assert.equal(name in scn.params, false)
+  assert.equal(r.doc.template_ref!.inactive_slots?.ch, undefined)
+})
+
+test('代理参数写到 scn 节点、不写 ch 节点，往返逐字节', () => {
+  const c = synthetic()
+  c.slots.ch.params = {
+    ...c.slots.ch.params,
+    prop_level: 'E2', prop_primary: 'urban_empirical', env_class: 'dense_urban',
+    prop_shadow: true, shadow_sigma_dB: 7,
+  }
+  const r = compile(c, cat, scenario)
+  const scn = r.doc.nodes.find((n) => n.id === 'scn')!
+  assert.equal(scn.params.prop_level, 'E2')
+  assert.equal(scn.params.prop_primary, 'urban_empirical')
+  assert.equal(scn.params.env_class, 'dense_urban')
+  assert.equal(scn.params.prop_shadow, true)
+  assert.equal(scn.params.shadow_sigma_dB, 7)
+  const ch = r.doc.nodes.find((n) => n.id === 'ch')!
+  for (const name of PROPAGATION_PARAMS) assert.equal(name in ch.params, false)
+
+  // 往返：解回来的链路状态里代理参数回到 ch 槽位，再编译逐字节相同
+  const text = serialize(r.doc, cat)
+  const back = parseChain(parseOk(text))!
+  assert.equal(back.slots.ch.params.prop_level, 'E2')
+  assert.equal(back.slots.ch.params.shadow_sigma_dB, 7)
+  assert.equal(serialize(compile(back, cat, scenario).doc, cat), text)
+})
+
+test('多站：K 个 scn 拿到同一份代理参数（ch 是全图共用的槽位）', () => {
+  const c = multi(['site-1', 'site-2', 'site-3'], ['uav-1'])
+  c.slots.ch.params = { ...c.slots.ch.params, prop_level: 'E2', prop_primary: 'two_ray' }
+  const r = compile(c, cat, scenario3)
+  const scns = r.doc.nodes.filter((n) => n.id.startsWith('scn'))
+  assert.equal(scns.length, 3)
+  for (const n of scns) {
+    assert.equal(n.params.prop_level, 'E2')
+    assert.equal(n.params.prop_primary, 'two_ray')
+  }
+  const text = serialize(r.doc, cat)
+  assert.equal(serialize(compile(parseChain(parseOk(text))!, cat, scenario3).doc, cat), text)
+})
+
+test('手改成各站不一致的代理参数：反解拒绝，不取第一个了事', () => {
+  const c = multi(['site-1', 'site-2'], ['uav-1'])
+  c.slots.ch.params = { ...c.slots.ch.params, prop_level: 'E2', prop_primary: 'two_ray' }
+  const doc = compile(c, cat, scenario3).doc
+  const other = doc.nodes.find((n) => n.id === 'scn__site-2')!
+  other.params = { ...other.params, prop_primary: 'urban_empirical' }
+  assert.equal(parseChain(doc), null)
+})
+
+test('还没选场景时代理参数收进 inactive_slots，切回来不丢（铁律 15）', () => {
+  const c = emptyChain('synthetic', 'chain-nosce')
+  c.slots.ch.params = { prop_level: 'E2', prop_primary: 'two_ray', ground_type: 'water' }
+  const r = compile(c, cat, null)
+  assert.equal(r.doc.nodes.some((n) => n.id === 'scn'), false)   // 没有场景就没有 scn 节点
+  const kept = r.doc.template_ref!.inactive_slots!.ch!
+  assert.deepEqual(kept.params, { ground_type: 'water', prop_level: 'E2', prop_primary: 'two_ray' })
+  const text = serialize(r.doc, cat)
+  const back = parseChain(parseOk(text))!
+  assert.equal(back.slots.ch.params.prop_level, 'E2')
+  assert.equal(back.slots.ch.params.ground_type, 'water')
+  assert.equal(serialize(compile(back, cat, null).doc, cat), text)
+})
+
+test('回放模式：ch 整个不适用，代理参数随槽位一起暂存并复原', () => {
+  const c = emptyChain('replay', 'chain-replay')
+  c.slots.tx.params = { data_id: 'x', sample_rate_Hz: 1e6, center_frequency_Hz: 2.44e9 }
+  c.slots.ch.params = { prop_level: 'E2', prop_weather: true, rain_rate_mmh: 25 }
+  const text = serialize(compile(c, cat, null).doc, cat)
+  const back = parseChain(parseOk(text))!
+  assert.equal(back.slots.ch.params.prop_level, 'E2')
+  assert.equal(back.slots.ch.params.rain_rate_mmh, 25)
+  assert.equal(serialize(compile(back, cat, null).doc, cat), text)
+})
+
+test('传播效应清单与 geo/propagation.cpp 的 included_loss_terms 同一套规则', () => {
+  assert.deepEqual(propView({}).terms, ['free_space'])
+  // E1 下勾了别的也不算数——引擎那边会直接报错，清单不能装作算了
+  assert.deepEqual(propView({ prop_shadow: true }).terms, ['free_space'])
+  assert.deepEqual(
+    propView({ prop_level: 'E2', prop_primary: 'two_ray', prop_shadow: true }).terms,
+    ['free_space', 'ground_reflection', 'shadow'],
+  )
+  assert.deepEqual(
+    propView({ prop_level: 'E2', prop_primary: 'urban_empirical', prop_weather: true }).terms,
+    ['free_space', 'urban_mean', 'weather'],
+  )
+  // 城市经验带分位裕度时它自己就含阴影（闸二据此拦）
+  assert.deepEqual(
+    propView({ prop_level: 'E2', prop_primary: 'urban_empirical',
+               urban_loss_mode: 'mean_with_shadow_margin' }).terms,
+    ['free_space', 'urban_mean', 'shadow'],
+  )
+  assert.match(propView({ prop_level: 'E2', prop_primary: 'urban_empirical' }).text, /城区/)
+})
+
+test('右栏按当前档位显隐：E1 只有档位一项，选了双径才出材质', () => {
+  assert.deepEqual(visiblePropParams(propView({})), ['prop_level'])
+  const twoRay = visiblePropParams(propView({ prop_level: 'E2', prop_primary: 'two_ray' }))
+  assert.ok(twoRay.includes('ground_type'))
+  assert.ok(twoRay.includes('coherence_rho'))
+  assert.ok(!twoRay.includes('ref_distance_m'))
+  const urban = visiblePropParams(propView({ prop_level: 'E2', prop_primary: 'urban_empirical' }))
+  assert.ok(urban.includes('ref_distance_m'))
+  assert.ok(!urban.includes('ground_type'))
+  assert.ok(!urban.includes('rain_rate_mmh'))
+  assert.ok(visiblePropParams(propView({ prop_level: 'E2', prop_weather: true }))
+    .includes('rain_rate_mmh'))
+})
+
+test('前端的相容判据与引擎 PropagationConfig::validate 一一对应', () => {
+  const V = (p: Record<string, unknown>) => propView(p as Record<string, never>)
+  assert.equal(propConflict(V({}), 'SceneBoundChannel'), null)
+  assert.match(propConflict(V({ prop_level: 'E3' }), 'SceneBoundChannel')!, /D3/)
+  assert.match(propConflict(V({ prop_primary: 'two_ray' }), 'SceneBoundChannel')!, /E2/)
+  assert.match(
+    propConflict(V({ prop_level: 'E2', prop_primary: 'urban_empirical',
+                     urban_loss_mode: 'mean_with_shadow_margin', prop_shadow: true }),
+                 'SceneBoundChannel')!,
+    /双计/)
+  // 自由空间（定参）不吃场景帧，只能是 E1——这条只有前端拦得住
+  assert.match(
+    propConflict(V({ prop_level: 'E2', prop_primary: 'two_ray' }), 'FreeSpaceChannel')!,
+    /只能用 E1/)
+  assert.equal(propConflict(V({}), 'FreeSpaceChannel'), null)
+})
+
+test('频率计划第 11 项：E3 与「自由空间定参 + 高档位」都被拦住', () => {
+  const c = synthetic()
+  const ok = planChecks(c, freqPlan(c, scenario), scenario).find((k) => k.id === 'propagation')!
+  assert.equal(ok.ok, true)
+
+  const e3 = synthetic()
+  e3.slots.ch.params = { ...e3.slots.ch.params, prop_level: 'E3' }
+  const bad = planChecks(e3, freqPlan(e3, scenario), scenario).find((k) => k.id === 'propagation')!
+  assert.equal(bad.ok, false)
+  assert.equal(planOk(planChecks(e3, freqPlan(e3, scenario), scenario)), false)
+
+  // 回放模式不做这条检查：没有场景也没有 scn 节点，传播配置不参与计算
+  const rp = emptyChain('replay', 'chain-rp')
+  rp.slots.ch.params = { prop_level: 'E3' }
+  assert.equal(planChecks(rp, freqPlan(rp, null), null).some((k) => k.id === 'propagation'), false)
 })

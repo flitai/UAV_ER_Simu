@@ -68,6 +68,36 @@ export type SlotPer = 'emitter' | 'link' | 'site' | 'single'
  */
 export type SlotOwner = 'emitter' | 'site' | 'shared'
 
+/**
+ * 代理参数（D-058，12 §5.3）。有些参数**用在别的节点上、却应该在这张卡片上配**。
+ *
+ * 传播效应就是这么一件事：用户要在「传播信道」卡片上选档位与效应，而计算落在帧生产端
+ * （`ScenarioSource`，隐含节点 `scn`）——EM-P-01/02/05/08 属 M1/M2 参数供给层，
+ * 「M3 不得绕过 M1/M2 自行硬编码传播参数」，`SceneBoundChannel` 只是 M3 的施加器。
+ * 而且链路面板的「路损」读数取自帧生产端产出的 `link` 事件，算在信道里读数就名不副实。
+ *
+ * 参数因此**只声明一次**（在真正用它的组件上），这张表只说「显示在哪张卡片、编译到哪个节点」。
+ */
+export interface SlotProxy {
+  /** 参数声明在哪个组件的目录条目里 */
+  type: string
+  /** 编译时写到哪个（隐含）节点的基名 */
+  node: string
+  /** 哪几个参数走代理 */
+  params: readonly string[]
+}
+
+/**
+ * 传播效应的代理参数集合（D-058）。**与 `ScenarioSource` 的 `ParamSpec` 逐名对应**，
+ * 顺序即面板上的顺序（面板另按当前档位决定显隐）。
+ */
+export const PROPAGATION_PARAMS: readonly string[] = [
+  'prop_level', 'prop_primary', 'prop_shadow', 'prop_weather', 'env_class',
+  'ground_type', 'ground_roughness_m', 'coherence_rho', 'max_fade_depth_dB',
+  'path_loss_exponent', 'ref_distance_m', 'urban_loss_mode',
+  'shadow_sigma_dB', 'shadow_corr_distance_m', 'rain_rate_mmh',
+]
+
 export interface SlotDef {
   id: SlotId
   /** 环节名 */
@@ -91,6 +121,8 @@ export interface SlotDef {
   defaultBypass?: boolean
   /** 回放模式下不适用的槽位 */
   replayNotApplicable?: boolean
+  /** 参数显示在本卡片、编译到别的节点（D-058） */
+  proxy?: SlotProxy
 }
 
 /** 槽位表。改这里就改了整条链，编译、反解与界面同时跟随。 */
@@ -116,6 +148,8 @@ export const SLOTS: readonly SlotDef[] = [
   {
     id: 'ch', label: '传播信道', hint: '传播损耗、时延、多径、多普勒', per: 'link', owner: 'shared',
     replayNotApplicable: true,
+    // 传播效应档位与逐项开关配在这张卡片上，编译到隐含节点 scn（D-058）
+    proxy: { type: 'ScenarioSource', node: 'scn', params: PROPAGATION_PARAMS },
     variants: [
       { type: 'SceneBoundChannel', node: 'ch', label: '场景绑定信道', bind: 'link',
         fixed: { gain_mode: 'path_loss_only' }, summary: ['delay_mode', 'apply_doppler'] },
@@ -507,6 +541,27 @@ export const FROM_SCENE: Partial<Record<SlotId, FromSceneParam[]>> = {
 /** 这个槽位有没有由场景带出的参数；有的话是哪几个。 */
 export function fromSceneOf(id: SlotId): FromSceneParam[] {
   return FROM_SCENE[id] ?? []
+}
+
+/** 这个槽位有没有代理参数（D-058）。 */
+export function proxyOf(id: SlotId): SlotProxy | undefined {
+  return SLOT_BY_ID[id].proxy
+}
+
+/** 把一份参数按代理集合切成两半：`proxy` 走代理节点，`own` 留在本槽位的节点上。 */
+export function splitProxy(
+  id: SlotId, params: Record<string, ParamValue>,
+): { own: Record<string, ParamValue>; proxy: Record<string, ParamValue> } {
+  const px = proxyOf(id)
+  if (!px) return { own: { ...params }, proxy: {} }
+  const set = new Set(px.params)
+  const own: Record<string, ParamValue> = {}
+  const proxy: Record<string, ParamValue> = {}
+  for (const [k, v] of Object.entries(params)) {
+    if (set.has(k)) proxy[k] = v
+    else own[k] = v
+  }
+  return { own, proxy }
 }
 
 const ALL_DERIVED: readonly string[] = Object.values(DERIVED_PARAMS).flat()

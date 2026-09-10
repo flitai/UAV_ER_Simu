@@ -116,6 +116,9 @@ export function probeApp(s: AppState, x: ProbeExtras) {
         nodes: j?.nodes?.length ?? 0,
         edges: j?.edges?.length ?? 0,
         taps: j?.observation_points?.length ?? 0,
+        // 规范文本本身。端到端要核对「某个参数写进了哪个节点」这类事，光有计数不够；
+        // `window.__cuav.diagramText()` 只在 `?dev=1` 下才有，而多数端到端不开开发者模式（D-058 加）。
+        text: s.diagram.text,
         dirty: s.diagram.dirty,
         parseError: s.diagram.parseError,
         validation: val ? { ok: val.ok, errors: val.errors.length } : null,

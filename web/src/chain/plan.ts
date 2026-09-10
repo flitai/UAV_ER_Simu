@@ -10,7 +10,8 @@
 
 import type { ScenarioDoc } from '../state/types.js'
 import { emitters, sites, type Obj } from '../scene/editor/scenarioOps.js'
-import type { ChainState } from './model.js'
+import { variantOf, type ChainState } from './model.js'
+import { propConflict, propView } from './effects.js'
 
 export interface FreqPlan {
   /** 宽带采样率，站点接收机给 */
@@ -249,6 +250,21 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         ? `${K} 个站同为 ${fmt(plan.fs_rf)} @ ${fmt(plan.f_rx)}`
         : `选中的站有 ${keys.size} 种配置（${[...keys].join('、')}）；`
           + '同一框图里各站必须同采样率同中心频率，否则参数帧与 IQ 块的样点窗口对不上',
+    })
+  }
+
+  // 传播档位与信道变体是否相容（D-058，12 §4.4 / §4.5 / §2.2）。
+  // 前四条与引擎 `PropagationConfig::validate()` 是同一份表；第五条（自由空间定参 + 高档位）
+  // **只有前端拦得住**——引擎的 configure() 看不见别的节点的类型，如实记在 12 §4.5。
+  // 回放模式没有场景也没有 scn 节点，传播配置不参与计算，这条不适用（同 adc_floor 的处置）。
+  if (!replay) {
+    const pv = propView(chain.slots.ch.params)
+    const why = propConflict(pv, variantOf(chain, 'ch').type)
+    out.push({
+      id: 'propagation',
+      label: '传播档位与信道变体相容',
+      ok: why === null,
+      detail: why ?? `${pv.text}（${pv.terms.length} 项）`,
     })
   }
 
