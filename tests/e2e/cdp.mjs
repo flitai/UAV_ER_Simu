@@ -60,6 +60,14 @@ export class Page {
       if (w) { p.#pending.delete(m.id); m.error ? w.rej(new Error(JSON.stringify(m.error))) : w.res(m.result) }
       if (m.method) for (const f of p.#listeners.get(m.method) ?? []) f(m.params)
     })
+    // 自动放行 JavaScript 对话框。**必须的**：页面有未保存改动时 `beforeunload` 会
+    // `preventDefault()`，Chrome 于是弹「离开此页？」，而无头下没人点它，
+    // `Page.navigate` 就永远不返回——用例既不失败也不结束，只是挂着
+    // （2026-09-10 实测：slice2 布过站之后场景是脏的，导航到框图页当场卡死）。
+    await p.send('Page.enable')
+    p.on('Page.javascriptDialogOpening', () => {
+      p.send('Page.handleJavaScriptDialog', { accept: true }).catch(() => undefined)
+    })
     return p
   }
 

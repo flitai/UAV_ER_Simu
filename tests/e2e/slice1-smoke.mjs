@@ -6,15 +6,52 @@
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
 //     node tests/e2e/slice1-smoke.mjs [--url http://127.0.0.1:8080/]
 
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { launchChrome, Page } from './cdp.mjs'
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, arr) =>
   v.startsWith('--') ? [...a, [v.slice(2), arr[i + 1]]] : a, []))
 const BASE = (args.url ?? 'http://127.0.0.1:8080/').replace(/\/?$/, '/')
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
+
+/**
+ * 给一个地址加一次性查询参数，**保证它是一次真正的导航**。
+ * 只改 hash 不会重载页面（浏览器视之为同文档导航），而「载入最近保存的框图」是启动时那一次的事；
+ * 先 `Page.navigate` 改 hash 再 `Page.reload`，又可能在 hash 还没生效时就重载了旧地址
+ * ——slice2 第一次这么写就卡在「载入切片 ② 框图」上，页面其实停在场景页。
+ */
+function reloadUrl(suffix) {
+  const i = suffix.indexOf('#')
+  const query = i < 0 ? suffix : suffix.slice(0, i)
+  const hash = i < 0 ? '' : suffix.slice(i)
+  const q = query.replace(/^\?/, '')
+  return `${BASE}?${q ? q + '&' : ''}_reload=${Date.now()}${hash}`
+}
+
+/**
+ * 把一份**手写**框图存进服务端再刷新页面，让启动时的「载入最近保存的框图」把它捡起来。
+ * 自由画布（连同它的「示例框图」下拉与源码页签）已由 D-060 删掉，这是现在唯一能把
+ * 非典型链路的框图送进界面的路——而且走的是公开端点，不依赖任何调试钩子。
+ */
+async function loadDiagramViaApi(page, relPath, hash) {
+  const doc = JSON.parse(readFileSync(join(ROOT, relPath), 'utf8'))
+  const body = JSON.stringify(JSON.stringify(doc, null, 2) + '\n')
+  const status = await page.evaluateAsync(
+    `fetch('/api/v1/diagrams/${doc.diagram_id}', { method: 'PUT',`
+    + ` headers: { 'content-type': 'application/json' }, body: ${body} }).then(r => r.status)`)
+  if (status !== 200 && status !== 201) throw new Error(`存框图 ${doc.diagram_id} 失败：HTTP ${status}`)
+  await page.send('Page.navigate', { url: reloadUrl(hash) })
+  return doc.diagram_id
+}
+
+async function deleteDiagram(page, id) {
+  return page.evaluateAsync(`fetch('/api/v1/diagrams/${id}', { method: 'DELETE' }).then(r => r.status)`)
+}
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 
 const checks = []
@@ -53,17 +90,12 @@ try {
   st = await page.waitFor((s) => s.app?.view === 'scene' && s.tilesLoaded, { label: '切回场景' })
   check('三视图切换不重建地图实例', st.app.mapInstanceId === id0 && st.tilesLoaded, `mapInstanceId ${id0} → ${st.app.mapInstanceId}`)
 
-  // 提交切片 ① 的示例框图。C-7 之后框图页缺省是典型链路视图，示例在自由画布的下拉里，
-  // 所以这里显式进 #/diagram/canvas 再选 slice1。
-  await page.send('Page.navigate', { url: `${BASE}?dev=1#/diagram/canvas` })
-  await waitApp(page, (a) => a.view === 'diagram', '框图页')
-  await page.evaluate(`(() => {
-    const el = document.querySelector('[data-action=example]');
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
-    setter.call(el, 'slice1');
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  })()`)
+  // 提交切片 ① 的示例框图。它是手写框图（不是典型链路），自由画布删掉之后（D-060）
+  // 界面上没有「选个示例」的入口了，改走公开端点：存进去再刷新，由启动时的
+  // 「载入最近保存的框图」捡起来。
+  const diagId = await loadDiagramViaApi(page, 'engine/tests/diagrams/slice1_tone_noise_psd.json',
+                                         '?dev=1#/diagram')
+  await waitApp(page, (a) => a.view === 'diagram' && a.context.diagramId === diagId, '载入切片 ① 框图')
   await sleep(300)
   const before = st.app.context.taskId
   // 等组件目录就绪（运行按钮可用）
@@ -188,6 +220,9 @@ try {
 } catch (e) {
   check('端到端流程未抛异常', false, String(e))
 } finally {
+  // 删掉本用例存进去的那份手写框图：不给下一次运行留状态，也不往仓库里塞测试产物。
+  // 走 HTTP 而不是页面，页面被打断时也删得掉（同 slice2 恢复场景文件的做法）。
+  await fetch(`${BASE}api/v1/diagrams/slice1-tone-noise-psd`, { method: 'DELETE' }).catch(() => undefined)
   if (page && chrome) await page.close(chrome.port)
   if (chrome) chrome.proc.kill()
   // 清理失败不能掐掉结果打印：Chrome 退出后可能还在写 profile 目录，rm 会抛 ENOTEMPTY，

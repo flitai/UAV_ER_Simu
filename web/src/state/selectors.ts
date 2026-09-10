@@ -110,9 +110,6 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       const val = s.diagram.validation
       return {
         id: s.context.diagramId,
-        // 框图页当前的子形态：true = 自由画布，false = 典型链路。放在这里而不是 chain 下，
-        // 是因为 chain 探针在文档解不开时只剩 {template: null}，读不到形态（2026-09-08）。
-        canvas: s.ui.diagramCanvas,
         nodes: j?.nodes?.length ?? 0,
         edges: j?.edges?.length ?? 0,
         taps: j?.observation_points?.length ?? 0,
@@ -137,7 +134,6 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       return {
         template: 'chain-v1',
         mode: chain.mode,
-        canvas: s.ui.diagramCanvas,
         scenarioId: chain.scenario?.scenario_id ?? null,
         // 数组是新口径（D-053）；两个标量保留是为了让 slice4-smoke 之类的既有断言继续成立
         siteIds: chain.siteIds,

@@ -34,6 +34,40 @@ const waitApp = (page, fn, label, timeoutMs = 90000) => { console.error(`  … $
 const golden = JSON.parse(readFileSync(join(ROOT, 'tests/golden/scenario-track-demo-01.json'), 'utf8'))
 const scenario = JSON.parse(readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'), 'utf8'))
 
+/**
+ * 给一个地址加一次性查询参数，**保证它是一次真正的导航**。
+ * 只改 hash 不会重载页面（浏览器视之为同文档导航），而「载入最近保存的框图」是启动时那一次的事；
+ * 先 `Page.navigate` 改 hash 再 `Page.reload`，又可能在 hash 还没生效时就重载了旧地址
+ * ——slice2 第一次这么写就卡在「载入切片 ② 框图」上，页面其实停在场景页。
+ */
+function reloadUrl(suffix) {
+  const i = suffix.indexOf('#')
+  const query = i < 0 ? suffix : suffix.slice(0, i)
+  const hash = i < 0 ? '' : suffix.slice(i)
+  const q = query.replace(/^\?/, '')
+  return `${BASE}?${q ? q + '&' : ''}_reload=${Date.now()}${hash}`
+}
+
+/**
+ * 把一份**手写**框图存进服务端再刷新页面，让启动时的「载入最近保存的框图」把它捡起来。
+ * 自由画布（连同它的「示例框图」下拉与源码页签）已由 D-060 删掉，这是现在唯一能把
+ * 非典型链路的框图送进界面的路——而且走的是公开端点，不依赖任何调试钩子。
+ */
+async function loadDiagramViaApi(page, relPath, hash) {
+  const doc = JSON.parse(readFileSync(join(ROOT, relPath), 'utf8'))
+  const body = JSON.stringify(JSON.stringify(doc, null, 2) + '\n')
+  const status = await page.evaluateAsync(
+    `fetch('/api/v1/diagrams/${doc.diagram_id}', { method: 'PUT',`
+    + ` headers: { 'content-type': 'application/json' }, body: ${body} }).then(r => r.status)`)
+  if (status !== 200 && status !== 201) throw new Error(`存框图 ${doc.diagram_id} 失败：HTTP ${status}`)
+  await page.send('Page.navigate', { url: reloadUrl(hash) })
+  return doc.diagram_id
+}
+
+async function deleteDiagram(page, id) {
+  return page.evaluateAsync(`fetch('/api/v1/diagrams/${id}', { method: 'DELETE' }).then(r => r.status)`)
+}
+
 let chrome, page, dir
 const pageErrors = []
 try {
@@ -91,21 +125,12 @@ try {
   st = await waitApp(page, (a) => a.scene.sites === 1, '撤销回单站（后面要跑单站场景）')
 
   // ---------- 提交切片 ② 框图 ----------
-  // C-7 之后框图页缺省是典型链路视图；示例框图在自由画布的下拉里
-  await page.send('Page.navigate', { url: `${BASE}#/diagram/canvas` })
-  await waitApp(page, (a) => a.view === 'diagram', '框图页')
-  // React 的受控 select 记着自己的 value，直接赋值再派发 change 不会触发 onChange；
-  // 必须走原型上的原生 setter 把 React 的追踪器绕过去。
-  await page.evaluate(`(() => {
-    const el = document.querySelector('[data-action=example]');
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
-    setter.call(el, 'slice2');
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  })()`)
-  await sleep(300)
-  const text = await page.evaluate("document.querySelector('[data-diagram-text]').value")
-  check('框图页可选到切片 ② 示例', /slice2-scenario-link/.test(text))
+  // 手写框图，走公开端点送进界面（自由画布与它的示例下拉已由 D-060 删掉）
+  const diagId = await loadDiagramViaApi(page, 'engine/tests/diagrams/slice2_scenario_link.json',
+                                         '#/diagram')
+  st = await waitApp(page, (a) => a.view === 'diagram' && a.context.diagramId === diagId, '载入切片 ② 框图')
+  check('框图页载入切片 ② 示例', st.app.context.diagramId === 'slice2-scenario-link',
+        st.app.context.diagramId ?? '')
   for (let i = 0; i < 40; i++) {
     if (await page.evaluate("(!document.querySelector('[data-action=run]')?.disabled)")) break
     await sleep(250)
@@ -236,6 +261,8 @@ try {
   console.error(`\n中断：${(e && e.message) ? e.message.slice(0, 300) : e}`)
   checks.push({ name: '端到端跑完（未中断）', ok: false, detail: String((e && e.message) || e).slice(0, 200) })
 } finally {
+  // 删掉本用例存进去的那份手写框图（同下面恢复场景文件，走 HTTP 不依赖页面还活着）
+  await fetch(`${BASE}api/v1/diagrams/slice2-scenario-link`, { method: 'DELETE' }).catch(() => undefined)
   // 场景文件是黄金基准指向的对象，本用例中途改了它。**恢复必须在 finally 里**：
   // 用例在改完之后、存回之前被打断过一次（2026-09-07），仓库因此留着 3 个站点 6 个航点的
   // 场景文件，直到别的测试报「哈希对不上」才发现。走 HTTP 直接写回，不依赖页面还活着。

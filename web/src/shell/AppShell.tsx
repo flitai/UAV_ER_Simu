@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
 import { SceneView } from '../scene/SceneView.js'
 import { situationSnapshot } from '../scene/sceneStore.js'
-import { DiagramView } from '../diagram/DiagramView.jsx'
 import { ChainView } from '../chain/ChainView.js'
 import { ResultsView } from '../results/ResultsView.js'
 import { DataCenter } from '../data/DataCenter.js'
@@ -28,9 +27,10 @@ import { useTaskStream } from './useTaskStream.js'
 function ViewHost({ id, active, children }: { id: View; active: boolean; children: ReactNode }) {
   // 隐藏用 visibility 而不是 display：地图容器尺寸不能归零，瀑布画布也要在隐藏期继续累积（09 §4.2、D-048）。
   //
-  // 但只有 visibility 不够：visibility 虽然继承，后代却可以把自己改回 visible，而 React Flow 正是这么做的
-  // ——它量到节点尺寸后在每个节点上写行内 `visibility: visible`（@xyflow/react index.js:2363），
-  // 于是框图节点会穿透隐藏浮在场景地图上。opacity 在祖先上后代无法覆盖，补一个 opacity: 0 兜住。
+  // 只有 visibility 还不够，`opacity: 0` 是一道兜底：visibility 虽然继承，后代却可以把自己改回
+  // visible。这一条是 React Flow 逼出来的（它量完节点尺寸就在每个节点上写行内 visibility: visible，
+  // 于是框图节点穿透隐藏浮到场景地图上）；画布已随 D-060 删掉，兜底保留——
+  // opacity 在祖先上后代无法覆盖，代价为零，而下一个这么干的第三方件不会提前打招呼。
   // inert 让隐藏页的输入框接不到快捷键。
   return (
     <section className="view" data-view={id} data-active={active}
@@ -117,10 +117,8 @@ export function AppShell() {
         <ViewHost id="scene" active={view === 'scene'}><SceneView active={view === 'scene'} /></ViewHost>
         {visited.has('diagram') && (
           <ViewHost id="diagram" active={view === 'diagram'}>
-            {/* 框图页两种形态：缺省是典型链路视图，自由画布是高级模式（C-7，D-051）。
-                画布只在真的进过它之后才挂载——React Flow 的初始化不便宜，
-                而绝大多数使用不会去到那里。 */}
-            {s.ui.diagramCanvas ? <DiagramView /> : <ChainView />}
+            {/* 框图页只有一种形态：典型链路视图（C-7，D-051；自由画布已由 D-060 删掉）。 */}
+            <ChainView />
           </ViewHost>
         )}
         {visited.has('results') && <ViewHost id="results" active={view === 'results'}><ResultsView /></ViewHost>}

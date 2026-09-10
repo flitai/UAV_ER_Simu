@@ -104,8 +104,6 @@ export interface AppState {
   ui: {
     view: View
     resultsTab: ResultsTab
-    /** 框图页的子形态：false = 典型链路视图（缺省），true = 自由画布（高级模式，D-051） */
-    diagramCanvas: boolean
     devMode: boolean
     drawer: { open: boolean; tab: DrawerTab }
     leftCollapsed: boolean
@@ -241,8 +239,7 @@ export interface SceneSummaryLite {
 }
 
 export type Action =
-  | { type: 'ui/navigate'; view: View; resultsTab?: ResultsTab; canvas?: boolean }
-  | { type: 'ui/diagramCanvas'; on: boolean }
+  | { type: 'ui/navigate'; view: View; resultsTab?: ResultsTab }
   | { type: 'ui/resultsTab'; tab: ResultsTab }
   | { type: 'ui/drawer'; open?: boolean; tab?: DrawerTab }
   | { type: 'ui/collapse'; side: 'left' | 'right'; collapsed: boolean }

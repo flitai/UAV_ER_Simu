@@ -9,14 +9,16 @@
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
 //     node tests/e2e/slice4-smoke.mjs [--url http://127.0.0.1:8080/]
 
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { launchChrome, Page } from './cdp.mjs'
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => (a.startsWith('--') ? [a.slice(2), all[i + 1]] : [])).filter(Boolean))
 const BASE = (args.url ?? 'http://127.0.0.1:8080/').replace(/\/?$/, '/')
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 const checks = []
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }) }
@@ -70,8 +72,8 @@ try {
 
   // ---------- ① 框图页默认是典型链路视图 ----------
   let st = await page.waitFor((s) => s.app?.chain?.template === 'chain-v1', { label: '典型链路载入' })
-  check('框图页默认是典型链路视图，不是自由画布', st.app.chain.template === 'chain-v1' && st.app.chain.canvas === false,
-    `template ${st.app.chain.template}，canvas ${st.app.chain.canvas}`)
+  check('框图页是典型链路视图（自由画布已删，D-060）', st.app.chain.template === 'chain-v1',
+    `template ${st.app.chain.template}`)
   check('缺省是全合成模式并绑定 demo-01 的单站单机', st.app.chain.mode === 'synthetic'
     && st.app.chain.scenarioId === 'demo-01' && st.app.chain.siteId === 'site-1' && st.app.chain.emitterId === 'uav-1',
     `${st.app.chain.mode} / ${st.app.chain.scenarioId} / ${st.app.chain.siteId} / ${st.app.chain.emitterId}`)
@@ -461,93 +463,68 @@ try {
   // 刷新后仍然回到典型链路视图，且载入的是刚存的那份
   await page.send('Page.navigate', { url: `${BASE}#/diagram` })
   st = await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '刷新后仍是典型链路', timeoutMs: 90000 })
-  check('刷新后载入已保存的框图，仍在典型链路视图', st.app.chain.template === 'chain-v1' && st.app.chain.canvas === false)
+  check('刷新后载入已保存的框图，仍在典型链路视图', st.app.chain.template === 'chain-v1')
 
   // 收尾删掉本次存的框图：不给下一次运行留状态，也不往仓库里塞测试产物
   const del = await page.evaluateAsync(`fetch('/api/v1/diagrams/${saved.diagrams[0].diagram_id}', { method: 'DELETE' }).then(r => r.status)`)
   check('测试不留副作用：保存的框图已删除', del === 200, String(del))
 
-  // ---------- 自由画布仍在，只是降为高级模式 ----------
+  // ---------- 自由画布已删（D-060） ----------
+  // 用户 2026-09-10：「自由画布不重要，用户操作起来也很难控制，有点华而不实」。
+  // 这里守三件事：旧地址不把人甩到别的页、页面上不再有画布入口、
+  // 以及解不成典型链路的框图**不被硬解也不被改写**（铁律 15）。
   await page.send('Page.navigate', { url: `${BASE}#/diagram/canvas` })
-  await page.waitFor((s) => s.app?.view === 'diagram', { label: '自由画布' })
-  await sleep(600)
-  const paletteGroups = await page.evaluate("document.querySelectorAll('[data-palette-group]').length")
-  check('自由画布仍可用（降为高级模式，不是删掉）', paletteGroups === 6, `${paletteGroups} 个分组`)
+  st = await page.waitFor((s) => s.ready && s.app?.view === 'diagram', { label: '旧画布地址', timeoutMs: 90000 })
+  check('收藏夹里的旧画布地址仍落在框图页，不掉到默认的场景页', st.app.view === 'diagram')
+  check('地址被规范回 #/diagram', (await page.evaluate('location.hash')) === '#/diagram',
+    await page.evaluate('location.hash'))
+  const gone = await evalJson(page, `(() => ({
+    palette: document.querySelectorAll('[data-palette-group]').length,
+    openCanvas: document.querySelectorAll('[data-action=open-canvas]').length,
+  }))()`)
+  check('页面上没有组件库、也没有「展开为自由画布」入口',
+    gone.palette === 0 && gone.openCanvas === 0, JSON.stringify(gone))
 
-  // ---------- ④ 画布 ↔ 典型链路能往返（2026-09-08 用户实测发现的导航缺口） ----------
-  // 缺口是：进了画布之后 Alt+2 与顶栏「框图」都只切视图不改子形态，回不去。
-  // 下面分别验证三条修法，且必须**从画布里出发**，不是刷新地址栏。
-  st = await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '已在自由画布' })
-  check('画布里探针报子形态为画布', st.app.diagram.canvas === true)
+  // ---------- 解不成典型链路的框图：不硬解、不改写，原文只读摆出来（铁律 15） ----------
+  // 存一份手写框图（切片 ① 的那条链，没有 template_ref），它是启动时载入的「最近保存的一份」。
+  const handmade = JSON.parse(
+    await readFile(join(ROOT, 'engine/tests/diagrams/slice1_tone_noise_psd.json'), 'utf8'))
+  const putStatus = await page.evaluateAsync(
+    `fetch('/api/v1/diagrams/${handmade.diagram_id}', { method: 'PUT',`
+    + ` headers: { 'content-type': 'application/json' },`
+    + ` body: ${JSON.stringify(JSON.stringify(handmade, null, 2) + '\n')} }).then(r => r.status)`)
+  check('手写框图（无 template_ref）能存进去', putStatus === 200 || putStatus === 201, String(putStatus))
 
-  const hasBack = await page.evaluate("!!document.querySelector('[data-action=open-chain]')")
-  check('画布工具条有「回到典型链路」（与「展开为自由画布」对称）', hasBack === true)
+  // 只改 hash 不会重载页面（浏览器视之为同文档导航），而「载入最近保存的框图」是启动时那一次的事。
+  // 加一个一次性查询参数把它变成真正的导航——先改 hash 再 reload 会在 hash 生效前重载旧地址。
+  await page.send('Page.navigate', { url: `${BASE}?_reload=${Date.now()}#/diagram` })
+  st = await page.waitFor((s) => s.ready && s.app?.chain?.template === null,
+                          { label: '载入手写框图', timeoutMs: 90000 })
+  const foreign = await evalJson(page, `(() => {
+    const box = document.querySelector('[data-chain-foreign]')
+    const src = document.querySelector('[data-chain-foreign-src]')
+    return { has: !!box, hasNew: !!document.querySelector('[data-action=chain-new]'),
+             srcLen: src ? src.textContent.length : 0,
+             srcHead: src ? src.textContent.slice(0, 40) : '',
+             editable: src ? (src.tagName === 'TEXTAREA' || src.isContentEditable) : null }
+  })()`)
+  check('不是典型链路时给出「新建典型链路」的出路', foreign.has === true && foreign.hasNew === true)
+  check('原文只读摆在页面上，用户拷得走（画布删了，这是唯一能看见它的地方）',
+    foreign.srcLen > 100 && foreign.editable === false,
+    `${foreign.srcLen} 字符，${foreign.srcHead.replace(/\s+/g, ' ')}`)
 
-  // 此刻文档还是那条典型链路（前面刷新后载入的就是它），所以按下应当直接回去、不问
-  await page.evaluate("(document.querySelector('[data-action=open-chain]').click(), true)")
-  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: '回到典型链路', timeoutMs: 20000 })
-  const hash1 = await page.evaluate('location.hash')
-  check('解得开就直接回，不弹确认', st.app.diagram.canvas === false
-    && st.app.chain?.template === 'chain-v1' && hash1 === '#/diagram', `hash ${hash1}`)
-
-  // 顶栏「框图」按钮：先回画布，再点它
-  await page.evaluate("(document.querySelector('[data-action=open-canvas]').click(), true)")
-  await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '再进画布' })
-  await sleep(400)
-  await page.evaluate("(document.querySelector('[data-view-btn=diagram]').click(), true)")
-  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: '顶栏「框图」回默认形态', timeoutMs: 20000 })
-  check('顶栏「框图」按钮从画布回到默认形态（典型链路）',
-    st.app.diagram.canvas === false && (await page.evaluate('location.hash')) === '#/diagram')
-
-  // Alt+2：同样先回画布再按
-  await page.evaluate("(document.querySelector('[data-action=open-canvas]').click(), true)")
-  await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '第三次进画布' })
-  await sleep(400)
-  await page.pressKey({ key: '2', code: 'Digit2', vk: 50, modifiers: 1 })
-  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: 'Alt+2 回默认形态', timeoutMs: 20000 })
-  check('Alt+2 从画布回到默认形态（典型链路）',
-    st.app.diagram.canvas === false && (await page.evaluate('location.hash')) === '#/diagram')
-
-  // ---------- 解不开的那条路：不得静默丢改动（铁律 15） ----------
-  // 注意判据：**删**节点仍解得开（缺席的槽位按旁路或缺省处理），**加**一个模板之外的节点才解不开
-  // （`parseChain` 的 `if (!hit) return null`）。所以这里从组件库点一个新节点进去。
-  await page.evaluate("(document.querySelector('[data-action=open-canvas]').click(), true)")
-  await page.waitFor((s) => s.app?.diagram?.canvas === true, { label: '第四次进画布' })
-  await sleep(700)
-  const nodes0 = await evalJson(page, 'window.__probe().app.diagram.nodes')
-  await page.evaluate("(document.querySelector('[data-palette-item=NoiseSource]').click(), true)")
-  st = await page.waitFor((s) => s.app?.diagram?.nodes === nodes0 + 1, { label: '画布里加一个节点', timeoutMs: 20000 })
-  check('画布里加一个模板之外的节点后，框图不再是典型链路',
-    st.app.chain?.template === null, `${nodes0} → ${st.app.diagram.nodes} 节点，template ${st.app.chain?.template}`)
-
-  await page.evaluate("(document.querySelector('[data-action=open-chain]').click(), true)")
-  await sleep(400)
-  const asked = await page.evaluate("document.querySelector('[data-chain-back-ask]')?.textContent ?? ''")
-  const stillCanvas = await evalJson(page, 'window.__probe().app.diagram.canvas')
-  check('解不开时先说清楚再问，按一下不走人也不丢改动',
-    /不是典型链路的形状/.test(asked) && /会丢/.test(asked) && stillCanvas === true, asked.replace(/\s+/g, ' ').slice(0, 46))
-
-  await page.evaluate("(document.querySelector('[data-action=open-chain-cancel]').click(), true)")
-  await sleep(300)
-  const afterCancel = await evalJson(page, 'window.__probe().app.diagram')
-  check('选「留在画布」后改动原样还在', afterCancel.nodes === nodes0 + 1 && afterCancel.canvas === true,
-    `${afterCancel.nodes} 节点，canvas ${afterCancel.canvas}`)
-
-  await page.evaluate("(document.querySelector('[data-action=open-chain]').click(), true)")
-  await sleep(300)
-  await page.evaluate("(document.querySelector('[data-action=open-chain-confirm]').click(), true)")
-  st = await page.waitFor((s) => s.app?.diagram?.canvas === false, { label: '确认后回到框图页默认形态', timeoutMs: 20000 })
-  const foreign = await page.evaluate("!!document.querySelector('[data-chain-foreign]')")
-  check('确认后回到框图页，给出「新建一条链」的出路，且改动到此仍未丢（铁律 15）',
-    foreign === true && st.app.diagram.nodes === nodes0 + 1 && st.app.chain?.template === null,
-    `${st.app.diagram.nodes} 节点，foreign ${foreign}`)
+  // 收尾：删掉它，下次运行仍从内置缺省的典型链路开始
+  const del2 = await page.evaluateAsync(
+    `fetch('/api/v1/diagrams/${handmade.diagram_id}', { method: 'DELETE' }).then(r => r.status)`)
+  check('测试不留副作用：手写框图已删除', del2 === 200, String(del2))
+  await page.send('Page.navigate', { url: `${BASE}?_reload=${Date.now()}#/diagram` })
+  st = await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1',
+                          { label: '回到内置缺省典型链路', timeoutMs: 90000 })
 
   // ---------- 换到实测回放模式（2026-09-09 用户实测的报错；D-057 去掉了重复的开关）----------
-  // 先从画布留下的「不是本模板」状态新建一条干净的链
-  await page.evaluate("(document.querySelector('[data-action=chain-new]').click(), true)")
-  await page.waitFor((s) => s.app?.chain?.template === 'chain-v1', { label: '新建一条干净的典型链路' })
+  // 上一段收尾时已经回到内置缺省的典型链路（画布删掉之后不再需要「新建一条干净的链」这一步）
   await sleep(400)
-  // 新建的链是空的，先把 ADC 满量程填上——待会儿要验它转一圈还在不在
+  // 先把 ADC 满量程填上——待会儿要验它转一圈还在不在
   await page.evaluate("(document.querySelector('[data-slot=adc]').click(), true)")
   await sleep(250)
   await page.evaluate(setInput('[data-form=slot] [data-field=full_scale_dBm]', '-20'))

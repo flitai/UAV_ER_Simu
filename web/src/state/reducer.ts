@@ -16,11 +16,11 @@ export function defaultLayout(innerWidth: number): AppState['ui']['layout'] {
   return innerWidth >= 2560 ? { leftW: 350, rightW: 400, drawerH: 240 } : { leftW: 280, rightW: 320, drawerH: 240 }
 }
 
-export function initialState(devMode: boolean, innerWidth: number, diagramText = '', route: { view: AppState['ui']['view']; resultsTab: AppState['ui']['resultsTab']; canvas?: boolean } = { view: 'scene', resultsTab: 'signal' }): AppState {
+export function initialState(devMode: boolean, innerWidth: number, diagramText = '', route: { view: AppState['ui']['view']; resultsTab: AppState['ui']['resultsTab'] } = { view: 'scene', resultsTab: 'signal' }): AppState {
   const parsed = parseDiagram(diagramText)
   return {
     ui: {
-      view: route.view, resultsTab: route.resultsTab, diagramCanvas: !!route.canvas, devMode,
+      view: route.view, resultsTab: route.resultsTab, devMode,
       drawer: { open: false, tab: 'log' },
       leftCollapsed: innerWidth < 1920, rightCollapsed: innerWidth < 1920,
       layout: defaultLayout(innerWidth),
@@ -204,16 +204,9 @@ export function reducer(s: AppState, a: Action): AppState {
         ui: {
           ...s.ui, view: a.view,
           resultsTab: a.view === 'results' && a.resultsTab ? a.resultsTab : s.ui.resultsTab,
-          // 不带 canvas 的导航 = 回框图页的**默认形态**，也就是典型链路（D-051 ④）。
-          // 保留原值曾让 Alt+2 与顶栏「框图」按钮在 `#/diagram/canvas` 上变成空操作，
-          // 人被困在画布里（2026-09-08 用户实测）。要进画布须显式给 canvas: true，
-          // 走画布入口或直接用地址；Router 每次 hashchange 都显式传，故不受影响。
-          diagramCanvas: a.view === 'diagram' ? (a.canvas ?? false) : s.ui.diagramCanvas,
           popover: null,
         },
       }
-    case 'ui/diagramCanvas':
-      return { ...s, ui: { ...s.ui, diagramCanvas: a.on } }
     case 'ui/resultsTab':
       return { ...s, ui: { ...s.ui, resultsTab: a.tab } }
     case 'ui/drawer':

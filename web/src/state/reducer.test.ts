@@ -18,20 +18,15 @@ test('导航与页签', () => {
   assert.equal(s.ui.view, 'diagram'); assert.equal(s.ui.resultsTab, 'tasks')
 })
 
-// 2026-09-08 用户实测：在 `#/diagram/canvas` 上按 Alt+2 或点顶栏「框图」是空操作，
-// 因为两者都不带 canvas，reducer 保持原值。改为「不带就是默认形态」。
-test('不带 canvas 的导航回到框图页默认形态（典型链路），带了才进画布', () => {
-  let s = reducer(s0(), { type: 'ui/navigate', view: 'diagram', canvas: true })
-  assert.equal(s.ui.diagramCanvas, true)
-  s = reducer(s, { type: 'ui/navigate', view: 'diagram' })
-  assert.equal(s.ui.diagramCanvas, false, 'Alt+2 与顶栏「框图」按钮必须能从画布回到典型链路')
-  s = reducer(s, { type: 'ui/navigate', view: 'diagram', canvas: true })
-  assert.equal(s.ui.diagramCanvas, true, '要进画布仍走按钮或地址（显式 canvas）')
-  // 切到别的视图不动子形态：地址栏里 #/scene 不表达画布与否，回来时由不带 canvas 那条规则定
+// 框图页只有一种形态（D-060 删掉自由画布）。D-052 那条「不带 canvas 就回默认形态」的规则
+// 连同它守的那个缺口一起消失了：没有子形态，就不可能被困在某个子形态里。
+test('导航只切视图，框图页没有子形态', () => {
+  let s = reducer(s0(), { type: 'ui/navigate', view: 'diagram' })
+  assert.equal(s.ui.view, 'diagram')
   s = reducer(s, { type: 'ui/navigate', view: 'scene' })
-  assert.equal(s.ui.diagramCanvas, true)
+  assert.equal(s.ui.view, 'scene')
   s = reducer(s, { type: 'ui/navigate', view: 'diagram' })
-  assert.equal(s.ui.diagramCanvas, false)
+  assert.equal(s.ui.view, 'diagram')
 })
 
 test('采用任务：已结束以 since = last_seq 订阅，运行中以 0', () => {

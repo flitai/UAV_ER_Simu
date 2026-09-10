@@ -68,7 +68,6 @@ test('探针 app.chain：不是典型链路时只报 template=null；是的时�
   const a = probeApp(s, { mapInstanceId: 1, rows: 0, cols: 0, peakBin: null, entities: [], links: [], bearings: [], positions: [] })
   assert.equal(a.chain.template, 'chain-v1')
   assert.equal(a.chain.mode, 'synthetic')
-  assert.equal(a.chain.canvas, false, '缺省是典型链路视图，不是自由画布')
   assert.equal(a.chain.scenarioId, 'demo-01')
   assert.equal(a.chain.siteId, 'site-1')
   assert.equal(a.chain.emitterId, 'uav-1')

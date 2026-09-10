@@ -1,8 +1,9 @@
 // 典型链路视图（06 备忘录 §9G C-7；10 号报告 §5；决策 D-051）。
 //
-// 框图页的主形态：一条固定的九环节链，用户只选变体、改参数、勾观测点，不增删节点、不连线。
-// 自由画布降为高级模式，从工具条「展开为自由画布」进入（`#/diagram/canvas`），
-// 画布工具条的「回到典型链路」回来；解不回九个槽位时先问，不静默丢改动（2026-09-08）。
+// 框图页**唯一**的形态：一条固定的十一环节链，用户只改参数、勾观测点，不增删节点、不连线。
+// 自由画布连同它的入口已由 D-060 删掉（用户 2026-09-10：「自由画布不重要，用户操作起来也很难控制，
+// 有点华而不实」）——先把一条完整的信号级仿真流程跑通，想清楚了再加也不迟。
+// 解不成典型链路的框图落到本文件的「不是典型链路」分支，原文只读摆出来，不替用户丢东西。
 //
 // **本视图不持有第二份状态**：链路状态由 `parseChain()` 从 `s.diagram.text` 解出，
 // 改完由 `compile()` 编译回框图再 `diagram/setDoc`。撤销重做与脏标记因此沿用 U-2 的那一套。
@@ -13,7 +14,7 @@ import { useAppState, useDispatch, useStore } from '../state/store.js'
 import { loadScenarioInto, saveDiagram, saveScenario } from '../shell/actions.js'
 import { isCatalog, findComponent, type Catalog, type ParamSpec } from '../api/catalog.js'
 import { parse as parseDoc, serialize, type ParamValue } from '../diagram/doc.js'
-import { Field, range } from '../diagram/ParamPanel.js'
+import { Field, range } from '../diagram/Field.js'
 import { formatEng } from '../diagram/format.js'
 import { emitters as sceneEmitters, setPath, sites as sceneSites, type Obj } from '../scene/editor/scenarioOps.js'
 import { fieldsFor, modelOf, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
@@ -184,14 +185,19 @@ export function ChainView() {
         <div className="group placeholder" data-chain-foreign>
           {retired
             ? <p data-chain-retired>{retired}</p>
-            : <p>当前框图不是典型链路（可能在自由画布里改过，或是示例框图）。</p>}
+            : <p>当前框图不是典型链路（多半是手写的，或是自由画布时代存下来的）。</p>}
           <p>
             <button type="button" data-action="chain-new" onClick={() => commit(newChain('synthetic'), '新建典型链路')}>
               新建典型链路
             </button>
-            {' '}
-            <a href="#/diagram/canvas" data-action="open-canvas">在自由画布打开</a>
+            <span className="dim"> 会换掉下面这份文档</span>
           </p>
+          {/* 原文只读地摆在这里（D-060）。自由画布删掉之后这是唯一能看见它的地方——
+              「新建典型链路」是**换掉**这份文档，不先让人看一眼、拷出去，就等于替他丢了东西
+              （铁律 15）。只读是有意的：可编辑的原始 JSON 框跟画布一样难以控制，
+              而这里要的只是一条不丢数据的退路。 */}
+          <p className="dim">下面是它的原文，可以选中拷走：</p>
+          <pre className="chain-foreign-src" data-chain-foreign-src>{s.diagram.text}</pre>
         </div>
       </div>
     )
@@ -294,8 +300,6 @@ export function ChainView() {
             <span className="spacer" />
             <button type="button" data-action="chain-save" title="保存到服务端（Ctrl+S）"
               onClick={() => void saveDiagram(store)}>保存</button>
-            <a href="#/diagram/canvas" data-action="open-canvas"
-              title="在自由画布里自由增删；画布工具条的「回到典型链路」可以回来">展开为自由画布</a>
           </div>
 
           {/* 配置焦点（D-054）：选中哪一架无人机、哪一个站，右栏就配谁的设备参数。
