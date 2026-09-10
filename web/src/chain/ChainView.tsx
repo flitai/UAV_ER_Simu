@@ -578,7 +578,7 @@ function SlotPanel(p: {
         <div className="pp-row" data-slot-owner={owner}>
           <span>参数归属</span>
           {owner === 'shared'
-            ? <span className="dim">全图共用，不随上方的实体选择变化</span>
+            ? <span className="dim">全图共用</span>
             : <span className="dim">
                 {owner === 'emitter' ? '无人机' : '侦测站'} {focus || '（未选）'}
                 {model ? ` · 型号 ${model}` : ''}
