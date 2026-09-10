@@ -436,7 +436,7 @@ try {
     foreign === true && st.app.diagram.nodes === nodes0 + 1 && st.app.chain?.template === null,
     `${st.app.diagram.nodes} 节点，foreign ${foreign}`)
 
-  // ---------- 辐射源换成实测片段回放（2026-09-09 用户实测的报错）----------
+  // ---------- 换到实测回放模式（2026-09-09 用户实测的报错；D-057 去掉了重复的开关）----------
   // 先从画布留下的「不是本模板」状态新建一条干净的链
   await page.evaluate("(document.querySelector('[data-action=chain-new]').click(), true)")
   await page.waitFor((s) => s.app?.chain?.template === 'chain-v1', { label: '新建一条干净的典型链路' })
@@ -451,12 +451,23 @@ try {
   // 曾经的毛病：变体与模式各管各的，切成回放源后模式仍是「全合成」，上一个变体的
   // center_frequency_Hz 照样写进 FileReplaySource，运行时报「[param] 未知参数」；
   // 同时回放源不绑场景，emitterIds 反解成空，整条链的场景绑定静默消失
+  // 信号源模式只有一个开关——试验设置栏那个。辐射源卡片上**不再**有重复的变体下拉（D-057）
   await page.evaluate("(document.querySelector('[data-slot=tx]').click(), true)")
   await sleep(200)
-  await page.evaluate(`(() => { const el = document.querySelector('[data-slot-variant=tx]');
-    el.value = '1'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
-  const rp = await page.waitFor((s) => s.app?.chain?.mode === 'replay', { label: '切回放源即进回放模式' })
-  check('辐射源选「实测片段回放」即切到实测回放模式，不留下「全合成 + 回放源」', rp.app.chain.mode === 'replay')
+  const noDup = await evalJson(page, `(() => ({
+    sel: !!document.querySelector('[data-slot-variant=tx]'),
+    text: document.querySelector('[data-slot-variant-fixed=tx]')?.textContent ?? '',
+  }))()`)
+  check('辐射源卡片上没有第二个模式开关，只把当前变体写出来',
+    noDup.sel === false && noDup.text === '场景辐射源', `下拉 ${noDup.sel}；写着「${noDup.text}」`)
+
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=chain-setup] [data-field=mode]');
+    el.value = 'replay'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  const rp = await page.waitFor((s) => s.app?.chain?.mode === 'replay', { label: '换到实测回放模式' })
+  check('换成实测回放，辐射源跟着变成回放源', rp.app.chain.mode === 'replay')
+  await sleep(300)
+  const txNow = await page.evaluate("document.querySelector('[data-slot-variant-fixed=tx]')?.textContent ?? ''")
+  check('辐射源卡片上写的是「实测片段回放」，跟着模式走', txNow === '实测片段回放', txNow)
   const txErr = await page.evaluate("document.querySelector('[data-slot=tx] [data-slot-error]')?.textContent ?? ''")
   check('辐射源卡片上不再报未知参数', !txErr.includes('未知参数'), txErr || '（无错误）')
   const txPending = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
@@ -506,12 +517,12 @@ try {
   check('回放任务跑完', rpDone.app.task.runState === 'finished',
     `${rpDone.app.task.runState} / ${rpDone.app.task.result}`)
 
-  // 切回场景辐射源：模式回全合成，场景与目标自动认回来
-  await page.evaluate(`(() => { const el = document.querySelector('[data-slot-variant=tx]');
-    el.value = '0'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  // 切回全合成：场景与目标自动认回来
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=chain-setup] [data-field=mode]');
+    el.value = 'synthetic'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
   const rb = await page.waitFor((s) => s.app?.chain?.mode === 'synthetic'
     && (s.app?.chain?.emitterIds ?? []).length > 0, { label: '切回后场景认回来' })
-  check('切回「场景辐射源」后场景与目标自动认回来，不停在「先选场景」',
+  check('切回全合成后场景与目标自动认回来，不停在「先选场景」',
     rb.app.chain.scenarioId === 'demo-01' && rb.app.chain.emitterIds.includes('uav-1'),
     `${rb.app.chain.scenarioId} / ${rb.app.chain.emitterIds.join()}`)
 

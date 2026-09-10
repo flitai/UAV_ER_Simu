@@ -76,6 +76,12 @@ export interface SlotDef {
   per?: SlotPer
   /** 参数归属维度（D-054）；缺省 `site` */
   owner?: SlotOwner
+  /**
+   * 变体由谁决定（D-057）。`'mode'` 表示它就是试验设置栏的**信号源模式**，
+   * 卡片上因此**不给**变体下拉——同一件事两个入口，只会多一个操作口、把逻辑弄复杂
+   * （用户 2026-09-09 指示）。卡片仍把当前变体的名字写出来，只是不可点。
+   */
+  variantFrom?: 'mode'
   /** 04 §5.1 里对应的环节措辞，鼠标悬停时显示 */
   hint: string
   variants: SlotVariant[]
@@ -91,6 +97,8 @@ export interface SlotDef {
 export const SLOTS: readonly SlotDef[] = [
   {
     id: 'tx', label: '辐射源', hint: '辐射源复基带信号', per: 'emitter', owner: 'emitter',
+    // 「场景辐射源」= 全合成 / 混合增强，「实测片段回放」= 实测回放：变体与模式本来就是同一件事
+    variantFrom: 'mode',
     variants: [
       { type: 'SceneEmitterSource', node: 'tx', label: '场景辐射源', bind: 'emitter',
         fixed: { emit_at_tx_power: true }, summary: ['center_frequency_Hz', 'sample_rate_Hz'] },

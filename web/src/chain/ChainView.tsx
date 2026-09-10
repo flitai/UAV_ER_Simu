@@ -19,7 +19,7 @@ import { emitters as sceneEmitters, setPath, sites as sceneSites, type Obj } fro
 import { fieldsFor, modelOf, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
 import { DeviceRow } from '../scene/ObjectForm.js'
 import type { ScenarioDoc } from '../state/types.js'
-import { compile, parseChain, switchMode, switchTxVariant } from './compile.js'
+import { compile, parseChain, switchMode } from './compile.js'
 import {
   INST_SEP,
   MODE_LABEL, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER,
@@ -313,11 +313,7 @@ export function ChainView() {
                     error={errBySlot.get(def.id) ?? null}
                     onSelect={setSelected}
                     onVariant={(id, variant) =>
-                      // 辐射源的变体就是信号源模式，两个入口必须联动（见 switchTxVariant）
-                      commit(id === 'tx'
-                        ? switchTxVariant(chain, variant)
-                        : { ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], variant } } },
-                        '换变体')}
+                      commit({ ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], variant } } }, '换变体')}
                     onBypass={(id, bypass) =>
                       commit({ ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], bypass } } }, bypass ? '旁路' : '启用')}
                   />

@@ -13,8 +13,8 @@ import { dirname, join } from 'node:path'
 import type { Catalog } from '../api/catalog.js'
 import { serialize, parse as parseDoc, type DiagramDoc } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
-import { compile, nodeId, parseChain, splitNodeId, switchMode, switchTxVariant } from './compile.js'
-import { emptyChain, missingParams, slotState, SLOTS, TAP_ORDER, tapLabel, type ChainState } from './model.js'
+import { compile, nodeId, parseChain, splitNodeId, switchMode } from './compile.js'
+import { emptyChain, missingParams, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
 import { freqPlan, planChecks, planOk } from './plan.js'
 import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
 
@@ -504,22 +504,26 @@ test('换变体：目录还没到手时不做过滤（不知道谁认识谁，�
   assert.ok('center_frequency_Hz' in tx.params)
 })
 
-test('辐射源变体与信号源模式联动，不造出「全合成 + 回放源」这种状态（2026-09-09）', () => {
-  const c = synthetic()
-  const r = switchTxVariant(c, 1)
-  assert.equal(r.mode, 'replay', '选回放源即进实测回放模式')
-  assert.equal(r.scenario, null, '回放数据与场景无关（防线二、三）')
-  // 编译出来就是回放模式该有的样子：只剩回放源与检测，没有场景绑定
-  const ids = compile(r, cat, null).doc.nodes.map((n) => n.id)
-  assert.deepEqual(ids, ['tx', 'det'])
+test('辐射源的变体由模式决定，卡片上不给第二个开关（D-057）', () => {
+  // 「场景辐射源」= 全合成 / 混合增强，「实测片段回放」= 实测回放，本来就是同一件事。
+  // 同一件事两个入口只会多一个操作口、把逻辑弄复杂（用户 2026-09-09 指示）
+  assert.equal(SLOT_BY_ID.tx.variantFrom, 'mode')
+  // 除辐射源外，多变体的环节仍由卡片自己选（传播信道的两个变体不对应任何模式）
+  for (const d of SLOTS) {
+    if (d.id === 'tx') continue
+    assert.notEqual(d.variantFrom, 'mode', `${d.id} 不该跟着模式走`)
+  }
 
-  // 换回场景辐射源落到全合成；混合增强用的也是变体 0，从回放态分不出来，取更基础的那个
-  const back = switchTxVariant(r, 0)
-  assert.equal(back.mode, 'synthetic')
+  // 模式一换，变体跟着走，编译出来就是那个模式该有的样子
+  const r = switchMode(synthetic(), 'replay')
+  assert.equal(r.slots.tx.variant, SLOT_BY_ID.tx.variants.findIndex((v: { type: string }) => v.type === 'FileReplaySource'))
+  assert.equal(r.scenario, null, '回放数据与场景无关（防线二、三）')
+  assert.deepEqual(compile(r, cat, null).doc.nodes.map((n) => n.id), ['tx', 'det'])
+
+  const back = switchMode(r, 'synthetic')
   assert.equal(back.slots.tx.variant, 0)
-  // 混合增强里选变体 0 不该把模式改掉
-  const mixed = switchMode(synthetic(), 'mixed')
-  assert.equal(switchTxVariant(mixed, 0).mode, 'mixed')
+  // 混合增强用的也是变体 0（合成目标走全链，回放背景在链尾相加）
+  assert.equal(switchMode(synthetic(), 'mixed').slots.tx.variant, 0)
 })
 
 test('换模式不丢前端参数：暂存进 template_ref 再取回来（D-055）', () => {
@@ -532,14 +536,14 @@ test('换模式不丢前端参数：暂存进 template_ref 再取回来（D-055�
   assert.equal(start.slots.adc.params.full_scale_dBm, -20)
   assert.equal(start.slots.rx_fe.params.gain_dB, 20)
 
-  const replay = cycle(switchTxVariant(start, 1))
+  const replay = cycle(switchMode(start, 'replay'))
   assert.equal(replay.mode, 'replay')
   // 前端两个环节的参数确实被存下来了
   const doc = compile(replay, cat, scenario).doc
   assert.deepEqual(Object.keys(doc.template_ref!.inactive_slots ?? {}), ['rx_fe', 'adc'])
   assert.equal(doc.template_ref!.inactive_slots!.adc!.params!.full_scale_dBm, -20)
 
-  const back = cycle(switchTxVariant(replay, 0))
+  const back = cycle(switchMode(replay, 'synthetic'))
   assert.equal(back.mode, 'synthetic')
   assert.equal(back.slots.adc.params.full_scale_dBm, -20, 'ADC 满量程要活着回来')
   assert.equal(back.slots.rx_fe.params.gain_dB, 20, '前端增益要活着回来')

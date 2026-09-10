@@ -75,7 +75,13 @@ export function SlotCard(p: SlotCardProps) {
         <span className={`slot-badge${p.error ? ' bad' : p.missing.length ? ' warn' : ''}`} data-slot-badge>{badge}</span>
       </div>
 
-      {def.variants.length > 1 && p.state !== 'not_applicable' && (
+      {/* 变体由模式决定的环节（辐射源）不给下拉：试验设置栏的「模式」已经是那个开关，
+          再放一个只会多一个操作入口、把逻辑弄复杂（D-057）。名字仍写出来，只是不可点。 */}
+      {def.variantFrom === 'mode' && p.state !== 'not_applicable' && (
+        <div className="slot-variant-fixed" data-slot-variant-fixed={p.id}>{v.label}</div>
+      )}
+
+      {def.variantFrom !== 'mode' && def.variants.length > 1 && p.state !== 'not_applicable' && (
         <select
           className="slot-variant"
           data-slot-variant={p.id}

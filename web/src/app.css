@@ -395,6 +395,8 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .slot-badge.warn { color: #a16207; }
 .slot-badge.bad { color: #b91c1c; }
 .slot-variant { margin: 0 10px 6px; width: calc(100% - 20px); font-size: 12px; }
+/* 变体由模式决定的环节（辐射源，D-057）：只把名字写出来，别做成看着能点的样子 */
+.slot-variant-fixed { margin: 0 10px 6px; font-size: 12px; color: var(--muted, #7b7367); }
 .slot-body { padding: 2px 10px; display: flex; flex-direction: column; gap: 5px; }
 .slot-param { font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }

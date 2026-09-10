@@ -654,26 +654,6 @@ function def_replay_variant(): number {
 }
 
 /** 切模式时保留已填参数，只改变体与不适用状态（10 报告 §2.2 最后一句）。 */
-/**
- * 辐射源变体与信号源模式是**同一件事**（10 报告 §2.2「一条链、三种信号源模式」）：
- * 「场景辐射源」= 全合成或混合增强，「实测片段回放」= 实测回放。
- *
- * 卡片上的变体下拉与试验设置栏的模式下拉因此是同一个设置的两个入口，必须联动。
- * 不联动的后果是造出一个设计里没有的状态——模式说「全合成」而辐射源是回放源：
- * 回放源不绑场景，`emitterIds` 反解出来是空的，于是 `hasScene` 为假，
- * 整条链的场景绑定连同 `scn` 节点一起**静默消失**，界面上只看到「无人机（先选场景）」
- * （2026-09-09 用户实测撞到）。
- *
- * 由「实测回放」换回「场景辐射源」时落到**全合成**：混合增强也用变体 0，从回放态分不出
- * 用户想要哪一个，取更基础的那个。
- */
-export function switchTxVariant(chain: ChainState, variant: number): ChainState {
-  const wantReplay = variant === def_replay_variant()
-  if (wantReplay && chain.mode !== 'replay') return switchMode(chain, 'replay')
-  if (!wantReplay && chain.mode === 'replay') return switchMode(chain, 'synthetic')
-  return { ...chain, slots: { ...chain.slots, tx: { ...chain.slots.tx, variant } } }
-}
-
 export function switchMode(chain: ChainState, mode: ChainMode): ChainState {
   const next: ChainState = { ...chain, mode, slots: { ...chain.slots } }
   const txVariant = mode === 'replay' ? def_replay_variant() : 0
