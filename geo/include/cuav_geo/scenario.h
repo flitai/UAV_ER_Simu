@@ -17,6 +17,7 @@
 #include "cuav_geo/geodesy.h"
 #include "cuav_geo/kinematics.h"
 #include "cuav_geo/link_budget.h"
+#include "cuav_geo/propagation.h"
 
 namespace cuav {
 namespace geo {
@@ -210,8 +211,17 @@ public:
     LinkFrameSource();
 
     // update_rate_Hz ∈ [10, 100]，越界写 err 返回 false。
+    // cfg 缺省即 E1（自由空间），与 D-058 之前的行为逐数值相同（12 §0 第 10 条）。
     bool build(const Scenario& s, const std::string& site_id, const std::string& emitter_id,
-               double update_rate_Hz, std::string& err);
+               double update_rate_Hz, std::string& err,
+               const PropagationConfig& cfg = PropagationConfig());
+
+    // 统计阴影的序列（EM-P-08）。**必须在 frame() 之前一次算完**：frame() 的无副作用与
+    // 可乱序调用是硬不变量（见本类的类注释），而阴影是沿航迹的一阶递推。
+    // 配置没开阴影时什么也不做；开了但 duration_s ≤ 0 或帧数过大时写 err 返回 false（铁律 15）。
+    bool init_shadow(INormalSource& rng, double duration_s, std::string& err);
+
+    const PropagationConfig& propagation() const { return prop_; }
 
     const std::string& link_id() const { return link_id_; }        // "<site_id>-<emitter_id>"
     const std::string& emitter_id() const { return emitter_id_; }
@@ -232,6 +242,12 @@ public:
         bool tx_on;
         double center_Hz;
         bool valid;
+        // 传播分档的三项（D-058）。path_loss_dB = free_space_dB + extra_loss_dB 恒成立；
+        // included_loss_terms 告诉下游这条路损里已经含了哪几类，据此判断能不能再叠加
+        // （EM-P-13 §10.9）。E1 档下 extra 恒 0、included 只有 free_space。
+        double free_space_dB, extra_loss_dB;
+        std::vector<std::string> included_loss_terms;
+        bool degraded;
         std::string reason;
 
         Frame()
@@ -240,7 +256,8 @@ public:
               doppler_Hz(0.0), delay_s(0.0), distance_m(0.0), azimuth_deg(0.0),
               elevation_deg(0.0), aod_azimuth_deg(0.0), aod_elevation_deg(0.0),
               lon(0.0), lat(0.0), alt_m(0.0), heading_deg(0.0),
-              speed_mps(0.0), tx_on(true), center_Hz(0.0), valid(true) {}
+              speed_mps(0.0), tx_on(true), center_Hz(0.0), valid(true),
+              free_space_dB(0.0), extra_loss_dB(0.0), degraded(false) {}
     };
 
     Frame frame(std::uint64_t k) const;
@@ -253,6 +270,11 @@ private:
     double rx_nf_dB_;
     EmitterRuntime emitter_;
     double rate_;
+    // D-058：传播配置、显式平地假设的参考平面、发射极化（只有地面双径读它）、阴影序列。
+    PropagationConfig prop_;
+    double terrain_height_m_;
+    std::string polarization_;
+    ShadowSequence shadow_;
 };
 
 }  // namespace geo

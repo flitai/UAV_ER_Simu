@@ -89,6 +89,7 @@ add_executable(cuav_engine_tests
   tests/test_runner.cpp
   tests/test_catalog_golden.cpp
   tests/test_geo.cpp
+  tests/test_propagation.cpp
   tests/test_scenario.cpp
   tests/test_channel.cpp
   tests/test_locate.cpp

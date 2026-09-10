@@ -228,11 +228,12 @@ double EmitterRuntime::center_Hz_at(double t_s) const {
 
 // ---------------------------------------------------------------------------
 
-LinkFrameSource::LinkFrameSource() : rx_nf_dB_(0.0), rate_(0.0) {}
+LinkFrameSource::LinkFrameSource()
+    : rx_nf_dB_(0.0), rate_(0.0), terrain_height_m_(0.0), polarization_("vertical") {}
 
 bool LinkFrameSource::build(const Scenario& s, const std::string& site_id,
                             const std::string& emitter_id, double update_rate_Hz,
-                            std::string& err) {
+                            std::string& err, const PropagationConfig& cfg) {
     if (!(update_rate_Hz >= 10.0) || !(update_rate_Hz <= 100.0)) {
         err = "参数帧更新率必须在 10 到 100 赫兹之间（docs/scenario-format.md §7）";
         return false;
@@ -250,6 +251,44 @@ bool LinkFrameSource::build(const Scenario& s, const std::string& site_id,
     site_pos_ = site->position;
     rx_nf_dB_ = site->receiver.nf_dB;
     rate_ = update_rate_Hz;
+    prop_ = cfg;
+    terrain_height_m_ = s.coordinate.terrainHeight_m;
+    // 发射极化只有地面双径读它（EM-P-02 §10.4）。场景缺省 "vertical"（D-051，C-1）。
+    const Emitter* em = s.find_emitter(emitter_id);
+    polarization_ = (em != 0 && !em->emission.polarization.empty())
+                        ? em->emission.polarization : std::string("vertical");
+    shadow_ = ShadowSequence();
+    return true;
+}
+
+bool LinkFrameSource::init_shadow(INormalSource& rng, double duration_s, std::string& err) {
+    shadow_ = ShadowSequence();
+    if (!prop_.shadow || !prop_.effects_enabled()) return true;
+    const std::uint64_t n = frame_count(duration_s);
+    if (n == 0) {
+        err = "统计阴影需要正的仿真时长才能按帧序预生成序列";
+        return false;
+    }
+    // 上限只是防呆：100 Hz × 24 小时也才 8.64e6。超了说明时长或更新率填错了，
+    // 与其吃掉几百兆内存不如当场说清楚（铁律 15）。
+    if (n > 10000000ull) {
+        err = "统计阴影要预生成 " + std::to_string(n) + " 帧，超过上限一千万；"
+              "请缩短时长或降低 update_rate_Hz";
+        return false;
+    }
+    // 逐帧的空间位移：第 k 帧目标位置与第 k−1 帧的 ECEF 弦长（D-049 ①：距离一律 ECEF 弦长）。
+    // 阴影随**空间位移**变化而不是随时间，所以悬停时相邻帧几乎完全相关、高速飞行时很快去相关
+    // （EM-P-08 §10.9 裁决要点第 3 条）。
+    const IGeodesy& g = default_geodesy();
+    std::vector<double> steps(static_cast<std::size_t>(n), 0.0);
+    Ecef prev;
+    for (std::uint64_t k = 0; k < n; ++k) {
+        const double t = static_cast<double>(k) / rate_;
+        const Ecef cur = g.to_ecef(emitter_.motion_at(t).position);
+        if (k > 0) steps[static_cast<std::size_t>(k)] = norm(sub(cur, prev));
+        prev = cur;
+    }
+    shadow_.build(steps, shadow_sigma_dB(prop_, true), prop_.shadow_corr_distance_m, rng);
     return true;
 }
 
@@ -272,7 +311,7 @@ LinkFrameSource::Frame LinkFrameSource::frame(std::uint64_t k) const {
     f.tx_on = emitter_.tx_on_at(t);
     f.center_Hz = emitter_.center_Hz_at(t);
 
-    const LinkGeometry g = link_geometry(site_pos_, m.position, m.velocity);
+    const LinkGeometry g = link_geometry(site_pos_, m.position, m.velocity, terrain_height_m_);
     f.distance_m = g.distance_m;
     f.azimuth_deg = g.azimuth_deg;
     f.elevation_deg = g.elevation_deg;
@@ -284,12 +323,17 @@ LinkFrameSource::Frame LinkFrameSource::frame(std::uint64_t k) const {
     f.aod_azimuth_deg = back.azimuth_deg;
     f.aod_elevation_deg = back.elevation_deg;
 
-    const LinkBudget b = link_budget(g, f.center_Hz, rx_nf_dB_);
+    const LinkBudget b = link_budget(g, f.center_Hz, rx_nf_dB_, prop_,
+                                    shadow_.at(static_cast<std::size_t>(k)), polarization_);
     f.path_loss_dB = b.path_loss_dB;
     f.noise_floor_dBm_per_Hz = b.noise_floor_dBm_per_Hz;
     f.doppler_Hz = b.doppler_Hz;
     f.delay_s = b.delay_s;
     f.valid = b.valid;
+    f.free_space_dB = b.free_space_dB;
+    f.extra_loss_dB = b.extra_loss_dB;
+    f.included_loss_terms = b.terms.included;
+    f.degraded = b.degraded;
     f.reason = b.reason;
     return f;
 }

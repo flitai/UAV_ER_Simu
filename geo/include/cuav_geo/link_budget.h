@@ -4,8 +4,13 @@
 // CLAUDE.md 铁律 5（SI 单位，dB 域与线性域不混算）、铁律 2（平地假设）、铁律 15（不静默降级）、
 // 决策 D-009（c = 299792458）。
 //
-// 首期只有自由空间：line_of_sight 在显式平地假设下恒真，extra_loss_dB 恒 0。
-// D3（切片 ⑤）接入建筑遮挡后只改 extra_loss_dB 与 line_of_sight 两处，帧结构与本接口不变。
+// 自 D-058（2026-09-10）起，传播效应按档位组合，逐项计算在 cuav_geo/propagation.h：
+// **缺省配置 = E1 = 自由空间**，代码路径与此前逐字相同（extra_loss_dB 恒 0）；
+// E2 档加地面双径 / 城市经验（二选一）、统计阴影、大气与降雨。
+// 替代型主模型也走 extra_loss_dB（extra = L_primary − L_fs），于是
+// path_loss_dB = free_space_dB + extra_loss_dB 这个恒等式在任何档位下都成立——
+// 「只改 extra_loss_dB 与 line_of_sight 两处，帧结构与本接口不变」这句承诺照旧兑现。
+// line_of_sight 在显式平地假设下仍恒真；D3（切片 ⑤）接入建筑遮挡后在此改。
 
 #ifndef CUAV_GEO_LINK_BUDGET_H
 #define CUAV_GEO_LINK_BUDGET_H
@@ -13,6 +18,7 @@
 #include <string>
 
 #include "cuav_geo/geodesy.h"
+#include "cuav_geo/propagation.h"
 
 namespace cuav {
 namespace geo {
@@ -37,10 +43,15 @@ struct LinkGeometry {
     double elevation_deg;
     double range_rate_mps;    // > 0 表示远离
     bool line_of_sight;       // 首期平地假设恒真（铁律 2）
+    // 收发端**离地高度** = alt_m − terrainHeight_m（铁律 2 的显式平地假设、铁律 2 禁止隐式相加）。
+    // 只有地面双径用得上；E1 档不读它。tx = 辐射源、rx = 站点。
+    double tx_height_m;
+    double rx_height_m;
 
     LinkGeometry()
         : distance_m(0.0), azimuth_deg(0.0), elevation_deg(0.0),
-          range_rate_mps(0.0), line_of_sight(true) {}
+          range_rate_mps(0.0), line_of_sight(true),
+          tx_height_m(0.0), rx_height_m(0.0) {}
 };
 
 // site → emitter 的几何。emitter_velocity 是**地固系 ECEF 速度**；
@@ -50,7 +61,10 @@ struct LinkGeometry {
 // 一处自洽性说明：位置沿航段是「经纬高各自线性」（docs/scenario-format.md §5 冻结，
 // 浏览器预览照此复算），而速度取「弦长 / 段时长」的常矢量。两者在 3 km 航段上相对差约 1e-5，
 // 折到多普勒上是 0.001 Hz 量级，不影响任何验收数字；但它确实是两种口径，记在这里免得日后当缺陷查。
-LinkGeometry link_geometry(const Lla& site, const Lla& emitter, const Ecef& emitter_velocity);
+// terrain_height_m 是场景 coordinate.terrainHeight_m（显式平地假设的参考平面海拔）；
+// 缺省 0 保持既有调用点一字不改。
+LinkGeometry link_geometry(const Lla& site, const Lla& emitter, const Ecef& emitter_velocity,
+                           double terrain_height_m = 0.0);
 
 struct LinkBudget {
     double free_space_dB;
@@ -61,16 +75,27 @@ struct LinkBudget {
     double noise_floor_dBm_per_Hz;
     bool line_of_sight;
     bool valid;                       // 距离或频率非正时为 false，不拿 0 顶替（铁律 15）
+    // 传播模型自身的降级（如双径拿不到反射点、城市经验在 d0 以内）。与 valid 正交：
+    // 降级仍给得出可用的数，只是可信度降一档，不静默（铁律 15、05 §6.2.3 的四态）。
+    bool degraded;
+    PropagationTerms terms;           // 逐项分解与 included_loss_terms
     std::string reason;
 
     LinkBudget()
         : free_space_dB(0.0), extra_loss_dB(0.0), path_loss_dB(0.0), doppler_Hz(0.0),
-          delay_s(0.0), noise_floor_dBm_per_Hz(0.0), line_of_sight(true), valid(true) {}
+          delay_s(0.0), noise_floor_dBm_per_Hz(0.0), line_of_sight(true), valid(true),
+          degraded(false) {}
 };
 
 // path_loss_dB 只装传播损耗。发射功率与收发天线增益在首期是全程常量，属于"施加"类信道组件的
 // 配置项，不进 10–100 Hz 的慢变帧——否则 link 事件与场景视图里的"路损"读数就名不副实了。
-LinkBudget link_budget(const LinkGeometry& g, double frequency_Hz, double rx_nf_dB);
+// cfg 缺省即 E1（自由空间），与本函数在 D-058 之前的行为逐数值相同。
+// shadow_sample_dB 由调用方从 ShadowSequence 取好传进来：本函数保持纯函数、不持有随机状态。
+// polarization 取场景 emission.polarization，只有地面双径读它。
+LinkBudget link_budget(const LinkGeometry& g, double frequency_Hz, double rx_nf_dB,
+                       const PropagationConfig& cfg = PropagationConfig(),
+                       double shadow_sample_dB = 0.0,
+                       const std::string& polarization = std::string("vertical"));
 
 }  // namespace geo
 }  // namespace cuav

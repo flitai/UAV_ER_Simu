@@ -22,6 +22,7 @@ add_library(cuav_geo STATIC
   src/geodesy.cpp
   src/kinematics.cpp
   src/link_budget.cpp
+  src/propagation.cpp
   src/scenario.cpp
   src/df_error.cpp
   src/fix_geometry.cpp

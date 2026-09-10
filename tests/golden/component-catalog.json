@@ -1357,6 +1357,163 @@
           "unit": ""
         },
         {
+          "default": "E1",
+          "description": "传播精度档（01 的 E1–E4，直接写进溯源的 model_level）：E1 快速抽象 = 自由空间路损 + 多普勒 + 时延；E2 工程 = 再加地面双径或城市经验（二选一）、统计阴影、大气与降雨；E3 精细机理 = 建筑遮挡与刀口绕射，需逐建筑几何，待 D3（切片 ⑤），本版本收到即报错",
+          "enum": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "name": "prop_level",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": "free_space",
+          "description": "替代型主模型，至多一个（EM-P-13 §10.9 防重复计损）：选中它就由它给出基础损耗，不再单独叠加自由空间。two_ray = EM-P-02 地面双径，urban_empirical = EM-P-05 城市经验",
+          "enum": [
+            "free_space",
+            "two_ray",
+            "urban_empirical"
+          ],
+          "name": "prop_primary",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": false,
+          "description": "统计阴影衰落（EM-P-08）：dB 域零均值正态，沿航迹按空间相关一阶递推",
+          "name": "prop_shadow",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "default": false,
+          "description": "大气吸收与降雨衰减（EM-P-07）。2.4 GHz、20 km 上是 0.1 dB 量级",
+          "name": "prop_weather",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "default": "urban",
+          "description": "环境类别：决定城市经验的路损指数与偏置、统计阴影的标准差。open 档的 n = 2、偏置 0，城市经验在该档恒等于自由空间",
+          "enum": [
+            "open",
+            "suburban",
+            "urban",
+            "dense_urban"
+          ],
+          "name": "env_class",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": "unknown",
+          "description": "地面反射面材质，查 εr / σ / 粗糙度默认表（地表材质工作流 §3.5）。只有地面双径用",
+          "enum": [
+            "paved",
+            "grass",
+            "water",
+            "dirt",
+            "unknown"
+          ],
+          "name": "ground_type",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": -1.0,
+          "description": "地表 RMS 粗糙度；填 -1 表示按 ground_type 取表值。0 是理想光滑面，是有意义的取值",
+          "min": -1.0,
+          "name": "ground_roughness_m",
+          "required": false,
+          "type": "number",
+          "unit": "m"
+        },
+        {
+          "default": 1.0,
+          "description": "双径的相干因子 ρ_c（EM-P-02 §10.6）：1 = 完全相干（可见干涉起伏），0 = 非相干（只作功率相加）。小于 1 时衰落状态一律降为 averaged",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "coherence_rho",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 20.0,
+          "description": "双径相消的限幅（EM-P-02 §10.8 第 3 条）：数值上完全相消会给出不现实的无限损耗",
+          "min": 0.0,
+          "name": "max_fade_depth_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": -1.0,
+          "description": "城市经验的路损指数 n；填 -1 表示按 env_class 取表值",
+          "min": -1.0,
+          "name": "path_loss_exponent",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 100.0,
+          "description": "城市经验 log-distance 的参考距离 d0。距离在 d0 以内时近区退回自由空间并标降级",
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "ref_distance_m",
+          "required": false,
+          "type": "number",
+          "unit": "m"
+        },
+        {
+          "default": "mean",
+          "description": "城市经验给均值还是「均值 + 90% 分位阴影裕度」。后者自带阴影，与 prop_shadow 同时开即同源双计，configure() 会报错",
+          "enum": [
+            "mean",
+            "mean_with_shadow_margin"
+          ],
+          "name": "urban_loss_mode",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": -1.0,
+          "description": "统计阴影的标准差 σ；填 -1 表示按 env_class 与视距状态取表值",
+          "min": -1.0,
+          "name": "shadow_sigma_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 50.0,
+          "description": "阴影的空间相关距离 d_corr（相关系数降到 1/e 的距离）。阴影随空间位移变化，不随时间",
+          "min": 0.0,
+          "name": "shadow_corr_distance_m",
+          "required": false,
+          "type": "number",
+          "unit": "m"
+        },
+        {
+          "default": 0.0,
+          "description": "降雨率；0 表示无雨",
+          "min": 0.0,
+          "name": "rain_rate_mmh",
+          "required": false,
+          "type": "number",
+          "unit": "mm/h"
+        },
+        {
           "description": "场景文件路径，由装载器按 scene_binding 注入",
           "internal": true,
           "name": "scenario_path",

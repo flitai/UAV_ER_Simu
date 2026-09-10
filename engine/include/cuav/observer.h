@@ -40,6 +40,12 @@ struct LinkFrame {
     double distance_m = 0.0, azimuth_deg = 0.0, elevation_deg = 0.0;
     double path_loss_dB = 0.0, delay_s = 0.0, doppler_Hz = 0.0;
     double valid_from_s = 0.0, valid_to_s = 0.0, update_rate_Hz = 0.0;
+    // 传播分档（D-058）：path_loss_dB = free_space_dB + extra_loss_dB 恒成立；
+    // included_loss_terms 是 free_space / ground_reflection / urban_mean / shadow / weather
+    // 的有序子集，下游据此判断能不能再叠加（EM-P-13 §10.9）。
+    // E1 缺省档下 extra 恒 0、清单只有 free_space，读数与 D-058 之前逐数值相同。
+    double free_space_dB = 0.0, extra_loss_dB = 0.0;
+    std::vector<std::string> included_loss_terms;
     State state = State::Valid;
 };
 

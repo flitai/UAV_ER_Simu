@@ -113,6 +113,57 @@ ComponentInfo ScenarioSource::describe() const {
         ParamSpec::number("report_rate_Hz", "Hz", "实体状态与链路读数的上报率，不大于更新率").def(10.0).at_least(0.1),
         ParamSpec::boolean("report_entities", "是否上报实体状态；多站场景里只让一个节点报，避免重复").def_bool(true),
         ParamSpec::number("block_samples", "", "每块样点数；由 run.block_size 统一给定，不建议单节点覆盖").def(65536.0).at_least(1.0),
+
+        // ---- 传播效应（D-058，12 号报告）。界面上显示在「传播信道」卡片右栏（槽位表的代理机制）。
+        ParamSpec::choice("prop_level", {"E1", "E2", "E3"},
+                          "传播精度档（01 的 E1–E4，直接写进溯源的 model_level）："
+                          "E1 快速抽象 = 自由空间路损 + 多普勒 + 时延；"
+                          "E2 工程 = 再加地面双径或城市经验（二选一）、统计阴影、大气与降雨；"
+                          "E3 精细机理 = 建筑遮挡与刀口绕射，需逐建筑几何，待 D3（切片 ⑤），本版本收到即报错")
+            .def_text("E1"),
+        ParamSpec::choice("prop_primary", {"free_space", "two_ray", "urban_empirical"},
+                          "替代型主模型，至多一个（EM-P-13 §10.9 防重复计损）：选中它就由它给出基础损耗，"
+                          "不再单独叠加自由空间。two_ray = EM-P-02 地面双径，urban_empirical = EM-P-05 城市经验")
+            .def_text("free_space"),
+        ParamSpec::boolean("prop_shadow", "统计阴影衰落（EM-P-08）：dB 域零均值正态，沿航迹按空间相关一阶递推")
+            .def_bool(false),
+        ParamSpec::boolean("prop_weather", "大气吸收与降雨衰减（EM-P-07）。2.4 GHz、20 km 上是 0.1 dB 量级")
+            .def_bool(false),
+        ParamSpec::choice("env_class", {"open", "suburban", "urban", "dense_urban"},
+                          "环境类别：决定城市经验的路损指数与偏置、统计阴影的标准差。"
+                          "open 档的 n = 2、偏置 0，城市经验在该档恒等于自由空间")
+            .def_text("urban"),
+        ParamSpec::choice("ground_type", {"paved", "grass", "water", "dirt", "unknown"},
+                          "地面反射面材质，查 εr / σ / 粗糙度默认表（地表材质工作流 §3.5）。只有地面双径用")
+            .def_text("unknown"),
+        ParamSpec::number("ground_roughness_m", "m",
+                          "地表 RMS 粗糙度；填 -1 表示按 ground_type 取表值。0 是理想光滑面，是有意义的取值")
+            .def(-1.0).at_least(-1.0),
+        ParamSpec::number("coherence_rho", "",
+                          "双径的相干因子 ρ_c（EM-P-02 §10.6）：1 = 完全相干（可见干涉起伏），"
+                          "0 = 非相干（只作功率相加）。小于 1 时衰落状态一律降为 averaged")
+            .def(1.0).at_least(0.0).at_most(1.0),
+        ParamSpec::number("max_fade_depth_dB", "dB",
+                          "双径相消的限幅（EM-P-02 §10.8 第 3 条）：数值上完全相消会给出不现实的无限损耗")
+            .def(20.0).at_least(0.0),
+        ParamSpec::number("path_loss_exponent", "",
+                          "城市经验的路损指数 n；填 -1 表示按 env_class 取表值")
+            .def(-1.0).at_least(-1.0),
+        ParamSpec::number("ref_distance_m", "m",
+                          "城市经验 log-distance 的参考距离 d0。距离在 d0 以内时近区退回自由空间并标降级")
+            .def(100.0).at_least(0.0, true),
+        ParamSpec::choice("urban_loss_mode", {"mean", "mean_with_shadow_margin"},
+                          "城市经验给均值还是「均值 + 90% 分位阴影裕度」。"
+                          "后者自带阴影，与 prop_shadow 同时开即同源双计，configure() 会报错")
+            .def_text("mean"),
+        ParamSpec::number("shadow_sigma_dB", "dB",
+                          "统计阴影的标准差 σ；填 -1 表示按 env_class 与视距状态取表值")
+            .def(-1.0).at_least(-1.0),
+        ParamSpec::number("shadow_corr_distance_m", "m",
+                          "阴影的空间相关距离 d_corr（相关系数降到 1/e 的距离）。阴影随空间位移变化，不随时间")
+            .def(50.0).at_least(0.0),
+        ParamSpec::number("rain_rate_mmh", "mm/h", "降雨率；0 表示无雨").def(0.0).at_least(0.0),
+
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("scenario_id", "场景标识，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("site_id", "绑定的站点标识，由装载器按 scene_binding 注入").internal_only(),
@@ -154,6 +205,46 @@ bool ScenarioSource::configure(const std::map<std::string, double>& params,
         return false;
     }
 
+    // 传播效应配置（D-058）。枚举一律显式解析：认不出就报错，不拿缺省顶替（铁律 15）。
+    {
+        std::string txt;
+        prop_ = geo::PropagationConfig();
+        if (get_text(text_params, "prop_level", txt) && !geo::parse_prop_level(txt, prop_.level)) {
+            err = "prop_level 必须是 E1 / E2 / E3 之一，收到 " + txt;
+            return false;
+        }
+        if (get_text(text_params, "prop_primary", txt)
+            && !geo::parse_primary_model(txt, prop_.primary)) {
+            err = "prop_primary 必须是 free_space / two_ray / urban_empirical 之一，收到 " + txt;
+            return false;
+        }
+        if (get_text(text_params, "env_class", txt) && !geo::parse_env_class(txt, prop_.env)) {
+            err = "env_class 必须是 open / suburban / urban / dense_urban 之一，收到 " + txt;
+            return false;
+        }
+        if (get_text(text_params, "ground_type", txt) && !geo::parse_ground_type(txt, prop_.ground)) {
+            err = "ground_type 必须是 paved / grass / water / dirt / unknown 之一，收到 " + txt;
+            return false;
+        }
+        if (get_text(text_params, "urban_loss_mode", txt)
+            && !geo::parse_urban_loss_mode(txt, prop_.urban_mode)) {
+            err = "urban_loss_mode 必须是 mean / mean_with_shadow_margin 之一，收到 " + txt;
+            return false;
+        }
+        prop_.shadow = get_num(params, "prop_shadow", 0.0) != 0.0;
+        prop_.weather = get_num(params, "prop_weather", 0.0) != 0.0;
+        prop_.roughness_m = get_num(params, "ground_roughness_m", -1.0);
+        prop_.coherence_rho = get_num(params, "coherence_rho", 1.0);
+        prop_.max_fade_depth_dB = get_num(params, "max_fade_depth_dB", 20.0);
+        prop_.path_loss_exponent = get_num(params, "path_loss_exponent", -1.0);
+        prop_.ref_distance_m = get_num(params, "ref_distance_m", 100.0);
+        prop_.shadow_sigma_dB = get_num(params, "shadow_sigma_dB", -1.0);
+        prop_.shadow_corr_distance_m = get_num(params, "shadow_corr_distance_m", 50.0);
+        prop_.rain_rate_mmh = get_num(params, "rain_rate_mmh", 0.0);
+        // 档位与组合的跨参数约束都在这一处（E3 未实现、E1 却选了效应、城市经验裕度与统计阴影双计）
+        if (!prop_.validate(err)) return false;
+    }
+
     if (!load_bound_scenario("ScenarioSource", scenario_path_, scenario_id_, scene_, err)) return false;
 
     const geo::Site* site = scene_.find_site(site_id_);
@@ -176,7 +267,8 @@ bool ScenarioSource::configure(const std::map<std::string, double>& params,
     entities_.clear();
     for (std::size_t i = 0; i < scene_.emitters.size(); ++i) {
         geo::LinkFrameSource lf;
-        if (!lf.build(scene_, site_id_, scene_.emitters[i].id, update_rate_Hz_, err)) return false;
+        if (!lf.build(scene_, site_id_, scene_.emitters[i].id, update_rate_Hz_, err, prop_))
+            return false;
         links_.push_back(lf);
         ports_.push_back(PortSpec{"link:" + scene_.emitters[i].id, PortType::SceneParamFrame});
         geo::EmitterRuntime rt;
@@ -189,10 +281,36 @@ bool ScenarioSource::configure(const std::map<std::string, double>& params,
     return true;
 }
 
-bool ScenarioSource::init(IRandom&, std::string& err) {
+namespace {
+// geo/ 保持零第三方依赖，只声明 INormalSource；发生器仍是引擎这一份（铁律 9，12 §0 第 9 条）。
+class NormalAdapter : public geo::INormalSource {
+public:
+    explicit NormalAdapter(std::uint64_t seed) : rng_(seed) {}
+    double normal() override { return rng_.normal(); }
+private:
+    Xoshiro256pp rng_;
+};
+}  // namespace
+
+bool ScenarioSource::init(IRandom& rng, std::string& err) {
     if (links_.empty()) {
         err = "ScenarioSource 没有任何链路：场景里至少要有一个辐射源";
         return false;
+    }
+    // 统计阴影（D-058）。**每条 (站, 源) 链路一条独立子流**，按 links_ 的固定顺序派生，
+    // 于是多站多源互不干扰、同种子逐位复现。序列必须在这里一次算完——frame(k) 的无副作用
+    // 与可乱序调用是硬不变量，而 process() 对同一个 k 确实会调两次（12 §3.4）。
+    //
+    // **不开阴影就一个数都不取**。这个守卫是实测逼出来的：`rng` 是全图共享的那一条流，
+    // 每条链路无条件抽一个 u64 会把后面所有组件（噪声源、接收机前端…）的子种子整体挪位，
+    // 于是「E1 缺省档逐数值等于今天」当场不成立——slice2 的产品字节比对第一次就红了。
+    if (prop_.shadow && prop_.effects_enabled()) {
+        const double duration_s = (sample_rate_Hz_ > 0.0)
+            ? static_cast<double>(total_samples_) / sample_rate_Hz_ : 0.0;
+        for (std::size_t i = 0; i < links_.size(); ++i) {
+            NormalAdapter sub(rng.next_u64());
+            if (!links_[i].init_shadow(sub, duration_s, err)) return false;
+        }
     }
     produced_ = 0;
     reported_upto_ = 0;
@@ -232,7 +350,10 @@ Step ScenarioSource::process(PortMap&, PortMap& out, std::string& err) {
             sp.tx_heading_deg = f.heading_deg;
             sp.tx_on = f.tx_on;
             sp.tx_center_Hz = f.center_Hz;
-            sp.state = f.valid ? State::Valid : State::Invalid;
+            // 传播模型自身的降级随帧走到 IQ 块元数据（channel.cpp 用 worst() 汇总），
+            // 于是「这一段用的是退回自由空间的近区值」在结果四态上看得见（铁律 15）。
+            // E1 缺省档下 degraded 恒假，与 D-058 之前逐字相同。
+            sp.state = !f.valid ? State::Invalid : (f.degraded ? State::Degraded : State::Valid);
             // 身份三件（D-053）：消费端按它们分流，不去解析 trace_id
             sp.link_id = links_[li].link_id();
             sp.site_id = links_[li].site_id();
@@ -263,7 +384,12 @@ Step ScenarioSource::process(PortMap&, PortMap& out, std::string& err) {
                 lf.valid_from_s = f.valid_from_s;
                 lf.valid_to_s = f.valid_to_s;
                 lf.update_rate_Hz = f.update_rate_Hz;
-                lf.state = f.valid ? State::Valid : State::Invalid;
+                lf.free_space_dB = f.free_space_dB;
+                lf.extra_loss_dB = f.extra_loss_dB;
+                lf.included_loss_terms = f.included_loss_terms;
+                // 传播模型自身的降级不算无效：数照旧给得出，只是可信度降一档（05 §6.2.3 四态）
+                lf.state = !f.valid ? State::Invalid
+                                    : (f.degraded ? State::Degraded : State::Valid);
                 obs_->on_link(lf);
 
                 if (report_entities_) {

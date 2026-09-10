@@ -207,19 +207,18 @@ public:
 
     void on_link(const LinkFrame& l) override {
         if (l.t_s > last_t_s_) last_t_s_ = l.t_s;
-        sink_.emit("link", l.t_s, json{{"link_id", l.link_id}, {"line_of_sight", l.line_of_sight},
-                                       {"distance_m", l.distance_m}, {"azimuth_deg", l.azimuth_deg},
-                                       {"elevation_deg", l.elevation_deg}, {"path_loss_dB", l.path_loss_dB},
-                                       {"delay_s", l.delay_s}, {"doppler_Hz", l.doppler_Hz},
-                                       {"valid_from_s", l.valid_from_s}, {"valid_to_s", l.valid_to_s},
-                                       {"update_rate_Hz", l.update_rate_Hz}, {"state", to_string(l.state)}});
-        write_jsonl(links_, "links.jsonl",
-                    json{{"t_s", l.t_s}, {"link_id", l.link_id}, {"line_of_sight", l.line_of_sight},
-                         {"distance_m", l.distance_m}, {"azimuth_deg", l.azimuth_deg},
-                         {"elevation_deg", l.elevation_deg}, {"path_loss_dB", l.path_loss_dB},
-                         {"delay_s", l.delay_s}, {"doppler_Hz", l.doppler_Hz},
-                         {"valid_from_s", l.valid_from_s}, {"valid_to_s", l.valid_to_s},
-                         {"update_rate_Hz", l.update_rate_Hz}, {"state", to_string(l.state)}});
+        // 传播分档的三项（D-058）。事件与 JSONL 用同一份载荷，只差一个 t_s：
+        // 两处各写一遍键表，改一处漏一处的账迟早要还。
+        json row{{"t_s", l.t_s}, {"link_id", l.link_id}, {"line_of_sight", l.line_of_sight},
+                 {"distance_m", l.distance_m}, {"azimuth_deg", l.azimuth_deg},
+                 {"elevation_deg", l.elevation_deg}, {"path_loss_dB", l.path_loss_dB},
+                 {"free_space_dB", l.free_space_dB}, {"extra_loss_dB", l.extra_loss_dB},
+                 {"included_loss_terms", l.included_loss_terms},
+                 {"delay_s", l.delay_s}, {"doppler_Hz", l.doppler_Hz},
+                 {"valid_from_s", l.valid_from_s}, {"valid_to_s", l.valid_to_s},
+                 {"update_rate_Hz", l.update_rate_Hz}, {"state", to_string(l.state)}};
+        sink_.emit("link", l.t_s, strip_t(row));
+        write_jsonl(links_, "links.jsonl", row);
         ++links_written_;
     }
 

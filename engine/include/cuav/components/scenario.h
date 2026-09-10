@@ -60,6 +60,10 @@ private:
     std::uint64_t total_samples_ = 0;
     std::size_t block_samples_ = 65536;
 
+    // 传播效应配置（D-058）。参数声明在本组件上（它是帧生产端、真正用到它们的地方），
+    // 界面上显示在「传播信道」卡片的右栏——靠槽位表的代理机制（12 §5.3），不是第二份状态。
+    geo::PropagationConfig prop_;
+
     geo::Scenario scene_;
     std::vector<geo::LinkFrameSource> links_;   // 与 ports_ 严格同序
     std::vector<PortSpec> ports_;
