@@ -14,7 +14,7 @@ import type { Catalog } from '../api/catalog.js'
 import { serialize, parse as parseDoc, type DiagramDoc } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { compile, nodeId, parseChain, splitNodeId, switchMode } from './compile.js'
-import { emptyChain, missingParams, PROPAGATION_PARAMS, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
+import { emptyChain, missingParams, PROPAGATION_PARAMS, retiredNote, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
 import { propConflict, propView, visiblePropParams } from './effects.js'
 import { freqPlan, planChecks, planOk } from './plan.js'
 import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
@@ -718,19 +718,31 @@ test('右栏按当前档位显隐：E1 只有档位一项，选了双径才出�
 
 test('前端的相容判据与引擎 PropagationConfig::validate 一一对应', () => {
   const V = (p: Record<string, unknown>) => propView(p as Record<string, never>)
-  assert.equal(propConflict(V({}), 'SceneBoundChannel'), null)
-  assert.match(propConflict(V({ prop_level: 'E3' }), 'SceneBoundChannel')!, /D3/)
-  assert.match(propConflict(V({ prop_primary: 'two_ray' }), 'SceneBoundChannel')!, /E2/)
+  assert.equal(propConflict(V({})), null)
+  assert.match(propConflict(V({ prop_level: 'E3' }))!, /D3/)
+  assert.match(propConflict(V({ prop_primary: 'two_ray' }))!, /E2/)
   assert.match(
     propConflict(V({ prop_level: 'E2', prop_primary: 'urban_empirical',
-                     urban_loss_mode: 'mean_with_shadow_margin', prop_shadow: true }),
-                 'SceneBoundChannel')!,
+                     urban_loss_mode: 'mean_with_shadow_margin', prop_shadow: true }))!,
     /双计/)
-  // 自由空间（定参）不吃场景帧，只能是 E1——这条只有前端拦得住
-  assert.match(
-    propConflict(V({ prop_level: 'E2', prop_primary: 'two_ray' }), 'FreeSpaceChannel')!,
-    /只能用 E1/)
-  assert.equal(propConflict(V({}), 'FreeSpaceChannel'), null)
+})
+
+test('传播信道只有一个变体：定参自由空间已撤（D-059）', () => {
+  assert.equal(SLOT_BY_ID.ch.variants.length, 1)
+  assert.equal(SLOT_BY_ID.ch.variants[0]!.type, 'SceneBoundChannel')
+  // 变体只剩一个，卡片上就不该再出现下拉——判据与 SlotCard 的渲染条件是同一个
+  assert.equal(SLOT_BY_ID.ch.variants.length > 1, false)
+})
+
+test('用了已撤掉变体的框图：不硬解、不改写，落到「不是典型链路」并说得出缘由', () => {
+  const doc = compile(synthetic(), cat, scenario).doc
+  const ch = doc.nodes.find((n) => n.id === 'ch')!
+  ch.type = 'FreeSpaceChannel'
+  ch.params = { distance_m: 1000, frequency_Hz: 2.4405e9 }
+  delete ch.scene_binding
+  assert.equal(parseChain(doc), null)
+  assert.match(retiredNote(doc.nodes.map((n) => n.type))!, /自由空间（定参）/)
+  assert.equal(retiredNote(['SceneBoundChannel', 'AntennaGain']), null)
 })
 
 test('频率计划第 11 项：E3 与「自由空间定参 + 高档位」都被拦住', () => {

@@ -150,11 +150,14 @@ export const SLOTS: readonly SlotDef[] = [
     replayNotApplicable: true,
     // 传播效应档位与逐项开关配在这张卡片上，编译到隐含节点 scn（D-058）
     proxy: { type: 'ScenarioSource', node: 'scn', params: PROPAGATION_PARAMS },
+    // **只有一个变体**（D-059）。`FreeSpaceChannel`（定参自由空间）本来是第二个，2026-09-10 撤掉：
+    // 它要用户手填一个固定距离，而这个页面上**能跑起来的配置一定有场景**——回放模式下本环节整个
+    // 不适用，全合成与混合增强都必须选中场景、站点与目标才通得过频率计划检查。也就是说它在这里
+    // 永远是错的选择，摆着就是个陷阱（用户 2026-09-10：「手填一个固定值完全没有必要」）。
+    // 组件本身保留：它是标准算例与解析锚点的对拍件，在自由画布与手写框图里照常可用。
     variants: [
       { type: 'SceneBoundChannel', node: 'ch', label: '场景绑定信道', bind: 'link',
         fixed: { gain_mode: 'path_loss_only' }, summary: ['delay_mode', 'apply_doppler'] },
-      { type: 'FreeSpaceChannel', node: 'ch', label: '自由空间（定参）',
-        summary: ['distance_m', 'frequency_Hz'] },
     ],
   },
   {
@@ -541,6 +544,23 @@ export const FROM_SCENE: Partial<Record<SlotId, FromSceneParam[]>> = {
 /** 这个槽位有没有由场景带出的参数；有的话是哪几个。 */
 export function fromSceneOf(id: SlotId): FromSceneParam[] {
   return FROM_SCENE[id] ?? []
+}
+
+/**
+ * 撤掉的变体（D-059）。框图页不再提供它们，但**手写框图与自由画布里仍然合法**，
+ * 所以 `parseChain()` 解到这类节点时会返回 null、界面落到「不是典型链路」那条路上。
+ * 光说「不是典型链路」用户会以为自己的框图坏了，所以这里记下缘由，由界面照实说明。
+ */
+export const RETIRED_VARIANTS: Readonly<Record<string, string>> = {
+  FreeSpaceChannel: '「自由空间（定参）」信道要手填固定距离，而框图页上能跑的配置一定有场景'
+    + '（距离由航迹每秒重算 20 次），它在这里永远是错的选择，2026-09-10 撤掉（D-059）。'
+    + '这份框图在自由画布里照常打开与运行',
+}
+
+/** 这份框图里有没有已撤掉的变体；有的话给出说明。 */
+export function retiredNote(types: readonly string[]): string | null {
+  for (const t of types) if (RETIRED_VARIANTS[t]) return RETIRED_VARIANTS[t]!
+  return null
 }
 
 /** 这个槽位有没有代理参数（D-058）。 */

@@ -24,8 +24,8 @@ import {
   INST_SEP,
   MODE_LABEL, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER,
   DERIVED_PARAMS,
-  emptyChain, fromSceneOf, missingParams, ownerOf, paramScope, proxyOf, slotState, splitProxy,
-  variantOf, writeParam,
+  emptyChain, fromSceneOf, missingParams, ownerOf, paramScope, proxyOf, retiredNote, slotState,
+  splitProxy, variantOf, writeParam,
   type ChainMode, type ChainState, type ParamScope, type SlotId, type TapId,
 } from './model.js'
 import { LEVEL_LABEL, LEVEL_UNAVAILABLE, propConflict, propView, visiblePropParams,
@@ -173,10 +173,18 @@ export function ChainView() {
 
   // 当前框图不是本模板生成的：给一条出路，不硬解（10 报告 §5.5）
   if (!parsed) {
+    // 解不开的原因如果是「用了已撤掉的变体」，照实说出来（D-059）。
+    // 只说「不是典型链路」，用户会以为自己的框图坏了——它没坏，是这个页面不再提供那个零件。
+    const r0 = parseDoc(s.diagram.text)
+    const retired = r0.ok
+      ? retiredNote((r0.doc.nodes as Array<{ type: string }>).map((n) => n.type))
+      : null
     return (
       <div className="chain-view" data-chain="foreign">
         <div className="group placeholder" data-chain-foreign>
-          <p>当前框图不是典型链路（可能在自由画布里改过，或是示例框图）。</p>
+          {retired
+            ? <p data-chain-retired>{retired}</p>
+            : <p>当前框图不是典型链路（可能在自由画布里改过，或是示例框图）。</p>}
           <p>
             <button type="button" data-action="chain-new" onClick={() => commit(newChain('synthetic'), '新建典型链路')}>
               新建典型链路
@@ -607,8 +615,7 @@ function SlotPanel(p: {
 
       {/* 传播效应（D-058）：参数声明在 `ScenarioSource` 上、编译进隐含节点 `scn`，
           但用户要在这张卡片上配。按当前档位决定显隐——十五行一次全摆出来找不到东西。 */}
-      <PropagationGroup slot={p.id} chain={p.chain} catalog={p.catalog}
-        chVariantType={v.type} onParam={p.onParam} />
+      <PropagationGroup slot={p.id} chain={p.chain} catalog={p.catalog} onParam={p.onParam} />
 
       <div className="group">
         {(spec.params as ParamSpec[]).filter((ps) => !ps.internal).map((ps) => {
@@ -686,7 +693,6 @@ function PropagationGroup(p: {
   slot: SlotId
   chain: ChainState
   catalog: Catalog | null
-  chVariantType: string
   onParam: (name: string, v: ParamValue | undefined, scope: ParamScope, targets: readonly string[]) => void
 }) {
   const px = proxyOf(p.slot)
@@ -702,7 +708,7 @@ function PropagationGroup(p: {
   const cur = splitProxy(p.slot, p.chain.slots[p.slot].params).proxy
   const view = propView(p.chain.slots[p.slot].params)
   const show = new Set(visiblePropParams(view))
-  const conflict = propConflict(view, p.chVariantType)
+  const conflict = propConflict(view)
 
   return (
     <div className="group" data-form="propagation">

@@ -210,6 +210,16 @@ try {
   const chOwner = await page.evaluate("document.querySelector('[data-slot-owner]')?.dataset.slotOwner ?? ''")
   check('传播信道标为全图共用，不随实体选择变化', chOwner === 'shared', chOwner)
 
+  // 定参自由空间已撤（D-059）：这个页面上能跑的配置一定有场景，手填距离永远是错的选择
+  const chVar = await evalJson(page, `(() => {
+    const sel = document.querySelector('[data-slot-variant=ch]')
+    return { has: !!sel, options: sel ? Array.from(sel.options).map((o) => o.textContent) : [],
+             pending: document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? '' }
+  })()`)
+  check('传播信道卡片上没有变体下拉（只剩一个变体，距离由航迹算）',
+    chVar.has === false, JSON.stringify(chVar.options))
+  check('传播信道不再要求手填距离', !String(chVar.pending).includes('distance_m'), chVar.pending)
+
   // ---------- ②c 传播环境与效应（D-058）----------
   const eff0 = await evalJson(page, `(() => {
     const card = document.querySelector('[data-slot-effects]')

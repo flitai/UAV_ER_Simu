@@ -120,13 +120,14 @@ export function visiblePropParams(v: PropView): string[] {
 }
 
 /**
- * 与引擎 `PropagationConfig::validate()` 同一份表的前端一侧（12 §4.4、§4.5、§2.2）。
+ * 与引擎 `PropagationConfig::validate()` 同一份表的前端一侧（12 §4.4、§2.2）。
  * 返回不通过的理由，通过时返回 null。**报文与引擎的措辞对齐**，免得出现前端放行、引擎拒绝。
  *
- * `chVariantType` 是传播信道槽位当前选中的组件类型：`FreeSpaceChannel` 不吃场景参数帧，
- * 拿不到几何与航迹，因此只能是 E1；这一条引擎侧拦不住（`configure()` 看不见别的节点的类型）。
+ * 原先这里还有第四条，拦「自由空间（定参）信道 + 高档位」——那个变体不吃场景参数帧，
+ * 算出来的附加损耗不会被施加，只会让链路读数名不副实。D-059 把该变体从框图页撤掉之后，
+ * 这条判据无人可达，随之删掉：风险从源头消除，比留一道拦它的闸干净（同 D-057 的处置）。
  */
-export function propConflict(v: PropView, chVariantType: string): string | null {
+export function propConflict(v: PropView): string | null {
   if (v.level === 'E3') {
     return 'E3（建筑遮挡与刀口绕射）需要逐建筑几何，待 D3（切片 ⑤）接入；请选 E1 或 E2'
   }
@@ -136,10 +137,6 @@ export function propConflict(v: PropView, chVariantType: string): string | null 
   if (v.shadow && v.primary === 'urban_empirical' && v.urbanMargin) {
     return '城市经验取「均值 + 分位裕度」时已含 90% 分位阴影，再开统计阴影即同源双计'
       + '（EM-P-13 §10.9）；请把 urban_loss_mode 改回 mean，或关掉统计阴影'
-  }
-  if (chVariantType === 'FreeSpaceChannel' && v.terms.length > 1) {
-    return '「自由空间（定参）」信道不吃场景参数帧，拿不到几何与航迹，因此只能用 E1；'
-      + '算出来的附加损耗不会被施加到 IQ 上，只会让链路读数名不副实。请把信道变体换成「场景绑定信道」'
   }
   return null
 }

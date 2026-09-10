@@ -277,9 +277,15 @@ free_space | ground_reflection | urban_mean | shadow | weather
    `sites[]` 或 `aoi`，框图只留「算不算它」——与 D-054 把天线增益与噪声系数挪进场景是同一个套路。
 2. **`env_class` 与 `ground_type` 全图一份**（`ch` 槽位的 `owner` 是 `shared`）。三个站分处
    闹市与郊野时只能取一个类别；在 20 × 20 km 的演示 AOI 内可接受。
-3. **`FreeSpaceChannel`（自由空间定参）只能是 E1**。它不吃场景参数帧，拿不到几何与航迹，
+3. **`FreeSpaceChannel`（自由空间定参）不进传播效应体系**。它不吃场景参数帧，拿不到几何与航迹，
    高档位算出来的附加损耗不会被施加到 IQ 上，只会让链路读数名不副实。
-   前端频率计划第 11 项 `propagation` 拦住；**引擎侧拦不住**（`configure()` 看不见别的节点的类型）。
+   **2026-09-10（D-059）把该变体从框图页撤掉**——那个页面上能跑的配置一定有场景，
+   手填一个固定距离永远是错的选择。组件本身保留：它是标准算例与解析锚点的对拍件
+   （`test_channel.cpp` / `test_receiver_chain.cpp`），在自由画布与手写框图里照常可用。
+   **残留风险**：画布里仍可搭出 `ScenarioSource(prop_level = E2)` + `FreeSpaceChannel`，
+   此时链路读数与实际施加的 IQ 不一致。画布不跑频率计划检查，引擎也看不见别的节点的类型
+   （`check_wiring()` 只拿得到自己被连上的输入口名，而 `ScenarioSource` 没有输入口）。
+   属高级用法自负其责。
 4. **除自由空间与天气两式外，全部参数标 `assumed`**，量化结论一律「原型阶段验证值」（D-028），
    甲方数据到货后按同一套锚点重估。
 
