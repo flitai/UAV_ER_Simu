@@ -248,5 +248,103 @@ class TestBurstEquivalence(unittest.TestCase):
             self.assertAlmostEqual(10 * math.log10(frame_avg), loss_db, places=9)
 
 
+
+class TestSliding(unittest.TestCase):
+    """滑动噪声估计（C-3，D-063）：暖机后虚警率、删截保持检出、吸收、陈旧、分段。"""
+
+    @staticmethod
+    def _noise(frames, nfft, seed):
+        rng = np.random.default_rng(seed)
+        n = frames * nfft
+        return ((rng.standard_normal(n) + 1j * rng.standard_normal(n))
+                / math.sqrt(2)).astype(np.complex64)
+
+    @staticmethod
+    def _tone(frames, nfft, fs, f_Hz, amp, on):
+        """on 是逐帧布尔：该帧是否有信号。"""
+        n = frames * nfft
+        idx = np.arange(n)
+        x = amp * np.exp(1j * 2 * math.pi * f_Hz * idx / fs)
+        gate = np.repeat(on.astype(np.float64), nfft)
+        return (x * gate).astype(np.complex64)
+
+    def test_first_frame_is_ln2_and_never_hits(self):
+        x = self._noise(300, 64, 1)
+        r = ed.detect_sliding(x, 1e6, ed.Band(-2e5, 2e5), 64, 1e-2, window_frames=32)
+        self.assertAlmostEqual(float(r["statistic"][0]), ed.LN2, delta=1e-9)
+        self.assertFalse(bool(r["hit"][0]))
+        self.assertEqual(int(r["noise_frames_used"][0]), 1)
+        # 环单调填到 W 后停住
+        used = r["noise_frames_used"]
+        self.assertTrue(np.all(np.diff(used) >= 0))
+        self.assertEqual(int(used[-1]), 32)
+        self.assertTrue(r["ring_ever_full"])
+
+    def test_pfa_after_warmup_matches_target(self):
+        frames, nfft, fs = 20000, 256, 80e6
+        x = self._noise(frames, nfft, 7)
+        band = ed.Band(-5e6, 5e6)
+        for pfa in (1e-2, 1e-3):
+            r = ed.detect_sliding(x, fs, band, nfft, pfa, window_frames=256)
+            lam = r["statistic"][256:]
+            hit = r["hit"][256:]
+            self.assertAlmostEqual(float(lam.mean()), 1.0, delta=0.02)
+            measured = float(np.mean(hit))
+            # 滑动估计自带估计噪声、删截去掉最高的 pfa 份额，虚警率比静态估计略高；
+            # 判据是「同量级」：目标的一半到两倍，加二项分布 3σ
+            tol = 3 * math.sqrt(pfa * (1 - pfa) / hit.size)
+            self.assertGreater(measured + tol, 0.5 * pfa, f"目标 {pfa}，实测 {measured}")
+            self.assertLess(measured - tol, 2.0 * pfa, f"目标 {pfa}，实测 {measured}")
+            self.assertEqual(r["noise_stale"], 0)
+
+    def test_persistent_signal_after_clean_start_stays_detected(self):
+        frames, nfft, fs = 4000, 256, 1e6
+        on = np.zeros(frames, dtype=bool)
+        on[1000:] = True
+        x = self._noise(frames, nfft, 11) + self._tone(frames, nfft, fs, 50e3, 0.5, on)
+        band = ed.Band(40e3, 60e3)
+        r = ed.detect_sliding(x, fs, band, nfft, 1e-3, window_frames=256)
+        self.assertGreaterEqual(float(np.mean(r["hit"][1000:])), 0.99)
+        self.assertLessEqual(int(np.count_nonzero(r["hit"][:1000])), 10)
+        # 环被删截冻结：陈旧帧 > 0，且都在信号期
+        self.assertGreater(r["noise_stale"], 0)
+        self.assertLess(r["noise_stale"], 3000)
+        # 同一段：第 1000 帧与最后一帧段号相同
+        self.assertEqual(int(r["segment_id"][1000]), int(r["segment_id"][-1]))
+        # 对照：整段估一次噪声（detect）会把 75% 占空的信号吸收进中位数
+        hits_static, _, _ = ed.detect(x, fs, band, nfft, 1e-3)
+        self.assertLess(float(np.mean(hits_static)), 0.05)
+
+    def test_signal_from_frame_zero_is_absorbed(self):
+        frames, nfft, fs = 3000, 256, 1e6
+        on = np.ones(frames, dtype=bool)
+        x = self._noise(frames, nfft, 11) + self._tone(frames, nfft, fs, 50e3, 0.5, on)
+        r = ed.detect_sliding(x, fs, ed.Band(40e3, 60e3), nfft, 1e-3, window_frames=256)
+        self.assertLess(float(np.mean(r["hit"])), 0.05)
+
+    def test_duty_cycle_bursts_are_detected(self):
+        """20% 占空比的周期突发：中位数不受影响，命中率 ≈ 占空比。"""
+        frames, nfft, fs = 5000, 256, 1e6
+        on = (np.arange(frames) % 50) < 10
+        x = self._noise(frames, nfft, 13) + self._tone(frames, nfft, fs, 50e3, 0.5, on)
+        r = ed.detect_sliding(x, fs, ed.Band(40e3, 60e3), nfft, 1e-3, window_frames=256)
+        hit = r["hit"][256:]
+        self.assertAlmostEqual(float(np.mean(hit)), 0.2, delta=0.03)
+        self.assertGreaterEqual(float(np.mean(r["hit"][256:][on[256:]])), 0.98)
+        self.assertEqual(r["noise_stale"], 0)
+        # 每个 10 帧的突发是一段：段数 ≈ 5000/50 − 暖机期的
+        self.assertGreater(r["segments"], 90)
+
+    def test_segments_from_hits(self):
+        hit = np.zeros(20, dtype=bool)
+        hit[[2, 3, 6, 7, 11]] = True      # 3→6 空 2 帧，7→11 空 3 帧
+        seg2 = ed.segments_from_hits(hit, 2)
+        self.assertEqual([int(v) for v in seg2[[2, 3, 6, 7, 11]]], [0, 0, 0, 0, 1])
+        seg1 = ed.segments_from_hits(hit, 1)
+        self.assertEqual([int(v) for v in seg1[[2, 3, 6, 7, 11]]], [0, 0, 1, 1, 2])
+        self.assertTrue(np.all(seg2[~hit] == -1))
+        seg0 = ed.segments_from_hits(hit, 0)
+        self.assertEqual([int(v) for v in seg0[[2, 3, 6, 7, 11]]], [0, 0, 1, 1, 2])
+        self.assertEqual(int(ed.segments_from_hits(np.zeros(5, dtype=bool), 2).max()), -1)
 if __name__ == "__main__":
     unittest.main()

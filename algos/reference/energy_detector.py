@@ -40,6 +40,27 @@ Q 是正则化上不完全伽马函数。给定目标虚警率求门限就是解
 虚警率因此偏低——所以在真实突发背景上测到的虚警率超标是**保守估计**，真实超标只会更大。
 单测 `test_estimator_bias_under_bursts_matches_theory` 把这条钉住。用均值则在同样条件下
 被拉高十倍以上，那才是不可用的。
+
+## 滑动噪声估计（C-3，D-063；引擎 `EnergyDetector.noise_mode = sliding`）
+
+上面的 `detect()` 用整段数据估一次噪声，引擎的 `probe` 模式用前 N 帧估一次后固定——都是
+静态门限。D-026 的实测：固定门限在一半真实背景上标定、换到另一半虚警率超目标 7 倍，随机
+打散分半则达标，说明背景随时间与文件漂移，**交付形态不得是静态门限**。
+
+`sliding_from_power` 是它的兑现，逐帧顺序是与引擎 `judge_sliding()` 共同的契约，
+黄金基准 `engine/tests/golden/energy_detector_sliding.json` 逐帧对拍：
+
+    对每帧 k：
+      ① 环空 → 本帧先入环（第 0 帧的 Λ 因此恒为 ln2，不会命中）
+      ② 环变过 → 噪声 = 环内逐频点中位数 / ln2，只算频段内 bin，求和得 noise_band
+      ③ Λ = T[k] / noise_band，η = threshold_for_pfa(M, pfa) 不随帧变；判决时的环大小记为 noise_frames_used；
+         判决时环已连续超过 W 帧没更新 → 计一帧「陈旧」
+      ④ 未命中且尚未入环 → 入环（满 W 则弹最旧）；**命中的帧不入环**（删截）
+
+删截让持续信号不会把噪声估计抬上去——只要它出现时环里是干净的；代价是环从此冻结
+（陈旧计数）。若信号从第 0 帧起就在，第 0 帧无条件入环，估计从此含信号，与 probe 一样被吸收：
+这是已知行为，不是缺陷（模型卡 `models/detection/README.md`）。命中帧按 `merge_gap_frames`
+并成突发：与上一命中帧之间的非命中帧数不超过它即同段（EM-S-02 merge_time_gap）。
 """
 from __future__ import annotations
 
@@ -172,6 +193,101 @@ def detect(x: np.ndarray, fs: float, band: Band, nfft: int, pfa: float
     eta = threshold_for_pfa(m, pfa)
     return lam > eta, eta, {"m_bins": m, "frames": int(p.shape[0]),
                             "lambda": lam, "noise_per_bin": noise}
+
+
+# ---------------------------------------------------------------- 滑动噪声估计（C-3）
+
+def segments_from_hits(hit: np.ndarray, merge_gap_frames: int) -> np.ndarray:
+    """命中帧并成突发：与上一命中帧之间的非命中帧数 ≤ merge_gap 即同段。
+
+    返回每帧的段号（int64），从 0 起；非命中帧为 −1。与引擎 make_detection() 的分段同序。
+    """
+    seg = np.full(hit.shape[0], -1, dtype=np.int64)
+    last_hit = -1
+    counter = -1
+    for k in range(hit.shape[0]):
+        if not hit[k]:
+            continue
+        if not (last_hit >= 0 and k - last_hit - 1 <= merge_gap_frames):
+            counter += 1
+        seg[k] = counter
+        last_hit = k
+    return seg
+
+
+def sliding_from_power(power: np.ndarray, band_mask: np.ndarray, pfa: float,
+                       window_frames: int = 256, merge_gap_frames: int = 2) -> dict:
+    """带删截的滑动中位数噪声估计，逐帧判决（模块 docstring 的四步）。
+
+    输入是 frame_bin_power 的输出（帧 × 频点）。返回逐帧数组：statistic、hit、
+    noise_frames_used、segment_id、noise_band，以及 threshold、noise_stale、segments、
+    ring_ever_full。**显式逐帧循环**：环的内容取决于此前每一帧的判决，不能向量化。
+    """
+    if window_frames < 2:
+        raise ValueError("window_frames 必须不小于 2")
+    m = int(np.count_nonzero(band_mask))
+    if m == 0:
+        raise ValueError("检测频段内没有频点")
+    eta = threshold_for_pfa(m, pfa)
+    band = power[:, band_mask]
+    n_frames = band.shape[0]
+    ring = np.empty((window_frames, m), dtype=np.float64)
+    n_ring = 0
+    nxt = 0                     # 环满后覆盖的位置 = 最旧的一帧
+    dirty = False
+    ever_full = False
+    noise_band = 0.0
+    since_admit = 0
+    stale = 0
+    lam = np.zeros(n_frames)
+    hit = np.zeros(n_frames, dtype=bool)
+    used = np.zeros(n_frames, dtype=np.int32)
+    nb = np.zeros(n_frames)
+
+    def push(row):
+        nonlocal n_ring, nxt, dirty, ever_full
+        ring[nxt] = row
+        nxt = (nxt + 1) % window_frames
+        if n_ring < window_frames:
+            n_ring += 1
+        if n_ring == window_frames:
+            ever_full = True
+        dirty = True
+
+    for k in range(n_frames):
+        row = band[k]
+        admitted = False
+        if n_ring == 0:
+            push(row)
+            admitted = True
+        if dirty:
+            noise_band = float(np.sum(np.median(ring[:n_ring], axis=0) / LN2))
+            dirty = False
+        e = float(np.sum(row))
+        lam_k = e / noise_band if noise_band > 0.0 else 0.0
+        hit_k = lam_k > eta
+        used[k] = n_ring
+        if since_admit > window_frames:
+            stale += 1
+        lam[k] = lam_k
+        hit[k] = hit_k
+        nb[k] = noise_band
+        if not hit_k and not admitted:
+            push(row)
+            admitted = True
+        since_admit = 0 if admitted else since_admit + 1
+
+    seg = segments_from_hits(hit, merge_gap_frames)
+    return {"statistic": lam, "hit": hit, "noise_frames_used": used, "segment_id": seg,
+            "noise_band": nb, "threshold": eta, "m_bins": m, "noise_stale": stale,
+            "segments": int(seg.max() + 1) if seg.size else 0, "ring_ever_full": ever_full}
+
+
+def detect_sliding(x: np.ndarray, fs: float, band: Band, nfft: int, pfa: float,
+                   window_frames: int = 256, merge_gap_frames: int = 2) -> dict:
+    """对一段样点跑滑动模式的能量检测，返回 sliding_from_power 的结果。"""
+    p = frame_bin_power(x, nfft)
+    return sliding_from_power(p, band.mask(nfft, fs), pfa, window_frames, merge_gap_frames)
 
 
 # ---------------------------------------------------------------- 检测概率的解析式
