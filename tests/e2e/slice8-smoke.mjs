@@ -11,7 +11,11 @@
 //   ⑥ 场景里有告警区 z-east，地图上画出圈与高度立柱，十三个态势图层齐全；跑 70 s 后 uav-2 在圈内
 //      （13 报告 §4.3 的几何判定）：卡片带徽标、列表行带徽标、图标换红环变体，其余两架不在；
 //   ⑦ 对象树有告警区行，点开是告警区表单；图层弹层可关掉告警区与立柱。
-// V-3 的断言随该步骤追加。
+// V-3（全宽时间轴与回放缓冲，13 报告 §5）：
+//   ⑧ 场景页有时间轴条（live、活动标记、左端计数）；拖到 30 s 进回放：t 与指针一致、信号页游标同步为 t − t0_s，
+//      图上三架机的位置 = track 文件里该时刻前的最后一行、卡片的距离 = links 文件里该时刻前的最后一行；
+//   ⑨ 空格播放（t 单调增）、再按暂停；Home 回 0；「跟随实时」两边一起回 live；
+//   ⑩ 结果页也有时间轴，信号页按 → 改游标时时间轴跟到 t0_s + 游标；框图页没有时间轴。
 //
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
 //     node tests/e2e/slice8-smoke.mjs [--url http://127.0.0.1:8080/]
@@ -281,6 +285,85 @@ try {
     linkDrawn = await page.evaluateAsync("new Promise((r) => setTimeout(() => r(window.__map ? window.__map.queryRenderedFeatures({layers:['cuav-link-line']}).length : -1), 200))")
   }
   check('链路线渲染出要素', linkDrawn >= 1, `${linkDrawn} 个要素`)
+
+  // ---------- ⑥ V-3 全宽时间轴：拖动回放、与信号游标联动、播放与快捷键 ----------
+  trace('进入 ⑥ V-3 全宽时间轴')
+  const tlDom = () => evalJson(page, `(() => { const el = document.querySelector('[data-timeline]'); if (!el) return null
+    return { hidden: el.hidden, mode: el.dataset.timelineMode, marks: el.querySelectorAll('[data-timeline-mark]').length,
+             counts: el.querySelector('[data-timeline-counts]').textContent, t: el.querySelector('[data-timeline-t]').textContent,
+             follow: el.querySelector('[data-field=tl-follow]').checked } })()`)
+  const tl0 = await tlDom()
+  check('场景页有全宽时间轴条：live、活动标记与探针一致、计数写着目标 3 · 站 3 · 告警 1',
+    !!tl0 && !tl0.hidden && tl0.mode === 'live' && tl0.follow && tl0.marks === st.app.timeline.markers && tl0.marks >= 1
+      && /目标 3/.test(tl0.counts) && /站 3/.test(tl0.counts) && /告警 1/.test(tl0.counts), JSON.stringify(tl0))
+  const dur = st.app.task.duration_s
+  const rect = await evalJson(page, "(() => { const r = document.querySelector('[data-timeline-track]').getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height } })()")
+  const xAt = (t) => rect.left + rect.width * (t / dur)
+  const yTrack = rect.top + rect.height / 2
+  const tWant = 30
+  await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: xAt(10), y: yTrack, button: 'left', clickCount: 1 })
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: xAt(20), y: yTrack, button: 'left' })
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: xAt(tWant), y: yTrack, button: 'left' })
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: xAt(tWant), y: yTrack, button: 'left', clickCount: 1 })
+  trace('拖完时间轴')
+  st = await page.waitFor((s) => s.app?.timeline?.mode === 'replay' && !s.app.timeline.playing && s.app.signal.cursor_t_s !== null, { label: '拖后进回放', timeoutMs: 10000 })
+  const tGot = st.app.timeline.t
+  const pxTol = (dur / rect.width) * 1.5
+  check('拖时间轴到 30 s：进回放，t 与指针位置一致（1.5 px 内），画面来自历史快照', near(tGot, tWant, pxTol) && st.app.timeline.source === 'replay', `t=${tGot} 容差 ${pxTol.toFixed(3)} source=${st.app.timeline.source}`)
+  const t0s = st.app.signal.geom?.t0_s ?? 0
+  check('信号页游标同步为 t − t0_s 并转回看', near(st.app.signal.cursor_t_s, tGot - t0s, 1e-6) && st.app.signal.follow === false, `${st.app.signal.cursor_t_s} vs ${tGot} − ${t0s}`)
+  const trackAt = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/track?t0=${Math.max(0, tGot - 1)}&t1=${tGot}&stride=1').then(r => r.json())`)
+  const lastTrack = lastByKey(trackAt.filter((r) => r.t_s <= tGot), (r) => r.id)
+  const entBad = []
+  for (const e of st.app.entities) {
+    const row = lastTrack.get(e.id)
+    if (!(row && near(e.t_s, row.t_s, 1e-9) && near(e.lon, row.lon, 1e-9) && near(e.lat, row.lat, 1e-9) && near(e.alt_m, row.alt_m, 1e-6))) entBad.push(`${e.id}: ${e.t_s}/${e.lon} vs ${row?.t_s}/${row?.lon}`)
+  }
+  check('回放时刻图上三架机的位置 = track 文件里该时刻前的最后一行', st.app.entities.length === 3 && entBad.length === 0, entBad.join('；'))
+  const linksAt = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/links?t0=${Math.max(0, tGot - 1)}&t1=${tGot}&stride=1').then(r => r.json())`)
+  const lastLinkAt = lastByKey(linksAt.filter((r) => r.t_s <= tGot), (r) => r.link_id)
+  const cardsFollow = (s) => (s.app?.cards ?? []).length === 3 && s.app.cards.every((c) => c.sites.length === 3 && c.sites.every((r) => {
+    const row = lastLinkAt.get(`${r.site_id}-${c.id}`); return !!row && Math.abs(r.distance_m - row.distance_m) <= 1e-6 }))
+  st = await page.waitFor(cardsFollow, { label: '卡片跟到回放时刻', timeoutMs: 5000 }).catch(() => st)
+  check('卡片 9 行的距离 = links 文件里该时刻前的最后一行（卡片与地图同一帧）', cardsFollow(st))
+  const tlR = await tlDom()
+  check('时间轴读数写着回放时刻、「跟随实时」未勾', !!tlR && tlR.mode === 'replay' && !tlR.follow && tlR.t.startsWith(`t ${Math.floor(tGot)}`), JSON.stringify(tlR))
+  // 空格播放：t 单调增；再按暂停
+  await page.pressKey({ key: ' ', code: 'Space', vk: 32 })
+  st = await page.waitFor((s) => s.app?.timeline?.playing === true, { label: '空格播放', timeoutMs: 5000 })
+  const tPlay1 = st.app.timeline.t
+  await sleep(600)
+  st = await page.evaluate('window.__probe()')
+  const tPlay2 = st.app.timeline.t
+  await page.pressKey({ key: ' ', code: 'Space', vk: 32 })
+  st = await page.waitFor((s) => s.app?.timeline?.playing === false, { label: '空格暂停', timeoutMs: 5000 })
+  check('空格播放：t 单调增（0.6 s 墙钟内前进 ≥ 0.3 s）；再按空格暂停，暂停时刻同步到信号游标', tPlay2 - tPlay1 >= 0.3 && st.app.timeline.mode === 'replay' && near(st.app.signal.cursor_t_s, st.app.timeline.t - t0s, 1e-6),
+    `${tPlay1} → ${tPlay2}；暂停于 ${st.app.timeline.t}，游标 ${st.app.signal.cursor_t_s}`)
+  await page.pressKey({ key: 'Home', code: 'Home', vk: 36 })
+  st = await page.waitFor((s) => s.app?.timeline?.t === 0, { label: 'Home 回 0', timeoutMs: 5000 })
+  check('Home 回到 0 s，游标 = −t0_s 处', st.app.timeline.t === 0 && near(st.app.signal.cursor_t_s, -t0s, 1e-6))
+  await page.evaluate("(document.querySelector('[data-field=tl-follow]').click(), true)")
+  st = await page.waitFor((s) => s.app?.timeline?.mode === 'live' && s.app.signal.follow === true, { label: '跟随实时', timeoutMs: 5000 })
+  // 最新一帧 = track 文件的最后一行（10 Hz 航迹最后一行是 69.9 s，不是任务时长 70 s）
+  const trackTail = await tail('track')
+  const tLast = Math.max(...trackTail.map((r) => r.t_s))
+  check('勾「跟随实时」：时间轴回 live、信号页回跟随且游标清掉、图上回到最新一帧', st.app.timeline.t === null && st.app.signal.cursor_t_s === null && st.app.timeline.source === 'live'
+    && st.app.entities.length === 3 && st.app.entities.every((e) => near(e.t_s, tLast, 1e-9)), `t=${st.app.timeline.t} cursor=${st.app.signal.cursor_t_s} entities t_s=${st.app.entities.map((e) => e.t_s).join(',')} 最后一行 ${tLast}`)
+  // 结果页：时间轴仍在；信号页按 → 改游标，时间轴跟过去
+  await page.evaluate("(window.location.hash = '#/results', true)")
+  st = await page.waitFor((s) => s.app?.view === 'results' && !!s.app?.signal?.geom, { label: '结果页信号几何就绪', timeoutMs: 30000 })
+  const tlRes = await tlDom()
+  check('结果页也有时间轴条', !!tlRes && !tlRes.hidden, JSON.stringify(tlRes))
+  await page.pressKey({ key: 'ArrowRight', code: 'ArrowRight', vk: 39 })
+  st = await page.waitFor((s) => s.app?.signal?.cursor_t_s !== null && s.app?.timeline?.mode === 'replay', { label: '→ 后时间轴跟游标', timeoutMs: 5000 })
+  const t0r = st.app.signal.geom?.t0_s ?? 0
+  check('信号页按 → 改游标：时间轴跟到 t0_s + 游标', near(st.app.timeline.t, t0r + st.app.signal.cursor_t_s, 1e-6) && !st.app.timeline.playing, `${st.app.timeline.t} vs ${t0r} + ${st.app.signal.cursor_t_s}`)
+  await page.evaluate("(window.location.hash = '#/diagram', true)")
+  st = await page.waitFor((s) => s.app?.view === 'diagram', { label: '框图页', timeoutMs: 10000 })
+  const tlDia = await tlDom()
+  check('框图页没有时间轴条', !!tlDia && tlDia.hidden === true, JSON.stringify(tlDia))
+  await page.evaluate("(window.location.hash = '#/scene', true)")
+  await page.waitFor((s) => s.app?.view === 'scene', { label: '回场景页', timeoutMs: 10000 })
   check('默认 DOM 里没有开发者模式元素', (await evalJson(page, "document.querySelectorAll('[data-dev]').length")) === 0)
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '))
 } catch (e) {

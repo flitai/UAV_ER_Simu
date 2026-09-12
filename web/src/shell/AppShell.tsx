@@ -4,7 +4,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
 import { SceneView } from '../scene/SceneView.js'
-import { sceneStore, situationSnapshot } from '../scene/sceneStore.js'
+import { situationSnapshot } from '../scene/sceneStore.js'
+import { currentSituation } from '../scene/situationView.js'
+import { timelineMarkers } from './timelineOps.js'
+import { Timeline } from './Timeline.js'
+import { timeStore } from './timeStore.js'
 import { buildSiteCards, buildTargetCards, probeCards, probeSiteCards } from '../scene/cards/derive.js'
 import { ChainView } from '../chain/ChainView.js'
 import { ResultsView } from '../results/ResultsView.js'
@@ -96,9 +100,11 @@ export function AppShell() {
       peakBin: peakBinOf(signalBuffer.latestRow(op, 'spectrum')),
       signalView: viewStore.get(),
       longTasks: longTasks.current?.snapshot() ?? null,
-      ...situationSnapshot(),
-      cards: probeCards(buildTargetCards(st.scene.scenario.doc, sceneStore.get())),
-      siteCards: probeSiteCards(buildSiteCards(st.scene.scenario.doc, sceneStore.get())),
+      // 探针看到的态势 = 画面上的那一帧：live 是最新，回放是时间轴 t 处（13 §5.5）
+      ...situationSnapshot(currentSituation(st.scene.scenario.doc)),
+      cards: probeCards(buildTargetCards(st.scene.scenario.doc, currentSituation(st.scene.scenario.doc))),
+      siteCards: probeSiteCards(buildSiteCards(st.scene.scenario.doc, currentSituation(st.scene.scenario.doc))),
+      timeline: { ...timeStore.get(), markers: timelineMarkers(st).length, source: currentSituation(st.scene.scenario.doc).source },
     })
   }), [store])
 
@@ -127,6 +133,7 @@ export function AppShell() {
         {visited.has('results') && <ViewHost id="results" active={view === 'results'}><ResultsView /></ViewHost>}
         {view === 'data' && <ViewHost id="data" active><DataCenter /></ViewHost>}
       </div>
+      <Timeline />
       <Drawer />
       <Toasts />
     </div>

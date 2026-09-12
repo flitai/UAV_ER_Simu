@@ -77,7 +77,28 @@ export interface PositionSample {
 /** 一条航迹最多留这么多顶点：20 km 观测区域上够画满全程，再多也看不出差别。 */
 const TRAIL_MAX = 4000
 
+/** 每键一条按 t_s 非降的历史（回放用，D-061）。 */
+interface History {
+  entities: Map<string, EntitySample[]>
+  links: Map<string, LinkSample[]>
+  bearings: Map<string, BearingSample[]>
+  positions: Map<string, PositionSample[]>
+}
+
+/** 每键最多留这么多样点：100 Hz × 20 分钟；再长的任务本期没有 */
+const HISTORY_MAX = 120000
+
+export interface SituationSnapshot {
+  entities: Map<string, EntitySample>
+  links: Map<string, LinkSample>
+  bearings: Map<string, BearingSample>
+  positions: Map<string, PositionSample>
+  trails: Map<string, Array<[number, number]>>
+}
+
 interface SceneState {
+  /** 按时间索引的历史，回放时按 t 取（13 报告 §5.3） */
+  history: History
   /** 每个实体的最新状态 */
   entities: Map<string, EntitySample>
   /** 每条链路的最新读数 */
@@ -95,8 +116,55 @@ interface SceneState {
 }
 
 function empty(): SceneState {
-  return { entities: new Map(), links: new Map(), trails: new Map(),
+  return { history: { entities: new Map(), links: new Map(), bearings: new Map(), positions: new Map() },
+           entities: new Map(), links: new Map(), trails: new Map(),
            bearings: new Map(), positions: new Map(), lastT: 0, rev: 0 }
+}
+
+/** 追加进历史：几乎总是按时间顺序到达，乱序的插到正确位置，超长丢最旧的。 */
+function pushHistory<T extends { t_s: number }>(m: Map<string, T[]>, key: string, x: T): void {
+  let arr = m.get(key)
+  if (!arr) {
+    arr = []
+    m.set(key, arr)
+  }
+  const last = arr[arr.length - 1]
+  if (!last || x.t_s >= last.t_s) arr.push(x)
+  else {
+    let lo = 0
+    let hi = arr.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (arr[mid]!.t_s <= x.t_s) lo = mid + 1
+      else hi = mid
+    }
+    arr.splice(lo, 0, x)
+  }
+  if (arr.length > HISTORY_MAX) arr.splice(0, arr.length - HISTORY_MAX)
+}
+
+/** 最后一条 t_s ≤ t 的样点；没有则 null。 */
+function lastAtOrBefore<T extends { t_s: number }>(arr: T[], t: number): T | null {
+  let lo = 0
+  let hi = arr.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (arr[mid]!.t_s <= t) lo = mid + 1
+    else hi = mid
+  }
+  return lo > 0 ? arr[lo - 1]! : null
+}
+
+/** 航迹抽稀，与实时 push 同一规则。 */
+function thinTrail(samples: EntitySample[], upto: number): Array<[number, number]> {
+  const tr: Array<[number, number]> = []
+  for (const e of samples) {
+    if (e.t_s > upto) break
+    const last = tr[tr.length - 1]
+    if (!last || Math.abs(last[0] - e.lon) + Math.abs(last[1] - e.lat) >= TRAIL_MIN_STEP_DEG) tr.push([e.lon, e.lat])
+  }
+  if (tr.length > TRAIL_MAX) tr.splice(0, tr.length - TRAIL_MAX)
+  return tr
 }
 
 let state = empty()
@@ -122,6 +190,7 @@ export const sceneStore = {
   },
   pushEntity(e: EntitySample) {
     state.entities.set(e.id, e)
+    pushHistory(state.history.entities, e.id, e)
     if (e.t_s > state.lastT) state.lastT = e.t_s
     let tr = state.trails.get(e.id)
     if (!tr) {
@@ -138,16 +207,19 @@ export const sceneStore = {
   },
   pushLink(l: LinkSample) {
     state.links.set(l.link_id, l)
+    pushHistory(state.history.links, l.link_id, l)
     if (l.t_s > state.lastT) state.lastT = l.t_s
     notify()
   },
   pushBearing(b: BearingSample) {
     state.bearings.set(b.link_id, b)
+    pushHistory(state.history.bearings, b.link_id, b)
     if (b.t_s > state.lastT) state.lastT = b.t_s
     notify()
   },
   pushPosition(p: PositionSample) {
     state.positions.set(`${p.emitter_id}:${p.method}`, p)
+    pushHistory(state.history.positions, `${p.emitter_id}:${p.method}`, p)
     if (p.t_s > state.lastT) state.lastT = p.t_s
     notify()
   },
@@ -156,6 +228,7 @@ export const sceneStore = {
     state = empty()
     for (const e of samples) {
       state.entities.set(e.id, e)
+      pushHistory(state.history.entities, e.id, e)
       if (e.t_s > state.lastT) state.lastT = e.t_s
       let tr = state.trails.get(e.id)
       if (!tr) {
@@ -165,20 +238,51 @@ export const sceneStore = {
       const last = tr[tr.length - 1]
       if (!last || Math.abs(last[0] - e.lon) + Math.abs(last[1] - e.lat) >= TRAIL_MIN_STEP_DEG) tr.push([e.lon, e.lat])
     }
-    for (const l of links) state.links.set(l.link_id, l)
+    for (const l of links) {
+      state.links.set(l.link_id, l)
+      pushHistory(state.history.links, l.link_id, l)
+    }
     notify()
   },
   /** 回看：整批灌入测向与定位（每条曲线只留最后一条，与实时同语义）。 */
   replaceFromReports(bearings: BearingSample[], positions: PositionSample[]) {
     for (const b of bearings) {
       state.bearings.set(b.link_id, b)
+      pushHistory(state.history.bearings, b.link_id, b)
       if (b.t_s > state.lastT) state.lastT = b.t_s
     }
     for (const p of positions) {
       state.positions.set(`${p.emitter_id}:${p.method}`, p)
+      pushHistory(state.history.positions, `${p.emitter_id}:${p.method}`, p)
       if (p.t_s > state.lastT) state.lastT = p.t_s
     }
     notify()
+  },
+  /** 有没有可回放的历史（任何一个实体样点即算有）。 */
+  hasHistory(): boolean {
+    return state.history.entities.size > 0
+  },
+  /**
+   * 按时刻取快照（13 报告 §5.3）：每键最后一条 t_s ≤ t 的样点；航迹只画到 t。
+   * 纯读、不改状态，同一 t 多次调用结果相同。
+   */
+  snapshotAt(t: number): SituationSnapshot {
+    const entities = new Map<string, EntitySample>()
+    const trails = new Map<string, Array<[number, number]>>()
+    state.history.entities.forEach((arr, id) => {
+      const e = lastAtOrBefore(arr, t)
+      if (e) {
+        entities.set(id, e)
+        trails.set(id, thinTrail(arr, t))
+      }
+    })
+    const links = new Map<string, LinkSample>()
+    state.history.links.forEach((arr, id) => { const x = lastAtOrBefore(arr, t); if (x) links.set(id, x) })
+    const bearings = new Map<string, BearingSample>()
+    state.history.bearings.forEach((arr, id) => { const x = lastAtOrBefore(arr, t); if (x) bearings.set(id, x) })
+    const positions = new Map<string, PositionSample>()
+    state.history.positions.forEach((arr, id) => { const x = lastAtOrBefore(arr, t); if (x) positions.set(id, x) })
+    return { entities, links, bearings, positions, trails }
   },
 }
 
@@ -267,28 +371,29 @@ export function positionFromPayload(t_s: number, p: Record<string, unknown>): Po
   }
 }
 
-/** 探针快照（09 §10）：把当前实体与链路摊平成数组，供 e2e 与黄金航迹对拍。 */
-export function situationSnapshot(): {
+/** 探针快照（09 §10）：把当前实体与链路摊平成数组，供 e2e 与黄金航迹对拍。不传则取 live 状态。 */
+export function situationSnapshot(sit?: SituationSnapshot): {
   entities: Array<{ id: string; t_s: number; lon: number; lat: number; alt_m: number; heading_deg: number; speed_mps: number; tx_on: boolean }>
   links: Array<{ id: string; t_s: number; los: boolean; distance_m: number; pathLoss_dB: number; doppler_Hz: number }>
   bearings: Array<{ id: string; t_s: number; bearing_deg: number; sigma_deg: number; quality: string; state: string; mixture: boolean }>
   positions: Array<{ id: string; t_s: number; method: string; lon: number; lat: number; cep_m: number; crossing_deg: number; sites: number }>
 } {
+  const src = sit ?? state
   const entities: Array<{ id: string; t_s: number; lon: number; lat: number; alt_m: number; heading_deg: number; speed_mps: number; tx_on: boolean }> = []
-  state.entities.forEach((e) => {
+  src.entities.forEach((e) => {
     entities.push({ id: e.id, t_s: e.t_s, lon: e.lon, lat: e.lat, alt_m: e.alt_m, heading_deg: e.heading_deg, speed_mps: e.speed_mps, tx_on: e.tx_on })
   })
   const links: Array<{ id: string; t_s: number; los: boolean; distance_m: number; pathLoss_dB: number; doppler_Hz: number }> = []
-  state.links.forEach((l) => {
+  src.links.forEach((l) => {
     links.push({ id: l.link_id, t_s: l.t_s, los: l.line_of_sight, distance_m: l.distance_m, pathLoss_dB: l.path_loss_dB, doppler_Hz: l.doppler_Hz })
   })
   const bearings: Array<{ id: string; t_s: number; bearing_deg: number; sigma_deg: number; quality: string; state: string; mixture: boolean }> = []
-  state.bearings.forEach((b) => {
+  src.bearings.forEach((b) => {
     bearings.push({ id: b.link_id, t_s: b.t_s, bearing_deg: b.bearing_deg, sigma_deg: b.bearing_std_deg,
                     quality: b.df_quality, state: b.df_result_state, mixture: b.mixture })
   })
   const positions: Array<{ id: string; t_s: number; method: string; lon: number; lat: number; cep_m: number; crossing_deg: number; sites: number }> = []
-  state.positions.forEach((p, k) => {
+  src.positions.forEach((p, k) => {
     positions.push({ id: k, t_s: p.t_s, method: p.method, lon: p.lon, lat: p.lat,
                      cep_m: p.cep_m, crossing_deg: p.min_crossing_angle_deg,
                      sites: p.participating_sites.length })

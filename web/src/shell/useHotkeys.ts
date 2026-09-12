@@ -3,6 +3,7 @@ import { useStore } from '../state/store.js'
 import { mapHotkey } from './hotkeys.js'
 import { runDiagram, saveDiagram } from './actions.js'
 import { deleteMarker, placeMarker, stepCursor } from '../signal/commands.js'
+import { seekTo, timelineDuration, togglePlay } from './timelineOps.js'
 
 function isEditable(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null
@@ -16,7 +17,11 @@ export function useHotkeys(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const st = store.getState()
-      const k = mapHotkey(e, { editable: isEditable(e.target), signalActive: st.ui.view === 'results' && st.ui.resultsTab === 'signal' })
+      const k = mapHotkey(e, {
+        editable: isEditable(e.target),
+        signalActive: st.ui.view === 'results' && st.ui.resultsTab === 'signal',
+        timelineActive: st.ui.view === 'scene' || st.ui.view === 'results',
+      })
       if (!k) return
       if (k !== 'escape') e.preventDefault()
       const { dispatch } = store
@@ -35,6 +40,9 @@ export function useHotkeys(): void {
         case 'signal:cursorNext': stepCursor(store, 1, false); break
         case 'signal:cursorPrev10': stepCursor(store, -1, true); break
         case 'signal:cursorNext10': stepCursor(store, 1, true); break
+        case 'timeline:play': togglePlay(store); break
+        case 'timeline:home': seekTo(store, 0, true); break
+        case 'timeline:end': seekTo(store, timelineDuration(store.getState()), true); break
       }
     }
     window.addEventListener('keydown', onKey, true)

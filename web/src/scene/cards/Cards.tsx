@@ -8,18 +8,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppState, useStore } from '../../state/store.js'
 import { fmtDb, fmtDeg, fmtHz, fmtMeters } from '../../shell/format.js'
-import { sceneStore } from '../sceneStore.js'
+import { currentSituation, situationRev } from '../situationView.js'
 import { buildSiteCards, buildTargetCards, type SiteCardData, type SiteRow, type TargetCardData } from './derive.js'
 import { BearingDial, PlatformIcon } from './icons.js'
 
 const CARD_TICK_MS = 250   // 4 Hz
 
-/** 态势 store 的版本号，按定频取：变了才让卡片重算。 */
-function useSceneRev(): number {
-  const [rev, setRev] = useState(() => sceneStore.get().rev)
+/** 态势版本号（数据 + 时间轴），按定频取：变了才让卡片重算。 */
+function useSceneRev(): string {
+  const [rev, setRev] = useState(() => situationRev())
   useEffect(() => {
     const t = window.setInterval(() => {
-      const r = sceneStore.get().rev
+      const r = situationRev()
       setRev((prev) => (prev === r ? prev : r))
     }, CARD_TICK_MS)
     return () => window.clearInterval(t)
@@ -181,11 +181,11 @@ export function CardStack() {
   const store = useStore()
   const doc = s.scene.scenario.doc
   const rev = useSceneRev()
-  // rev 变了才重算：sceneStore.get() 返回同一个对象，靠它本身的引用判断不出变化
+  // rev 变了才重算：快照对象每次新建，靠版本号判断变化；回放时快照是时间轴 t 处的那一帧
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const cards = useMemo(() => buildTargetCards(doc, sceneStore.get()), [doc, rev])
+  const cards = useMemo(() => buildTargetCards(doc, currentSituation(doc)), [doc, rev])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const siteCards = useMemo(() => buildSiteCards(doc, sceneStore.get()), [doc, rev])
+  const siteCards = useMemo(() => buildSiteCards(doc, currentSituation(doc)), [doc, rev])
   const sel = s.scene.editor.selection
   const selEmitter = sel && sel.kind === 'emitter' ? sel.id : null
   const selSite = sel && sel.kind === 'site' ? sel.id : null

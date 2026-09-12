@@ -4,9 +4,10 @@
 export type Hotkey =
   | 'view:scene' | 'view:diagram' | 'view:results' | 'view:data' | 'save' | 'run' | 'escape' | 'drawer'
   | 'signal:marker' | 'signal:markerDelete' | 'signal:cursorPrev' | 'signal:cursorNext' | 'signal:cursorPrev10' | 'signal:cursorNext10'
+  | 'timeline:play' | 'timeline:home' | 'timeline:end'
 
 /** 信号页快捷键的上下文：焦点在输入框时不响应；只在结果视图信号页生效（09 §11）。 */
-export interface HotkeyContext { editable: boolean; signalActive: boolean }
+export interface HotkeyContext { editable: boolean; signalActive: boolean; /** 时间轴可见（场景页或结果页，D-061） */ timelineActive?: boolean }
 
 export interface KeyLike { code: string; key: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
 
@@ -22,6 +23,11 @@ export function mapHotkey(e: KeyLike, ctx?: HotkeyContext): Hotkey | null {
     if ((e.code === 'Delete' || e.code === 'Backspace') && !e.shiftKey) return 'signal:markerDelete'
     if (e.code === 'ArrowLeft') return e.shiftKey ? 'signal:cursorPrev10' : 'signal:cursorPrev'
     if (e.code === 'ArrowRight') return e.shiftKey ? 'signal:cursorNext10' : 'signal:cursorNext'
+  }
+  if (ctx?.timelineActive && !ctx.editable && !mod && !e.altKey && !e.shiftKey) {
+    if (e.code === 'Space') return 'timeline:play'
+    if (e.code === 'Home') return 'timeline:home'
+    if (e.code === 'End') return 'timeline:end'
   }
   if (mod && !e.altKey && !e.shiftKey) {
     if (e.code === 'KeyS') return 'save'

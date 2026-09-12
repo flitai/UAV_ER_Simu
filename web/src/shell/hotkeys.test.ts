@@ -45,3 +45,12 @@ test('信号页键：M / Delete / Backspace / ←→（Shift 十帧）只在信�
   assert.equal(mapHotkey(k('KeyM', { ctrlKey: true }), on), null)
   assert.equal(mapHotkey(k('Escape'), on), 'escape')
 })
+
+test('时间轴键（D-061）：场景页或结果页且焦点不在输入框时 Space / Home / End；输入框里不响应', () => {
+  const k = (code: string, editable = false) => mapHotkey({ code, key: '', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false }, { editable, signalActive: false, timelineActive: true })
+  assert.equal(k('Space'), 'timeline:play')
+  assert.equal(k('Home'), 'timeline:home')
+  assert.equal(k('End'), 'timeline:end')
+  assert.equal(k('Space', true), null)
+  assert.equal(mapHotkey({ code: 'Space', key: '', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false }, { editable: false, signalActive: false }), null)
+})

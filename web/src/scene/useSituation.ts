@@ -23,6 +23,7 @@ import {
   setLinks, setPlannedRoute, setSites, setTargets, setTrails, setZones,
 } from './layers/situation.js'
 import { emitters, posOf, routeOf, sites, splitLinkId, waypointsOf, zoneOf, zones } from './editor/scenarioOps.js'
+import { currentSituation, situationRev } from './situationView.js'
 import type { ScenarioDoc } from '../state/types.js'
 
 const TICK_MS = 50   // 20 Hz
@@ -126,19 +127,21 @@ export function useLiveSituation(
   useEffect(() => {
     if (!map || !ready) return
     const overlay = attachFixOverlay(map)
-    let rev = -1
+    let rev = ''
     let fixShown = fixRef.current
     let selShown = selRef.current
     let docShown = docRef.current
     const timer = window.setInterval(() => {
-      const st = sceneStore.get()
-      // 数据没变但图层开关、选中或场景文档（告警区）变了也要重画一次，否则旧画面会一直留在屏上
-      if (st.rev === rev && fixShown === fixRef.current && selShown === selRef.current && docShown === docRef.current) return
-      rev = st.rev
+      // 数据、时间轴（回放时刻 / 模式）、图层开关、选中或场景文档（告警区）任一变了才重画
+      const now = situationRev()
+      if (now === rev && fixShown === fixRef.current && selShown === selRef.current && docShown === docRef.current) return
+      rev = now
       fixShown = fixRef.current
       selShown = selRef.current
       docShown = docRef.current
       const d = docRef.current
+      // live 取每键最新；回放按时间轴的 t 取历史快照；没历史时走航迹预览（13 §5.3）
+      const st = currentSituation(d)
       // 入圈判定（D-061，13 §4.3）：纯几何，每 tick 对每个实体算一次；选中环跟着选中走
       const targets = [] as Array<EntitySample & { alert: boolean; selected: boolean }>
       st.entities.forEach((e) => targets.push({ ...e, alert: zoneOf(d, e.lon, e.lat, e.alt_m) !== null, selected: e.id === selRef.current }))

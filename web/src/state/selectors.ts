@@ -66,6 +66,8 @@ export interface ProbeExtras {
   /** 目标卡与站点卡的派生读数（切片 ⑧，D-061；13 报告 §3.4），由 scene/cards/derive.ts 算 */
   cards: ReturnType<typeof probeCards>
   siteCards: ReturnType<typeof probeSiteCards>
+  /** 时间轴（V-3，D-061）：t 是引擎逻辑时间；source 说明画面这一帧来自 live / replay / preview */
+  timeline: { t: number | null; mode: 'live' | 'replay'; playing: boolean; speed: number; markers: number; source: 'live' | 'replay' | 'preview' }
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -188,6 +190,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     positions: x.positions,
     cards: x.cards,
     siteCards: x.siteCards,
+    timeline: x.timeline,
     signal: {
       opId: s.signal.opId,
       viewport: s.signal.viewport,
