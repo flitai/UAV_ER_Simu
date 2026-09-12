@@ -23,13 +23,24 @@ namespace cuav {
 
 class IRunObserver;   // observer.h
 
-// 一次能量判决的结果。
+// 一次能量判决的结果。前五个字段是切片 ① 就有的；其余自 C-3（D-063）起补上，
+// 让一行检测自描述（时间、频段、电平、突发编号），运行器落 detections.jsonl 时逐字段写出。
 struct Detection {
     std::uint64_t start_sample = 0;   // 判决所用第一帧的首样点
     std::uint64_t frame_index = 0;
     double statistic = 0.0;           // 归一化检测量 Λ，H0 下均值为 1
     double threshold = 0.0;           // 所用门限 η
     bool hit = false;
+    double t_s = 0.0;                 // 帧首样点的逻辑时间 = start_sample / fs
+    std::int64_t segment_id = -1;     // 突发编号（按 merge_gap_frames 合并，从 0 起）；非命中帧为 −1
+    double f_lo_Hz = 0.0;             // 检测频段的绝对下限 = center + band_lo
+    double f_hi_Hz = 0.0;
+    double band_power_dBm = 0.0;      // 频段内功率，has_dBm 为真时有效（Parseval：Σ|X_k|² / nfft²）
+    double noise_dBm = 0.0;           // 噪声估计的频段功率，同上
+    double snr_dB = 0.0;              // 10·log10 Λ，即 (S+N)/N
+    bool has_dBm = false;             // 输入已标定且参数 band_power_dBm 为真
+    bool overload = false;            // 组成该帧的任一块 clip_count > 0（削顶是数据标记，D-051）
+    std::uint32_t noise_frames_used = 0;   // 判决时噪声估计用了几帧
 };
 
 struct DetectionList {
@@ -286,6 +297,11 @@ public:
 
     // 运行前初始化。随机性由此注入（铁律 9）。
     virtual bool init(IRandom& rng, std::string& err) = 0;
+
+    // 节点名（D-063，C-3）。Graph::run 在 attach 之前对每个节点调一次：组件本来不知道自己在框图里
+    // 叫什么，而检测行要带 node_id——多站下每站一个检测器 det__<site>（D-053），不带节点名就分不清
+    // 是哪一站检出的。不解析节点名后缀去猜站点：站点身份走 scene_binding 注入的 site_id。
+    virtual void set_node_name(const std::string& name) { (void)name; }
 
     // 挂接运行观察者（observer.h）。Graph::run 在 init 之前对每个节点调一次；多数组件不需要，默认忽略。
     virtual void attach(IRunObserver* obs) { (void)obs; }

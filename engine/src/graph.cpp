@@ -173,7 +173,10 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
     for (const auto& n : nodes_) rep.node_names.push_back(n.name);
 
     std::string err;
-    for (auto& n : nodes_) n.comp->attach(observer);
+    for (auto& n : nodes_) {
+        n.comp->set_node_name(n.name);   // 先给名字再挂观察者：上报的第一行就要带 node_id
+        n.comp->attach(observer);
+    }
     for (auto& n : nodes_) {
         if (!n.comp->init(rng, err)) {
             rep.error = n.name + " 初始化失败：" + err;

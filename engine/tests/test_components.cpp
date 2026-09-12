@@ -9,7 +9,9 @@
 
 #include "cuav/graph.h"
 #include "cuav/components/processing.h"
+#include "cuav/components/receiver.h"
 #include "cuav/components/sources.h"
+#include "cuav/observer.h"
 
 using namespace cuav;
 
@@ -522,4 +524,335 @@ TEST_CASE("多路叠加：全部支路都标定才算标定，来源取最弱的
     s.reset();
     REQUIRE(s.process(in2, out2, err) == Step::Produced);
     CHECK_FALSE(out2["out"].iq.meta.calibration.calibrated);
+}
+
+// ================================================================ C-3（D-063）：滑动噪声估计、分段、上报
+//
+// 这一组用例守的是 10 报告 §4.2 的滑动模式与 detections.jsonl 的行语义。
+// probe 模式的行为由 test_golden.cpp 与上面的既有用例守着，这里一个数都不碰。
+
+namespace {
+
+struct CollectDetections : IRunObserver {
+    std::vector<DetectionReport> rows;
+    std::vector<DetectionSummary> summaries;
+    void on_detection(const DetectionReport& r) override { rows.push_back(r); }
+    void on_detection_summary(const DetectionSummary& s) override { summaries.push_back(s); }
+};
+
+struct ToneBurst {
+    double offset_Hz;
+    double amplitude;
+    std::uint64_t start_sample;
+    std::uint64_t stop_sample;   // 0 = 直到结束
+};
+
+struct DetChain {
+    Graph g;
+    EnergyDetector* det = nullptr;
+    DetectionSink* sink = nullptr;
+};
+
+// 噪声 + 若干门控单音 → 逐级加法混合 → [ADC] → 能量检测 → 汇聚。
+// 单音走混合器的 a 口（块元数据取 a 路），噪声与前一级走 b 口。
+void build_det_chain(DetChain& c, double fs, std::size_t nfft, std::uint64_t total,
+                     const std::vector<ToneBurst>& tones,
+                     const std::map<std::string, double>& det_num,
+                     const std::map<std::string, std::string>& det_txt,
+                     bool with_adc = false, double adc_full_scale_dBm = 0.0) {
+    std::string err;
+    std::unique_ptr<NoiseSource> n(new NoiseSource());
+    std::map<std::string, double> np{{"sample_rate_Hz", fs},
+                                     {"total_samples", static_cast<double>(total)},
+                                     {"power", 1.0}, {"block_samples", 32768.0}};
+    REQUIRE(n->configure(np, {}, err));
+    NodeId prev = c.g.add(std::move(n), "noise");
+    for (std::size_t i = 0; i < tones.size(); ++i) {
+        std::unique_ptr<ToneSource> t(new ToneSource());
+        std::map<std::string, double> tp{{"sample_rate_Hz", fs},
+                                         {"total_samples", static_cast<double>(total)},
+                                         {"offset_Hz", tones[i].offset_Hz},
+                                         {"amplitude", tones[i].amplitude},
+                                         {"start_sample", static_cast<double>(tones[i].start_sample)},
+                                         {"stop_sample", static_cast<double>(tones[i].stop_sample)},
+                                         {"block_samples", 32768.0}};
+        REQUIRE(t->configure(tp, {}, err));
+        NodeId tn = c.g.add(std::move(t), "tone" + std::to_string(i));
+        std::unique_ptr<AddMixer> m(new AddMixer());
+        REQUIRE(m->configure({}, {}, err));
+        NodeId mn = c.g.add(std::move(m), "mix" + std::to_string(i));
+        REQUIRE(c.g.connect(tn, "out", mn, "a", err));
+        REQUIRE(c.g.connect(prev, "out", mn, "b", err));
+        prev = mn;
+    }
+    if (with_adc) {
+        std::unique_ptr<AdcQuantizer> q(new AdcQuantizer());
+        REQUIRE(q->configure({{"full_scale_dBm", adc_full_scale_dBm}}, {{"bits", "12"}}, err));
+        NodeId qn = c.g.add(std::move(q), "adc");
+        REQUIRE(c.g.connect(prev, "out", qn, "in", err));
+        prev = qn;
+    }
+    std::unique_ptr<EnergyDetector> d(new EnergyDetector());
+    c.det = d.get();
+    REQUIRE_MESSAGE(d->configure(det_num, det_txt, err), err);
+    NodeId dn = c.g.add(std::move(d), "det");
+    REQUIRE(c.g.connect(prev, "out", dn, "in", err));
+    std::unique_ptr<DetectionSink> k(new DetectionSink());
+    c.sink = k.get();
+    NodeId kn = c.g.add(std::move(k), "sink");
+    REQUIRE(c.g.connect(dn, "out", kn, "in", err));
+}
+
+const std::map<std::string, std::string> kSliding{{"noise_mode", "sliding"}};
+
+}  // namespace
+
+TEST_CASE("sliding：纯噪声下暖机后的虚警率接近目标值，第 0 帧按约定先入环") {
+    const double fs = 1e6;
+    const std::size_t nfft = 256;
+    const std::uint64_t frames = 20000;
+    DetChain c;
+    build_det_chain(c, fs, nfft, frames * nfft, {},
+                    {{"nfft", 256.0}, {"band_lo_Hz", -1e5}, {"band_hi_Hz", 1e5},
+                     {"pfa", 1e-2}, {"noise_window_frames", 256.0}},
+                    kSliding);
+    CollectDetections obs;
+    Xoshiro256pp rng(7);
+    RunReport rep = c.g.run(rng, obs);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+    REQUIRE(obs.rows.size() == frames);
+    CHECK(c.sink->frames() == frames);
+
+    // 第 0 帧：环空 → 先入环 → 噪声估计 = 自身 / ln2 → Λ 恒为 ln2，不会命中
+    CHECK(obs.rows[0].d.noise_frames_used == 1);
+    CHECK(obs.rows[0].d.statistic == doctest::Approx(0.69314718055994530942).epsilon(1e-9));
+    CHECK_FALSE(obs.rows[0].d.hit);
+    // 环单调填满到 W，之后停在 W
+    std::uint32_t prev_used = 0;
+    for (const auto& r : obs.rows) {
+        CHECK(r.d.noise_frames_used >= prev_used);
+        CHECK(r.d.noise_frames_used <= 256);
+        prev_used = r.d.noise_frames_used;
+    }
+    CHECK(obs.rows.back().d.noise_frames_used == 256);
+
+    // 暖机（前 W 帧）之后统计：均值 ≈ 1、虚警率与目标同量级。
+    // 滑动估计自带估计噪声（每 bin 中位数 256 帧的相对散布约 8%，51 bin 求和后约 1%），
+    // 加上删截去掉了最高的 1% 帧，虚警率会比 probe 略高——判据留到目标值的一倍以内，不放到无意义。
+    double sum = 0.0;
+    std::uint64_t n = 0, hits = 0;
+    for (const auto& r : obs.rows) {
+        if (r.d.frame_index < 256) continue;
+        sum += r.d.statistic;
+        ++n;
+        if (r.d.hit) ++hits;
+    }
+    const double rate = static_cast<double>(hits) / static_cast<double>(n);
+    MESSAGE("sliding H0 虚警率 " << rate << "（目标 1e-2），均值 " << sum / static_cast<double>(n));
+    CHECK(sum / static_cast<double>(n) == doctest::Approx(1.0).epsilon(0.02));
+    CHECK(rate > 0.5e-2);
+    CHECK(rate < 2.0e-2);
+    CHECK(c.det->noise_stale_frames() == 0);
+    CHECK(rep.state == State::Valid);
+}
+
+TEST_CASE("sliding：清净起步后出现的持续单音保持检出——环被删截冻结，陈旧帧只记 note 不降级") {
+    const double fs = 1e6;
+    const std::size_t nfft = 256;
+    const std::uint64_t frames = 4000;
+    DetChain c;
+    build_det_chain(c, fs, nfft, frames * nfft,
+                    {{50000.0, 0.5, 1000 * nfft, 0}},
+                    {{"nfft", 256.0}, {"band_lo_Hz", 40000.0}, {"band_hi_Hz", 60000.0},
+                     {"pfa", 1e-3}, {"noise_window_frames", 256.0}},
+                    kSliding);
+    CollectDetections obs;
+    Xoshiro256pp rng(11);
+    RunReport rep = c.g.run(rng, obs);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+    REQUIRE(obs.rows.size() == frames);
+
+    std::uint64_t before = 0, after_hits = 0, after = 0;
+    for (const auto& r : obs.rows) {
+        if (r.d.frame_index < 1000) { if (r.d.hit) ++before; }
+        else { ++after; if (r.d.hit) ++after_hits; }
+    }
+    // 1000 帧以前只有虚警（期望 1 次量级）；以后持续检出
+    CHECK(before <= 10);
+    CHECK(static_cast<double>(after_hits) / static_cast<double>(after) >= 0.99);
+    // 单音一来，命中帧不再入环，环停在 1000 帧前的干净噪声上：这正是删截的意义，
+    // 代价是估计不再更新，按 10 §4.2 计陈旧帧、记 note、不降级
+    CHECK(c.det->noise_stale_frames() > 0);
+    CHECK(c.det->noise_stale_frames() < after);
+    bool noted = false;
+    for (const auto& s : c.det->status().notes) if (s.find("陈旧") != std::string::npos) noted = true;
+    CHECK(noted);
+    CHECK(rep.state == State::Valid);
+    // 从 1000 帧起的命中属于同一个突发（虚警帧之间的空隙远大于 merge_gap，不会被并进来）
+    CHECK(obs.rows[1000].d.hit);
+    CHECK(obs.rows[1000].d.segment_id == obs.rows.back().d.segment_id);
+    // 行自描述：时间与绝对频段
+    CHECK(obs.rows[1000].d.t_s == doctest::Approx(1000.0 * 256.0 / fs));
+    CHECK(obs.rows[1000].d.f_lo_Hz == doctest::Approx(40000.0));
+    CHECK(obs.rows[1000].d.f_hi_Hz == doctest::Approx(60000.0));
+    CHECK(obs.rows[1000].d.snr_dB == doctest::Approx(10.0 * std::log10(obs.rows[1000].d.statistic)));
+}
+
+TEST_CASE("sliding：从第一帧起就在的持续信号同样被吸收——删截救不了没有干净参考的估计") {
+    // 与上面 probe 的「连续满带信号会被中位数噪声估计吸收」是同一件事：
+    // 第 0 帧无条件入环，此后每帧都不命中、都被纳入，估计始终含信号。这是已知行为，写进模型卡。
+    const double fs = 1e6;
+    const std::size_t nfft = 256;
+    DetChain c;
+    build_det_chain(c, fs, nfft, 3000 * nfft,
+                    {{50000.0, 0.5, 0, 0}},
+                    {{"nfft", 256.0}, {"band_lo_Hz", 40000.0}, {"band_hi_Hz", 60000.0},
+                     {"pfa", 1e-3}, {"noise_window_frames", 256.0}},
+                    kSliding);
+    Xoshiro256pp rng(11);
+    RunReport rep = c.g.run(rng);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+    CHECK(c.sink->hit_rate() < 0.05);
+}
+
+TEST_CASE("突发分段：命中帧之间的空隙不大于 merge_gap_frames 即并入同一段") {
+    // 两段单音 [1000, 1100) 与 [1102, 1200)，中间空 2 帧；pfa 取 1e-6 让虚警造出的碎段可忽略。
+    // 暖机期除外：环里只有一两帧时估计极不可靠（M = 5 个 bin、1 帧中位数），头几帧的虚警率
+    // 远高于目标——这是 10 §4.2「环未满时用已有帧、不标降级」的真实后果（实测种子 5 在第 1 帧
+    // 命中一次），所以断言只看暖机（W 帧）之后，段号按行分组比较而不是数全局段数。
+    const double fs = 1e6;
+    const std::size_t nfft = 256;
+    for (double gap = 1.0; gap <= 2.0; gap += 1.0) {
+        DetChain c;
+        build_det_chain(c, fs, nfft, 2000 * nfft,
+                        {{50000.0, 0.5, 1000 * nfft, 1100 * nfft},
+                         {50000.0, 0.5, 1102 * nfft, 1200 * nfft}},
+                        {{"nfft", 256.0}, {"band_lo_Hz", 40000.0}, {"band_hi_Hz", 60000.0},
+                         {"pfa", 1e-6}, {"noise_window_frames", 256.0}, {"merge_gap_frames", gap}},
+                        kSliding);
+        CollectDetections obs;
+        Xoshiro256pp rng(5);
+        RunReport rep = c.g.run(rng, obs);
+        REQUIRE_MESSAGE(rep.ok, rep.error);
+        REQUIRE(obs.rows.size() == 2000);
+        std::uint64_t hits_after_warmup = 0;
+        for (const auto& r : obs.rows) if (r.d.frame_index >= 256 && r.d.hit) ++hits_after_warmup;
+        MESSAGE("gap " << gap << "：暖机后命中 " << hits_after_warmup << "，全程段数 " << c.det->segments()
+                << "，η " << c.det->threshold() << "，Λ[1050] " << obs.rows[1050].d.statistic
+                << "，Λ[1100] " << obs.rows[1100].d.statistic);
+        CHECK(hits_after_warmup == 198);
+        const std::int64_t a = obs.rows[1000].d.segment_id;
+        const std::int64_t b = obs.rows[1102].d.segment_id;
+        CHECK(a >= 0);
+        CHECK(b >= 0);
+        for (std::size_t i = 1000; i < 1100; ++i) CHECK(obs.rows[i].d.segment_id == a);
+        for (std::size_t i = 1102; i < 1200; ++i) CHECK(obs.rows[i].d.segment_id == b);
+        CHECK_FALSE(obs.rows[1100].d.hit);
+        CHECK(obs.rows[1100].d.segment_id == -1);
+        CHECK(obs.rows[1101].d.segment_id == -1);
+        CHECK(obs.rows[1200].d.segment_id == -1);
+        if (gap >= 2.0) CHECK(a == b); else CHECK(b == a + 1);
+        REQUIRE(obs.summaries.size() == 1);
+        CHECK(obs.summaries[0].segments == c.det->segments());
+        CHECK(obs.summaries[0].hits == c.det->hits());
+    }
+}
+
+TEST_CASE("削顶标记随块传到检测行：有 ADC 且削顶时 overload 为真，无 ADC 恒假；dBm 读数随标定走") {
+    const double fs = 1e6;
+    const std::size_t nfft = 256;
+    const std::map<std::string, double> dp{{"nfft", 256.0}, {"band_lo_Hz", -1e5}, {"band_hi_Hz", 1e5},
+                                           {"pfa", 1e-2}, {"noise_window_frames", 64.0}};
+    SUBCASE("无 ADC") {
+        DetChain c;
+        build_det_chain(c, fs, nfft, 300 * nfft, {}, dp, kSliding);
+        CollectDetections obs;
+        Xoshiro256pp rng(3);
+        REQUIRE(c.g.run(rng, obs).ok);
+        REQUIRE(obs.rows.size() == 300);
+        for (const auto& r : obs.rows) {
+            CHECK_FALSE(r.d.overload);
+            // 合成源已标定（来源 model），有 dBm 读数；频段功率 ≈ 0 dBm（单位功率白噪声、频段占 78%）
+            CHECK(r.d.has_dBm);
+            CHECK(std::isfinite(r.d.band_power_dBm));
+            CHECK(std::isfinite(r.d.noise_dBm));
+        }
+        CHECK(obs.rows[200].d.band_power_dBm == doctest::Approx(10.0 * std::log10(0.2 * 1e6 / fs * 1.0) + 0.0).epsilon(0.5));
+        REQUIRE(obs.summaries.size() == 1);
+        CHECK(obs.summaries[0].overload_frames == 0);
+        CHECK(obs.summaries[0].calibrated);
+    }
+    SUBCASE("有 ADC，满量程远低于噪声电平：每块都削顶，每帧都标 overload") {
+        DetChain c;
+        build_det_chain(c, fs, nfft, 300 * nfft, {}, dp, kSliding, true, -20.0);
+        CollectDetections obs;
+        Xoshiro256pp rng(3);
+        REQUIRE(c.g.run(rng, obs).ok);
+        REQUIRE(obs.rows.size() == 300);
+        for (const auto& r : obs.rows) CHECK(r.d.overload);
+        REQUIRE(obs.summaries.size() == 1);
+        CHECK(obs.summaries[0].overload_frames == 300);
+    }
+    SUBCASE("band_power_dBm 参数关掉：行里不带 dBm") {
+        std::map<std::string, double> dp2 = dp;
+        dp2["band_power_dBm"] = 0.0;
+        DetChain c;
+        build_det_chain(c, fs, nfft, 100 * nfft, {}, dp2, kSliding);
+        CollectDetections obs;
+        Xoshiro256pp rng(3);
+        REQUIRE(c.g.run(rng, obs).ok);
+        for (const auto& r : obs.rows) CHECK_FALSE(r.d.has_dBm);
+    }
+}
+
+TEST_CASE("检测行经观察者上报：行数等于帧数、带节点名；site_id 只在注入时出现；摘要恰一次") {
+    const double fs = 1e6;
+    const std::size_t nfft = 256;
+    const std::map<std::string, double> dp{{"nfft", 256.0}, {"band_lo_Hz", -1e5}, {"band_hi_Hz", 1e5},
+                                           {"pfa", 1e-2}, {"noise_window_frames", 64.0}, {"noise_frames", 100.0}};
+    SUBCASE("sliding，注入 site_id") {
+        DetChain c;
+        build_det_chain(c, fs, nfft, 500 * nfft, {}, dp, {{"noise_mode", "sliding"}, {"site_id", "site-9"}});
+        CollectDetections obs;
+        Xoshiro256pp rng(2);
+        REQUIRE(c.g.run(rng, obs).ok);
+        CHECK(obs.rows.size() == c.sink->frames());
+        CHECK(obs.rows.size() == 500);
+        for (const auto& r : obs.rows) {
+            CHECK(r.node_id == "det");
+            CHECK(r.site_id == "site-9");
+        }
+        REQUIRE(obs.summaries.size() == 1);
+        const DetectionSummary& s = obs.summaries[0];
+        CHECK(s.node_id == "det");
+        CHECK(s.site_id == "site-9");
+        CHECK(s.frames == 500);
+        CHECK(s.hits == c.det->hits());
+        CHECK(s.segments == c.det->segments());
+        CHECK(s.noise_mode == "sliding");
+        CHECK(s.noise_window_frames == 64);
+        CHECK(s.merge_gap_frames == 2);
+        CHECK(s.threshold == doctest::Approx(c.det->threshold()));
+        CHECK(s.dt_s == doctest::Approx(256.0 / fs));
+        CHECK(s.trace.model_id == "EnergyDetector");
+        CHECK(s.trace.trace_id == "EnergyDetector:site-9");
+        CHECK(s.band_lo_Hz == doctest::Approx(-1e5));
+    }
+    SUBCASE("probe，不注入 site_id：同样逐帧上报，探针帧在攒够后一次补报") {
+        DetChain c;
+        build_det_chain(c, fs, nfft, 500 * nfft, {}, dp, {});
+        CollectDetections obs;
+        Xoshiro256pp rng(2);
+        REQUIRE(c.g.run(rng, obs).ok);
+        CHECK(obs.rows.size() == 500);
+        for (std::size_t i = 0; i < obs.rows.size(); ++i) {
+            CHECK(obs.rows[i].site_id.empty());
+            CHECK(obs.rows[i].d.frame_index == i);
+            CHECK(obs.rows[i].d.noise_frames_used == 100);
+        }
+        REQUIRE(obs.summaries.size() == 1);
+        CHECK(obs.summaries[0].noise_mode == "probe");
+        CHECK(obs.summaries[0].noise_window_frames == 100);
+        CHECK(obs.summaries[0].trace.trace_id == "EnergyDetector:0");
+    }
 }

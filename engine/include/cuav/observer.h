@@ -49,6 +49,38 @@ struct LinkFrame {
     State state = State::Valid;
 };
 
+// 检测行与检测摘要（C-3，D-063）。行是逐帧的：Detection 自带时间、频段、电平与突发编号，
+// 这里再加节点与站点身份。摘要在 flush() 时每个检测器发一次，带溯源六件套与计数。
+// 行**不带 trace**——逐帧重复七个键只会把文件撑大一半；trace 由运行器写进 detections.index.json
+// 一次到位（铁律 8 的「每个数据产物挂同构元数据」由索引文件兑现，与观测点产品的索引同法）。
+struct DetectionReport {
+    std::string node_id;
+    std::string site_id;     // 未绑站时为空，运行器省略该键
+    Detection d;
+};
+
+struct DetectionSummary {
+    std::string node_id;
+    std::string site_id;
+    ModelTrace trace;
+    std::size_t nfft = 0;
+    double sample_rate_Hz = 0.0;
+    double center_Hz = 0.0;
+    double band_lo_Hz = 0.0, band_hi_Hz = 0.0;   // 绝对频率
+    double pfa = 0.0;
+    double threshold = 0.0;
+    std::string noise_mode;                       // probe / sliding
+    std::size_t noise_window_frames = 0;          // sliding 的环长；probe 时为实际用的探针帧数
+    std::size_t merge_gap_frames = 0;
+    double dt_s = 0.0;                            // 一帧的时长 nfft / fs
+    std::uint64_t frames = 0, hits = 0, segments = 0;
+    std::uint64_t noise_stale_frames = 0;         // sliding：环连续超过 W 帧未更新时判决的帧数
+    std::uint64_t overload_frames = 0;
+    bool calibrated = false;
+    State state = State::Valid;
+    std::vector<std::string> notes;
+};
+
 class IRunObserver {
 public:
     virtual ~IRunObserver() {}
@@ -61,6 +93,10 @@ public:
     // 到达时间报告不单独落盘（它是隐含节点的中间量），但留一个回调供诊断与将来的产品
     virtual void on_toa(const ToaReport&) {}
     virtual void on_position(const PositionReport&) {}
+    // 检测行与摘要（D-063）。与 on_bearing 同法：端口上照旧交 DetectionList 给下游，
+    // 观察者这条路由运行器落 detections.jsonl / detections.index.json 并发事件。
+    virtual void on_detection(const DetectionReport&) {}
+    virtual void on_detection_summary(const DetectionSummary&) {}
     // 一行显示产品：kind ∈ {spectrum, envelope}；row 为 float32，len 个元素；t_s 为该行首样点的逻辑时间。
     virtual void on_product_row(const std::string& op_id, const std::string& kind, std::uint64_t row_index,
                                 const float* row, std::size_t len, double t_s) {

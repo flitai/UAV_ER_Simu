@@ -84,6 +84,16 @@ private:
 };
 
 // 能量检测器。参数与参考实现同名同义。
+//
+// 两种噪声估计（C-3，D-063）：
+//   probe   —— 前 noise_frames 帧估一次逐频点中位数后固定。既有算法，黄金基准
+//              engine/tests/golden/energy_detector.json 守着它，一字不改（铁律 10）。
+//   sliding —— 带删截的滑动中位数：只把**未命中**的帧纳入最近 W 帧的环，环变了才重算噪声；
+//              背景漂移时门限跟着走，删截避免信号自身抬高噪声估计——D-026「交付形态不得是
+//              静态门限」的兑现（固定门限在一半背景上标定、换到另一半虚警率超目标 7 倍）。
+// 两种模式都按 merge_gap_frames 把命中帧并成突发（segment_id）；每帧经观察者 on_detection
+// 上报一行，flush 时 on_detection_summary 一次。算法逐帧顺序与 algos/reference/energy_detector.py
+// 的 sliding_from_power 严格一致，黄金基准 energy_detector_sliding.json 逐帧对拍。
 class EnergyDetector : public IComponent {
 public:
     std::string type_name() const override { return "EnergyDetector"; }
@@ -98,6 +108,8 @@ public:
                    const std::map<std::string, std::string>& text_params,
                    std::string& err) override;
     bool init(IRandom& rng, std::string& err) override;
+    void attach(IRunObserver* obs) override { obs_ = obs; }
+    void set_node_name(const std::string& name) override { node_name_ = name; }
     Step process(PortMap& in, PortMap& out, std::string& err) override;
     Step flush(PortMap& out, std::string& err) override;
     void reset() override;
@@ -108,34 +120,72 @@ public:
     int band_bins() const { return m_bins_; }
     std::uint64_t hits() const { return hits_; }
     std::uint64_t frames() const { return frames_; }
+    std::uint64_t segments() const { return segments_; }
+    std::uint64_t noise_stale_frames() const { return noise_stale_; }
 
 private:
     std::size_t nfft_ = 1024;
     double band_lo_Hz_ = 0.0;
     double band_hi_Hz_ = 0.0;
     double pfa_ = 1e-3;
-    std::size_t noise_frames_ = 8192;   // 估噪声用的探针帧数
+    std::size_t noise_frames_ = 8192;   // probe：估噪声用的探针帧数
+    std::string noise_mode_ = "probe";
+    std::size_t window_frames_ = 256;   // sliding：环长 W
+    std::uint64_t merge_gap_ = 2;       // 突发合并允许的空隙帧数
+    bool want_dBm_ = true;
+    std::string site_id_;               // 装载器按 scene_binding 注入；只作行身份，不影响算法
+    std::string node_name_;
+    IRunObserver* obs_ = nullptr;
 
     // 状态
     std::vector<Complex> carry_;                 // 不满一帧的余量
-    std::vector<std::vector<double>> probe_;     // 探针帧的逐频点功率
+    std::vector<std::vector<double>> probe_;     // 探针帧的逐频点功率（probe）
+    std::vector<bool> probe_overload_;           // 与 probe_ 同长：该探针帧是否含削顶块
     std::vector<double> noise_per_bin_;
     std::vector<bool> band_mask_;
+    std::vector<std::size_t> band_bins_;         // 频段内 bin 的 k 值，升序
     std::vector<Detection> pending_;
     double noise_band_ = 0.0;
     double eta_ = 0.0;
     int m_bins_ = 0;
     bool noise_ready_ = false;
+    std::size_t probe_used_ = 0;                 // probe 实际用了几帧
     double sample_rate_Hz_ = 0.0;
     double center_frequency_Hz_ = 0.0;
     std::uint64_t frames_ = 0;
     std::uint64_t hits_ = 0;
     std::uint64_t next_frame_start_ = 0;
+    // sliding 的环：ring_ 按帧序存整帧功率（弹出最旧帧时要知道删哪个值），
+    // sorted_ 按频段内 bin 各存一份有序副本——中位数 O(1)，插删 O(W) 的 memmove。
+    // 逐帧对 M 个 bin 重排序（M·W·logW）在 921 bin × 256 帧 × 488 帧/s 下是每秒十亿次比较，不可取。
+    std::deque<std::vector<double>> ring_;
+    std::vector<std::vector<double>> sorted_;
+    bool ring_dirty_ = false;
+    bool ring_ever_full_ = false;
+    std::uint64_t frames_since_admit_ = 0;
+    std::uint64_t noise_stale_ = 0;
+    // 分段与逐帧标记
+    std::int64_t last_hit_frame_ = -1;
+    std::int64_t segment_counter_ = -1;
+    std::uint64_t segments_ = 0;
+    std::uint64_t overload_frames_ = 0;
+    bool frame_overload_ = false;                // 正在拼的这一帧是否含削顶块
+    bool frame_calibrated_ = false;              // 最近一块是否已标定（决定 has_dBm）
+    bool summary_sent_ = false;
     ComponentStatus status_;
 
+    void clear_state();
     void build_mask();
     void finalise_noise();
     void consume_frame(const std::vector<Complex>& frame, std::uint64_t start_sample);
+    void judge_sliding(const std::vector<double>& power, std::uint64_t start_sample);
+    void ring_push(const std::vector<double>& power);
+    void recompute_noise_from_ring();
+    Detection make_detection(double band_energy, std::uint64_t frame_index,
+                             std::uint64_t start_sample, bool overload);
+    void report(const Detection& d);
+    void emit_summary();
+    ModelTrace trace() const;
 };
 
 // 检测结果汇聚。首期只做计数与极值摘要，够上层取用；

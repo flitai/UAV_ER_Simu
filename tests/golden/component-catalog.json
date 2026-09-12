@@ -589,7 +589,7 @@
     },
     {
       "category": "algorithm",
-      "description": "切帧不加窗不重叠，每帧 DFT 后取频段能量，除以逐频点帧维中位数噪声估计，与门限比较；口径与 algos/reference/energy_detector.py 一致（EM-S-02，决策 D-026）",
+      "description": "切帧不加窗不重叠，每帧 DFT 后取频段能量，除以逐频点帧维中位数噪声估计，与门限比较；噪声估计可选 probe（前 noise_frames 帧估一次后固定）或 sliding（带删截的滑动中位数，只纳入未命中帧，D-026 交付形态）；命中帧按 merge_gap_frames 并成突发；口径与 algos/reference/energy_detector.py 一致（EM-S-02，决策 D-026 / D-063）",
       "display_name": "能量检测",
       "implementation": "cpp",
       "model_id": "EnergyDetector",
@@ -635,11 +635,73 @@
         },
         {
           "default": 8192.0,
-          "description": "用于噪声估计的帧数",
+          "description": "probe 模式用于噪声估计的探针帧数",
           "min": 1.0,
           "name": "noise_frames",
           "required": false,
           "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "probe",
+          "description": "噪声估计：probe = 前 noise_frames 帧估一次后固定；sliding = 带删截的滑动中位数，只纳入未命中帧，门限随背景漂移（D-026 交付形态）",
+          "enum": [
+            "probe",
+            "sliding"
+          ],
+          "name": "noise_mode",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 256.0,
+          "description": "sliding 模式的滑动窗长（帧）",
+          "min": 2.0,
+          "name": "noise_window_frames",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 2.0,
+          "description": "命中帧之间的空隙不大于此值即并入同一突发（EM-S-02 merge_time_gap）",
+          "min": 0.0,
+          "name": "merge_gap_frames",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": true,
+          "description": "输入已标定时在检测行里附带频段功率与噪声估计的 dBm 读数",
+          "name": "band_power_dBm",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入；本组件不读它",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "本检测器所属站点，由装载器按 scene_binding 注入；只作检测行的身份，不影响算法",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
           "unit": ""
         }
       ],
@@ -657,10 +719,10 @@
           }
         ]
       },
-      "scene_bindable": false,
+      "scene_bindable": true,
       "stateful": true,
       "type": "EnergyDetector",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "category": "data",
