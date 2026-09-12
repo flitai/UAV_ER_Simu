@@ -422,6 +422,21 @@ button.mini { font-size: 11px; padding: 0 5px; }
 
 /* 结果页中栏的观测点页签（左栏可收起，这一处不会跟着没） */
 .op-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px 0 0; }
+
+/* 结果页「检测识别」（C-3）：摘要行 + 突发表，行可点 */
+.det-panel { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
+.det-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink); padding: 2px 0; }
+.det-head .field { display: flex; align-items: center; gap: 6px; }
+.det-head .field .k { color: var(--dim); }
+.det-head select { border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; background: var(--white); }
+.det-head .bad { color: var(--bad); }
+.det-table-wrap { overflow: auto; min-height: 0; flex: 1; border: 1px solid var(--border); border-radius: 6px; background: var(--white); }
+.det-table th { position: sticky; top: 0; background: var(--white); }
+.det-table tbody tr { cursor: pointer; }
+.det-table tbody tr:hover td { background: var(--earth); }
+.det-empty { padding: 12px; text-align: center; }
+.det-node { padding: 4px 0; border-bottom: 1px solid var(--earth); font-size: 12px; line-height: 1.5; }
+.det-node:last-child { border-bottom: none; }
 .op-tabs button { font-size: 11px; padding: 2px 8px; border-radius: 10px; color: var(--dim); }
 .op-tabs button.on { background: var(--earth); border-color: var(--bound); color: var(--ink); font-weight: 600; }
 

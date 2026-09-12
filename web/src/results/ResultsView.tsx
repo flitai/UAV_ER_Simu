@@ -1,4 +1,5 @@
-// 结果视图（09 §7.1）：信号 / 检测 / 任务三页签。切片 ① 有信号页签（U-3 频谱、瀑布、包络）；检测与任务页签留 U-4。
+// 结果视图（09 §7.1）：信号 / 检测识别 / 任务三页签。切片 ① 有信号页签（U-3 频谱、瀑布、包络）；
+// 检测识别页签自 C-3 起有突发列表（D-063），识别与时间线条带留 C-9；任务页签留 U-4。
 
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { resultBadge, runStateGlyph } from '../shell/badges.js'
@@ -7,12 +8,16 @@ import { SignalView } from '../signal/SignalView.js'
 import { useAppState, useDispatch } from '../state/store.js'
 import { tapLabel } from '../chain/model.js'
 import type { ResultsTab } from '../state/types.js'
+import { DetectionSummary, DetectionsPanel } from './DetectionsPanel.js'
+import { useDetections } from './detectionStore.js'
 
-const TABS: Array<{ id: ResultsTab; label: string }> = [{ id: 'signal', label: '信号' }, { id: 'detections', label: '检测' }, { id: 'tasks', label: '任务' }]
+const TABS: Array<{ id: ResultsTab; label: string }> = [{ id: 'signal', label: '信号' }, { id: 'detections', label: '检测识别' }, { id: 'tasks', label: '任务' }]
 
 export function ResultsView() {
   const s = useAppState()
   const dispatch = useDispatch()
+  // 检测行只在结果页可见时取（信号页的叠加与检测页签共用），运行中每 2 s 一次，终态取最后一次加索引
+  useDetections(s.task.id, s.task.runState, s.ui.view === 'results')
   const rg = runStateGlyph(s.task.runState)
   const rb = resultBadge(s.task.runState, s.task.result)
   return (
@@ -58,11 +63,11 @@ export function ResultsView() {
             </div>
           )}
           {s.ui.resultsTab === 'signal' && <SignalView />}
-          {s.ui.resultsTab === 'detections' && <div className="placeholder">检测（U-4 启用）</div>}
+          {s.ui.resultsTab === 'detections' && <DetectionsPanel />}
           {s.ui.resultsTab === 'tasks' && <div className="placeholder">任务列表（U-4 启用）</div>}
         </div>
       }
-      right={s.ui.resultsTab === 'signal' ? <InstrumentPanel /> : <div className="group placeholder">（U-4 启用）</div>}
+      right={s.ui.resultsTab === 'signal' ? <InstrumentPanel /> : s.ui.resultsTab === 'detections' ? <DetectionSummary /> : <div className="group placeholder">（U-4 启用）</div>}
     />
   )
 }

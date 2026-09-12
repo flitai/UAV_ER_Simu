@@ -12,6 +12,7 @@ import { timeStore } from './timeStore.js'
 import { buildSiteCards, buildTargetCards, probeCards, probeSiteCards } from '../scene/cards/derive.js'
 import { ChainView } from '../chain/ChainView.js'
 import { ResultsView } from '../results/ResultsView.js'
+import { detectionStore, probeDetections } from '../results/detectionStore.js'
 import { DataCenter } from '../data/DataCenter.js'
 import { peakBinOf, signalBuffer } from '../signal/buffer.js'
 import { signalHooks, viewStore } from '../signal/viewStore.js'
@@ -105,6 +106,7 @@ export function AppShell() {
       cards: probeCards(buildTargetCards(st.scene.scenario.doc, currentSituation(st.scene.scenario.doc))),
       siteCards: probeSiteCards(buildSiteCards(st.scene.scenario.doc, currentSituation(st.scene.scenario.doc))),
       timeline: { ...timeStore.get(), markers: timelineMarkers(st).length, source: currentSituation(st.scene.scenario.doc).source },
+      detections: probeDetections(detectionStore.get()),
     })
   }), [store])
 

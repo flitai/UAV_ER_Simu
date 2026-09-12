@@ -10,6 +10,7 @@ import type { AppState, CalibrationSource, ProductIndex, WsState } from './types
 import type { SignalViewState } from '../signal/viewStore.js'
 import { spectrumGeomOf } from '../signal/viewport.js'
 import type { probeCards, probeSiteCards } from '../scene/cards/derive.js'
+import type { probeDetections } from '../results/detectionStore.js'
 import { zones } from '../scene/editor/scenarioOps.js'
 import { focusTargetId } from '../scene/focus.js'
 
@@ -69,6 +70,8 @@ export interface ProbeExtras {
   siteCards: ReturnType<typeof probeSiteCards>
   /** 时间轴（V-3，D-061）：t 是引擎逻辑时间；source 说明画面这一帧来自 live / replay / preview */
   timeline: { t: number | null; mode: 'live' | 'replay'; playing: boolean; speed: number; markers: number; source: 'live' | 'replay' | 'preview' }
+  /** 检测行与突发（C-3，D-063），由 results/detectionStore.ts 的 probeDetections 算 */
+  detections?: ReturnType<typeof probeDetections>
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -97,6 +100,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
   const geom = index ? spectrumGeomOf(index) : null
   return {
     view: s.ui.view,
+    resultsTab: s.ui.resultsTab,
     context: {
       projectId: s.context.projectId, experimentId: s.context.experimentId, scenarioId: s.context.scenarioId,
       diagramId: s.context.diagramId, taskId: s.context.taskId, seed: s.context.seed, mode: s.context.mode,
@@ -226,7 +230,10 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       liveRows: v?.liveRows ?? 0,
       shown: v?.shown ?? null,
       envelopeRows: s.signal.envelopeIndex?.rows_available ?? 0,
+      overlayDetections: s.signal.display.overlayDetections,
     },
+    // 检测结果（C-3）：命中行数、段数、最长段——e2e 据此断言「3 s 开机后检出」
+    results: { detections: x.detections ?? null },
     perf: s.ui.devMode ? { longTasks: x.longTasks ?? null } : null,
     badges: { noScene: !s.scene.summary },
     mapInstanceId: x.mapInstanceId,

@@ -264,6 +264,21 @@ try {
   const one = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/bearings?site_id=site-2').then(r => r.json())`)
   check('测向端点支持按站过滤', one.length > 0 && one.every((b) => b.site_id === 'site-2'), `${one.length} 行`)
 
+  // ---------- ⑤b 检测（C-3，D-063）：每站一个检测器各写自己的行；不断言命中——demo-03 三机从 t = 0 持续发射，
+  // 滑动噪声估计从第一帧起就含信号，会被吸收（模型卡里的已知行为），这里只验身份与端点 ----------
+  const det6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections?stride=50').then(r => r.json())`)
+  const detNodes = [...new Set(det6.map((r) => r.node_id))].sort()
+  check('detections.jsonl 三站各有自己的检测器行（det__site-1..3）', detNodes.join() === 'det__site-1,det__site-2,det__site-3', detNodes.join())
+  check('每行的 site_id 由装载器按 scene_binding 注入，与节点一致（不解析后缀）',
+    det6.length > 0 && det6.every((r) => r.node_id === `det__${r.site_id}`), `${det6.length} 行`)
+  const det2 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections?site_id=site-2&stride=50').then(r => r.json())`)
+  check('检测端点支持按站过滤', det2.length > 0 && det2.every((r) => r.site_id === 'site-2'), `${det2.length} 行`)
+  const dIdx6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections/index').then(r => r.json())`)
+  const idxNodes = Object.keys(dIdx6?.nodes ?? {}).sort()
+  check('检测摘要索引有三个检测器，各带 trace 与站点', idxNodes.join() === 'det__site-1,det__site-2,det__site-3'
+    && idxNodes.every((k) => dIdx6.nodes[k].site_id === k.slice(5) && dIdx6.nodes[k].trace?.model_id === 'EnergyDetector'),
+    idxNodes.map((k) => `${k}:${dIdx6.nodes[k].hits}/${dIdx6.nodes[k].frames}`).join(' '))
+
   // ---------- ⑥ 统计判据：散布必须与声称的 σ 对得上 ----------
   const truth = new Map()
   for (const l of links) truth.set(`${l.t_s.toFixed(6)}|${l.link_id}`, l.azimuth_deg)

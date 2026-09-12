@@ -11,6 +11,7 @@ import { SignalRenderer } from './renderer.js'
 import { fmtInt } from '../shell/format.js'
 import { spectrumGeomOf } from './viewport.js'
 import { signalHooks, viewStore } from './viewStore.js'
+import { detectionStore } from '../results/detectionStore.js'
 
 type Which = 'spectrum' | 'waterfall'
 
@@ -67,6 +68,8 @@ export function SignalView() {
   useEffect(() => { r.setVisible(active) }, [r, active])
   useEffect(() => { r.onStore() }, [r, s.signal, s.task.id, s.task.runState, s.task.observationPoints])
   useEffect(() => signalBuffer.subscribe(() => r.onBuffer()), [r])
+  // 检测行到了要重画叠加（C-3）：数据在外部 store，不经主 store
+  useEffect(() => detectionStore.subscribe(() => r.onStore()), [r])
   useEffect(() => () => r.dispose(), [r])
 
   const rel = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -138,6 +141,8 @@ export function SignalView() {
         onDoubleClick={() => r.doubleClick()} />
       <div className="signal-foot">
         <label><input type="checkbox" checked={s.signal.follow} onChange={(e) => store.dispatch({ type: 'signal/follow', on: e.target.checked })} data-signal-follow /> 跟随实时</label>
+        <label><input type="checkbox" checked={s.signal.display.overlayDetections}
+          onChange={(e) => store.dispatch({ type: 'signal/display', patch: { overlayDetections: e.target.checked } })} data-signal-overlay /> 叠加检测</label>
         <span className="muted" data-signal-status>{status}</span>
         <span className="spacer" />
         <button type="button" onClick={() => void exportPng()} data-action="export-png">导出 PNG</button>

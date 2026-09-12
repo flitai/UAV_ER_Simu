@@ -332,3 +332,122 @@ export function getPositions(
 ): Promise<Array<Record<string, unknown>>> {
   return getJsonlWindow(task, 'positions', `?t0=${t0}&t1=${t1}&stride=${stride}`, base)
 }
+
+// ---------------------------------------------------------------- 检测行与检测摘要（C-3，D-063）
+
+/** `detections.jsonl` 的一行（docs/display-products.md §5.1）。`site_id` 只在检测器绑站时有；dBm 两键只在输入已标定时有。 */
+export interface DetectionRow {
+  t_s: number
+  node_id: string
+  site_id?: string
+  start_sample: number
+  frame_index: number
+  segment_id: number | null
+  f_lo_Hz: number
+  f_hi_Hz: number
+  statistic: number
+  threshold: number
+  hit: boolean
+  band_power_dBm?: number
+  noise_dBm?: number
+  snr_dB: number
+  overload: boolean
+  noise_frames_used: number
+}
+
+export interface DetectionNodeSummary {
+  node_id: string
+  site_id?: string
+  nfft: number
+  sample_rate_Hz: number
+  center_Hz: number
+  f_lo_Hz: number
+  f_hi_Hz: number
+  pfa: number
+  threshold: number
+  noise_mode: string
+  noise_window_frames: number
+  merge_gap_frames: number
+  dt_s: number
+  frames: number
+  hits: number
+  segments: number
+  noise_stale_frames: number
+  overload_frames: number
+  calibrated: boolean
+  state: string
+  notes: string[]
+  trace: Record<string, unknown>
+}
+
+export interface DetectionsIndex {
+  schema: string
+  final: boolean
+  rows: number
+  nodes: Record<string, DetectionNodeSummary>
+}
+
+export type DetectionsResult =
+  | { status: 'ok'; rows: DetectionRow[]; stride: number }
+  | { status: 'not_ready'; retryAfterMs: number }
+  | { status: 'none' }
+  | { status: 'error'; message: string }
+
+export interface DetectionsQuery {
+  t0?: number
+  t1?: number
+  stride?: number
+  hit?: boolean
+  site_id?: string
+  node_id?: string
+}
+
+/**
+ * 检测行。三态而不是抛：404 = 这次任务没有检测器；409 = 运行中还没落盘（交给轮询，不在这里自旋）；
+ * 413 = 行太多，按服务端建议的 stride 重取**一次**并把实际用的 stride 一并返回——多站长任务上逐帧
+ * 全取会撞 16 MiB 上限，浏览器的突发列表只要命中帧（`hit: true`），抽稀后段的边界是近似的，界面要写明。
+ */
+export async function getDetections(task: string, q: DetectionsQuery = {}, base = ''): Promise<DetectionsResult> {
+  const build = (stride: number): string => {
+    const sp = new URLSearchParams()
+    sp.set('t0', String(q.t0 ?? 0))
+    sp.set('t1', String(q.t1 ?? 1e9))
+    sp.set('stride', String(stride))
+    if (q.hit !== undefined) sp.set('hit', q.hit ? 'true' : 'false')
+    if (q.site_id) sp.set('site_id', q.site_id)
+    if (q.node_id) sp.set('node_id', q.node_id)
+    return `${base}/api/v1/results/${encodeURIComponent(task)}/detections?${sp.toString()}`
+  }
+  let stride = Math.max(1, Math.floor(q.stride ?? 1))
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await fetch(build(stride))
+    if (r.status === 200) return { status: 'ok', rows: await json<DetectionRow[]>(r), stride }
+    if (r.status === 404) return { status: 'none' }
+    if (r.status === 409) return { status: 'not_ready', retryAfterMs: parseRetryAfterMs(r.headers.get('retry-after')) }
+    let body: Record<string, unknown> = {}
+    try { body = await json<Record<string, unknown>>(r) } catch { /* 忽略 */ }
+    if (r.status === 413) {
+      const sug = body['suggest'] as { stride?: unknown } | undefined
+      const next = typeof sug?.stride === 'number' && sug.stride > stride ? Math.floor(sug.stride) : stride * 2
+      stride = next
+      continue
+    }
+    return { status: 'error', message: String(body['message'] ?? body['error'] ?? `detections HTTP ${r.status}`) }
+  }
+  return { status: 'error', message: `detections 抽稀到 ${stride} 仍超上限` }
+}
+
+export type DetectionsIndexResult =
+  | { status: 200; index: DetectionsIndex }
+  | { status: 409; retryAfterMs: number }
+  | { status: 404 }
+  | { status: number; message: string }
+
+/** 检测摘要整文件（运行结束时才有；运行中 409）。 */
+export async function getDetectionsIndex(task: string, base = ''): Promise<DetectionsIndexResult> {
+  const r = await fetch(`${base}/api/v1/results/${encodeURIComponent(task)}/detections/index`)
+  if (r.status === 200) return { status: 200, index: await json<DetectionsIndex>(r) }
+  if (r.status === 409) return { status: 409, retryAfterMs: parseRetryAfterMs(r.headers.get('retry-after')) }
+  if (r.status === 404) return { status: 404 }
+  return { status: r.status, message: `detections/index HTTP ${r.status}` }
+}

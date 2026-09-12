@@ -424,6 +424,51 @@ try {
   check('勾上的中间观测点读数确实不同（S2 − S1 = 前端增益 20 dB）',
     near(twoOps.s2 - twoOps.s1, 20, 1.5), `S1 ${twoOps.s1.toFixed(2)} dBm，S2 ${twoOps.s2.toFixed(2)} dBm，差 ${(twoOps.s2 - twoOps.s1).toFixed(2)} dB`)
 
+  // ---------- ③b 检测（C-3，D-063）：demo-01 的无人机 3 s 开机，滑动噪声估计在此前攒到干净参考，之后持续检出 ----------
+  const det = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections?hit=true').then(r => r.json())`)
+  check('detections.jsonl 有命中行，且每行带节点名与站点标识（D-053）',
+    Array.isArray(det) && det.length > 0 && det.every((r) => r.node_id === 'det' && r.site_id === 'site-1'), `${det?.length ?? 0} 行`)
+  const bySeg = new Map()
+  for (const r of det) { const g = bySeg.get(r.segment_id) ?? []; g.push(r); bySeg.set(r.segment_id, g) }
+  let longest = null
+  for (const [id, g] of bySeg) if (!longest || g.length > longest.rows.length) longest = { id, rows: g }
+  const tStart = longest ? Math.min(...longest.rows.map((r) => r.t_s)) : NaN
+  check('最长的突发从 3 s 开机起（tx_on 3 s，发射开关按块起点取值、块粒度 ≤ 0.13 s）',
+    tStart >= 2.95 && tStart <= 3.3, `起点 ${tStart.toFixed(3)} s，${longest?.rows.length ?? 0} 帧，共 ${bySeg.size} 段`)
+  const early = det.filter((r) => r.t_s < 2.9).length
+  check('开机前只有零星虚警（pfa 1e-3 × 1465 帧 ≈ 1.5 次，暖机期略高；不能断言为零）', early <= 10, `${early} 帧`)
+  const d0 = longest ? longest.rows[0] : det[0]
+  check('行自描述：绝对频段、dBm 读数、噪声估计用帧数（10 §4.2）',
+    Math.abs(d0.f_lo_Hz - (2440.5e6 - 225e3)) < 1 && Math.abs(d0.f_hi_Hz - (2440.5e6 + 225e3)) < 1 && typeof d0.band_power_dBm === 'number' && d0.noise_frames_used === 256,
+    `${(d0.f_lo_Hz / 1e6).toFixed(3)} MHz / ${d0.band_power_dBm?.toFixed?.(1)} dBm / ${d0.noise_frames_used} 帧 / Λ ${d0.statistic?.toExponential?.(2)}`)
+  const dIdx = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections/index').then(r => r.json())`)
+  check('detections.index.json 有本站检测器的摘要与溯源（铁律 8 由索引兑现）',
+    dIdx?.nodes?.det?.trace?.model_id === 'EnergyDetector' && dIdx.nodes.det.noise_mode === 'sliding' && dIdx.nodes.det.site_id === 'site-1' && dIdx.final === true,
+    JSON.stringify({ mode: dIdx?.nodes?.det?.noise_mode, site: dIdx?.nodes?.det?.site_id, stale: dIdx?.nodes?.det?.noise_stale_frames }))
+  check('摘要计数与行文件一致', dIdx.nodes.det.hits === det.length && dIdx.nodes.det.segments === bySeg.size,
+    `hits ${dIdx.nodes.det.hits} / ${det.length}，段 ${dIdx.nodes.det.segments} / ${bySeg.size}`)
+
+  // 「检测识别」页签：突发列表一行一段；点最长段 → 时间轴与信号游标到该时刻
+  await page.evaluate("(document.querySelector('[data-results-tab=detections]').click(), true)")
+  st = await page.waitFor((s) => s.app?.resultsTab === 'detections' && s.app?.results?.detections?.status === 'final'
+    && (s.app?.results?.detections?.segments ?? 0) > 0, { label: '检测识别页签有数据', timeoutMs: 30000 })
+  const rowsDom = await waitDom(page, "document.querySelectorAll('[data-det-row]').length", bySeg.size)
+  check('「检测识别」页签列出突发，一行一段', rowsDom === bySeg.size, `${rowsDom} 行`)
+  check('探针里的最长段与端点一致', Math.abs((st.app.results.detections.longest?.t_start ?? -1) - tStart) < 1e-9,
+    String(st.app.results.detections.longest?.t_start))
+  await page.evaluate(`(() => { const r = document.querySelector('[data-det-row="det|${longest.id}"]'); if (!r) return false; r.click(); return true })()`)
+  st = await page.waitFor((s) => s.app?.timeline?.mode === 'replay' && s.app?.signal?.cursor_t_s !== null
+    && Math.abs((s.app.signal.geom?.t0_s ?? 0) + s.app.signal.cursor_t_s - tStart) < 0.01, { label: '点行后游标到位', timeoutMs: 20000 })
+  check('点一行把时间轴与信号游标移到该突发起点（09 §7.1）',
+    Math.abs(st.app.timeline.t - tStart) < 0.01 && Math.abs((st.app.signal.geom?.t0_s ?? 0) + st.app.signal.cursor_t_s - tStart) < 0.01,
+    `时间轴 ${st.app.timeline.t?.toFixed?.(3)} s，游标 ${st.app.signal.cursor_t_s?.toFixed?.(3)} s`)
+  // 信号页脚「叠加检测」
+  await page.evaluate("(document.querySelector('[data-results-tab=signal]').click(), true)")
+  await waitDom(page, "document.querySelector('[data-signal-overlay]') !== null", true)
+  await page.evaluate("(document.querySelector('[data-signal-overlay]').click(), true)")
+  st = await page.waitFor((s) => s.app?.signal?.overlayDetections === true, { label: '叠加检测开关', timeoutMs: 10000 })
+  check('信号页脚有「叠加检测」开关，勾上后进探针', st.app.signal.overlayDetections === true)
+
   await page.evaluate("(document.querySelector('.col.left .rail').click(), true)")
   await page.send('Page.navigate', { url: `${BASE}#/diagram` })
   await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '回框图页', timeoutMs: 60000 })

@@ -20,6 +20,7 @@ import { autoRange, niceTicks } from './scale.js'
 import { TraceState, peakOf } from './trace.js'
 import { TERMINAL } from '../state/reducer.js'
 import { signalHooks, viewStore } from './viewStore.js'
+import { detectionStore, visibleSegments } from '../results/detectionStore.js'
 import {
   FLOOR_DB, boxToViewport, clampViewport, colEdgeHz, envelopeGeomOf, fullWindow, groupBounds, liveWindow, panSpan,
   planSpectrumQuery, spectrumGeomOf, srcIndexForPixel, yToTime, zoomSpan, type SpectrumGeom, type Viewport,
@@ -516,6 +517,22 @@ export class SignalRenderer {
         ctx.setLineDash([])
       }
     }
+    // 检测叠加（C-3）：游标落在某个突发里，频谱上把检测频段画成淡色带
+    if (s.signal.display.overlayDetections && s.signal.cursor_t_s !== null && s.signal.index) {
+      const tAbs = s.signal.index.t0_s + s.signal.cursor_t_s
+      for (const g of visibleSegments(detectionStore.get())) {
+        if (tAbs < g.t_start || tAbs > g.t_end) continue
+        const xa = Math.max(x0, xOfRel(g.f_lo_Hz - center))
+        const xb = Math.min(x1, xOfRel(g.f_hi_Hz - center))
+        if (xb <= xa) continue
+        ctx.fillStyle = 'rgba(163, 51, 51, 0.10)'
+        ctx.fillRect(xa, y0, xb - xa, ph)
+        ctx.strokeStyle = C.bad
+        ctx.setLineDash([4, 3])
+        ctx.beginPath(); ctx.moveTo(Math.round(xa) + 0.5, y0); ctx.lineTo(Math.round(xa) + 0.5, y1); ctx.moveTo(Math.round(xb) + 0.5, y0); ctx.lineTo(Math.round(xb) + 0.5, y1); ctx.stroke()
+        ctx.setLineDash([])
+      }
+    }
     // 框选（频率方向）
     if (this.box && this.box.which === 'spectrum') {
       ctx.fillStyle = 'rgba(93, 135, 163, 0.18)'
@@ -610,6 +627,31 @@ export class SignalRenderer {
       const by = Math.min(this.box.y0, this.box.y1)
       ctx.fillRect(bx, by, Math.abs(this.box.x1 - this.box.x0), Math.abs(this.box.y1 - this.box.y0))
       ctx.strokeRect(bx + 0.5, by + 0.5, Math.abs(this.box.x1 - this.box.x0), Math.abs(this.box.y1 - this.box.y0))
+    }
+    // 检测叠加（09 §7.4，C-3）：每个突发一个矩形——时间 [起, 止]、频率 = 检测频段（绝对 → 相对中心）。
+    // 数据来自 detections.jsonl 的命中帧（detectionStore），缺省关闭：它会遮住原始数据。
+    if (s.signal.display.overlayDetections && tspan > 0) {
+      const segs = visibleSegments(detectionStore.get())
+      if (segs.length > 0) {
+        ctx.save()
+        ctx.beginPath(); ctx.rect(x0, y0, pw, ph); ctx.clip()
+        ctx.strokeStyle = C.bad
+        ctx.fillStyle = 'rgba(163, 51, 51, 0.10)'
+        ctx.lineWidth = 1.5
+        for (const g of segs) {
+          const ta = g.t_start - t0s
+          const tb = g.t_end - t0s
+          if (tb < shown.t0 || ta > shown.t1) continue
+          const yTop = y0 + ((shown.t1 - Math.min(tb, shown.t1)) / tspan) * ph
+          const yBot = y0 + ((shown.t1 - Math.max(ta, shown.t0)) / tspan) * ph
+          const xa = xOfRel(g.f_lo_Hz - center)
+          const xb = xOfRel(g.f_hi_Hz - center)
+          const h = Math.max(1.5, yBot - yTop)
+          ctx.fillRect(xa, yTop, xb - xa, h)
+          ctx.strokeRect(Math.round(xa) + 0.5, Math.round(yTop) + 0.5, Math.round(xb - xa), Math.max(1, Math.round(h)))
+        }
+        ctx.restore()
+      }
     }
     // 降级原因：图上叠一行（09 §13.2），颜色随四态，形状 + 文字不只靠颜色
     const note = productStateNote(s.signal.index)
