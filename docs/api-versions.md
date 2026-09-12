@@ -89,7 +89,8 @@
 | GET/HEAD | `/api/v1/results/{task}/{op}/envelope?t0&t1&px` | 同上，三列 `[min_abs, max_abs, rms_abs]` | 合桶的 rms 按样点数加权；末桶只有索引收尾后才按 `last_bucket_samples` 计权 |
 | GET/HEAD | `/api/v1/results/{task}/{op}/scatter` | 404 `product_unsupported` | 观测点本版本不产出 `iq` 产品（D-040 ③），待 `iq` 落地 |
 | GET/HEAD | `/api/v1/results/{task}/{op}/{spectrum\|envelope}/index` | 索引原文 + `rows_available` + `index_final` + `run_state` | 客户端据此建频率轴与时间轴，按 `scale` / `calibration` 定纵轴单位（D-047）；不含任何服务器路径 |
-| GET/HEAD | `/api/v1/results/{task}/{track\|links\|detections}?t0&t1&stride[&link_id]` | JSON 数组 | 闭区间取窗、按键抽稀。`track` 与 `links` 的生产者 2026-09-06 上线（`ScenarioSource` 经观察者上报，`cuav_run` 落盘）；`detections` 仍待 P1-4d。无场景绑定的任务不产生这些文件，端点在终态返回 404 |
+| GET/HEAD | `/api/v1/results/{task}/{track\|links\|detections}?t0&t1&stride[&link_id][&site_id&node_id&hit]` | JSON 数组 | 闭区间取窗、按键抽稀。`track` 与 `links` 的生产者 2026-09-06 上线（`ScenarioSource` 经观察者上报，`cuav_run` 落盘）；`detections` 的生产者 2026-09-12 上线（C-3，D-063：`EnergyDetector` 经观察者逐帧上报，抽稀键 `node_id`，可按 `site_id` / `node_id` / `hit` 精确过滤，`hit=true` 只取命中帧）。没有对应节点的任务不产生这些文件，端点在终态返回 404 |
+| GET/HEAD | `/api/v1/results/{task}/detections/index` | 检测摘要整文件 `cuav-detections-index/1` | 每个检测器一条：参数快照、门限、帧数 / 命中 / 段数 / 陈旧帧 / 过载帧、四态与 notes、溯源 `trace`（行文件不带 trace，铁律 8 由它兑现）；运行中缺文件 409 `not_ready`，终态缺文件 404（C-3，D-063） |
 
 响应头：`X-CUAV-Rows`、`X-CUAV-Cols`、`X-CUAV-T0`、`X-CUAV-T1`、`X-CUAV-F0`、`X-CUAV-F1`、
 `X-CUAV-Stat`、`X-CUAV-State`（JSONL 端点用 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`）。
@@ -259,18 +260,19 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 
 | type | 何时 | payload |
 |---|---|---|
-| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
+| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`detection_rows`（C-3：落盘的检测行数）、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
 | `progress` | 每轮调度，按墙钟节流（`--progress-interval-ms`，默认 100；0 = 每轮） | `round`、`nodes[]`（同上） |
 | `log` | 装载摘要、种子覆盖、组件日志 | `level`、`message` |
 | `product_row` | 观测点每写一行 | `op_id`、`kind ∈ {spectrum, envelope}`、`row_index`、`row_len`。**不带数据**：该行已逐行刷到 `<out>/<op_id>/<kind>.f32`，服务端按 `row_index × row_len × 4` 的偏移读出并转成二进制帧（§4） |
 | `entity`、`link` | 场景运行时（G-2 起） | 字段同 §4 |
 | `bearing` | `DirectionFinder` 每产出一行（D-053，L-3 起） | 载荷 = `bearings.jsonl` 的行去掉 `t_s`（信封里已有）：`site_id, emitter_id, link_id, bearing_deg, bearing_std_deg, elevation_deg, snr_dB, level_dBm, df_quality, df_result_state, use_policy, method, bias_deg, sigma{method,snr,cal,att,multipath,mixture}, line_of_sight, mixture, signal_role, truth_consumed, state, reasons, trace`（`docs/display-products.md` §5）|
 | `position` | `MultiSiteLocator` 每产出一行（D-053，L-4 / L-5 起） | 载荷 = `positions.jsonl` 的行去掉 `t_s`：`emitter_id, method, lon, lat, crs, coord_version, enu_origin, cov_m2, ellipse, cep_m, gdop, geometry_quality, time_quality, participating_sites, reference_site, residuals, outlier_sites, truth_consumed, state, reasons, trace` |
+| `detection` | `EnergyDetector` 每个**突发的首帧**一条（C-3，D-063）——不是每帧、也不是每命中帧：持续信号下逐命中帧发是每秒几百条，比产品行还密，重连补取会整段重放。逐帧的行只在 `detections.jsonl` 里 | 载荷 = `detections.jsonl` 的该行去掉 `t_s`：`node_id, site_id?, start_sample, frame_index, segment_id, f_lo_Hz, f_hi_Hz, statistic, threshold, hit（恒 true）, band_power_dBm?, noise_dBm?, snr_dB, overload, noise_frames_used`（`docs/display-products.md` §5） |
 | `error` | 装载失败或运行失败 | `{code, node_id, port, message}`（`docs/diagram-format.md` §4）；运行失败 `code = run_failed`，`node_id` 为出错节点 |
 | `validate` | `--validate` 成功时一条 | `ok`、`diagram_id`、`name`、`nodes[]`、`edges`、`observation_points[]`、`run`、`engine_version` |
 
 `t_s`：`product_row` / `entity` / `link` / `bearing` / `position` 为该行或该帧的逻辑时间；`progress`、`log` 与结束的 `task.state` 取此前见过的
-最大逻辑时间；开始的 `task.state` 与 `validate` 为 0。`detection` 事件待 P1-4d 的 `detections.jsonl`。
+最大逻辑时间；开始的 `task.state` 与 `validate` 为 0；`detection` 为该突发首帧的逻辑时间。
 
 退出码：
 

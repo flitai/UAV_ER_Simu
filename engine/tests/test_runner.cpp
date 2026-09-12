@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -29,6 +30,7 @@ std::string temp_root() {
 }
 
 std::string fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice1_tone_noise_psd.json"; }
+std::string detect_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_detect.json"; }
 
 struct Result {
     int code = -1;
@@ -255,6 +257,88 @@ TEST_CASE("cuav_run --run：切片 ① 框图跑到底，事件流信封、序�
     CHECK(read_file(out + "/s4/spectrum.f32").size() == 1953u * 1024u * 4u);
     json idx = json::parse(read_file(out + "/s4/spectrum.index.json"));
     CHECK(idx["rows"] == 1953);
+}
+
+TEST_CASE("cuav_run --run：带检测器的框图逐帧落 detections.jsonl、写 detections.index.json，detection 事件按段首帧（C-3，D-063）") {
+    const std::string out = temp_root() + "/run_detect";
+    Result r = run_cli({"--run", detect_fixture(), "--out", out});
+    REQUIRE_MESSAGE(r.code == ExitOk, r.diag);
+
+    // 行文件：每行自带 t_s、以换行结尾（读端把无换行的末行当残片丢），行数 = 帧数
+    const std::string text = read_file(out + "/detections.jsonl");
+    REQUIRE(!text.empty());
+    CHECK(text[text.size() - 1] == '\n');
+    std::vector<json> rows;
+    {
+        std::istringstream is(text);
+        std::string line;
+        while (std::getline(is, line)) if (!line.empty()) rows.push_back(json::parse(line));
+    }
+    const std::uint64_t frames = 2000000 / 256;
+    REQUIRE(rows.size() == frames);
+    double last_t = -1.0;
+    std::uint64_t hits = 0, hits_after = 0, after = 0;
+    std::set<std::int64_t> segs;
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        const json& row = rows[i];
+        CHECK(row["t_s"].is_number());
+        CHECK(row["t_s"].get<double>() >= last_t);
+        last_t = row["t_s"].get<double>();
+        CHECK(row["node_id"] == "det");
+        CHECK_FALSE(row.contains("site_id"));                      // 没绑站就没有这个键
+        CHECK(row["frame_index"] == i);
+        CHECK(row["f_lo_Hz"].get<double>() == doctest::Approx(2.44e9 - 1e5));
+        CHECK(row["f_hi_Hz"].get<double>() == doctest::Approx(2.44e9 + 1e5));
+        CHECK(row.contains("statistic"));
+        CHECK(row.contains("threshold"));
+        CHECK(row.contains("snr_dB"));
+        CHECK(row.contains("overload"));
+        CHECK(row.contains("noise_frames_used"));
+        CHECK(row.contains("band_power_dBm"));                     // 合成源已标定
+        const bool hit = row["hit"].get<bool>();
+        if (hit) {
+            ++hits;
+            CHECK(row["segment_id"].is_number());
+            segs.insert(row["segment_id"].get<std::int64_t>());
+        } else {
+            CHECK(row["segment_id"].is_null());
+        }
+        if (i >= 2000) { ++after; if (hit) ++hits_after; }
+    }
+    // 单音从第 2000 帧起持续：之后几乎全命中
+    CHECK(static_cast<double>(hits_after) / static_cast<double>(after) >= 0.99);
+
+    // 索引：每个检测器一条摘要，带 trace 与计数
+    json idx = json::parse(read_file(out + "/detections.index.json"));
+    CHECK(idx["schema"] == "cuav-detections-index/1");
+    CHECK(idx["final"] == true);
+    CHECK(idx["rows"] == frames);
+    REQUIRE(idx["nodes"].contains("det"));
+    const json& det = idx["nodes"]["det"];
+    CHECK(det["frames"] == frames);
+    CHECK(det["hits"] == hits);
+    CHECK(det["segments"] == segs.size());
+    CHECK(det["noise_mode"] == "sliding");
+    CHECK(det["noise_window_frames"] == 256);
+    CHECK(det["noise_stale_frames"].get<std::uint64_t>() > 0);
+    CHECK(det["trace"]["model_id"] == "EnergyDetector");
+    CHECK(det["trace"]["model_layer"] == "M2");
+    CHECK(det["calibrated"] == true);
+    CHECK_FALSE(det.contains("site_id"));
+    CHECK(det["notes"].is_array());
+
+    // 事件：只在段首帧发，条数 = 段数；载荷是行去掉 t_s
+    CHECK(count_type(r, "detection") == segs.size());
+    double last_ev = -1.0;
+    for (const auto& e : r.events) {
+        if (e["type"] != "detection") continue;
+        CHECK(e["t_s"].get<double>() >= last_ev);
+        last_ev = e["t_s"].get<double>();
+        CHECK(e["payload"]["hit"] == true);
+        CHECK(e["payload"]["node_id"] == "det");
+        CHECK_FALSE(e["payload"].contains("t_s"));
+    }
+    CHECK(r.events.back()["payload"]["detection_rows"] == frames);
 }
 
 TEST_CASE("cuav_run --run：--seed 覆盖框图种子并写明来源；--progress-interval-ms 0 每轮都发") {

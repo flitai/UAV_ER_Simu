@@ -109,6 +109,40 @@ json strip_t(const json& row) {
     return j;
 }
 
+// ---- 检测行与检测摘要的落盘形状（C-3，D-063，10 报告 §4.2）----
+// 行**不带 trace**：逐帧重复七个键只会把文件撑大一半，trace 由 detections.index.json 每节点写一次（铁律 8）。
+// site_id 为空（未绑站）省键；has_dBm 为假（未标定或参数关掉）省 band_power_dBm / noise_dBm——缺的就是缺的，不编。
+json detection_json(const DetectionReport& r) {
+    const Detection& d = r.d;
+    json j{{"t_s", d.t_s}, {"node_id", r.node_id},
+           {"start_sample", d.start_sample}, {"frame_index", d.frame_index},
+           {"f_lo_Hz", d.f_lo_Hz}, {"f_hi_Hz", d.f_hi_Hz},
+           {"statistic", d.statistic}, {"threshold", d.threshold}, {"hit", d.hit},
+           {"snr_dB", d.snr_dB}, {"overload", d.overload}, {"noise_frames_used", d.noise_frames_used}};
+    if (!r.site_id.empty()) j["site_id"] = r.site_id;
+    j["segment_id"] = d.segment_id >= 0 ? json(d.segment_id) : json(nullptr);
+    if (d.has_dBm) {
+        j["band_power_dBm"] = d.band_power_dBm;
+        j["noise_dBm"] = d.noise_dBm;
+    }
+    return j;
+}
+
+json detection_summary_json(const DetectionSummary& s) {
+    json notes = json::array();
+    for (const auto& n : s.notes) notes.push_back(n);
+    json j{{"node_id", s.node_id}, {"nfft", s.nfft}, {"sample_rate_Hz", s.sample_rate_Hz},
+           {"center_Hz", s.center_Hz}, {"f_lo_Hz", s.band_lo_Hz}, {"f_hi_Hz", s.band_hi_Hz},
+           {"pfa", s.pfa}, {"threshold", s.threshold}, {"noise_mode", s.noise_mode},
+           {"noise_window_frames", s.noise_window_frames}, {"merge_gap_frames", s.merge_gap_frames},
+           {"dt_s", s.dt_s}, {"frames", s.frames}, {"hits", s.hits}, {"segments", s.segments},
+           {"noise_stale_frames", s.noise_stale_frames}, {"overload_frames", s.overload_frames},
+           {"calibrated", s.calibrated}, {"state", to_string(s.state)}, {"notes", notes},
+           {"trace", trace_json(s.trace)}};
+    if (!s.site_id.empty()) j["site_id"] = s.site_id;
+    return j;
+}
+
 // 事件出口：stdout 一行一条，--out 给了就原样再落 events.jsonl；两处都逐行 flush，服务端读到即完整。
 class EventSink {
 public:
@@ -240,12 +274,49 @@ public:
         ++positions_written_;
     }
 
+    // 检测行（C-3，D-063）：逐帧一行落 detections.jsonl；事件**只在段首帧发一条**——
+    // 逐命中帧发在持续信号下是每秒几百条，比产品行还密，重连补取会整段重放；
+    // 突发的边界由文件给，评价器（C-5）扫门限也只读文件。
+    void on_detection(const DetectionReport& r) override {
+        if (r.d.t_s > last_t_s_) last_t_s_ = r.d.t_s;
+        json row = detection_json(r);
+        write_jsonl(detections_, "detections.jsonl", row);
+        ++detections_written_;
+        if (r.d.hit) {
+            std::map<std::string, std::int64_t>::iterator it = last_segment_.find(r.node_id);
+            if (it == last_segment_.end() || it->second != r.d.segment_id) {
+                last_segment_[r.node_id] = r.d.segment_id;
+                sink_.emit("detection", r.d.t_s, strip_t(row));
+                ++detection_events_;
+            }
+        }
+    }
+
+    void on_detection_summary(const DetectionSummary& s) override {
+        det_summaries_[s.node_id] = detection_summary_json(s);
+    }
+
+    // 运行结束后写 detections.index.json：每个检测器一条摘要（含 trace），有检测器才写。
+    // 与观测点产品的索引同一分工：行文件是数据，索引是元数据。
+    void write_detections_index() {
+        if (out_dir_.empty() || det_summaries_.empty()) return;
+        json nodes = json::object();
+        for (const auto& kv : det_summaries_) nodes[kv.first] = kv.second;
+        json idx{{"schema", "cuav-detections-index/1"}, {"final", true},
+                 {"rows", detections_written_}, {"nodes", nodes}};
+        std::ofstream f(platform::join(out_dir_, "detections.index.json").c_str(),
+                        std::ios::binary | std::ios::trunc);
+        f << idx.dump(2) << '\n';
+    }
+
     double last_t_s() const { return last_t_s_; }
     std::uint64_t rows() const { return rows_; }
     std::uint64_t entities() const { return entities_; }
     std::uint64_t links_written() const { return links_written_; }
     std::uint64_t bearings_written() const { return bearings_written_; }
     std::uint64_t positions_written() const { return positions_written_; }
+    std::uint64_t detections_written() const { return detections_written_; }
+    std::uint64_t detection_events() const { return detection_events_; }
     std::uint64_t progress_events() const { return progress_events_; }
     std::uint64_t rounds_seen() const { return rounds_seen_; }
 
@@ -266,10 +337,13 @@ private:
     std::chrono::milliseconds interval_;
     bool throttle_;
     std::string out_dir_;
-    std::ofstream track_, links_, bearings_, positions_;
+    std::ofstream track_, links_, bearings_, positions_, detections_;
     std::uint64_t entities_ = 0;
     std::uint64_t links_written_ = 0;
     std::uint64_t bearings_written_ = 0, positions_written_ = 0;
+    std::uint64_t detections_written_ = 0, detection_events_ = 0;
+    std::map<std::string, std::int64_t> last_segment_;    // 每个检测器最近一次发过事件的段号
+    std::map<std::string, json> det_summaries_;
     bool has_last_ = false;
     Clock::time_point last_;
     double last_t_s_ = 0.0;
@@ -487,6 +561,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
     RunReport rep = d.run.max_rounds ? d.graph.run(rng, obs, d.run.max_rounds) : d.graph.run(rng, obs);
     const double wall_s = std::chrono::duration<double>(Clock::now() - t0).count();
     const std::string ended = platform::utc_now_iso8601();
+    obs.write_detections_index();   // 摘要在各检测器 flush() 时到齐，此刻才能写
 
     json nodes = json::array();
     for (std::size_t i = 0; i < rep.node_status.size(); ++i) {
@@ -494,7 +569,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
     }
     json common{{"diagram_id", d.diagram_id}, {"seed", d.run.seed}, {"rounds", rep.rounds},
                 {"wall_s", wall_s}, {"realtime_factor", wall_s > 0.0 ? d.run.duration_s / wall_s : 0.0},
-                {"product_rows", obs.rows()}, {"nodes", nodes},
+                {"product_rows", obs.rows()}, {"detection_rows", obs.detections_written()}, {"nodes", nodes},
                 {"started_utc", started}, {"ended_utc", ended}, {"engine_version", engine_version()}};
 
     if (!rep.ok) {

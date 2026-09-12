@@ -437,3 +437,72 @@ test('新增三个 JSONL 端点按 segment_id 抽稀（features / recognitions /
   const thin = (await (await fetch(url(`${taskId}/features?stride=2`))).json()) as Array<{ segment_id: number }>
   assert.equal(thin.length, 2, '两个 segment_id 各留第 0 条')
 })
+
+test('检测端点：按 node_id 抽稀，site_id / node_id / hit 可精确过滤；detections/index 三态（C-3，D-063）', async () => {
+  const rows: string[] = []
+  for (let i = 0; i < 8; i++) {
+    for (const [node, site] of [['det__site-1', 'site-1'], ['det__site-2', 'site-2']]) {
+      const hit = i >= 4
+      rows.push(JSON.stringify({
+        t_s: i * 0.002048, node_id: node, site_id: site, start_sample: i * 1024, frame_index: i,
+        segment_id: hit ? 0 : null, f_lo_Hz: 2.44e9 - 2.25e5, f_hi_Hz: 2.44e9 + 2.25e5,
+        statistic: hit ? 12.5 : 0.98, threshold: 1.1, hit, snr_dB: hit ? 10.97 : -0.09,
+        overload: false, noise_frames_used: 256,
+      }))
+    }
+  }
+  await fsp.writeFile(join(dir, 'detections.jsonl'), rows.join('\n') + '\n')
+
+  const all = await fetch(url(`${taskId}/detections`))
+  assert.equal(all.status, 200)
+  assert.equal(all.headers.get('x-cuav-rows'), '16')
+
+  // 抽稀键是 node_id：两个检测器各留第 0、2、4、6 帧，不会隔站丢
+  const thin = (await (await fetch(url(`${taskId}/detections?stride=2`))).json()) as Array<{ node_id: string; frame_index: number }>
+  assert.equal(thin.length, 8)
+  assert.deepEqual([...new Set(thin.map((r) => r.node_id))].sort(), ['det__site-1', 'det__site-2'])
+  assert.deepEqual(thin.filter((r) => r.node_id === 'det__site-1').map((r) => r.frame_index), [0, 2, 4, 6])
+
+  // hit=true 只取命中帧（浏览器的突发列表只要这些）；与站过滤取交集
+  const hits = (await (await fetch(url(`${taskId}/detections?hit=true`))).json()) as Array<{ hit: boolean }>
+  assert.equal(hits.length, 8)
+  assert.ok(hits.every((r) => r.hit === true))
+  const one = (await (await fetch(url(`${taskId}/detections?hit=true&site_id=site-2`))).json()) as Array<{ site_id: string; segment_id: number }>
+  assert.equal(one.length, 4)
+  assert.ok(one.every((r) => r.site_id === 'site-2' && r.segment_id === 0))
+  const byNode = (await (await fetch(url(`${taskId}/detections?node_id=det__site-1&t0=0&t1=0.005`))).json()) as unknown[]
+  assert.equal(byNode.length, 3, '0、0.002048、0.004096 三帧')
+
+  // 索引：运行中缺文件 409、终态缺文件 404、有文件 200（HEAD 只给头）
+  const rec = mgr.get(taskId) as TaskRecord
+  const saved = rec.run_state
+  rec.run_state = 'running'
+  try {
+    const r = await fetch(url(`${taskId}/detections/index`))
+    assert.equal(r.status, 409)
+    assert.equal(r.headers.get('retry-after'), '1')
+    assert.equal(((await r.json()) as Record<string, unknown>).kind, 'detections')
+  } finally {
+    rec.run_state = saved
+  }
+  assert.equal((await fetch(url(`${taskId}/detections/index`))).status, 404)
+  const index = {
+    schema: 'cuav-detections-index/1', final: true, rows: 16,
+    nodes: {
+      'det__site-1': { node_id: 'det__site-1', site_id: 'site-1', frames: 8, hits: 4, segments: 1, noise_mode: 'sliding', trace: { model_id: 'EnergyDetector' } },
+      'det__site-2': { node_id: 'det__site-2', site_id: 'site-2', frames: 8, hits: 4, segments: 1, noise_mode: 'sliding', trace: { model_id: 'EnergyDetector' } },
+    },
+  }
+  const text = JSON.stringify(index, null, 2) + '\n'
+  await fsp.writeFile(join(dir, 'detections.index.json'), text)
+  const got = await fetch(url(`${taskId}/detections/index`))
+  assert.equal(got.status, 200)
+  assert.equal(got.headers.get('content-type'), 'application/json; charset=utf-8')
+  const back = (await got.json()) as typeof index
+  assert.equal(back.schema, 'cuav-detections-index/1')
+  assert.equal(Object.keys(back.nodes).length, 2)
+  const head = await fetch(url(`${taskId}/detections/index`), { method: 'HEAD' })
+  assert.equal(head.status, 200)
+  assert.equal(head.headers.get('content-length'), String(Buffer.byteLength(text)))
+  assert.equal((await fetch(url(`${taskId}/detections/index`), { method: 'POST' })).status, 405)
+})

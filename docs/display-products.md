@@ -2,7 +2,7 @@
 
 **状态**：字段已冻结（2026-09-04，决策 D-030、D-031）。观测点组件与产品写盘已实现（B-3，2026-09-05）；
 抽取端点已实现（B-7，2026-09-06，决策 D-046，`server/src/products/`），归约的确切定义见 §3.1。
-`bearings.jsonl` 与 `positions.jsonl` 的生产者随 D-053 的 L-3 / L-4 上线；`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘），`detections.jsonl` 仍待 P1-4d。
+`bearings.jsonl` 与 `positions.jsonl` 的生产者随 D-053 的 L-3 / L-4 上线；`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘）；`detections.jsonl` 与 `detections.index.json` 的生产者 2026-09-12 上线（C-3，D-063：`EnergyDetector` 经观察者逐帧上报、flush 时一条摘要，字段见 §5）。
 
 **依据**：铁律 7（原始 IQ 不进浏览器；展示数据按时间窗、频段、像素宽、统计量抽取；禁止
 JSON / Base64 封装二进制）；04 §6.4（展示数据五类）、§8.3（引擎向应用服务发布降采样显示
@@ -21,7 +21,8 @@ data/runs/<task_id>/
 ├── track.jsonl                  实体状态，每行一个 EntityState（见 docs/scenario-format.md §7）
 ├── links.jsonl                  链路帧读数，每行一条链路一帧（字段同 WS link 事件，docs/api-versions.md §4；
 │                                自 D-058 起含 free_space_dB / extra_loss_dB / included_loss_terms）
-├── detections.jsonl             检测列表，每行一个 Detection
+├── detections.jsonl             检测行，每帧一行（C-3，§5；生产者 EnergyDetector，惰性建文件；多站下每站一个检测器各写自己的行）
+├── detections.index.json        检测摘要 cuav-detections-index/1：每个检测器一条（参数、门限、计数、四态、trace），运行结束时写
 ├── bearings.jsonl               单站测向报告，每行一条链路一帧（D-053，§5；生产者 DirectionFinder，惰性建文件）
 ├── positions.jsonl              多站定位报告，每行一个解（D-053，§5；生产者 MultiSiteLocator）
 └── <observation_point_id>/      每个观测点一个子目录
@@ -108,7 +109,8 @@ data/runs/<task_id>/
 | `GET /api/v1/results/{task_id}/{op_id}/scatter` | `t0, t1, n` | 复样点 Float32 对，n ≤ 65536；是抽样的展示数据，不是 IQ 流 |
 | `GET /api/v1/results/{task_id}/track` | `t0, t1, stride` | JSON 数组 |
 | `GET /api/v1/results/{task_id}/links` | `t0, t1, stride, link_id?` | JSON 数组，供场景视图回放链路读数 |
-| `GET /api/v1/results/{task_id}/detections` | `t0, t1` | JSON 数组 |
+| `GET /api/v1/results/{task_id}/detections` | `t0, t1, stride, site_id?, node_id?, hit?` | JSON 数组；`hit=true` 只取命中帧 |
+| `GET /api/v1/results/{task_id}/detections/index` | — | 检测摘要整文件（§5） |
 
 参数语义：
 
@@ -197,8 +199,10 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 ### 3.4 JSONL 端点（`track` / `links` / `detections` / `bearings` / `positions`）
 
 五者共用一个时间窗读取器：闭区间 `t0 ≤ t_s ≤ t1`；`stride` 按键抽稀（`track` 按 `id`、`links` 按
-`link_id`、`bearings` 按 `link_id`、`positions` 按 `emitter_id:method`、`detections` 全局），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤，
-`bearings` 支持 `site_id` / `emitter_id`，`positions` 支持 `emitter_id` / `method`（D-053）。
+`link_id`、`bearings` 按 `link_id`、`positions` 按 `emitter_id:method`、`detections` 按 `node_id`——多站下每站一个检测器，
+全局计数会隔站丢行，2026-09-12 由「全局」改为按节点，D-063），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤，
+`bearings` 支持 `site_id` / `emitter_id`，`positions` 支持 `emitter_id` / `method`（D-053），`detections` 支持 `site_id` / `node_id` / `hit`
+（布尔按 `String(值)` 比较，`hit=true` 即只取命中帧——浏览器的突发列表只要这些，逐帧全取在多站长任务上会撞 16 MiB 上限）。
 
 写盘的两条硬契约（2026-09-06，生产者上线）：**每行必须自带 `t_s`、必须以换行结尾**——
 读取器把没有换行的末行当作正在写入的残片丢弃。文件惰性创建：没有场景绑定的任务不产生空文件，
@@ -207,7 +211,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 末尾没有换行的残片一律丢弃（生产者可能正在写），不可解析或缺 `t_s` 的行跳过并在 `X-CUAV-Skipped`
 里计数。响应是裸 JSON 数组，头带 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`；
 超上限 413 并建议更大的 `stride`。`track` 与 `links` 的生产者 2026-09-06 上线（G-2）；`bearings` 与 `positions` 随 D-053 的 L-3 / L-4 上线；
-`detections` 仍待 P1-4d。端点先行，生产者落地后不必改读取层。
+`detections` 随 C-3 上线（2026-09-12，D-063）。端点先行，生产者落地后没有改过读取层，只加了抽稀键与过滤字段。
 
 ## 4. 实时推送
 
@@ -254,6 +258,35 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `cep_m` / `gdop` / `geometry_quality` / `time_quality` | `time_quality` 仅 `tdoa` / `aoa_tdoa` 有值，否则 `null` |
 | `participating_sites` / `reference_site` / `residuals` / `outlier_sites` | 参与站、TDOA 参考站、逐站残差（`unit` 为 `deg` 或 `m`）、被剔除的站 |
 | `truth_consumed` / `state` / `reasons` / `trace` | 同上 |
+
+### 5.1 检测行与检测摘要（C-3，D-063）
+
+**`detections.jsonl`**（生产者 `EnergyDetector`，**每帧一行**，命中与否都写——C-5 的 ROC 要用每帧的 `statistic` 扫门限；
+写盘契约同上：自带 `t_s`、以换行结尾、惰性建文件；多站下 `det__<site>` 各写自己的行到同一文件）
+
+| 字段 | 说明 |
+|---|---|
+| `t_s` / `start_sample` / `frame_index` | 帧首样点的逻辑时间（`start_sample / fs`）、首样点序号、帧序号（从 0 起，不加窗不重叠） |
+| `node_id` / `site_id?` | 检测器节点名（`Graph` 经 `set_node_name` 交给组件）；`site_id` 只在节点按站绑定场景时出现（装载器注入），没绑就没有这个键 |
+| `segment_id` | 突发编号（从 0 起）：与上一命中帧之间的非命中帧数 ≤ `merge_gap_frames` 即同段；非命中帧为 `null` |
+| `f_lo_Hz` / `f_hi_Hz` | 检测频段的**绝对**频率 = 中心频率 + `band_lo_Hz / band_hi_Hz` |
+| `statistic` / `threshold` / `hit` | 归一化检测量 Λ（H0 下均值 1）、门限 η（只依赖频点数与 pfa）、`Λ > η` |
+| `band_power_dBm?` / `noise_dBm?` | 频段内功率与噪声估计的频段功率，`Σ|X_k|² / nfft²` 按 Parseval 折成每样点平均功率（引擎单位 mW，D-047）；输入未标定或参数 `band_power_dBm = false` 时**两键都省** |
+| `snr_dB` | `10·log10 Λ`，即 (S+N)/N；Λ = 0 时钳在 −300 |
+| `overload` | 组成该帧的任一块 `clip_count > 0`（帧可能跨块）；削顶是数据标记不是降级（D-051） |
+| `noise_frames_used` | 判决时噪声估计用了几帧：`probe` 恒为探针帧数；`sliding` 为判决时的环大小（暖机期从 1 涨到 W，之后停在 W） |
+
+**`detections.index.json`**（运行器在 `graph.run` 返回后写，每个检测器一条摘要；`rows` 是落盘的总行数）
+
+| 字段 | 说明 |
+|---|---|
+| `schema` / `final` / `rows` | `cuav-detections-index/1`；`final` 恒 `true`（只在运行结束时写）；总行数 |
+| `nodes.<node_id>.{node_id, site_id?}` | 身份同行 |
+| `…{nfft, sample_rate_Hz, center_Hz, f_lo_Hz, f_hi_Hz, pfa, threshold, dt_s}` | 参数快照与一帧时长 |
+| `…{noise_mode, noise_window_frames, merge_gap_frames}` | `probe` / `sliding`；`sliding` 时是环长 W，`probe` 时是实际用的探针帧数 |
+| `…{frames, hits, segments, noise_stale_frames, overload_frames}` | 计数；`noise_stale_frames` = 环连续超过 W 帧未更新时判决的帧数（信号持续占满时的正常状态，记 note 不降级） |
+| `…{calibrated, state, notes}` | 输入是否标定、检测器的四态与 notes（环从未填满 → `degraded`） |
+| `…trace` | 溯源七件（`model_id = EnergyDetector`、`M2` / `E2` / `V3`；绑站时 `trace_id = EnergyDetector:<site_id>`）——行不带 trace，铁律 8 由这里兑现 |
 
 ## 6. 待写
 

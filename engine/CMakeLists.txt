@@ -115,6 +115,8 @@ add_test(NAME cuav_run_scenario_track
   COMMAND cuav_run --scenario-track
           "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
           --track-rate 2 --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")
+add_test(NAME cuav_run_validate_slice4_detect
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_detect.json")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"

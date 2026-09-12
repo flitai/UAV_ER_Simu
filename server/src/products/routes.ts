@@ -5,6 +5,7 @@
 //   GET /api/v1/results/{task}/{op}/scatter                           本版本 404（观测点不产出 iq 产品，D-040 ③）
 //   GET /api/v1/results/{task}/{op}/{kind}/index                      索引原文 + rows_available + index_final
 //   GET /api/v1/results/{task}/{track|links|detections|features|recognitions|truth}?t0&t1&stride  JSON 数组
+//   GET /api/v1/results/{task}/detections/index                       检测摘要整文件（C-3，D-063）
 //   GET /api/v1/results/{task}/metrics                                评价指标整文件（C-6，D-051）
 //
 // 这里只做 HTTP：参数校验、状态码、响应头、HEAD、上限判定。归约在 spectrum.ts / envelope.ts，
@@ -37,6 +38,9 @@ const RE_PRODUCT = /^\/api\/v1\/results\/([^/]+)\/([^/]+)\/(spectrum|envelope|sc
 const RE_INDEX = /^\/api\/v1\/results\/([^/]+)\/([^/]+)\/(spectrum|envelope)\/index$/
 const RE_JSONL = /^\/api\/v1\/results\/([^/]+)\/(track|links|detections|features|recognitions|truth|bearings|positions)$/
 const RE_METRICS = /^\/api\/v1\/results\/([^/]+)\/metrics$/
+// 运行级整文件（一次运行一份，不按视窗抽）：检测摘要（C-3，D-063）。四段路径与 {op}/{kind}/index 的五段不冲突
+const RE_RUNFILE = /^\/api\/v1\/results\/([^/]+)\/(detections)\/index$/
+const RUN_FILES: Record<string, string> = { detections: 'detections.index.json' }
 
 const NUM_RE = /^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/
 const INT_RE = /^\d{1,9}$/
@@ -45,7 +49,8 @@ const INT_RE = /^\d{1,9}$/
 const JSONL_KINDS: Record<string, { file: string; key?: (r: JsonlRecord) => string }> = {
   track: { file: 'track.jsonl', key: (r) => String(r.id ?? '') },
   links: { file: 'links.jsonl', key: (r) => String(r.link_id ?? '') },
-  detections: { file: 'detections.jsonl' },
+  // 检测行按节点抽稀（C-3，D-063）：多站下每站一个检测器 det__<site>，全局计数会隔站丢行
+  detections: { file: 'detections.jsonl', key: (r) => String(r.node_id ?? '') },
   // C-4 / C-5 的产物；读取层先行，生产者随后（与 track / links 当初同法）
   features: { file: 'features.jsonl', key: (r) => String(r.segment_id ?? '') },
   recognitions: { file: 'recognitions.jsonl', key: (r) => String(r.segment_id ?? '') },
@@ -64,7 +69,8 @@ const JSONL_FILTERS: Record<string, readonly string[]> = {
   links: ['link_id'],
   bearings: ['site_id', 'emitter_id', 'link_id'],
   positions: ['emitter_id', 'method'],
-  detections: ['site_id', 'node_id'],
+  // hit 是布尔：过滤按 String(值) 比较，查询串写 hit=true 即只取命中帧（浏览器的突发列表只要这些）
+  detections: ['site_id', 'node_id', 'hit'],
 }
 
 /** 命中结果路由返回 true（含 405 与各种错误）；不是结果路由返回 false，交回主路由。 */
@@ -144,23 +150,14 @@ export async function handleResultRoutes(req: IncomingMessage, res: ServerRespon
     const mm = RE_METRICS.exec(path)
     if (mm) {
       if (method !== 'GET' && method !== 'HEAD') return methodNotAllowed(res)
-      const { rec, dir } = task(deps, mm[1]!)
       // 评价指标是整文件（一次运行一份摘要，不按视窗抽），与 JSONL 端点的就绪语义相同
-      let buf: Buffer
-      try {
-        buf = await fsp.readFile(join(dir, 'metrics.json'))
-      } catch {
-        return missingFile(res, rec.run_state, 'metrics')
-      }
-      res.writeHead(200, {
-        'content-type': 'application/json; charset=utf-8',
-        'content-length': String(buf.length),
-        'cache-control': 'no-cache',
-        'x-cuav-state': rec.result,
-      })
-      if (method === 'HEAD') { res.end(); return true }
-      res.end(buf)
-      return true
+      return sendWholeJsonFile(res, method, task(deps, mm[1]!), 'metrics.json', 'metrics')
+    }
+
+    const mr = RE_RUNFILE.exec(path)
+    if (mr) {
+      if (method !== 'GET' && method !== 'HEAD') return methodNotAllowed(res)
+      return sendWholeJsonFile(res, method, task(deps, mr[1]!), RUN_FILES[mr[2]!]!, mr[2]!)
     }
 
     const mj = RE_JSONL.exec(path)
@@ -274,6 +271,28 @@ function sendExtract(res: ServerResponse, out: Extract, state: string, stat: Sta
   if (stat) headers['x-cuav-stat'] = stat
   res.writeHead(200, headers)
   res.end(body ?? undefined)
+}
+
+/** 运行级整文件：有则原样回（HEAD 只给头），运行中缺 409、终态缺 404。 */
+async function sendWholeJsonFile(
+  res: ServerResponse, method: string,
+  t: { rec: { run_state: RunState; result: string }; dir: string }, file: string, kind: string,
+): Promise<true> {
+  let buf: Buffer
+  try {
+    buf = await fsp.readFile(join(t.dir, file))
+  } catch {
+    return missingFile(res, t.rec.run_state, kind)
+  }
+  res.writeHead(200, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': String(buf.length),
+    'cache-control': 'no-cache',
+    'x-cuav-state': t.rec.result,
+  })
+  if (method === 'HEAD') { res.end(); return true }
+  res.end(buf)
+  return true
 }
 
 function task(deps: ResultRouteDeps, rawId: string): { rec: { run_state: RunState; result: string }; dir: string } {
