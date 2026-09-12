@@ -316,6 +316,20 @@
       "event": "tx_on"
     }
   ],
+  "zones": [
+    {
+      "id": "z-east",
+      "name": "东侧告警区",
+      "kind": "alert",
+      "shape": "circle",
+      "center": {
+        "lon": 116.4105,
+        "lat": 39.99
+      },
+      "radius_m": 400,
+      "alt_max_m": 300
+    }
+  ],
   "trace": {
     "created_by": "实施方（切片 ⑥a，L-2）",
     "created_at": "2026-09-09T00:00:00Z",

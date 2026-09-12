@@ -70,6 +70,14 @@ bool Scenario::cross_check(std::string& err) const {
         }
     }
 
+    std::set<std::string> zone_ids;
+    for (std::size_t i = 0; i < zones.size(); ++i) {
+        if (!zone_ids.insert(zones[i].id).second) {
+            err = "告警区标识重复：" + zones[i].id;
+            return false;
+        }
+    }
+
     std::set<std::string> routed;
     for (std::size_t i = 0; i < routes.size(); ++i) {
         if (find_emitter(routes[i].emitter_id) == 0) {

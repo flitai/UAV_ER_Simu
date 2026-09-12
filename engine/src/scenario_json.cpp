@@ -312,6 +312,45 @@ bool parse_activity(const json& a, std::size_t i, geo::Activity& out, std::strin
     return true;
 }
 
+// 圆形告警区（D-061）：只收下、不解释；枚举显式判定，不给缺省（铁律 15）。
+bool parse_zone(const json& z, std::size_t i, geo::Zone& out, std::string& err) {
+    const std::string where = "zones[" + std::to_string(i) + "]";
+    if (!z.is_object()) return fail(err, where, "必须是对象");
+    static const std::set<std::string> kKeys = {"id", "name", "kind", "shape", "center", "radius_m", "alt_max_m"};
+    if (!check_keys(z, kKeys, where, err)) return false;
+    if (!get_id(z, "id", where, out.id, err)) return false;
+    if (!get_str(z, "name", where, out.name, err)) return false;
+    std::string kind;
+    if (!get_str(z, "kind", where, kind, err)) return false;
+    if (kind == "alert") out.kind = geo::ZoneKind::Alert;
+    else if (kind == "warning") out.kind = geo::ZoneKind::Warning;
+    else return fail(err, where, "的 kind 必须是 alert / warning 之一");
+    std::string shape;
+    if (!get_str(z, "shape", where, shape, err)) return false;
+    if (shape != "circle") return fail(err, where, "的 shape 本期只允许 circle");
+    if (!need(z, "center", where, err)) return false;
+    {
+        const json& c = z["center"];
+        const std::string cw = where + ".center";
+        if (!c.is_object()) return fail(err, cw, "必须是对象");
+        static const std::set<std::string> kC = {"lon", "lat"};
+        if (!check_keys(c, kC, cw, err)) return false;
+        if (!get_num(c, "lon", cw, out.center_lon_deg, err)) return false;
+        if (!get_num(c, "lat", cw, out.center_lat_deg, err)) return false;
+        if (out.center_lon_deg < -180.0 || out.center_lon_deg > 180.0) return fail(err, cw, "的 lon 超出 [-180, 180]");
+        if (out.center_lat_deg < -90.0 || out.center_lat_deg > 90.0) return fail(err, cw, "的 lat 超出 [-90, 90]");
+    }
+    if (!get_num(z, "radius_m", where, out.radius_m, err)) return false;
+    if (!positive(out.radius_m, where, "radius_m", err)) return false;
+    if (z.contains("alt_max_m")) {
+        if (!z["alt_max_m"].is_number()) return fail(err, where, "的 alt_max_m 必须是数值");
+        out.has_alt_max = true;
+        out.alt_max_m = z["alt_max_m"].get<double>();
+        if (out.alt_max_m < 0.0) return fail(err, where, "的 alt_max_m 不得为负");
+    }
+    return true;
+}
+
 }  // namespace
 
 bool parse_scenario(const json& j, geo::Scenario& out, std::string& err) {
@@ -320,7 +359,7 @@ bool parse_scenario(const json& j, geo::Scenario& out, std::string& err) {
 
     static const std::set<std::string> kTop = {"schema_version", "scenario_id", "name", "synthetic",
                                                "aoi", "coordinate", "time", "seed", "sites",
-                                               "emitters", "routes", "activities", "trace"};
+                                               "emitters", "routes", "activities", "zones", "trace"};
     if (!check_keys(j, kTop, "场景文件", err)) return false;
 
     if (!get_str(j, "schema_version", "场景文件", out.schema_version, err)) return false;
@@ -414,6 +453,15 @@ bool parse_scenario(const json& j, geo::Scenario& out, std::string& err) {
             geo::Activity a;
             if (!parse_activity(j["activities"][i], i, a, err)) return false;
             out.activities.push_back(a);
+        }
+    }
+
+    if (j.contains("zones")) {
+        if (!j["zones"].is_array()) return fail(err, "场景文件", "的 zones 必须是数组");
+        for (std::size_t i = 0; i < j["zones"].size(); ++i) {
+            geo::Zone zn;
+            if (!parse_zone(j["zones"][i], i, zn, err)) return false;
+            out.zones.push_back(zn);
         }
     }
 

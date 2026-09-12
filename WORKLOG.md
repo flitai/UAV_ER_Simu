@@ -4859,3 +4859,17 @@ null 不编），探针 `app.cards / app.siteCards` 用同一份；② `cards/Ca
 
 **下一步**：V-2 地图叠加加重（含圆形告警区 `zones[]`，三处同一提交；`demo-03` 加区后航迹基准只哈希变，单独收口）。
 
+## 2026-09-12 V-2a：告警区 `zones[]` 进场景格式，demo-03 加区，航迹基准只哈希变（D-061，基准变更单独收口）
+
+**改了什么**。三处同一提交：`docs/schemas/scenario.schema.json`（顶层 `zones`，`required` 不加；`$defs.zone`）、`docs/scenario-format.md`
+（§2 表加一行、新 §6.1、§8 示例加一条、§9 待写销项）、`engine/src/scenario_json.cpp`（顶层键表加 `zones`，`parse_zone` 枚举显式判定不给缺省：
+`kind ∈ alert | warning`、`shape` 只许 `circle`、圆心经纬范围、半径为正、`alt_max_m` 可选且非负）；`geo::Zone` / `Scenario::zones`
+（`geo/include/cuav_geo/scenario.h`），`cross_check` 查告警区标识唯一。引擎只收下、不解释（`equipment_model` 先例）。`demo-03` 加一个
+`z-east`（圆心 116.4105, 39.99，半径 400 m，限高 300 m）：圆心在 uav-2 六边形航线的东侧腿上，uav-1 的第二个航点也在圈内，uav-3 静止点在圈外。
+`demo-01` 不动。
+
+**基准变更**（实测得到）。`demo-03` 文件哈希 `dbfe3d7a…` → `04d71717…`；重生成 `tests/golden/scenario-track-demo-03.json`，与上一版逐项比对：
+**723 个样点逐点相同，顶层只有 `scenario_sha256` 一个键不同**；两份 `tests/regression/diagrams/chain-3x3-{aoa,tdoa}.json` 的
+`scenario_ref.sha256` 同步。仓库里旧哈希无残留。引擎 209 项 doctest（+1，25 条断言）+ 8 项 ctest、场景 schema 9 项、web 194 项、服务 125 项全绿；
+`check-paths` 过。产品与组件目录黄金基准零变化。
+

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -559,4 +560,51 @@ TEST_CASE("链路帧：离开角与到达角各算各的，不是互为反方位
     CHECK(lf.frame(10 * 20).tx_on == true);
     CHECK(lf.frame(0).heading_deg >= 0.0);
     CHECK(lf.frame(0).center_Hz == doctest::Approx(2440500000.0));
+}
+
+TEST_CASE("场景：圆形告警区可缺省，给出时收下不解释；坏值一律拒（D-061）") {
+    geo::Scenario s;
+    std::string err;
+
+    // 既有场景文件不写 zones 仍合法，读出来是空表
+    nlohmann::json a = demo_json();
+    REQUIRE_MESSAGE(parse_scenario(a, s, err), err);
+    CHECK(s.zones.empty());
+
+    // 给出时逐字保存；alt_max_m 缺席即 has_alt_max 为假，不拿默认值顶替
+    nlohmann::json b = demo_json();
+    b["zones"] = nlohmann::json::array();
+    b["zones"].push_back({{"id", "z-1"}, {"name", "核心区"}, {"kind", "alert"}, {"shape", "circle"},
+                          {"center", {{"lon", 116.405}, {"lat", 39.99}}}, {"radius_m", 500.0}, {"alt_max_m", 300.0}});
+    b["zones"].push_back({{"id", "z-2"}, {"name", "外围"}, {"kind", "warning"}, {"shape", "circle"},
+                          {"center", {{"lon", 116.41}, {"lat", 39.98}}}, {"radius_m", 1200.0}});
+    REQUIRE_MESSAGE(parse_scenario(b, s, err), err);
+    REQUIRE(s.zones.size() == 2);
+    CHECK(s.zones[0].id == "z-1");
+    CHECK(s.zones[0].kind == geo::ZoneKind::Alert);
+    CHECK(s.zones[0].center_lon_deg == doctest::Approx(116.405));
+    CHECK(s.zones[0].radius_m == doctest::Approx(500.0));
+    CHECK(s.zones[0].has_alt_max);
+    CHECK(s.zones[0].alt_max_m == doctest::Approx(300.0));
+    CHECK(s.zones[1].kind == geo::ZoneKind::Warning);
+    CHECK_FALSE(s.zones[1].has_alt_max);
+    CHECK_MESSAGE(s.cross_check(err), err);
+
+    // 坏值一律拒：未知档位、非圆、半径为零、未知键、重复标识
+    auto bad = [&](std::function<void(nlohmann::json&)> mut, const char* what) {
+        nlohmann::json c = b;
+        mut(c);
+        geo::Scenario t;
+        std::string e;
+        const bool ok = parse_scenario(c, t, e) && t.cross_check(e);
+        CHECK_MESSAGE(!ok, what);
+        // doctest 不拆 ||，先算成一个布尔
+        const bool mentions = e.find("zones") != std::string::npos || e.find("告警区") != std::string::npos;
+        CHECK_MESSAGE(mentions, what << " : " << e);
+    };
+    bad([](nlohmann::json& c) { c["zones"][0]["kind"] = "danger"; }, "未知档位");
+    bad([](nlohmann::json& c) { c["zones"][0]["shape"] = "polygon"; }, "非圆");
+    bad([](nlohmann::json& c) { c["zones"][0]["radius_m"] = 0.0; }, "半径为零");
+    bad([](nlohmann::json& c) { c["zones"][0]["color"] = "#f00"; }, "未知键");
+    bad([](nlohmann::json& c) { c["zones"][1]["id"] = "z-1"; }, "重复标识");
 }

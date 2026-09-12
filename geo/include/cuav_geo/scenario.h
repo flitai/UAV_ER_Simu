@@ -126,6 +126,24 @@ struct RouteSpec {
     RouteSpec() : loop(false) {}
 };
 
+// 圆形告警区（D-061）。只作显示语义：前端按几何判定目标在不在区内，引擎收下并原样保存、不解释，
+// 与 equipment_model 同一先例。本期只有圆；alt_max_m 缺席即不限高（has_alt_max 为假，不拿默认值顶替）。
+enum class ZoneKind { Alert = 0, Warning };
+
+struct Zone {
+    std::string id;
+    std::string name;
+    ZoneKind kind;
+    double center_lon_deg;
+    double center_lat_deg;
+    double radius_m;
+    bool has_alt_max;
+    double alt_max_m;
+    Zone()
+        : kind(ZoneKind::Alert), center_lon_deg(0.0), center_lat_deg(0.0), radius_m(0.0),
+          has_alt_max(false), alt_max_m(0.0) {}
+};
+
 struct Coordinate {
     std::string crs;
     std::string alt_ref;
@@ -148,6 +166,7 @@ struct Scenario {
     std::vector<Emitter> emitters;
     std::vector<RouteSpec> routes;
     std::vector<Activity> activities;
+    std::vector<Zone> zones;
 
     Scenario() : synthetic(false), duration_s(0.0), seed(0) {}
 

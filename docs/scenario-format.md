@@ -49,6 +49,7 @@
 | `emitters` | array | 是 | 辐射源（无人机），至少 1 个 |
 | `routes` | array | 是 | 航线；每个辐射源至多一条，没有航线的辐射源静止在 `emitters[].position` |
 | `activities` | array | 否 | 业务活动时间线；缺省为空，表示辐射源自 t = 0 起持续发射 |
+| `zones` | array | 否 | 圆形告警区（2026-09-12，D-061；§6.1）。**只作显示语义，不进物理**：目标进圈即地图图标变红环、卡片加「告警区内」徽标，判定在前端按几何做；引擎收下并原样保存，不解释（与 `equipment_model` 同一先例）。缺席即没有告警区 |
 | `trace` | object | 否 | `{created_by, created_at, notes}` |
 
 未知键一律拒绝。
@@ -115,6 +116,23 @@
 语义：`tx_on` / `tx_off` 控制该辐射源是否发射；`hop` 改中心频率；`takeoff` / `cruise` /
 `hover` / `land` 首期只改状态标签与显示，不改航线运动（航线已含悬停）。事件按 `t_s` 排序，
 同一时刻按数组顺序。
+
+### 6.1 告警区 `zones[]`（2026-09-12，D-061）
+
+不属活动，为不动后文章节编号放在本节末尾。本期只做圆形；多边形、随时间生效 / 失效都不做。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `id` | string | 是 | 与站点 / 辐射源同一正则；告警区之间唯一 |
+| `name` | string | 是 | 显示名 |
+| `kind` | enum | 是 | `alert` / `warning`，两档；只决定显示色 |
+| `shape` | enum | 是 | 本期只允许 `circle` |
+| `center` | object | 是 | `{lon, lat}`，WGS-84 度（铁律 1）；不带高，圈是地面圈 |
+| `radius_m` | number | 是 | 半径，米，> 0 |
+| `alt_max_m` | number | 否 | 离地高上限（AGL，铁律 2）；缺席 = 不限高 |
+
+判定（前端，13 报告 §4.3）：实体到圆心的弦长 ≤ `radius_m` 且（无 `alt_max_m` 或 `alt_m ≤ alt_max_m`）即「在区内」。它是 `docs/display-route.md` §3 冻结的「威胁红黄绿」语义第一次有生产者。**不进引擎、不进产品**：将来要进评价（如进入告警区到首次检出的时延）由评价器读场景文件算。
+三处必须同一提交：本文、`docs/schemas/scenario.schema.json`、`engine/src/scenario_json.cpp` 的键表——服务端 `PUT` 把语义校验交给 `cuav_run --scenario-track`，少一处即 400。
 
 ## 7. 从场景到参数帧（G-1 / G-2 的契约）
 
@@ -187,6 +205,10 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
     { "emitter_id": "uav-1", "t_s": 0, "event": "takeoff" },
     { "emitter_id": "uav-1", "t_s": 5, "event": "tx_on" },
     { "emitter_id": "uav-1", "t_s": 60, "event": "hop", "args": { "center_Hz": 2.46e9 } }
+  ],
+  "zones": [
+    { "id": "z-1", "name": "核心区", "kind": "alert", "shape": "circle",
+      "center": { "lon": 116.405, "lat": 39.990 }, "radius_m": 500, "alt_max_m": 300 }
   ]
 }
 ```
@@ -200,4 +222,4 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
 - [ ] P3 波形类型 `ofdm` / `fhss` 的字段
 - [ ] 波形类型 `template`（`template_id`；模板文件路径是内部参数，画布只见标识，与 D-037 同法；`docs/emitter-template.md` §7；D-045）
 - [ ] `emission.tx_power_dBm` 的来源字段 `tx_power_source ∈ {measured, paper, assumed}`：数据层记账随产物走，界面不显示（铁律 8、14；D-042；D-045）
-- [ ] 圆形告警区 `zones[]`（`{id, name, kind ∈ alert | warning, shape: circle, center{lon, lat}, radius_m, alt_max_m?}`，可选、可空；引擎收下不解释，与 `equipment_model` 同一先例；schema、本文 §2 表与新节、`engine/src/scenario_json.cpp` 键表三处必须同一提交，否则 `PUT` 一律 400。13 报告 §4.6，D-061；随 V-2 落地）
+- [x] 圆形告警区 `zones[]`（2026-09-12 已落地：`{id, name, kind ∈ alert | warning, shape: circle, center{lon, lat}, radius_m, alt_max_m?}`，可选、可空；引擎收下不解释，与 `equipment_model` 同一先例；schema、本文 §2 表与新节、`engine/src/scenario_json.cpp` 键表三处必须同一提交，否则 `PUT` 一律 400。13 报告 §4.6，D-061；随 V-2 落地）

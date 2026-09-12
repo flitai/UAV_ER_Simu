@@ -1,7 +1,7 @@
 {
   "schema_version": "cuav-scenario-track/1",
   "scenario_id": "demo-03",
-  "scenario_sha256": "dbfe3d7a31d69b991351bacfbff42cc9245093d10914365a704dbfcddc298036",
+  "scenario_sha256": "04d71717d3e297ccc92aa8f16d19f6cd13fa68024e5d4a3723dc8774948a2a28",
   "aoi_id": "beijing-yayuncun",
   "track_rate_Hz": 2.0,
   "duration_s": 120.0,
