@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import type { ScenarioDoc } from '../../state/types.js'
-import { addEmitter, addSite, emitters, moveEmitter, posOf, removeEmitter, routeOf, setPath, sites, splitLinkId } from './scenarioOps.js'
+import { addEmitter, addSite, addZone, emitters, moveEmitter, moveZone, posOf, removeEmitter, removeZone, routeOf, setPath, sites, splitLinkId, zoneOf, zones } from './scenarioOps.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 function demo(): ScenarioDoc {
@@ -110,4 +110,28 @@ test('链路标识按已知的站与源精确拆分：site-1-uav-1 是 site-1 �
   assert.equal(splitLinkId(doc, 'site-9-uav-1'), null)
   assert.equal(splitLinkId(doc, 'site-1'), null)
   assert.equal(splitLinkId(null, 'site-1-uav-1'), null)
+})
+
+test('告警区：布区 / 移动 / 删除是纯函数，删空后键一起消失；进圈判定按弦长与限高（D-061）', () => {
+  const doc = demo()   // demo-01 没有 zones
+  assert.equal(zones(doc).length, 0)
+  const r = addZone(doc, 116.41, 39.99)
+  assert.equal(zones(doc).length, 0, '入参不变')
+  assert.equal(r.id, 'z-1')
+  const z = zones(r.doc)[0]!
+  assert.equal(z.kind, 'alert')
+  assert.equal(z.shape, 'circle')
+  assert.equal(z.radius_m, 500)
+  assert.equal(z.alt_max_m, undefined)
+  // 圆心处在圈内；圈外 600 m 处不在；限高之上不在
+  assert.equal(zoneOf(r.doc, 116.41, 39.99, 100)?.id, 'z-1')
+  assert.equal(zoneOf(r.doc, 116.41, 39.99 + 600 / 111132, 100), null)
+  const capped = setPath(r.doc, 'zones.0.alt_max_m', 120)
+  assert.equal(zoneOf(capped, 116.41, 39.99, 100)?.id, 'z-1')
+  assert.equal(zoneOf(capped, 116.41, 39.99, 121), null)
+  const moved = moveZone(r.doc, 'z-1', 116.42, 39.98)
+  assert.deepEqual((zones(moved)[0]!.center as Record<string, number>), { lon: 116.42, lat: 39.98 })
+  const gone = removeZone(r.doc, 'z-1')
+  assert.equal('zones' in gone, false)
+  assert.equal(zoneOf(null, 116.41, 39.99, 0), null)
 })

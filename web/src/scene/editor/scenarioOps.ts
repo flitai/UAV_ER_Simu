@@ -7,7 +7,7 @@
 // --scenario-track 守（D-042）。前端只在表单上做范围提示，不复刻规则。
 
 import type { ScenarioDoc } from '../../state/types.js'
-import type { Lla, Waypoint } from './preview.js'
+import { chordDistanceM, type Lla, type Waypoint } from './preview.js'
 
 export type Obj = Record<string, unknown>
 
@@ -64,6 +64,55 @@ export function derivedLinks(doc: ScenarioDoc | null): Array<{ id: string; site:
  */
 export function splitLinkId(doc: ScenarioDoc | null, linkId: string): { site: string; emitter: string } | null {
   for (const l of derivedLinks(doc)) if (l.id === linkId) return { site: l.site, emitter: l.emitter }
+  return null
+}
+
+/** 圆形告警区（D-061；docs/scenario-format.md §6.1）。只作显示语义，不进物理。 */
+export function zones(doc: ScenarioDoc | null): Obj[] {
+  return Array.isArray(doc?.zones) ? (doc!.zones as Obj[]) : []
+}
+
+/** 布告警区：缺省半径 500 m、类别 alert、不限高；半径与限高在表单里改。 */
+export function addZone(doc: ScenarioDoc, lon: number, lat: number): { doc: ScenarioDoc; id: string } {
+  const d = clone(doc)
+  const list = (d.zones ??= []) as Obj[]
+  const id = freshId(new Set(list.map((x) => String(x.id))), 'z')
+  list.push({
+    id, name: `告警区 ${list.length + 1}`, kind: 'alert', shape: 'circle',
+    center: { lon: round6(lon), lat: round6(lat) }, radius_m: 500,
+  })
+  return { doc: d, id }
+}
+
+/** 删告警区：删空了就把键一起去掉，没写过 zones 的文件不会凭空多出一个空数组。 */
+export function removeZone(doc: ScenarioDoc, id: string): ScenarioDoc {
+  const d = clone(doc)
+  const rest = zones(d).filter((z) => z.id !== id)
+  if (rest.length) d.zones = rest
+  else delete d.zones
+  return d
+}
+
+export function moveZone(doc: ScenarioDoc, id: string, lon: number, lat: number): ScenarioDoc {
+  const d = clone(doc)
+  const z = zones(d).find((x) => x.id === id)
+  if (z) z.center = { lon: round6(lon), lat: round6(lat) }
+  return d
+}
+
+/**
+ * 目标在哪个告警区里（13 报告 §4.3）：到圆心的水平弦长 ≤ 半径，且（无限高或离地高 ≤ 上限）。
+ * 多个命中取文件里的第一个。纯几何，不进引擎与产品。
+ */
+export function zoneOf(doc: ScenarioDoc | null, lon: number, lat: number, alt_m: number): Obj | null {
+  for (const z of zones(doc)) {
+    const c = z.center as Obj | undefined
+    if (!c || typeof c.lon !== 'number' || typeof c.lat !== 'number' || typeof z.radius_m !== 'number') continue
+    const d = chordDistanceM({ lon: c.lon, lat: c.lat, alt_m: 0 }, { lon, lat, alt_m: 0 })
+    if (d > z.radius_m) continue
+    if (typeof z.alt_max_m === 'number' && alt_m > z.alt_max_m) continue
+    return z
+  }
   return null
 }
 

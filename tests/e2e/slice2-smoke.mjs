@@ -90,10 +90,10 @@ try {
   check('场景已载入', st.app.scene.scenarioId === 'demo-01' && st.app.scene.sites === 1 && st.app.scene.emitters === 1 && st.app.scene.waypoints === 3,
     JSON.stringify({ id: st.app.scene.scenarioId, sites: st.app.scene.sites, wps: st.app.scene.waypoints }))
   check('场景哈希与盘上文件一致（框图 scenario_ref 用的就是它）', /^[0-9a-f]{64}$/.test(st.app.scene.scenarioSha256), st.app.scene.scenarioSha256.slice(0, 8) + '…')
-  for (const id of ['cuav-site-dot', 'cuav-site-icon', 'cuav-route-line', 'cuav-waypoint-dot', 'cuav-target-icon', 'cuav-trail-line', 'cuav-link-line']) {
+  for (const id of ['cuav-zone-fill', 'cuav-zone-line', 'cuav-link-line', 'cuav-link-label', 'cuav-route-line', 'cuav-trail-line', 'cuav-waypoint-dot', 'cuav-site-dot', 'cuav-site-icon', 'cuav-target-pole', 'cuav-target-ring', 'cuav-target-icon', 'cuav-target-label']) {
     if (!st.layers.includes(id)) { check(`态势图层 ${id} 存在`, false); break }
   }
-  check('七个态势图层齐全', ['cuav-site-dot', 'cuav-site-icon', 'cuav-route-line', 'cuav-waypoint-dot', 'cuav-target-icon', 'cuav-trail-line', 'cuav-link-line'].every((x) => st.layers.includes(x)))
+  check('十三个态势图层齐全（切片 ⑧ V-2 加六个，D-061）', ['cuav-zone-fill', 'cuav-zone-line', 'cuav-link-line', 'cuav-link-label', 'cuav-route-line', 'cuav-trail-line', 'cuav-waypoint-dot', 'cuav-site-dot', 'cuav-site-icon', 'cuav-target-pole', 'cuav-target-ring', 'cuav-target-icon', 'cuav-target-label'].every((x) => st.layers.includes(x)))
   // 场景自 D-061 起在采用最近任务之后才载入，常晚于瓦片就绪；要素要等地图把新数据画出来，轮询而不是只查一次
   let rendered = -1
   for (let i = 0; i < 25 && rendered < 4; i++) {
@@ -106,7 +106,7 @@ try {
 
   // ---------- 四个工具：布站 → 撤销 → 重做 ----------
   const tools = await page.evaluate("Array.from(document.querySelectorAll('[data-tool]')).map(b => b.dataset.tool)")
-  check('工具条五件齐全（选择 / 布站 / 布目标 / 航点 / 测量；布目标自 D-053 起）', JSON.stringify(tools) === JSON.stringify(['select', 'site', 'emitter', 'waypoint', 'measure']), JSON.stringify(tools))
+  check('工具条六件齐全（选择 / 布站 / 布目标 / 航点 / 测量 / 布告警区；布目标自 D-053 起，布告警区自 D-061 起）', JSON.stringify(tools) === JSON.stringify(['select', 'site', 'emitter', 'waypoint', 'measure', 'zone']), JSON.stringify(tools))
 
   await page.evaluate("(document.querySelector('[data-tool=site]').click(), true)")
   st = await waitApp(page, (a) => a.scene.tool === 'site', '切到布站工具')

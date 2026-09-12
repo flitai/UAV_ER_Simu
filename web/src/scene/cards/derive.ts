@@ -12,7 +12,7 @@
 
 import type { ScenarioDoc } from '../../state/types.js'
 import type { BearingSample, EntitySample, LinkSample, PositionSample } from '../sceneStore.js'
-import { derivedLinks, emitters, posOf, sites, type Obj } from '../editor/scenarioOps.js'
+import { derivedLinks, emitters, posOf, sites, zoneOf, type Obj } from '../editor/scenarioOps.js'
 import { lookAngles } from '../editor/preview.js'
 
 /** 态势快照里卡片用到的四张表（与 sceneStore 的状态同形，测试可以直接造）。 */
@@ -103,8 +103,9 @@ export interface TargetCardData {
   sites: SiteRow[]
   fixes: FixRow[]
   nearest_m: number | null
-  /** 所在告警区（V-2 起填；本期恒 null） */
+  /** 所在告警区的标识与显示名（D-061，13 §4.3）；不在任何区内为 null */
   inZone: string | null
+  inZoneName: string | null
 }
 
 export interface SiteCardData {
@@ -222,13 +223,15 @@ export function buildTargetCards(doc: ScenarioDoc | null, sit: SituationLike): T
 
     let nearest: number | null = null
     for (const r of rows) if (r.distance_m !== null && (nearest === null || r.distance_m < nearest)) nearest = r.distance_m
+    const zn = motion ? zoneOf(doc, motion.lon, motion.lat, motion.alt_m) : null
 
     out.push({
       id, name: str(e, 'name') ?? id, platform_type: str(e, 'platform_type') ?? 'multirotor',
       equipment_model: str(e, 'equipment_model'),
       center_Hz: num(em, 'center_Hz'), bw_Hz: num(em, 'bw_Hz'), tx_power_dBm: txPower, tx_gain_dBi: txGain,
       polarization: str(em, 'polarization'),
-      motion, sites: rows, fixes, nearest_m: nearest, inZone: null,
+      motion, sites: rows, fixes, nearest_m: nearest,
+      inZone: zn ? String(zn.id) : null, inZoneName: zn ? String(zn.name ?? zn.id) : null,
     })
   }
   return out

@@ -1,4 +1,5 @@
-// 态势图层（06 备忘录 §9C G-4 的 sites / plannedRoute 与 G-5 的 targets / trails / links）。
+// 态势图层（06 备忘录 §9C G-4 的 sites / plannedRoute 与 G-5 的 targets / trails / links；
+// 切片 ⑧ V-2 加告警区、高度立柱、目标选中环与标签、链路距离标注，D-061，13 报告 §4）。
 //
 // 图层注册范式照 layers/buildings3d.ts：全部插在第一个 symbol 层之前，压在底图标注之下。
 // 数据一律走 GeoJSON 源的 setData：MapLibre 的 setData 是增量的，20 Hz 更新不会重建图层。
@@ -8,6 +9,7 @@
 
 import type { Map as MLMap } from 'maplibre-gl'
 import { SIT, ICON_SVG, ICON_COLOR, makeIcon, type IconName } from '../style/situation.js'
+import { PM, PM_FONT } from '../style/colors.js'
 
 export const SRC = {
   sites: 'cuav-sites',
@@ -16,7 +18,16 @@ export const SRC = {
   targets: 'cuav-targets',
   trails: 'cuav-trails',
   links: 'cuav-links',
+  zones: 'cuav-zones',
+  poles: 'cuav-target-poles',
 } as const
+
+/** 全部态势图层的 id（e2e 的图层断言表按它来）。 */
+export const LAYER_IDS = [
+  'cuav-zone-fill', 'cuav-zone-line', 'cuav-link-line', 'cuav-link-label', 'cuav-route-line', 'cuav-trail-line',
+  'cuav-waypoint-dot', 'cuav-site-dot', 'cuav-site-icon', 'cuav-target-pole', 'cuav-target-ring', 'cuav-target-icon',
+  'cuav-target-label',
+] as const
 
 const EMPTY = { type: 'FeatureCollection' as const, features: [] as unknown[] }
 
@@ -41,6 +52,10 @@ export interface TargetPoint {
   heading_deg: number
   speed_mps: number
   tx_on: boolean
+  /** 在告警区内：图标换红环变体（D-061） */
+  alert?: boolean
+  /** 当前选中：画选中环 */
+  selected?: boolean
 }
 
 export interface LinkLine {
@@ -49,6 +64,15 @@ export interface LinkLine {
   to: [number, number]
   line_of_sight: boolean
   distance_m: number
+}
+
+export interface ZoneCircle {
+  id: string
+  name: string
+  kind: 'alert' | 'warning' | string
+  lon: number
+  lat: number
+  radius_m: number
 }
 
 function firstSymbolLayer(map: MLMap): string | undefined {
@@ -86,7 +110,7 @@ function setData(map: MLMap, id: string, data: unknown): void {
   } catch { /* 地图正在拆除 */ }
 }
 
-/** 注册两个图标。失败（画布不可用）时静默跳过，图层退化成只有圆点，不抛。 */
+/** 注册三个图标。失败（画布不可用）时静默跳过，图层退化成只有圆点，不抛。 */
 export async function loadSituationIcons(map: MLMap): Promise<void> {
   for (const name of Object.keys(ICON_SVG) as IconName[]) {
     if (!alive(map) || map.hasImage(name)) continue
@@ -96,23 +120,79 @@ export async function loadSituationIcons(map: MLMap): Promise<void> {
   }
 }
 
+/** 经纬度沿真北顺时针方位推进给定距离。小范围用等距圆柱近似足够画图（与 fixOverlay 同式）。 */
+function advance(lon: number, lat: number, bearing_deg: number, dist_m: number): [number, number] {
+  const rad = (bearing_deg * Math.PI) / 180
+  const dN = dist_m * Math.cos(rad)
+  const dE = dist_m * Math.sin(rad)
+  const mPerDegLat = 111132.0
+  const mPerDegLon = 111320.0 * Math.cos((lat * Math.PI) / 180)
+  return [lon + dE / (mPerDegLon || 1), lat + dN / mPerDegLat]
+}
+
+/** 圆的多边形近似：64 个顶点，首尾相接。 */
+function circlePolygon(lon: number, lat: number, radius_m: number, n = 64): Array<[number, number]> {
+  const ring: Array<[number, number]> = []
+  for (let i = 0; i <= n; i++) ring.push(advance(lon, lat, (360 * i) / n, radius_m))
+  return ring
+}
+
+/** 高度立柱的底座：目标位置一个 2 m × 2 m 的小方块，拉伸到离地高。 */
+function poleFootprint(lon: number, lat: number, half_m = 1): Array<[number, number]> {
+  const [e] = advance(lon, lat, 90, half_m)
+  const [w] = advance(lon, lat, 270, half_m)
+  const [, n] = advance(lon, lat, 0, half_m)
+  const [, s] = advance(lon, lat, 180, half_m)
+  return [[w, s], [e, s], [e, n], [w, n], [w, s]]
+}
+
 /**
- * 一次性建齐五组图层。可重复调用（已存在即跳过），因为 style.load 与 idle 都会触发挂载。
- * 顺序即压盖顺序：链路线在最下，规划航线、航迹、航点、站点、目标依次向上。
+ * 一次性建齐全部图层。可重复调用（已存在即跳过），因为 style.load 与 idle 都会触发挂载。
+ * 顺序即压盖顺序：告警区最下，链路线、规划航线、航迹、航点、站点、立柱、选中环、目标、标签依次向上。
  */
 export function addSituationLayers(map: MLMap): void {
   if (!alive(map)) return
   const before = firstSymbolLayer(map)
   for (const id of Object.values(SRC)) ensureSource(map, id)
 
+  if (!map.getLayer('cuav-zone-fill')) {
+    map.addLayer({
+      id: 'cuav-zone-fill', type: 'fill', source: SRC.zones,
+      paint: {
+        'fill-color': ['case', ['==', ['get', 'kind'], 'warning'], SIT.zoneWarning, SIT.zoneAlert],
+        'fill-opacity': 0.08,
+      },
+    }, before)
+  }
+  if (!map.getLayer('cuav-zone-line')) {
+    map.addLayer({
+      id: 'cuav-zone-line', type: 'line', source: SRC.zones,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ['case', ['==', ['get', 'kind'], 'warning'], SIT.zoneWarning, SIT.zoneAlert],
+        'line-width': 2, 'line-dasharray': [4, 3], 'line-opacity': 0.9,
+      },
+    }, before)
+  }
   if (!map.getLayer('cuav-link-line')) {
     map.addLayer({
       id: 'cuav-link-line', type: 'line', source: SRC.links,
       layout: { 'line-cap': 'round' },
       paint: {
         'line-color': ['case', ['get', 'los'], SIT.linkLos, SIT.linkNlos],
-        'line-width': 2.4, 'line-opacity': 0.9,
+        'line-width': 3, 'line-opacity': 0.9,
       },
+    }, before)
+  }
+  if (!map.getLayer('cuav-link-label')) {
+    // 距离标注（09 §5.2 早已规定「线旁标距离」）。只写数字与单位：随包字形只有拉丁字符（PM_FONT）
+    map.addLayer({
+      id: 'cuav-link-label', type: 'symbol', source: SRC.links,
+      layout: {
+        'symbol-placement': 'line-center', 'text-field': ['get', 'label'], 'text-font': PM_FONT,
+        'text-size': 11, 'text-allow-overlap': false, 'text-ignore-placement': false,
+      },
+      paint: { 'text-color': PM.ink, 'text-halo-color': SIT.halo, 'text-halo-width': 1.5 },
     }, before)
   }
   if (!map.getLayer('cuav-route-line')) {
@@ -140,7 +220,6 @@ export function addSituationLayers(map: MLMap): void {
     }, before)
   }
   if (!map.getLayer('cuav-site-dot')) {
-    // 圆点是图标的兜底：图标注册失败时仍然看得见站点。
     map.addLayer({
       id: 'cuav-site-dot', type: 'circle', source: SRC.sites,
       // 圆点只作图标的锚与兜底：图标注册失败时仍看得见站点，图标在时它压在图标下面
@@ -150,21 +229,61 @@ export function addSituationLayers(map: MLMap): void {
   if (!map.getLayer('cuav-site-icon')) {
     map.addLayer({
       id: 'cuav-site-icon', type: 'symbol', source: SRC.sites,
-      // 图源 96 px、pixelRatio 3 → 自然尺寸 32 CSS px；0.75 得 24 px，在 2K 屏上一眼能找到
-      layout: { 'icon-image': 'cuav-site', 'icon-size': 0.75, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
+      // 图源 96 px、pixelRatio 3 → 自然尺寸 32 CSS px（V-2 由 24 px 加到 32 px）
+      layout: { 'icon-image': 'cuav-site', 'icon-size': 1.0, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
+    }, before)
+  }
+  if (!map.getLayer('cuav-target-pole')) {
+    // 高度立柱：符号层没有高程，用一个小方块的拉伸体从地面升到离地高（AGL，铁律 2；平地假设与 LOS 同口径）。
+    // 俯仰视角下就是「从地面升起的柱子」，平视时看不出高度——可接受
+    map.addLayer({
+      id: 'cuav-target-pole', type: 'fill-extrusion', source: SRC.poles,
+      paint: {
+        'fill-extrusion-color': SIT.target, 'fill-extrusion-opacity': 0.6,
+        'fill-extrusion-height': ['get', 'alt_m'], 'fill-extrusion-base': 0,
+      },
+    }, before)
+  }
+  if (!map.getLayer('cuav-target-ring')) {
+    map.addLayer({
+      id: 'cuav-target-ring', type: 'circle', source: SRC.targets,
+      filter: ['==', ['get', 'selected'], true],
+      paint: { 'circle-radius': 24, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': SIT.target, 'circle-stroke-width': 2 },
     }, before)
   }
   if (!map.getLayer('cuav-target-icon')) {
     map.addLayer({
       id: 'cuav-target-icon', type: 'symbol', source: SRC.targets,
       layout: {
-        'icon-image': 'cuav-drone', 'icon-size': 0.8,
+        // 在告警区内换红环变体；1.25 × 32 = 40 CSS px（V-2 由 25.6 px 加到 40 px）
+        'icon-image': ['case', ['==', ['get', 'alert'], true], 'cuav-drone-alert', 'cuav-drone'],
+        'icon-size': 1.25,
         'icon-rotate': ['get', 'heading'], 'icon-rotation-alignment': 'map',
         'icon-allow-overlap': true, 'icon-ignore-placement': true,
       },
       // 不发射时画淡一点：图标还在（目标仍被跟踪），但一眼能看出没在发
       paint: { 'icon-opacity': ['case', ['get', 'tx_on'], 1.0, 0.45] },
     }, before)
+  }
+  if (!map.getLayer('cuav-target-label')) {
+    map.addLayer({
+      id: 'cuav-target-label', type: 'symbol', source: SRC.targets,
+      layout: {
+        'text-field': ['get', 'label'], 'text-font': PM_FONT, 'text-size': 11,
+        'text-offset': [0, 1.9], 'text-anchor': 'top', 'text-allow-overlap': true, 'text-ignore-placement': true,
+      },
+      paint: { 'text-color': PM.ink, 'text-halo-color': SIT.halo, 'text-halo-width': 1.5 },
+    }, before)
+  }
+}
+
+/** 一组图层的显隐（图层弹层的开关用）。 */
+export function setLayersVisible(map: MLMap, ids: readonly string[], on: boolean): void {
+  if (!alive(map)) return
+  for (const id of ids) {
+    try {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')
+    } catch { /* 地图正在拆除 */ }
   }
 }
 
@@ -198,13 +317,37 @@ export function setPlannedRoute(map: MLMap, points: RoutePoint[], selectedIndex 
   })
 }
 
+/** 告警区：圆的多边形近似。 */
+export function setZones(map: MLMap, zones: ZoneCircle[]): void {
+  setData(map, SRC.zones, {
+    type: 'FeatureCollection',
+    features: zones.map((z) => ({
+      type: 'Feature',
+      properties: { id: z.id, name: z.name, kind: z.kind, radius_m: z.radius_m },
+      geometry: { type: 'Polygon', coordinates: [circlePolygon(z.lon, z.lat, z.radius_m)] },
+    })),
+  })
+}
+
 export function setTargets(map: MLMap, targets: TargetPoint[]): void {
   setData(map, SRC.targets, {
     type: 'FeatureCollection',
     features: targets.map((t) => ({
       type: 'Feature',
-      properties: { id: t.id, heading: t.heading_deg, speed: t.speed_mps, alt_m: t.alt_m, tx_on: t.tx_on },
+      properties: {
+        id: t.id, heading: t.heading_deg, speed: t.speed_mps, alt_m: t.alt_m, tx_on: t.tx_on,
+        alert: t.alert === true, selected: t.selected === true,
+        label: `${t.id} · ${t.alt_m.toFixed(0)} m`,
+      },
       geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
+    })),
+  })
+  setData(map, SRC.poles, {
+    type: 'FeatureCollection',
+    features: targets.filter((t) => t.alt_m > 0).map((t) => ({
+      type: 'Feature',
+      properties: { id: t.id, alt_m: t.alt_m },
+      geometry: { type: 'Polygon', coordinates: [poleFootprint(t.lon, t.lat)] },
     })),
   })
 }
@@ -219,12 +362,16 @@ export function setTrails(map: MLMap, trails: Map<string, Array<[number, number]
   setData(map, SRC.trails, { type: 'FeatureCollection', features })
 }
 
+function distanceLabel(m: number): string {
+  return m < 1000 ? `${m.toFixed(0)} m` : `${(m / 1000).toFixed(2)} km`
+}
+
 export function setLinks(map: MLMap, links: LinkLine[]): void {
   setData(map, SRC.links, {
     type: 'FeatureCollection',
     features: links.map((l) => ({
       type: 'Feature',
-      properties: { link_id: l.link_id, los: l.line_of_sight, distance_m: l.distance_m },
+      properties: { link_id: l.link_id, los: l.line_of_sight, distance_m: l.distance_m, label: distanceLabel(l.distance_m) },
       geometry: { type: 'LineString', coordinates: [l.from, l.to] },
     })),
   })

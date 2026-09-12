@@ -79,7 +79,7 @@ function TargetCard({ c, open, selected, onToggle }: { c: TargetCardData; open: 
         <PlatformIcon type={c.platform_type} />
         <span className="card-title">{c.name}</span>
         <span className="dim">{c.id}</span>
-        {c.inZone && <span className="card-badge alert" data-card-zone>{c.inZone}</span>}
+        {c.inZone && <span className="card-badge alert" data-card-zone={c.inZone}>{c.inZoneName ?? c.inZone}</span>}
         <span className="spacer" />
         {m && <span className="dim">{fmtMeters(m.alt_m)} · 发射{txText(m.tx_on)}</span>}
         <span className="chev">{open ? '▾' : '▸'}</span>
@@ -141,7 +141,7 @@ function TargetList({ cards, selectedId, onPick }: { cards: TargetCardData[]; se
           return (
             <tr key={c.id} className={c.id === selectedId ? 'sel' : ''} data-target-row={c.id} onClick={() => onPick(c.id)}>
               <td className="icon"><PlatformIcon type={c.platform_type} size={16} /></td>
-              <td className="name">{c.name}{c.inZone ? <span className="card-badge alert"> 告警区</span> : null}</td>
+              <td className="name">{c.name}{c.inZone ? <span className="card-badge alert" data-row-zone={c.inZone}>告警区</span> : null}</td>
               <td className="num">{m ? fmtMeters(m.alt_m) : '—'}</td>
               <td className="num">{m?.speed_mps !== null && m?.speed_mps !== undefined ? `${m.speed_mps.toFixed(1)} m/s` : '—'}</td>
               <td className="num">{fmtDeg(m?.heading_deg ?? null)}</td>

@@ -4,7 +4,7 @@
 import { useAppState, useStore } from '../state/store.js'
 import { loadScenarioInto } from '../shell/actions.js'
 import { fmtHz, fmtSeconds } from '../shell/format.js'
-import { activities, derivedLinks, emitters, sites, waypointsOf } from './editor/scenarioOps.js'
+import { activities, derivedLinks, emitters, sites, waypointsOf, zones } from './editor/scenarioOps.js'
 import type { SceneSelection } from '../state/types.js'
 
 function sameSel(a: SceneSelection | null, b: SceneSelection): boolean {
@@ -48,6 +48,7 @@ export function ObjectTree({ onFlyTo }: { onFlyTo: (lon: number, lat: number) =>
   const emList = emitters(doc)
   const acts = activities(doc)
   const links = derivedLinks(doc)
+  const zoneList = zones(doc)
 
   return (
     <div className="group scene-tree" data-scene-tree>
@@ -111,6 +112,18 @@ export function ObjectTree({ onFlyTo }: { onFlyTo: (lon: number, lat: number) =>
           {fmtSeconds(Number(a.t_s))} · {String(a.event)} <span className="tree-dim">{String(a.emitter_id)}</span>
         </button>
       ))}
+
+      <div className="tree-group">告警区 ({zoneList.length})</div>
+      {zoneList.map((z) => {
+        const id = String(z.id)
+        const c = z.center as Record<string, number>
+        return (
+          <button key={id} className={'tree-row' + (sameSel(sel, { kind: 'zone', id }) ? ' sel' : '')}
+                  data-tree-zone={id} onClick={() => pick({ kind: 'zone', id }, c.lon, c.lat)}>
+            ◯ {String(z.name ?? id)} <span className="tree-dim">{String(z.kind)} · {Number(z.radius_m)} m</span>
+          </button>
+        )
+      })}
 
       <div className="tree-group">链路 ({links.length}) <span className="tree-dim">派生</span></div>
       {links.map((l) => (

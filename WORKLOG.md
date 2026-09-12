@@ -4873,3 +4873,24 @@ null 不编），探针 `app.cards / app.siteCards` 用同一份；② `cards/Ca
 `scenario_ref.sha256` 同步。仓库里旧哈希无残留。引擎 209 项 doctest（+1，25 条断言）+ 8 项 ctest、场景 schema 9 项、web 194 项、服务 125 项全绿；
 `check-paths` 过。产品与组件目录黄金基准零变化。
 
+## 2026-09-12 V-2：地图叠加加重与告警区上图（切片 ⑧，D-061）
+
+**做了什么**。① `layers/situation.ts` 重写：图层 7 → **13**（加 `cuav-zone-fill / zone-line`、`cuav-link-label`（`symbol-placement: line-center`，
+只写数字与单位——随包字形只有拉丁字符）、`cuav-target-pole`（2 m × 2 m 小方块的 `fill-extrusion`，拉伸到离地高，平视看不出高度、俯仰下是立柱）、
+`cuav-target-ring`（选中环）、`cuav-target-label`（`id · 高度`））；目标图标 25.6 → **40 px**、站点 24 → 32 px；链路线 2.4 → 3 px；
+`setLayersVisible` 给图层弹层用；② `style/situation.ts`：`zoneAlert #b91c1c`、`zoneWarning #92400e`（按 D2-4 判据实测 5.79 / 4.97 / 4.60 与
+6.35 / 5.45 / 5.04，回填 `docs/display-route.md` §4），入圈变体 `cuav-drone-alert`（同机身外加粗环，染告警红）；③ `fixOverlay.ts`：
+测向楔形改成沿射线渐隐的色带（半角 max(2σ, 5 px 所张角)，α 0.35 → 0.05，非 valid 减半）+ 1 px 中心线；椭圆 2.5 px、填 0.15、中心点 4 px 带白晕；
+④ 告警区编辑：`scenarioOps` 加 `zones / addZone / removeZone / moveZone / zoneOf`，工具条「布告警区」，对象树「告警区」组，右栏告警区表单
+（名称 / 类别 / 圆心 / 半径 / 限高开关），`SceneSelection.zone`；⑤ 入圈判定纯前端几何（弦长 ≤ 半径且不超限高）：卡片 `inZone / inZoneName`
+与徽标、列表行徽标、地图图标 `alert` 属性换红环变体，每 tick 逐实体算；⑥ 探针 `scene.zones`；图层弹层加「告警区」「高度立柱」两项。
+
+**验证**（实测得到，macOS，原型阶段验证值）。`slice8-smoke` 16 → **28 项**：任务改跑 70 s（uav-2 在 t ≈ 58 s 拐上东侧腿，末尾离 z-east 圆心约 250 m），
+末尾只有 uav-2 在圈内、卡片与列表行带徽标、图标 `alert` 属性只在 uav-2 上、`cuav-drone-alert` 已注册；圈、立柱、距离标注、选中环各渲染出要素；
+十三个图层齐全；对象树点告警区出表单；图层弹层关掉告警区后 `visibility = none`。`scene-smoke`（图层 70 → 76）与 `slice2`（工具六件、图层表十三）改断言后全绿；
+六套 e2e 14 + 39 + 28 + 85 + 63 + 28 = **257 项**；web 196 项（+2：告警区增删移与进圈判定、卡片进圈）；引擎 209 + 8；服务 125；`check-paths` 过。
+
+**排障记录**。`slice8` 第一版在 ③ 对着 70 s 任务整段取 `links` / `bearings`（几 MB 的 JSON 经调试协议回传）挂死——`cdp.mjs` 的套接字断了不拒挂起的调用，
+用例既不失败也不结束，两次各占满 500 s。两处处置：`slice8` 只取末尾半秒（比的本来就是每键最后一行）；`cdp.mjs` 在套接字 `close / error` 时把挂起的调用全部拒掉。
+顺带发现 `launchChrome` 固定端口 9333：上一次 Chrome 没被杀干净时新实例绑不上端口、用例会驱动旧实例并留下一串标签页，本轮手工清理，未改框架。
+

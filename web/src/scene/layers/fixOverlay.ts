@@ -117,29 +117,33 @@ export function attachFixOverlay(map: MlMap): Handle | null {
       const p0 = map.project([s.lon, s.lat])
       const end = advance(s.lon, s.lat, b.bearing_deg, dist)
       const p1 = map.project(end)
+      const valid = b.df_result_state === 'valid'
 
-      // ±2σ 楔形：σ 大时一眼看得出这条线不可信
-      if (b.bearing_std_deg > 0.05) {
-        const a = advance(s.lon, s.lat, b.bearing_deg - 2 * b.bearing_std_deg, dist)
-        const c = advance(s.lon, s.lat, b.bearing_deg + 2 * b.bearing_std_deg, dist)
-        const pa = map.project(a)
-        const pc = map.project(c)
-        g.beginPath()
-        g.moveTo(p0.x, p0.y)
-        g.lineTo(pa.x, pa.y)
-        g.lineTo(pc.x, pc.y)
-        g.closePath()
-        g.fillStyle = alpha(SIT.bearing, 0.1)
-        g.fill()
-      }
+      // 渐隐色带（V-2，D-061；Aaronia 的表达）：楔形半角取 max(2σ, 5 px 在射线中点所张的角)，
+      // σ 再小也有可见宽度；沿射线从站址 α 0.35 线性降到末端 α 0.05，非 valid 减半
+      const lenPx = Math.hypot(p1.x - p0.x, p1.y - p0.y)
+      const minHalfDeg = lenPx > 1 ? (Math.atan2(5, lenPx / 2) * 180) / Math.PI : 0
+      const halfDeg = Math.max(2 * b.bearing_std_deg, minHalfDeg)
+      const pa = map.project(advance(s.lon, s.lat, b.bearing_deg - halfDeg, dist))
+      const pc = map.project(advance(s.lon, s.lat, b.bearing_deg + halfDeg, dist))
+      const grad = g.createLinearGradient(p0.x, p0.y, p1.x, p1.y)
+      grad.addColorStop(0, alpha(SIT.bearing, valid ? 0.35 : 0.18))
+      grad.addColorStop(1, alpha(SIT.bearing, valid ? 0.05 : 0.02))
+      g.beginPath()
+      g.moveTo(p0.x, p0.y)
+      g.lineTo(pa.x, pa.y)
+      g.lineTo(pc.x, pc.y)
+      g.closePath()
+      g.fillStyle = grad
+      g.fill()
 
+      // 中心线：非 valid 的裁决画虚线——数据在，但这一帧的测向不可信
       g.beginPath()
       g.moveTo(p0.x, p0.y)
       g.lineTo(p1.x, p1.y)
-      g.strokeStyle = SIT.bearing
-      g.lineWidth = 1.5
-      // 非 valid 的裁决画虚线：数据在，但这一帧的测向不可信
-      g.setLineDash(b.df_result_state === 'valid' ? [] : [5, 4])
+      g.strokeStyle = alpha(SIT.bearing, 0.6)
+      g.lineWidth = 1
+      g.setLineDash(valid ? [] : [5, 4])
       g.stroke()
       g.setLineDash([])
     }
@@ -161,20 +165,20 @@ export function attachFixOverlay(map: MlMap): Handle | null {
       // 屏幕 y 轴朝下，所以取负
       g.beginPath()
       g.ellipse(c.x, c.y, a, bAxis, (-p.rotation_deg * Math.PI) / 180, 0, Math.PI * 2)
-      g.fillStyle = alpha(color, 0.12)
+      g.fillStyle = alpha(color, 0.15)
       g.fill()
       g.strokeStyle = color
-      g.lineWidth = 1.5
+      g.lineWidth = 2.5
       g.stroke()
 
+      // 中心点：4 px 实心点带白晕（V-2 加重）
       g.beginPath()
-      g.moveTo(c.x - 5, c.y)
-      g.lineTo(c.x + 5, c.y)
-      g.moveTo(c.x, c.y - 5)
-      g.lineTo(c.x, c.y + 5)
-      g.strokeStyle = color
+      g.arc(c.x, c.y, 4, 0, Math.PI * 2)
+      g.strokeStyle = SIT.halo
       g.lineWidth = 2
       g.stroke()
+      g.fillStyle = color
+      g.fill()
 
       // 标签只在开发者模式（D-039：界面不主动解释）
       if (input.dev) {

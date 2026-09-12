@@ -10,7 +10,7 @@ import { fmtDeg, fmtDelay, fmtHz, fmtMeters, parseSi } from '../shell/format.js'
 import { sceneStore, type PositionSample } from './sceneStore.js'
 import {
   activities, addActivity, emitters, insertWaypoint, posOf, removeActivity, removeEmitter,
-  removeWaypoint, routeOf, setPath, sites, splitLinkId, waypointsOf, type Obj,
+  removeWaypoint, removeZone, routeOf, setPath, sites, splitLinkId, waypointsOf, zones, type Obj,
 } from './editor/scenarioOps.js'
 import { lookAngles, RoutePreview, type Waypoint } from './editor/preview.js'
 import {
@@ -196,6 +196,42 @@ export function ObjectPanel() {
             store.dispatch({ type: 'scene/edit', doc: removeEmitter(doc, String(em.id)) })
             store.dispatch({ type: 'scene/select', selection: null })
           }}>删除目标</button>
+      </div>
+    )
+  }
+
+  if (sel.kind === 'zone') {
+    const i = zones(doc).findIndex((x) => x.id === sel.id)
+    const z = zones(doc)[i]
+    if (!z) return <div className="group placeholder">对象已不存在</div>
+    const c = z.center as Record<string, number>
+    const base = `zones.${i}`
+    const hasAlt = typeof z.alt_max_m === 'number'
+    return (
+      <div className="group" data-form="zone" key={sel.id}>
+        <div className="group-title">告警区 {String(z.name ?? z.id)}</div>
+        <Row label="名称">
+          <input className="form-input" defaultValue={String(z.name ?? '')} data-field={`${base}.name`}
+                 onBlur={(e) => { const v = e.currentTarget.value.trim(); if (v && v !== z.name) commit(`${base}.name`, v) }} />
+        </Row>
+        <Row label="类别">
+          <select className="form-input" value={String(z.kind)} data-field={`${base}.kind`} onChange={(e) => commit(`${base}.kind`, e.target.value)}>
+            <option value="alert">alert</option>
+            <option value="warning">warning</option>
+          </select>
+        </Row>
+        <NumField label="圆心经度" value={c.lon} unit="°" path={`${base}.center.lon`} onCommit={commit} />
+        <NumField label="圆心纬度" value={c.lat} unit="°" path={`${base}.center.lat`} onCommit={commit} />
+        <NumField label="半径" value={Number(z.radius_m)} unit="m" path={`${base}.radius_m`} onCommit={commit} />
+        <Row label="限高">
+          <label><input type="checkbox" checked={hasAlt} data-field={`${base}.alt_max`}
+                        onChange={(e) => commit(`${base}.alt_max_m`, e.target.checked ? 300 : undefined)} /> 有上限</label>
+        </Row>
+        {hasAlt && <NumField label="离地高上限" value={Number(z.alt_max_m)} unit="m（AGL）" path={`${base}.alt_max_m`} onCommit={commit} />}
+        <div className="form-actions">
+          <button className="btn danger" data-action="remove-zone"
+                  onClick={() => { edit(removeZone(doc, String(z.id))); store.dispatch({ type: 'scene/select', selection: null }) }}>删除告警区</button>
+        </div>
       </div>
     )
   }

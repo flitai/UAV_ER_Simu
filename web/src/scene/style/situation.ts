@@ -27,6 +27,10 @@ export const SIT = {
   aoa: '#b45309',         // 交叉定位点与 2σ 椭圆
   tdoa: '#0e7490',        // 时差定位
   fusion: '#6d28d9',      // aoa_tdoa 融合解
+  // 告警区（D-061，13 报告 §4.2）。同一判据实测：alert 5.79 / 4.97 / 4.60，warning 6.35 / 5.45 / 5.04；
+  // warning 特意比 bearing 的 #b45309 更深更红，免得楔形与警戒圈混成一色。
+  zoneAlert: '#b91c1c',   // 告警区 alert；入圈目标的红环变体也用它
+  zoneWarning: '#92400e', // 告警区 warning
 } as const
 
 /** 航迹抽稀：相邻点近于这个距离就不新增顶点。20 km 的观测区域上 3 米足够细。 */
@@ -41,13 +45,20 @@ const DRONE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
       fill="#000" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>
 </svg>`
 
+/** 入圈变体：同一机身外加一圈粗环（D-061）。整个图标染成告警红，环让它在一群目标里一眼跳出来。 */
+const DRONE_ALERT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<circle cx="16" cy="16" r="14" fill="none" stroke="#000" stroke-width="2.4"/>
+<path d="M16 4 L21 14 L17 13 L17 23 L20.5 23 L20.5 25.5 L11.5 25.5 L11.5 23 L15 23 L15 13 L11 14 Z"
+      fill="#000" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>
+</svg>`
+
 const SITE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 <circle cx="16" cy="16" r="7" fill="none" stroke="#000" stroke-width="3"/>
 <circle cx="16" cy="16" r="2.5" fill="#000"/>
 <path d="M16 3 L16 7 M16 25 L16 29 M3 16 L7 16 M25 16 L29 16" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
 </svg>`
 
-export type IconName = 'cuav-drone' | 'cuav-site'
+export type IconName = 'cuav-drone' | 'cuav-drone-alert' | 'cuav-site'
 
 /** 把一段 SVG 变成染好色的 ImageData。异步：Image 解码是异步的。 */
 export async function makeIcon(svg: string, px: number, color: string, halo: string): Promise<ImageData | null> {
@@ -95,10 +106,12 @@ export async function makeIcon(svg: string, px: number, color: string, halo: str
 
 export const ICON_SVG: Record<IconName, string> = {
   'cuav-drone': DRONE_SVG,
+  'cuav-drone-alert': DRONE_ALERT_SVG,
   'cuav-site': SITE_SVG,
 }
 
 export const ICON_COLOR: Record<IconName, string> = {
   'cuav-drone': SIT.target,
+  'cuav-drone-alert': SIT.zoneAlert,
   'cuav-site': SIT.site,
 }

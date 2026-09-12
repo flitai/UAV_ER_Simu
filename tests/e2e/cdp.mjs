@@ -60,6 +60,13 @@ export class Page {
       if (w) { p.#pending.delete(m.id); m.error ? w.rej(new Error(JSON.stringify(m.error))) : w.res(m.result) }
       if (m.method) for (const f of p.#listeners.get(m.method) ?? []) f(m.params)
     })
+    // 套接字断了（大回包撑断、标签页崩溃、浏览器被杀）就把挂起的调用全部拒掉：
+    // 否则 await 永远不回来，用例既不失败也不结束（2026-09-12 slice8 在一次几 MB 的 evaluateAsync 上挂死过）
+    const failAll = (why) => {
+      for (const [id, w] of p.#pending) { p.#pending.delete(id); w.rej(new Error(`调试协议连接已断：${why}`)) }
+    }
+    p.#ws.addEventListener('close', (ev) => failAll(`close ${ev.code ?? ''}`))
+    p.#ws.addEventListener('error', () => failAll('error'))
     // 自动放行 JavaScript 对话框。**必须的**：页面有未保存改动时 `beforeunload` 会
     // `preventDefault()`，Chrome 于是弹「离开此页？」，而无头下没人点它，
     // `Page.navigate` 就永远不返回——用例既不失败也不结束，只是挂着

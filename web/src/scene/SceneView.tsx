@@ -26,8 +26,8 @@ import { cursorStore } from '../shell/cursorStore.js'
 import { useAppState, useStore } from '../state/store.js'
 import { saveScenario } from '../shell/actions.js'
 import { mountSituation, useLiveSituation, useScenarioLayers } from './useSituation.js'
-import { clearSituation } from './layers/situation.js'
-import { addEmitter, addSite, addWaypoint, emitters, moveSite, moveWaypoint } from './editor/scenarioOps.js'
+import { clearSituation, setLayersVisible } from './layers/situation.js'
+import { addEmitter, addSite, addWaypoint, addZone, emitters, moveSite, moveWaypoint } from './editor/scenarioOps.js'
 
 export function SceneView({ active }: { active: boolean }) {
   const s = useAppState()
@@ -41,6 +41,8 @@ export function SceneView({ active }: { active: boolean }) {
   const [flat, setFlat] = useState(false)
   const [situation, setSituation] = useState(true)
   const [fix, setFix] = useState(true)
+  const [zonesOn, setZonesOn] = useState(true)
+  const [poles, setPoles] = useState(true)
   const [ready, setReady] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -156,13 +158,22 @@ export function SceneView({ active }: { active: boolean }) {
         st.dispatch({ type: 'scene/edit', doc: next })
         return
       }
-      // 选择工具：点中站点或航点即选中
+      if (tool === 'zone') {
+        const r = addZone(doc, lng, lat)
+        st.dispatch({ type: 'scene/edit', doc: r.doc })
+        st.dispatch({ type: 'scene/select', selection: { kind: 'zone', id: r.id } })
+        st.dispatch({ type: 'scene/tool', tool: 'select' })
+        return
+      }
+      // 选择工具：点中站点、航点、目标或告警区即选中（点要素压在面要素之上，先命中点）
       const hits = map.queryRenderedFeatures(e.point, {
-        layers: ['cuav-site-dot', 'cuav-waypoint-dot', 'cuav-target-icon'],
+        layers: ['cuav-site-dot', 'cuav-waypoint-dot', 'cuav-target-icon', 'cuav-zone-fill'],
       })
       const f = hits[0]
       if (!f) { st.dispatch({ type: 'scene/select', selection: null }); return }
-      if (f.layer.id === 'cuav-site-dot') {
+      if (f.layer.id === 'cuav-zone-fill') {
+        st.dispatch({ type: 'scene/select', selection: { kind: 'zone', id: String(f.properties?.id) } })
+      } else if (f.layer.id === 'cuav-site-dot') {
         st.dispatch({ type: 'scene/select', selection: { kind: 'site', id: String(f.properties?.id) } })
       } else if (f.layer.id === 'cuav-waypoint-dot') {
         const em = currentEmitter()
@@ -237,8 +248,21 @@ export function SceneView({ active }: { active: boolean }) {
 
   const selEmitter = s.scene.editor.selection && 'id' in s.scene.editor.selection ? s.scene.editor.selection.id : null
   const selWp = s.scene.editor.selection?.kind === 'waypoint' ? s.scene.editor.selection.index : -1
+  const selTarget = s.scene.editor.selection?.kind === 'emitter' ? s.scene.editor.selection.id : null
   useScenarioLayers(situation ? mapRef.current : null, ready, s.scene.scenario.doc, selEmitter, selWp)
-  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc, fix)
+  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc, fix, selTarget)
+
+  // 告警区与高度立柱的显隐（D-061）
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setLayersVisible(map, ['cuav-zone-fill', 'cuav-zone-line'], zonesOn)
+  }, [zonesOn, ready])
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setLayersVisible(map, ['cuav-target-pole'], poles)
+  }, [poles, ready])
 
   useEffect(() => {
     const map = mapRef.current
@@ -296,6 +320,7 @@ export function SceneView({ active }: { active: boolean }) {
           <div ref={box} className="scene-map" />
           <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat}
                       situation={situation} onSituation={setSituation} fix={fix} onFix={setFix}
+                      zonesOn={zonesOn} onZones={setZonesOn} poles={poles} onPoles={setPoles}
                       onSave={() => void onSave()} saving={saving} />
         </div>
       }

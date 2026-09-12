@@ -15,6 +15,7 @@ function selLabel(sel: SceneSelection | null, measuring: boolean): string {
     case 'waypoint': return `${sel.id} · 航点 ${sel.index + 1}`
     case 'activity': return `活动 ${sel.index + 1}`
     case 'link': return `链路 ${sel.id}`
+    case 'zone': return `告警区 ${sel.id}`
   }
 }
 

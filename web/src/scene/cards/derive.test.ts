@@ -111,3 +111,15 @@ test('站点卡：链路数与最差测向档；探针形状逐项挑', () => {
     ['azimuth_deg', 'bearing_deg', 'df_quality', 'distance_m', 'path_loss_dB', 'rx_dBm', 'sigma_deg', 'site_id', 'snr_dB', 'source'])
   assert.deepEqual(probeSiteCards(sc)[0], { id: 'site-1', links: 3, worst_quality: 'DF-Q3', sync_state: 'locked' })
 })
+
+test('告警区判定进卡片：demo-03 的 z-east 圆心处在区内，限高之上不在，远处不在', () => {
+  const doc = demo03()
+  const sit: SituationLike = { entities: new Map(), links: new Map(), bearings: new Map(), positions: new Map() }
+  sit.entities.set('uav-2', { t_s: 70, id: 'uav-2', lon: 116.4105, lat: 39.99, alt_m: 90, heading_deg: 180, speed_mps: 12, tx_on: true, center_Hz: 2.44e9 })
+  sit.entities.set('uav-1', { t_s: 70, id: 'uav-1', lon: 116.4105, lat: 39.99, alt_m: 500, heading_deg: 0, speed_mps: 20, tx_on: true, center_Hz: 2.44e9 })
+  const cards = buildTargetCards(doc, sit)
+  assert.equal(cards.find((c) => c.id === 'uav-2')?.inZone, 'z-east')
+  assert.equal(cards.find((c) => c.id === 'uav-2')?.inZoneName, '东侧告警区')
+  assert.equal(cards.find((c) => c.id === 'uav-1')?.inZone, null, '限高 300 m 之上')
+  assert.equal(cards.find((c) => c.id === 'uav-3')?.inZone, null, '静止点在圈外')
+})

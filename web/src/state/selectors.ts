@@ -10,6 +10,7 @@ import type { AppState, CalibrationSource, ProductIndex, WsState } from './types
 import type { SignalViewState } from '../signal/viewStore.js'
 import { spectrumGeomOf } from '../signal/viewport.js'
 import type { probeCards, probeSiteCards } from '../scene/cards/derive.js'
+import { zones } from '../scene/editor/scenarioOps.js'
 
 export const SOURCE_LABEL: Record<CalibrationSource, string> = { measured: '实测', paper: '论文', assumed: '假定', model: '模型' }
 
@@ -178,6 +179,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       sites: sceneCount(s, 'sites'),
       emitters: sceneCount(s, 'emitters'),
       waypoints: waypointCount(s),
+      zones: zones(s.scene.scenario.doc).map((z) => ({ id: String(z.id), kind: String(z.kind), radius_m: Number(z.radius_m) })),
     },
     entities: x.entities,
     links: x.links,

@@ -18,6 +18,11 @@ export interface MapToolbarProps {
    *  没跑过带测向的任务时图上本来就是空的，开关仍在，关掉即整层不画 */
   fix: boolean
   onFix: (v: boolean) => void
+  /** 告警区与高度立柱（D-061） */
+  zonesOn: boolean
+  onZones: (v: boolean) => void
+  poles: boolean
+  onPoles: (v: boolean) => void
   onSituation: (on: boolean) => void
   onSave: () => void
   saving: boolean
@@ -29,6 +34,7 @@ const TOOLS: Array<{ id: SceneTool; label: string; hint: string }> = [
   { id: 'emitter', label: '布目标', hint: '点击地图放一个辐射源（复制第一个源的发射参数），放完回到选择' },
   { id: 'waypoint', label: '航点', hint: '先在左栏选中辐射源，然后连续点击添加航点；双击或 Esc 结束' },
   { id: 'measure', label: '测量', hint: '两点之间的距离与真北顺时针方位' },
+  { id: 'zone', label: '布告警区', hint: '点击地图放一个圆形告警区（缺省半径 500 m），半径、限高与类别在右栏改' },
 ]
 
 export function MapToolbar(p: MapToolbarProps) {
@@ -66,6 +72,8 @@ export function MapToolbar(p: MapToolbarProps) {
             <label><input type="checkbox" checked={p.hill} onChange={(e) => p.onHill(e.target.checked)} /> 山体阴影</label>
             <label><input type="checkbox" checked={p.situation} onChange={(e) => p.onSituation(e.target.checked)} /> 站点、航线、目标与链路</label>
             <label data-layer="fix"><input type="checkbox" checked={p.fix} onChange={(e) => p.onFix(e.target.checked)} /> 测向线与定位椭圆</label>
+            <label data-layer="zones"><input type="checkbox" checked={p.zonesOn} onChange={(e) => p.onZones(e.target.checked)} /> 告警区</label>
+            <label data-layer="poles"><input type="checkbox" checked={p.poles} onChange={(e) => p.onPoles(e.target.checked)} /> 高度立柱</label>
             {s.ui.devMode && (
               <label data-dev="color-by-src"><input type="checkbox" checked={p.bySrc} onChange={(e) => p.onBySrc(e.target.checked)} /> 按高度来源分色（DEV）</label>
             )}

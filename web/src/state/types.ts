@@ -201,7 +201,7 @@ export interface AppState {
 }
 
 /** 场景编辑器的工具（09 §5.2）。 */
-export type SceneTool = 'select' | 'site' | 'emitter' | 'waypoint' | 'measure'
+export type SceneTool = 'select' | 'site' | 'emitter' | 'waypoint' | 'measure' | 'zone'
 
 /** 选中的场景对象。链路是派生对象，不入场景文件（09 §5.1）。 */
 export type SceneSelection =
@@ -210,6 +210,7 @@ export type SceneSelection =
   | { kind: 'waypoint'; id: string; index: number }
   | { kind: 'activity'; index: number }
   | { kind: 'link'; id: string }
+  | { kind: 'zone'; id: string }
 
 export interface MeasurePoint { lon: number; lat: number }
 
