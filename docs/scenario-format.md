@@ -200,3 +200,4 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
 - [ ] P3 波形类型 `ofdm` / `fhss` 的字段
 - [ ] 波形类型 `template`（`template_id`；模板文件路径是内部参数，画布只见标识，与 D-037 同法；`docs/emitter-template.md` §7；D-045）
 - [ ] `emission.tx_power_dBm` 的来源字段 `tx_power_source ∈ {measured, paper, assumed}`：数据层记账随产物走，界面不显示（铁律 8、14；D-042；D-045）
+- [ ] 圆形告警区 `zones[]`（`{id, name, kind ∈ alert | warning, shape: circle, center{lon, lat}, radius_m, alt_max_m?}`，可选、可空；引擎收下不解释，与 `equipment_model` 同一先例；schema、本文 §2 表与新节、`engine/src/scenario_json.cpp` 键表三处必须同一提交，否则 `PUT` 一律 400。13 报告 §4.6，D-061；随 V-2 落地）

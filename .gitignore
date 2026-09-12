@@ -61,3 +61,6 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# 第三方参考素材（Aaronia AARTOS 截图与视频，D-061），只读、不入库
+ref/
