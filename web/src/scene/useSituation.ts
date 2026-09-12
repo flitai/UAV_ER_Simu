@@ -66,6 +66,7 @@ export function useScenarioLayers(
 /** 运行态与回看：目标、航迹、链路线。 */
 export function useLiveSituation(
   map: MLMap | null, ready: boolean, doc: ScenarioDoc | null, showFix = true, selectedEmitter: string | null = null,
+  focusEmitter: string | null = null, allOverlays = false,
 ): void {
   const s = useAppState()
   const taskId = s.task.id
@@ -77,6 +78,11 @@ export function useLiveSituation(
   fixRef.current = showFix
   const selRef = useRef(selectedEmitter)
   selRef.current = selectedEmitter
+  // 焦点目标与「全部目标叠加」（D-062）：焦点画全套，其余只画图标、航迹与细链路线
+  const focusRef = useRef(focusEmitter)
+  focusRef.current = focusEmitter
+  const allRef = useRef(allOverlays)
+  allRef.current = allOverlays
 
   // 换任务即清空实时数据：上一个任务的航迹不该留在图上。
   // **只挂 taskId**：挂上 map / ready 会在地图就绪那一刻把已经取回的航迹又清掉——
@@ -131,25 +137,34 @@ export function useLiveSituation(
     let fixShown = fixRef.current
     let selShown = selRef.current
     let docShown = docRef.current
+    let focusShown = focusRef.current
+    let allShown = allRef.current
     const timer = window.setInterval(() => {
-      // 数据、时间轴（回放时刻 / 模式）、图层开关、选中或场景文档（告警区）任一变了才重画
+      // 数据、时间轴（回放时刻 / 模式）、图层开关、选中、焦点或场景文档（告警区）任一变了才重画
       const now = situationRev()
-      if (now === rev && fixShown === fixRef.current && selShown === selRef.current && docShown === docRef.current) return
+      if (now === rev && fixShown === fixRef.current && selShown === selRef.current && docShown === docRef.current
+          && focusShown === focusRef.current && allShown === allRef.current) return
       rev = now
       fixShown = fixRef.current
       selShown = selRef.current
       docShown = docRef.current
+      focusShown = focusRef.current
+      allShown = allRef.current
+      const all = allRef.current
+      const focus = focusRef.current
       const d = docRef.current
       // live 取每键最新；回放按时间轴的 t 取历史快照；没历史时走航迹预览（13 §5.3）
       const st = currentSituation(d)
       // 入圈判定（D-061，13 §4.3）：纯几何，每 tick 对每个实体算一次；选中环跟着选中走
-      const targets = [] as Array<EntitySample & { alert: boolean; selected: boolean }>
-      st.entities.forEach((e) => targets.push({ ...e, alert: zoneOf(d, e.lon, e.lat, e.alt_m) !== null, selected: e.id === selRef.current }))
+      const targets = [] as Array<EntitySample & { alert: boolean; selected: boolean; focus: boolean }>
+      st.entities.forEach((e) => targets.push({
+        ...e, alert: zoneOf(d, e.lon, e.lat, e.alt_m) !== null, selected: e.id === selRef.current, focus: all || e.id === focus,
+      }))
       setTargets(map, targets)
-      setTrails(map, st.trails)
+      setTrails(map, st.trails, all ? null : focus)
 
       // 链路线：站点位置来自场景文件，目标位置来自实时状态
-      const lines: Array<{ link_id: string; from: [number, number]; to: [number, number]; line_of_sight: boolean; distance_m: number }> = []
+      const lines: Array<{ link_id: string; from: [number, number]; to: [number, number]; line_of_sight: boolean; distance_m: number; focus: boolean }> = []
       st.links.forEach((l) => {
         // 按已知的站与源精确匹配，不按连字符拆（D-061）
         const ids = splitLinkId(d, l.link_id)
@@ -163,6 +178,7 @@ export function useLiveSituation(
           to: [tgt.lon, tgt.lat],
           line_of_sight: l.line_of_sight,
           distance_m: l.distance_m,
+          focus: all || ids.emitter === focus,
         })
       })
       setLinks(map, lines)
@@ -178,7 +194,7 @@ export function useLiveSituation(
         st.bearings.forEach((b) => bs.push(b))
         const ps: PositionSample[] = []
         st.positions.forEach((q) => ps.push(q))
-        overlay.draw({ sites: sitePos, bearings: bs, positions: ps, dev: devMode() })
+        overlay.draw({ sites: sitePos, bearings: bs, positions: ps, dev: devMode(), focusId: all ? null : focus })
       } else if (overlay) {
         // 关掉图层要真的清空，不是留着上一帧
         overlay.draw({ sites: new Map(), bearings: [], positions: [], dev: false })

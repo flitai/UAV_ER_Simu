@@ -11,6 +11,7 @@ import type { SignalViewState } from '../signal/viewStore.js'
 import { spectrumGeomOf } from '../signal/viewport.js'
 import type { probeCards, probeSiteCards } from '../scene/cards/derive.js'
 import { zones } from '../scene/editor/scenarioOps.js'
+import { focusTargetId } from '../scene/focus.js'
 
 export const SOURCE_LABEL: Record<CalibrationSource, string> = { measured: '实测', paper: '论文', assumed: '假定', model: '模型' }
 
@@ -178,6 +179,8 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       dirty: s.scene.dirty,
       tool: s.scene.editor.tool,
       selection: s.scene.editor.selection,
+      /** 焦点目标（D-062）：右栏焦点卡与地图全套叠加都跟它 */
+      focus: focusTargetId(s),
       sites: sceneCount(s, 'sites'),
       emitters: sceneCount(s, 'emitters'),
       waypoints: waypointCount(s),

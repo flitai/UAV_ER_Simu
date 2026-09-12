@@ -1,16 +1,15 @@
-// 场景对象树（09 §5.1）：站点、辐射源、航线、活动四组来自场景文件；
-// **链路组是派生对象**（站点 × 辐射源），不入文件。点击即选中，右栏出属性或读数。
+// 场景对象树（09 §5.1；13 报告 §13，D-062 瘦身）：只列场景的一级对象——站点、辐射源、告警区，一行一个。
+// 航点与活动是辐射源的内部明细，折在它的表单里；链路是站点 × 辐射源的派生关系，地图与右栏在显示，不进树。
+// 点击即选中：表单出现在树下面，右栏的焦点卡跟着选中的辐射源走。
 
 import { useAppState, useStore } from '../state/store.js'
 import { loadScenarioInto } from '../shell/actions.js'
 import { fmtHz, fmtSeconds } from '../shell/format.js'
-import { activities, derivedLinks, emitters, sites, waypointsOf, zones } from './editor/scenarioOps.js'
+import { emitters, sites, zones } from './editor/scenarioOps.js'
 import type { SceneSelection } from '../state/types.js'
 
 function sameSel(a: SceneSelection | null, b: SceneSelection): boolean {
   if (!a || a.kind !== b.kind) return false
-  if (a.kind === 'activity' && b.kind === 'activity') return a.index === b.index
-  if (a.kind === 'waypoint' && b.kind === 'waypoint') return a.id === b.id && a.index === b.index
   return 'id' in a && 'id' in b && a.id === b.id
 }
 
@@ -46,8 +45,6 @@ export function ObjectTree({ onFlyTo }: { onFlyTo: (lon: number, lat: number) =>
   }
 
   const emList = emitters(doc)
-  const acts = activities(doc)
-  const links = derivedLinks(doc)
   const zoneList = zones(doc)
 
   return (
@@ -77,41 +74,14 @@ export function ObjectTree({ onFlyTo }: { onFlyTo: (lon: number, lat: number) =>
         const id = String(x.id)
         const em = x.emission as Record<string, unknown>
         const p = x.position as Record<string, number>
+        const active = sel && (sel.kind === 'emitter' || sel.kind === 'waypoint') && sel.id === id
         return (
-          <button key={id} className={'tree-row' + (sameSel(sel, { kind: 'emitter', id }) ? ' sel' : '')}
+          <button key={id} className={'tree-row' + (active ? ' sel' : '')}
                   data-tree-emitter={id} onClick={() => pick({ kind: 'emitter', id }, p.lon, p.lat)}>
             ✈ {String(x.name ?? id)} <span className="tree-dim">{fmtHz(Number(em?.center_Hz ?? 0))}</span>
           </button>
         )
       })}
-
-      <div className="tree-group">航线</div>
-      {emList.map((x) => {
-        const id = String(x.id)
-        const wps = waypointsOf(doc, id)
-        if (!wps.length) return null
-        return (
-          <div key={id}>
-            <div className="tree-sub">{String(x.name ?? id)} · {wps.length} 航点</div>
-            {wps.map((w, i) => (
-              <button key={i}
-                      className={'tree-row indent' + (sameSel(sel, { kind: 'waypoint', id, index: i }) ? ' sel' : '')}
-                      data-tree-waypoint={`${id}:${i}`}
-                      onClick={() => pick({ kind: 'waypoint', id, index: i }, w.position.lon, w.position.lat)}>
-              航点 {i + 1} <span className="tree-dim">{w.position.alt_m} m · {w.speed_mps} m/s</span>
-              </button>
-            ))}
-          </div>
-        )
-      })}
-
-      <div className="tree-group">活动 ({acts.length})</div>
-      {acts.map((a, i) => (
-        <button key={i} className={'tree-row' + (sameSel(sel, { kind: 'activity', index: i }) ? ' sel' : '')}
-                data-tree-activity={i} onClick={() => pick({ kind: 'activity', index: i })}>
-          {fmtSeconds(Number(a.t_s))} · {String(a.event)} <span className="tree-dim">{String(a.emitter_id)}</span>
-        </button>
-      ))}
 
       <div className="tree-group">告警区 ({zoneList.length})</div>
       {zoneList.map((z) => {
@@ -124,14 +94,6 @@ export function ObjectTree({ onFlyTo }: { onFlyTo: (lon: number, lat: number) =>
           </button>
         )
       })}
-
-      <div className="tree-group">链路 ({links.length}) <span className="tree-dim">派生</span></div>
-      {links.map((l) => (
-        <button key={l.id} className={'tree-row' + (sameSel(sel, { kind: 'link', id: l.id }) ? ' sel' : '')}
-                data-tree-link={l.id} onClick={() => pick({ kind: 'link', id: l.id })}>
-          {l.site} → {l.emitter}
-        </button>
-      ))}
     </div>
   )
 }

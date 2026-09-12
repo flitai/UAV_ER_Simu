@@ -209,7 +209,6 @@ export type SceneSelection =
   | { kind: 'emitter'; id: string }
   | { kind: 'waypoint'; id: string; index: number }
   | { kind: 'activity'; index: number }
-  | { kind: 'link'; id: string }
   | { kind: 'zone'; id: string }
 
 export interface MeasurePoint { lon: number; lat: number }

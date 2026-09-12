@@ -56,6 +56,8 @@ export interface TargetPoint {
   alert?: boolean
   /** 当前选中：画选中环 */
   selected?: boolean
+  /** 焦点目标（D-062）：标签带高度；非焦点只标识别号 */
+  focus?: boolean
 }
 
 export interface LinkLine {
@@ -64,6 +66,8 @@ export interface LinkLine {
   to: [number, number]
   line_of_sight: boolean
   distance_m: number
+  /** 焦点目标的链路（D-062）：3 px 带距离标注；其余 1 px 不标注 */
+  focus?: boolean
 }
 
 export interface ZoneCircle {
@@ -180,7 +184,9 @@ export function addSituationLayers(map: MLMap): void {
       layout: { 'line-cap': 'round' },
       paint: {
         'line-color': ['case', ['get', 'los'], SIT.linkLos, SIT.linkNlos],
-        'line-width': 3, 'line-opacity': 0.9,
+        // 焦点目标的链路 3 px，其余 1 px 淡画（D-062：地图分焦点与背景）
+        'line-width': ['case', ['==', ['get', 'focus'], true], 3, 1],
+        'line-opacity': ['case', ['==', ['get', 'focus'], true], 0.9, 0.55],
       },
     }, before)
   }
@@ -188,6 +194,7 @@ export function addSituationLayers(map: MLMap): void {
     // 距离标注（09 §5.2 早已规定「线旁标距离」）。只写数字与单位：随包字形只有拉丁字符（PM_FONT）
     map.addLayer({
       id: 'cuav-link-label', type: 'symbol', source: SRC.links,
+      filter: ['==', ['get', 'focus'], true],
       layout: {
         'symbol-placement': 'line-center', 'text-field': ['get', 'label'], 'text-font': PM_FONT,
         'text-size': 11, 'text-allow-overlap': false, 'text-ignore-placement': false,
@@ -206,7 +213,11 @@ export function addSituationLayers(map: MLMap): void {
     map.addLayer({
       id: 'cuav-trail-line', type: 'line', source: SRC.trails,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': SIT.trail, 'line-width': 2.4, 'line-opacity': 0.5 },
+      paint: {
+        'line-color': SIT.trail,
+        'line-width': ['case', ['==', ['get', 'focus'], true], 2.4, 1.2],
+        'line-opacity': ['case', ['==', ['get', 'focus'], true], 0.5, 0.3],
+      },
     }, before)
   }
   if (!map.getLayer('cuav-waypoint-dot')) {
@@ -336,8 +347,8 @@ export function setTargets(map: MLMap, targets: TargetPoint[]): void {
       type: 'Feature',
       properties: {
         id: t.id, heading: t.heading_deg, speed: t.speed_mps, alt_m: t.alt_m, tx_on: t.tx_on,
-        alert: t.alert === true, selected: t.selected === true,
-        label: `${t.id} · ${t.alt_m.toFixed(0)} m`,
+        alert: t.alert === true, selected: t.selected === true, focus: t.focus !== false,
+        label: t.focus === false ? t.id : `${t.id} · ${t.alt_m.toFixed(0)} m`,
       },
       geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
     })),
@@ -352,11 +363,12 @@ export function setTargets(map: MLMap, targets: TargetPoint[]): void {
   })
 }
 
-export function setTrails(map: MLMap, trails: Map<string, Array<[number, number]>>): void {
+/** 航迹。`focusId` 给定时只有它的航迹按焦点画（粗），其余细而淡；null = 全部按焦点画。 */
+export function setTrails(map: MLMap, trails: Map<string, Array<[number, number]>>, focusId: string | null = null): void {
   const features: unknown[] = []
   trails.forEach((pts, id) => {
     if (pts.length >= 2) {
-      features.push({ type: 'Feature', properties: { id }, geometry: { type: 'LineString', coordinates: pts } })
+      features.push({ type: 'Feature', properties: { id, focus: focusId === null || id === focusId }, geometry: { type: 'LineString', coordinates: pts } })
     }
   })
   setData(map, SRC.trails, { type: 'FeatureCollection', features })
@@ -371,7 +383,7 @@ export function setLinks(map: MLMap, links: LinkLine[]): void {
     type: 'FeatureCollection',
     features: links.map((l) => ({
       type: 'Feature',
-      properties: { link_id: l.link_id, los: l.line_of_sight, distance_m: l.distance_m, label: distanceLabel(l.distance_m) },
+      properties: { link_id: l.link_id, los: l.line_of_sight, distance_m: l.distance_m, label: distanceLabel(l.distance_m), focus: l.focus !== false },
       geometry: { type: 'LineString', coordinates: [l.from, l.to] },
     })),
   })

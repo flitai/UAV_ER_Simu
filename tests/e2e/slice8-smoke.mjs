@@ -1,7 +1,9 @@
 // 切片 ⑧「一屏讲清楚」的端到端验收（06 备忘录 §9E、§9J；设计见 13 报告 §11；决策 D-061）。
 //
+// D-062（场景页信息分层，13 报告 §13）：左栏 = 配置（对象树 7 行 + 选中对象的表单），右栏 = 观察（焦点卡一张 +
+//   目标列表 + 站点行）；地图只给焦点目标画全套叠加；编辑工具收在「编辑场景」后面。本文件的 DOM 断言按此改写。
 // V-1（本文件首版）：
-//   ① 场景页右栏不点选就有目标列表与三张目标卡、三张站点卡；
+//   ① 场景页右栏不点选就有焦点卡（第一个目标）、目标列表与三行站点；
 //   ② 卡上每站一行的距离 / 方位 / 路损与 links 端点里该链路的最后一行逐值相等，接收电平等于
 //      发射功率 + 两端天线增益 − 路损、信噪比等于电平 − (−174 + nf + 10·log10 fs)（13 §3.2）；
 //   ③ 测向行与 bearings 端点的最后一行相等，定位行与 positions 端点相等；
@@ -124,21 +126,27 @@ try {
   check('探针里三张目标卡、每张三站行且都来自链路帧', st.app.cards.length === 3 && st.app.cards.every((c) => c.sites.length === 3))
   check('三张站点卡', (st.app.siteCards ?? []).length === 3, JSON.stringify(st.app.siteCards))
   const dom = await evalJson(page, `({
-    stack: document.querySelectorAll('[data-card-stack]').length,
+    panel: document.querySelectorAll('[data-situation]').length,
+    focus: document.querySelector('[data-focus-card]')?.dataset.focusCard ?? null,
     rows: document.querySelectorAll('[data-target-row]').length,
-    cards: document.querySelectorAll('[data-card]').length,
-    open: document.querySelectorAll('[data-card-open]').length,
-    siteRows: document.querySelectorAll('[data-card-open] [data-card-site]').length,
-    dials: document.querySelectorAll('[data-card-open] svg.dial').length,
-    fixes: document.querySelectorAll('[data-card-open] [data-card-fix]').length,
+    siteRows: document.querySelectorAll('[data-focus-card] [data-card-site]').length,
+    fixes: document.querySelectorAll('[data-focus-card] [data-card-fix]').length,
+    identityOpen: document.querySelector('[data-focus-identity]')?.open ?? null,
     siteCards: document.querySelectorAll('[data-site-card]').length,
     selBar: document.querySelectorAll('[data-selection-bar]').length,
     placeholder: /在左栏或地图上选一个对象/.test(document.body.textContent),
+    leftForms: document.querySelector('[data-scene-tree]')?.closest('.col-body')?.querySelectorAll('[data-form]').length ?? -1,
+    treeRows: document.querySelectorAll('[data-scene-tree] .tree-row').length,
+    pkgOpen: document.querySelector('[data-scene-package]')?.open ?? null,
+    topbarTime: document.querySelectorAll('.run-time').length,
+    tools: Array.from(document.querySelectorAll('[data-tool]')).map((b) => b.dataset.tool),
   })`)
-  check('右栏不点选即有目标列表 3 行、3 张卡（1 张展开）、站点卡 3 张，没有空态提示',
-    dom.stack === 1 && dom.rows === 3 && dom.cards === 3 && dom.open === 1 && dom.siteCards === 3 && dom.selBar === 0 && !dom.placeholder,
+  check('右栏不点选即有焦点卡（第一个目标 uav-1）、目标列表 3 行、站点 3 行；没有表单、没有空态提示（D-062）',
+    dom.panel === 1 && dom.focus === 'uav-1' && dom.rows === 3 && dom.siteCards === 3 && dom.selBar === 0 && !dom.placeholder && dom.leftForms === 0 && st.app.scene.focus === 'uav-1',
     JSON.stringify(dom))
-  check('展开的卡里每站一行、每行一个方位盘、有定位块', dom.siteRows === 3 && dom.dials === 3 && dom.fixes >= 1, JSON.stringify(dom))
+  check('焦点卡里每站一行、有定位行、身份默认折叠；左栏对象树只有 7 行（3 站 + 3 源 + 1 区），数据包折叠；顶栏无时间读数；工具条只露「测量」',
+    dom.siteRows === 3 && dom.fixes >= 1 && dom.identityOpen === false && dom.treeRows === 7 && dom.pkgOpen === false && dom.topbarTime === 0 && JSON.stringify(dom.tools) === '["measure"]',
+    JSON.stringify(dom))
 
   // ---------- ③ 卡上的数 = 端点行 ----------
   trace('进入 ③ 卡上的数 = 端点行')
@@ -207,11 +215,11 @@ try {
   const inZone = Object.fromEntries(st.app.cards.map((c) => [c.id, c.inZone]))
   check('70 s 末尾只有 uav-2 在 z-east 圈内（几何判定）', inZone['uav-2'] === 'z-east' && inZone['uav-1'] === null && inZone['uav-3'] === null, JSON.stringify(inZone))
   const zoneDom = await evalJson(page, `({
-    cardBadge: document.querySelector('[data-card="uav-2"] [data-card-zone]')?.dataset.cardZone ?? null,
     rowBadge: document.querySelector('[data-target-row="uav-2"] [data-row-zone]')?.dataset.rowZone ?? null,
-    others: document.querySelectorAll('[data-card="uav-1"] [data-card-zone], [data-card="uav-3"] [data-card-zone]').length,
+    others: document.querySelectorAll('[data-target-row="uav-1"] [data-row-zone], [data-target-row="uav-3"] [data-row-zone]').length,
+    focusBadge: document.querySelectorAll('[data-focus-card="uav-1"] [data-card-zone]').length,
   })`)
-  check('入圈目标的卡片与列表行带「告警区」徽标，其余没有', zoneDom.cardBadge === 'z-east' && zoneDom.rowBadge === 'z-east' && zoneDom.others === 0, JSON.stringify(zoneDom))
+  check('入圈目标的列表行带「告警区」徽标，其余行没有，焦点卡（uav-1）也没有', zoneDom.rowBadge === 'z-east' && zoneDom.others === 0 && zoneDom.focusBadge === 0, JSON.stringify(zoneDom))
   const iconFeat = await page.evaluateAsync(`new Promise((r) => setTimeout(() => r(window.__map ? window.__map.queryRenderedFeatures({layers:['cuav-target-icon']}).map((f) => [f.properties.id, f.properties.alert]) : []), 200))`)
   const alertMap = Object.fromEntries(iconFeat)
   check('入圈目标的图标换红环变体（alert 属性），其余不换', alertMap['uav-2'] === true && alertMap['uav-1'] === false && alertMap['uav-3'] === false
@@ -244,8 +252,8 @@ try {
   await page.evaluate("(document.body.click(), true)")
   trace('点了 ' + 'await page.evaluate("(document.body.click(), true)')
 
-  // ---------- ④ 选中：点行 → 表单叠在栈顶 → 返回卡片 ----------
-  trace('进入 ④ 选中：点行 → 表单叠在栈顶 → 返回卡片')
+  // ---------- ④ 选中：点行 → 焦点卡换人、表单出现在左栏、地图只给它画全套 → 取消选择 ----------
+  trace('进入 ④ 选中：点行 → 焦点卡换人、表单出现在左栏 → 取消选择')
   await page.evaluate("(document.querySelector('[data-target-row=\"uav-2\"]').click(), true)")
   trace('点了 ' + 'await page.evaluate("(document.querySelector(\'[dat')
   const selKind = await waitDom(page, "document.querySelectorAll('[data-selection-bar]').length", 1)
@@ -253,21 +261,32 @@ try {
   trace('过了 选中辐射源')
   const formDom = await evalJson(page, `({
     form: document.querySelectorAll('[data-form=emitter]').length,
-    stack: document.querySelectorAll('[data-card-stack]').length,
-    open: Array.from(document.querySelectorAll('[data-card-open]')).map((e) => e.dataset.card),
+    formInLeft: !!document.querySelector('[data-scene-tree]')?.closest('.col-body')?.querySelector('[data-form=emitter]'),
+    focus: document.querySelector('[data-focus-card]')?.dataset.focusCard ?? null,
+    focusBadge: document.querySelector('[data-focus-card] [data-card-zone]')?.dataset.cardZone ?? null,
     selRow: document.querySelector('[data-target-row].sel')?.dataset.targetRow ?? null,
+    routeOpen: document.querySelector('[data-form-route]')?.open ?? null,
+    waypointRows: document.querySelectorAll('[data-form-route] [data-tree-waypoint]').length,
+    actsOpen: document.querySelector('[data-form-activities]')?.open ?? null,
   })`)
-  check('点目标行即选中该辐射源，表单叠在卡片栈之上，栈仍在，展开的卡跟着选中走',
-    selKind === 1 && st.app.scene.selection.id === 'uav-2' && formDom.form === 1 && formDom.stack === 1
-    && formDom.open.length === 1 && formDom.open[0] === 'uav-2' && formDom.selRow === 'uav-2', JSON.stringify(formDom))
+  check('点目标行即选中该辐射源：表单出现在左栏、焦点卡换成它并带告警区徽标、列表行高亮；表单里航线（7 航点）与活动默认收起',
+    selKind === 1 && st.app.scene.selection.id === 'uav-2' && st.app.scene.focus === 'uav-2' && formDom.form === 1 && formDom.formInLeft
+    && formDom.focus === 'uav-2' && formDom.focusBadge === 'z-east' && formDom.selRow === 'uav-2'
+    && formDom.routeOpen === false && formDom.waypointRows === 7 && formDom.actsOpen === false, JSON.stringify(formDom))
   const ring = await rendered('cuav-target-ring')
   check('选中的目标在图上有选中环', ring >= 1, `${ring} 个要素`)
+  const labelFeat = await page.evaluateAsync(`new Promise((r) => setTimeout(() => r(window.__map ? window.__map.queryRenderedFeatures({layers:['cuav-link-label']}).map((f) => f.properties.link_id) : []), 400))`)
+  check('地图只给焦点目标标距离：渲染出的距离标注全属于 uav-2', labelFeat.length >= 1 && labelFeat.every((id) => id.endsWith('-uav-2')), JSON.stringify(labelFeat))
+  const lineFeat = await page.evaluateAsync(`new Promise((r) => setTimeout(() => r(window.__map ? window.__map.queryRenderedFeatures({layers:['cuav-link-line']}).map((f) => [f.properties.link_id, f.properties.focus]) : []), 200))`)
+  check('链路线：焦点目标的三条按焦点画，其余按背景画（D-062）',
+    lineFeat.some(([, f]) => f) && lineFeat.filter(([, f]) => f).every(([id]) => id.endsWith('-uav-2')) && lineFeat.some(([, f]) => !f), JSON.stringify(lineFeat))
   await page.evaluate("(document.querySelector('[data-action=clear-selection]').click(), true)")
   trace('点了 ' + 'await page.evaluate("(document.querySelector(\'[dat')
   st = await page.waitFor((s) => s.app?.scene?.selection === null, { label: '取消选中' })
   trace('过了 取消选中')
   const barGone = await waitDom(page, "document.querySelectorAll('[data-selection-bar]').length", 0)
-  check('「返回卡片」清掉选中，表单收起', barGone === 0 && st.app.scene.selection === null)
+  const focusBack = await waitDom(page, "document.querySelector('[data-focus-card]')?.dataset.focusCard ?? null", 'uav-1')
+  check('「取消选择」清掉选中，表单收起，焦点回到第一个目标', barGone === 0 && st.app.scene.selection === null && focusBack === 'uav-1' && st.app.scene.focus === 'uav-1')
 
   // ---------- ⑤ 刷新：场景跟着最近任务；链路线画在图上 ----------
   trace('进入 ⑤ 刷新：场景跟着最近任务；链路线画在图上')

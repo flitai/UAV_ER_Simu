@@ -1,16 +1,15 @@
-// 右栏：对象表单（09 §5.3）与链路读数（09 §5.4）。
+// 对象表单（09 §5.3）。自 D-062 起在左栏（配置归左、观测归右）：链路读数、测向与定位不再出现在表单里，
+// 它们在右栏的焦点卡上；航点与活动折在辐射源表单里（默认收起）。
 //
 // 数值一律工程计数法显示与输入：`2.44 GHz`、`20 MHz`、`30 m`、`12 m/s`，输入接受 SI 前缀，
 // 底层存 SI 基本单位。范围校验只做提示，规则的真正解释在引擎（D-042）——
 // 前端复刻一份 schema 迟早会与引擎分叉。
 
-import { useSyncExternalStore } from 'react'
 import { useAppState, useStore } from '../state/store.js'
-import { fmtDeg, fmtDelay, fmtHz, fmtMeters, parseSi } from '../shell/format.js'
-import { sceneStore, type PositionSample } from './sceneStore.js'
+import { fmtDeg, fmtMeters, parseSi } from '../shell/format.js'
 import {
-  activities, addActivity, emitters, insertWaypoint, posOf, removeActivity, removeEmitter,
-  removeWaypoint, removeZone, routeOf, setPath, sites, splitLinkId, waypointsOf, zones, type Obj,
+  activities, addActivity, emitters, insertWaypoint, removeActivity, removeEmitter,
+  removeWaypoint, removeZone, routeOf, setPath, sites, waypointsOf, zones, type Obj,
 } from './editor/scenarioOps.js'
 import { lookAngles, RoutePreview, type Waypoint } from './editor/preview.js'
 import {
@@ -158,8 +157,6 @@ export function ObjectPanel() {
   if (!doc) return <div className="group placeholder">载入场景后在这里编辑对象</div>
   if (!sel) return <div className="group placeholder">在左栏或地图上选一个对象</div>
 
-  if (sel.kind === 'link') return <LinkReadout linkId={sel.id} doc={doc} />
-
   if (sel.kind === 'site') {
     const i = sites(doc).findIndex((x) => x.id === sel.id)
     const site = sites(doc)[i]
@@ -188,9 +185,8 @@ export function ObjectPanel() {
         <Row label="机型"><span>{String(em.platform_type)}</span></Row>
         <div className="form-sub">设备参数（波形 {String(w.type)}）</div>
         <DeviceFieldGroup kind="emitter" index={i} entity={em} onCommit={commit} />
-        <ActivityEditor doc={doc} emitterId={String(em.id)} />
-        <EmitterLinks doc={doc} emitterId={String(em.id)} />
-        <EmitterFixes emitterId={String(em.id)} />
+        <RouteSection doc={doc} emitterId={String(em.id)} />
+        <ActivitySection doc={doc} emitterId={String(em.id)} />
         <button className="btn danger" data-action="remove-emitter"
           onClick={() => {
             store.dispatch({ type: 'scene/edit', doc: removeEmitter(doc, String(em.id)) })
@@ -247,6 +243,7 @@ export function ObjectPanel() {
         <Row label="辐射源">{String(a.emitter_id)}</Row>
         <NumField label="时刻" value={Number(a.t_s)} unit="s" path={`activities.${sel.index}.t_s`} onCommit={commit} />
         <div className="form-actions">
+          <button data-act="back-emitter" onClick={() => store.dispatch({ type: 'scene/select', selection: { kind: 'emitter', id: String(a.emitter_id) } })}>返回辐射源</button>
           <button data-act="remove-activity" onClick={() => {
             edit(removeActivity(doc, sel.index))
             store.dispatch({ type: 'scene/select', selection: null })
@@ -276,6 +273,7 @@ export function ObjectPanel() {
       <NumField label="速度" value={w.speed_mps} unit="m/s" path={`${base}.speed_mps`} onCommit={commit} />
       <NumField label="悬停" value={w.loiter_s ?? 0} unit="s" path={`${base}.loiter_s`} onCommit={commit} />
       <div className="form-actions">
+        <button data-act="back-emitter" onClick={() => store.dispatch({ type: 'scene/select', selection: { kind: 'emitter', id: emId } })}>返回辐射源</button>
         <button data-act="insert-wp" onClick={() => edit(insertWaypoint(doc, emId, sel.index))}>插入航点</button>
         <button data-act="remove-wp" disabled={wps.length <= 1}
                 onClick={() => { edit(removeWaypoint(doc, emId, sel.index)); store.dispatch({ type: 'scene/select', selection: null }) }}>
@@ -296,96 +294,38 @@ function RouteSummary({ wps }: { wps: Waypoint[] }) {
   )
 }
 
-/**
- * 这个辐射源对每个站的链路读数（D-053 §5.3）。多站之后「链路」有 K 条，
- * 挨个列出来比让用户去对象树里逐条点开省事；数值来自 `derivedLinks()` 已经算好的那一份。
- */
-function EmitterLinks({ doc, emitterId }: { doc: ScenarioDoc; emitterId: string }) {
-  const list = sites(doc)
-  if (list.length === 0) return null
-  const ep = posOf(emitters(doc).find((x) => x.id === emitterId))
-  if (!ep) return null
+/** 辐射源的航线（D-062）：默认收起的一行「航线 · N 航点」，展开后一行一航点，点了即选中该航点（表单换成航点表单）。 */
+function RouteSection({ doc, emitterId }: { doc: ScenarioDoc; emitterId: string }) {
+  const store = useStore()
+  const wps = waypointsOf(doc, emitterId)
+  const dur = wps.length ? new RoutePreview(wps, false).durationS : 0
   return (
-    <div data-form-links={emitterId}>
-      <div className="form-sub">链路（{list.length} 个站）</div>
-      {list.map((st) => {
-        const sp = posOf(st)
-        if (!sp) return null
-        const g = lookAngles(sp, ep)
-        return (
-          <Row key={String(st.id)} label={String(st.name ?? st.id)}>
-            <span>{(g.distance_m / 1000).toFixed(2)} km · {g.azimuth_deg.toFixed(1)}° · {g.elevation_deg.toFixed(1)}°</span>
-          </Row>
-        )
-      })}
-    </div>
+    <details className="form-details" data-form-route={emitterId}>
+      <summary>航线 · {wps.length} 航点{wps.length ? <span className="tree-dim"> · 全程 {dur.toFixed(0)} s</span> : null}</summary>
+      {wps.map((w, i) => (
+        <button key={i} type="button" className="tree-row indent" data-tree-waypoint={`${emitterId}:${i}`}
+                onClick={() => store.dispatch({ type: 'scene/select', selection: { kind: 'waypoint', id: emitterId, index: i } })}>
+          航点 {i + 1} <span className="tree-dim">{w.position.alt_m} m · {w.speed_mps} m/s</span>
+        </button>
+      ))}
+      {!wps.length && <div className="form-note">用工具条「编辑场景 › 航点」在地图上连续点击添加</div>}
+    </details>
   )
 }
 
-/**
- * 这个辐射源的测向与定位读数（D-053 §5.6）。数据来自 sceneStore（实时 WS 或结束后的文件回放），
- * 没跑过任务时整块不出现——空表格比不显示更让人以为「跑了但没结果」。
- */
-function EmitterFixes({ emitterId }: { emitterId: string }) {
-  const st = useSyncExternalStore(sceneStore.subscribe, sceneStore.get, sceneStore.get)
-  const bs: Array<{ site: string; deg: number; sigma: number; q: string; state: string; mix: boolean }> = []
-  st.bearings.forEach((b) => {
-    if (b.emitter_id === emitterId) {
-      bs.push({ site: b.site_id, deg: b.bearing_deg, sigma: b.bearing_std_deg,
-                q: b.df_quality, state: b.df_result_state, mix: b.mixture })
-    }
-  })
-  bs.sort((a, b) => (a.site < b.site ? -1 : 1))
-  const ps: Array<{ key: string; p: PositionSample }> = []
-  st.positions.forEach((p, k) => { if (p.emitter_id === emitterId) ps.push({ key: k, p }) })
-  ps.sort((a, b) => (a.key < b.key ? -1 : 1))
-  if (!bs.length && !ps.length) return null
-  return (
-    <div data-form-fixes={emitterId}>
-      {bs.length > 0 && <div className="form-sub">测向</div>}
-      {bs.map((b) => (
-        <Row key={b.site} label={b.site}>
-          <span className={b.state === 'valid' ? '' : 'muted'}>
-            {b.state === 'invalid'
-              ? '本时刻无有效量测'
-              : `${b.deg.toFixed(1)}° · σ ${b.sigma.toFixed(2)}° · ${b.q}${b.mix ? ' · 同频混叠' : ''}`}
-          </span>
-        </Row>
-      ))}
-      {ps.length > 0 && <div className="form-sub">定位</div>}
-      {ps.map(({ key, p }) => (
-        <div key={key}>
-          <Row label={p.method}>
-            <span>{p.lat.toFixed(5)}, {p.lon.toFixed(5)}</span>
-          </Row>
-          <Row label="CEP / GDOP">
-            <span>{p.cep_m.toFixed(0)} m · {p.gdop.toFixed(2)} · {p.geometry_quality}
-              {p.time_quality ? ` · ${p.time_quality}` : ''}</span>
-          </Row>
-          <Row label="最小交会角">
-            <span className={p.min_crossing_angle_deg < 15 ? 'muted' : ''}>
-              {p.min_crossing_angle_deg.toFixed(1)}°{p.min_crossing_angle_deg < 15 ? '（交汇偏平，椭圆偏乐观）' : ''}
-            </span>
-          </Row>
-          <Row label="参与站">
-            <span>{p.participating_sites.join('、') || '—'}</span>
-          </Row>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ActivityEditor({ doc, emitterId }: { doc: ScenarioDoc; emitterId: string }) {
+/** 辐射源的活动时间线（D-062）：默认收起；一行一活动，点时刻即选中（可改时刻），「删」直接删；底部按钮追加。 */
+function ActivitySection({ doc, emitterId }: { doc: ScenarioDoc; emitterId: string }) {
   const store = useStore()
   const acts = activities(doc).map((a, i) => ({ a, i })).filter((x) => x.a.emitter_id === emitterId)
   return (
-    <>
-      <div className="form-sub">活动时间线</div>
+    <details className="form-details" data-form-activities={emitterId}>
+      <summary>活动 · {acts.length}</summary>
       {acts.map(({ a, i }) => (
         <div className="form-row" key={i}>
-          <span className="form-label mono">{Number(a.t_s).toFixed(1)} s</span>
-          <span className="form-value">{String(a.event)}</span>
+          <button type="button" className="tree-row indent" data-tree-activity={i}
+                  onClick={() => store.dispatch({ type: 'scene/select', selection: { kind: 'activity', index: i } })}>
+            <span className="mono">{Number(a.t_s).toFixed(1)} s</span> · {String(a.event)}
+          </button>
           <button className="mini" data-act="remove-activity"
                   onClick={() => store.dispatch({ type: 'scene/edit', doc: removeActivity(doc, i) })}>删</button>
         </div>
@@ -398,61 +338,7 @@ function ActivityEditor({ doc, emitterId }: { doc: ScenarioDoc; emitterId: strin
           </button>
         ))}
       </div>
-    </>
-  )
-}
-
-/**
- * 链路读数（09 §5.4）。运行时来自引擎的参数帧（WS link 事件 / links.jsonl）；
- * 未运行时只给浏览器能算的几何量，路损、时延、多普勒一律写「运行后由引擎给出」——
- * 前端不做物理（docs/scenario-format.md §1）。
- */
-function LinkReadout({ linkId, doc }: { linkId: string; doc: ScenarioDoc }) {
-  const st = useSyncExternalStore(sceneStore.subscribe, sceneStore.get, sceneStore.get)
-  const live = st.links.get(linkId)
-  // 按已知的站与源精确匹配，不按连字符拆（D-061）；对不上就只显示活值，几何回退空着
-  const ids = splitLinkId(doc, linkId)
-  const siteId = ids?.site ?? linkId
-  const emId = ids?.emitter ?? ''
-  const sp = posOf(sites(doc).find((x) => x.id === siteId))
-  const target = st.entities.get(emId)
-  const ep = target ? { lon: target.lon, lat: target.lat, alt_m: target.alt_m } : posOf(emitters(doc).find((x) => x.id === emId))
-  const geo = sp && ep ? lookAngles(sp, ep) : null
-
-  return (
-    <div className="group" data-form="link">
-      <div className="group-title">链路 {siteId} → {emId}</div>
-      <Row label="状态">
-        {live
-          ? <span className={live.line_of_sight ? 'badge-los' : 'badge-nlos'}>
-              ● {live.line_of_sight ? '视距' : '非视距'} <span className="tree-dim">平地假设</span>
-            </span>
-          : <span className="tree-dim">未运行</span>}
-      </Row>
-      <Row label="距离">{fmtMeters(live ? live.distance_m : geo?.distance_m)}</Row>
-      <Row label="方位">{fmtDeg(live ? live.azimuth_deg : geo?.azimuth_deg)}</Row>
-      <Row label="俯仰">{fmtDeg(live ? live.elevation_deg : geo?.elevation_deg)}</Row>
-      <Row label="路损">
-        {live ? <>{live.path_loss_dB.toFixed(2)} dB <span className="tree-dim">自由空间</span></> : <span className="tree-dim">运行后由引擎给出</span>}
-      </Row>
-      <Row label="时延">{live ? fmtDelay(live.delay_s) : <span className="tree-dim">运行后由引擎给出</span>}</Row>
-      <Row label="多普勒">{live ? `${live.doppler_Hz >= 0 ? '+' : '−'}${Math.abs(live.doppler_Hz).toFixed(1)} Hz` : <span className="tree-dim">运行后由引擎给出</span>}</Row>
-      {live ? (
-        <>
-          <Row label="帧"><span className="mono">{live.valid_from_s.toFixed(3)}–{live.valid_to_s.toFixed(3)} s</span></Row>
-          <Row label="更新率">{live.update_rate_Hz.toFixed(0)} Hz <span className={live.state === 'valid' ? 'badge-los' : 'badge-nlos'}>● {live.state}</span></Row>
-        </>
-      ) : null}
-      {target ? (
-        <>
-          <div className="form-sub">目标</div>
-          <Row label="高度">{fmtMeters(target.alt_m)}</Row>
-          <Row label="航向">{fmtDeg(target.heading_deg)}</Row>
-          <Row label="速度">{target.speed_mps.toFixed(1)} m/s</Row>
-          <Row label="发射">{target.tx_on ? '开' : '关'} · {fmtHz(target.center_Hz)}</Row>
-        </>
-      ) : null}
-    </div>
+    </details>
   )
 }
 

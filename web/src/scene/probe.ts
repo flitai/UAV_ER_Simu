@@ -44,7 +44,11 @@ function ensureWindowProbe(): void {
     let state: ProbeState | null = null
     if (map) {
       // 地图正在拆除或样式尚未装上时 MapLibre 的查询会抛；探针不能抛，退回「未就绪」
-      try { state = mapState(map) } catch (e) { if (reg.errors.length < 20) reg.errors.push(`probe: ${String(e)}`) }
+      try { state = mapState(map) } catch (e) {
+        // 记前几帧调用栈而不只是消息：一句 TypeError 查不出是哪一层查询抛的
+        const stack = e instanceof Error && e.stack ? e.stack.split('\n').slice(0, 4).join(' | ') : String(e)
+        if (reg.errors.length < 20) reg.errors.push(`probe: ${stack}`)
+      }
     }
     const base: ProbeState = state ?? {
       ready: false, loaded: false, tilesLoaded: false, center: [0, 0], zoom: 0, pitch: 0, bearing: 0,
@@ -56,6 +60,15 @@ function ensureWindowProbe(): void {
   }
 }
 
+/**
+ * `areTilesLoaded()` 在 MapLibre 内部重建某个数据源的瓦片表的一瞬会抛
+ * （`Object.values(sourceCache._tiles)` 碰到 undefined）。那是它自己的过渡态，不是地图错误：
+ * 这一拍按「未加载完」报，不记进 errors，否则轮询探针的端到端会随机红。
+ */
+function tilesLoaded(map: MLMap): boolean {
+  try { return map.areTilesLoaded() } catch { return false }
+}
+
 function mapState(map: MLMap): ProbeState {
   const c = map.getCenter()
   const st = map.getStyle()
@@ -63,7 +76,7 @@ function mapState(map: MLMap): ProbeState {
   return {
     ready: true,
     loaded: map.loaded(),
-    tilesLoaded: map.areTilesLoaded(),
+    tilesLoaded: tilesLoaded(map),
     center: [+c.lng.toFixed(6), +c.lat.toFixed(6)],
     zoom: +map.getZoom().toFixed(3),
     pitch: map.getPitch(),

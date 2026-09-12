@@ -25,6 +25,8 @@ export interface FixOverlayInput {
   positions: PositionSample[]
   /** 开发者模式下才画标签（D-039：界面不主动解释） */
   dev: boolean
+  /** 焦点目标（D-062）：给定时只画它的测向色带与椭圆，其余目标只画定位中心点；null / 缺席 = 全部画 */
+  focusId?: string | null
 }
 
 interface Handle {
@@ -103,6 +105,7 @@ export function attachFixOverlay(map: MlMap): Handle | null {
     // ---------------- 测向线与 ±2σ 楔形
     for (const b of input.bearings) {
       if (b.use_policy === 'exclude') continue          // 被剔除的量测不画：画了会让人以为它参与了解算
+      if (input.focusId && b.emitter_id !== input.focusId) continue   // 非焦点目标不画色带（D-062）
       const s = input.sites.get(b.site_id)
       if (!s) continue
       const fix = fixOf.get(b.emitter_id)
@@ -153,6 +156,18 @@ export function attachFixOverlay(map: MlMap): Handle | null {
       if (p.state === 'invalid') continue
       const c = map.project([p.lon, p.lat])
       const color = methodColor(p.method)
+      const isFocus = !input.focusId || p.emitter_id === input.focusId
+      if (!isFocus) {
+        // 非焦点目标只画定位中心点（D-062）：知道它在哪，不铺椭圆
+        g.beginPath()
+        g.arc(c.x, c.y, 3, 0, Math.PI * 2)
+        g.strokeStyle = SIT.halo
+        g.lineWidth = 1.5
+        g.stroke()
+        g.fillStyle = alpha(color, 0.8)
+        g.fill()
+        continue
+      }
       // 半轴长度换算成像素：沿正东与正北各取一点，量出每米多少像素
       const east = map.project(advance(p.lon, p.lat, 90, Math.max(p.semi_major_m, 1)))
       const north = map.project(advance(p.lon, p.lat, 0, Math.max(p.semi_major_m, 1)))

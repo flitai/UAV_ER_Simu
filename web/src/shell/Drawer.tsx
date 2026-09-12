@@ -1,9 +1,10 @@
-// 底部抽屉（09 §8）：收起 28 px / 展开 240 px；页签 日志 / 告警 / 数据流 / 资源，切片 ① 只有日志真做。
+// 底部抽屉（09 §8）：收起 28 px / 展开 240 px；页签 日志 / 告警 / 数据流 / 资源。资源页签自 D-062 起放数据包明细。
 
 import { useCallback, useRef } from 'react'
 import { useAppState, useDispatch } from '../state/store.js'
 import { LogPanel } from './LogPanel.js'
 import { StatusBar } from './StatusBar.js'
+import { ScenePackageDetails } from '../scene/ScenePackagePanel.js'
 import { MIN_DRAWER } from './layout.js'
 import type { DrawerTab } from '../state/types.js'
 
@@ -54,7 +55,13 @@ export function Drawer() {
             </div>
           )}
           {s.ui.drawer.tab === 'flow' && <div className="muted empty">数据流（切片 ② 启用）</div>}
-          {s.ui.drawer.tab === 'resources' && <div className="muted empty">资源（切片 ② 启用）</div>}
+          {s.ui.drawer.tab === 'resources' && (
+            <div className="resources" data-drawer-resources>
+              {s.scene.summary
+                ? <><div className="res-title">数据包 {s.scene.summary.name}</div><ScenePackageDetails scene={s.scene.summary} dev={s.ui.devMode} /></>
+                : <div className="muted empty">数据包未载入</div>}
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -101,12 +101,20 @@ try {
   }
   check('站点与航点画在图上', rendered >= 4, `${rendered} 个要素`)
   const treeText = await page.evaluate("document.querySelector('[data-scene-tree]')?.textContent ?? ''")
-  check('对象树列出站点、辐射源、航线与派生链路', /站点 \(1\)/.test(treeText) && /辐射源 \(1\)/.test(treeText) && /链路 \(1\)/.test(treeText) && /派生/.test(treeText))
+  check('对象树只列站点、辐射源与告警区，不再平铺航点、活动与派生链路（D-062）', /站点 \(1\)/.test(treeText) && /辐射源 \(1\)/.test(treeText) && /告警区 \(/.test(treeText) && !/链路/.test(treeText) && !/航点 1/.test(treeText), treeText.slice(0, 120))
   check('界面不做「合成场景」标记（D-043）', !/合成/.test(treeText) && !(await page.evaluate("/合成场景/.test(document.body.textContent)")))
 
-  // ---------- 四个工具：布站 → 撤销 → 重做 ----------
-  const tools = await page.evaluate("Array.from(document.querySelectorAll('[data-tool]')).map(b => b.dataset.tool)")
-  check('工具条六件齐全（选择 / 布站 / 布目标 / 航点 / 测量 / 布告警区；布目标自 D-053 起，布告警区自 D-061 起）', JSON.stringify(tools) === JSON.stringify(['select', 'site', 'emitter', 'waypoint', 'measure', 'zone']), JSON.stringify(tools))
+  // ---------- 工具：编辑场景 → 布站 → 撤销 → 重做 ----------
+  const toolsBefore = await page.evaluate("Array.from(document.querySelectorAll('[data-tool]')).map(b => b.dataset.tool)")
+  check('观察状态下工具条只露「测量」，编辑工具收在「编辑场景」后面（D-062）',
+    JSON.stringify(toolsBefore) === JSON.stringify(['measure']) && (await page.evaluate("!!document.querySelector('[data-act=edit-mode]')")), JSON.stringify(toolsBefore))
+  await page.evaluate("(document.querySelector('[data-act=edit-mode]').click(), true)")
+  let tools = []
+  for (let i = 0; i < 30 && tools.length < 6; i++) {
+    tools = await page.evaluate("Array.from(document.querySelectorAll('[data-tool]')).map(b => b.dataset.tool)")
+    if (tools.length < 6) await sleep(100)
+  }
+  check('进入编辑后工具六件齐全（测量 / 选择 / 布站 / 布目标 / 航点 / 布告警区；布目标自 D-053 起，布告警区自 D-061 起）', JSON.stringify(tools) === JSON.stringify(['measure', 'select', 'site', 'emitter', 'waypoint', 'zone']), JSON.stringify(tools))
 
   await page.evaluate("(document.querySelector('[data-tool=site]').click(), true)")
   st = await waitApp(page, (a) => a.scene.tool === 'site', '切到布站工具')
@@ -117,7 +125,7 @@ try {
   }
   st = await waitApp(page, (a) => a.scene.sites === 2, '布站后站点变两个')
   check('布站：地图点击加一个站点，工具自动回到「选择」', st.app.scene.sites === 2 && st.app.scene.tool === 'select' && st.app.unsaved.scene === true)
-  check('新站点自动选中，右栏出站点表单', st.app.scene.selection?.kind === 'site',
+  check('新站点自动选中，左栏出站点表单（D-062：表单归左栏）', st.app.scene.selection?.kind === 'site',
     await page.evaluate("document.querySelector('[data-form=site]') ? '有' : '无'"))
 
   await page.evaluate("(document.querySelector('[data-act=undo]').click(), true)")
@@ -243,7 +251,7 @@ try {
   st = await waitApp(page, (a) => a.scene.selection?.kind === 'site', '选中站点')
   for (let i = 0; i < 40 && !(await page.evaluate("!!document.querySelector('[data-form=site]')")); i++) await sleep(100)
   const alt0 = await page.evaluate("document.querySelector('[data-field=\"sites.0.position.alt_m\"]')?.value ?? ''")
-  check('右栏出站点表单且带离地高字段', alt0 !== '', `离地高 ${alt0}`)
+  check('左栏出站点表单且带离地高字段', alt0 !== '', `离地高 ${alt0}`)
   // React 把 onBlur 接在原生的 focusout 上（blur 不冒泡），派发 blur 是没用的
   const setAlt = (v) => page.evaluate(`(() => {
     const el = document.querySelector('[data-field="sites.0.position.alt_m"]');

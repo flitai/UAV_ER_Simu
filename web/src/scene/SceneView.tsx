@@ -4,7 +4,9 @@
 // 地图只建一次：视图切换只是隐藏容器（visibility），本组件不卸载；显示时 map.resize() 一次（09 §4.2）。
 //
 // 切片 ② 起：左栏是场景对象树，右栏是对象表单与链路读数，工具条上四个工具（09 §5）。
-// 切片 ⑧ 起（D-061）：右栏常驻目标与站点卡片栈，选中对象时表单叠在栈顶（RightColumn）。
+// 切片 ⑧ 起（D-061）：右栏常驻目标与站点卡片。
+// D-062（13 报告 §13）：左栏 = 配置（对象树 + 选中对象的表单 + 数据包一行），右栏 = 观察（焦点卡 + 目标列表 + 站点行）；
+// 地图只给焦点目标画全套叠加；编辑工具与拖动收在「编辑场景」开关后面。
 // 地图上的交互（点选、布站、画航点、拖动、测量）都在这里绑，画图在 useSituation，
 // 改文档在 editor/scenarioOps——三者分开，免得一个 useEffect 里既算几何又改状态。
 
@@ -17,10 +19,10 @@ import { addHillshade, removeHillshade } from './layers/hillshade.js'
 import { addBuildings3d, setBuildingsColorBySrc } from './layers/buildings3d.js'
 import { addAoiBoundary, bboxContains } from './layers/aoiBoundary.js'
 import { installProbe } from './probe.js'
-import { ScenePackagePanel } from './ScenePackagePanel.js'
 import { MapToolbar } from './MapToolbar.js'
-import { ObjectTree } from './ObjectTree.js'
+import { LeftColumn } from './LeftColumn.js'
 import { RightColumn } from './RightColumn.js'
+import { focusTargetId } from './focus.js'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { cursorStore } from '../shell/cursorStore.js'
 import { useAppState, useStore } from '../state/store.js'
@@ -43,12 +45,15 @@ export function SceneView({ active }: { active: boolean }) {
   const [fix, setFix] = useState(true)
   const [zonesOn, setZonesOn] = useState(true)
   const [poles, setPoles] = useState(true)
+  const [allOverlays, setAllOverlays] = useState(false)
+  // 编辑模式（D-062）：布站等工具与拖动只在开着时可用；观察时误碰不会挪动对象
+  const [editMode, setEditModeRaw] = useState(false)
   const [ready, setReady] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // 交互回调要读最新的 store，但地图事件只绑一次：用 ref 传当前值，不把 store 塞进依赖。
-  const live = useRef({ state: s, store })
-  live.current = { state: s, store }
+  const live = useRef({ state: s, store, editMode })
+  live.current = { state: s, store, editMode }
 
   // 建图：只在场景摘要就绪且尚无地图时建一次
   useEffect(() => {
@@ -194,6 +199,7 @@ export function SceneView({ active }: { active: boolean }) {
     let drag: { kind: 'site' | 'waypoint'; id: string; index: number } | null = null
     const onDown = (e: MapMouseEvent) => {
       const { state } = live.current
+      if (!live.current.editMode) return   // 观察时不拖动对象（D-062）
       if (state.scene.editor.tool !== 'select' || !state.scene.scenario.doc) return
       const hits = map.queryRenderedFeatures(e.point, { layers: ['cuav-site-dot', 'cuav-waypoint-dot'] })
       const f = hits[0]
@@ -250,7 +256,7 @@ export function SceneView({ active }: { active: boolean }) {
   const selWp = s.scene.editor.selection?.kind === 'waypoint' ? s.scene.editor.selection.index : -1
   const selTarget = s.scene.editor.selection?.kind === 'emitter' ? s.scene.editor.selection.id : null
   useScenarioLayers(situation ? mapRef.current : null, ready, s.scene.scenario.doc, selEmitter, selWp)
-  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc, fix, selTarget)
+  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc, fix, selTarget, focusTargetId(s), allOverlays)
 
   // 告警区与高度立柱的显隐（D-061）
   useEffect(() => {
@@ -293,6 +299,15 @@ export function SceneView({ active }: { active: boolean }) {
     map.easeTo({ pitch: next ? 0 : 55, duration: 400 })
   }
 
+  const onEditMode = useCallback((on: boolean) => {
+    setEditModeRaw(on)
+    if (!on) {
+      // 收起编辑工具时把手里的编辑工具放下；测量是观察工具，留着
+      const st = live.current.state
+      if (st.scene.editor.tool !== 'select' && st.scene.editor.tool !== 'measure') live.current.store.dispatch({ type: 'scene/tool', tool: 'select' })
+    }
+  }, [])
+
   const onFlyTo = useCallback((lon: number, lat: number) => {
     mapRef.current?.easeTo({ center: [lon, lat], duration: 500 })
   }, [])
@@ -311,16 +326,15 @@ export function SceneView({ active }: { active: boolean }) {
 
   return (
     <ColumnLayout
-      left={<>
-        <ScenePackagePanel scene={scene} error={s.scene.error} dev={dev} />
-        <ObjectTree onFlyTo={onFlyTo} />
-      </>}
+      left={<LeftColumn onFlyTo={onFlyTo} scene={scene} error={s.scene.error} dev={dev} />}
       center={
         <div className="scene">
           <div ref={box} className="scene-map" />
           <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat}
                       situation={situation} onSituation={setSituation} fix={fix} onFix={setFix}
                       zonesOn={zonesOn} onZones={setZonesOn} poles={poles} onPoles={setPoles}
+                      allOverlays={allOverlays} onAllOverlays={setAllOverlays}
+                      editMode={editMode} onEditMode={onEditMode}
                       onSave={() => void onSave()} saving={saving} />
         </div>
       }
