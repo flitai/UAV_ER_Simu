@@ -9,6 +9,7 @@ import { isCatalog } from '../api/catalog.js'
 import type { AppState, CalibrationSource, ProductIndex, WsState } from './types.js'
 import type { SignalViewState } from '../signal/viewStore.js'
 import { spectrumGeomOf } from '../signal/viewport.js'
+import type { probeCards, probeSiteCards } from '../scene/cards/derive.js'
 
 export const SOURCE_LABEL: Record<CalibrationSource, string> = { measured: '实测', paper: '论文', assumed: '假定', model: '模型' }
 
@@ -61,6 +62,9 @@ export interface ProbeExtras {
   links: Array<{ id: string; t_s: number; los: boolean; distance_m: number; pathLoss_dB: number; doppler_Hz: number }>
   bearings: Array<{ id: string; t_s: number; bearing_deg: number; sigma_deg: number; quality: string; state: string; mixture: boolean }>
   positions: Array<{ id: string; t_s: number; method: string; lon: number; lat: number; cep_m: number; crossing_deg: number; sites: number }>
+  /** 目标卡与站点卡的派生读数（切片 ⑧，D-061；13 报告 §3.4），由 scene/cards/derive.ts 算 */
+  cards: ReturnType<typeof probeCards>
+  siteCards: ReturnType<typeof probeSiteCards>
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -180,6 +184,8 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     // 逐项挑而不是整包展开——这里漏了新字段就在探针上看不见，切片 ⑥b 踩过一次
     bearings: x.bearings,
     positions: x.positions,
+    cards: x.cards,
+    siteCards: x.siteCards,
     signal: {
       opId: s.signal.opId,
       viewport: s.signal.viewport,

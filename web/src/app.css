@@ -225,6 +225,50 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .badge-los { color: var(--ok); }
 .badge-nlos { color: var(--bad); }
 
+/* ---------- 场景页右栏：卡片栈（13 报告 §3，D-061） ---------- */
+.sel-bar { display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin-bottom: 6px; background: var(--earth); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--dim); }
+.sel-bar .spacer, .card-head .spacer, .site-card .spacer { flex: 1 1 auto; }
+.cards .dim { color: var(--dim); font-size: 11px; }
+.tlist { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tlist th { text-align: left; font-weight: 500; color: var(--dim); font-size: 11px; padding: 2px 4px; border-bottom: 1px solid var(--border); }
+.tlist td { padding: 3px 4px; border-bottom: 1px solid var(--earth); white-space: nowrap; }
+.tlist td.num { font-variant-numeric: tabular-nums; text-align: right; }
+.tlist td.icon { width: 18px; color: var(--ink); }
+.tlist tr { cursor: pointer; }
+.tlist tbody tr:hover { background: var(--earth); }
+.tlist tr.sel { background: var(--ink); color: var(--paper); }
+.tlist tr.sel td.icon { color: var(--paper); }
+.card { background: var(--white); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.card.sel { border-color: var(--ink); }
+.card-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 8px; border: none; background: var(--earth); text-align: left; cursor: pointer; color: var(--ink); }
+.card.sel .card-head { background: var(--ink); color: var(--paper); }
+.card.sel .card-head .dim { color: var(--paper); opacity: 0.8; }
+.card-title { font-weight: 600; }
+.card-head .chev { color: var(--poi); font-size: 11px; }
+.card-badge { display: inline-block; border-radius: 8px; padding: 0 6px; font-size: 11px; background: var(--earth); border: 1px solid var(--border); color: var(--dim); }
+.card-badge.alert { background: #f3dcdc; border-color: var(--bad); color: var(--bad); }
+.card-body { padding: 4px 8px 8px; }
+.card-sec { color: var(--dim); font-size: 11px; margin: 8px 0 3px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+.card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; font-size: 12px; }
+.card-field { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+.card-field .k { color: var(--dim); font-size: 11px; flex: 0 0 auto; }
+.card-field .v { font-variant-numeric: tabular-nums; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-site { padding: 4px 0 6px; border-bottom: 1px dashed var(--border); }
+.card-site:last-child { border-bottom: none; }
+.card-site.degraded { background: repeating-linear-gradient(135deg, transparent 0 6px, #f8efd6 6px 8px); }
+.card-site-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.card-site-name { font-weight: 600; }
+.card-site-head .dial { margin-left: auto; color: var(--ink); }
+.plat-icon { flex: 0 0 auto; }
+.site-cards { display: flex; flex-direction: column; gap: 4px; }
+.site-card { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--white); text-align: left; cursor: pointer; font-size: 12px; color: var(--ink); }
+.site-card-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.site-card-line.mono { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.site-card.sel .site-card-line.mono { color: var(--paper); opacity: 0.85; }
+.site-card:hover { background: var(--earth); }
+.site-card.sel { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.site-card.sel .dim { color: var(--paper); opacity: 0.8; }
+
 /* 工具条分组：四个工具、撤销重做与保存、图层与俯仰各成一组 */
 .map-toolbar .tool-group { display: inline-flex; gap: 2px; margin-right: 6px; }
 

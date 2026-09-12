@@ -4,6 +4,7 @@
 // 地图只建一次：视图切换只是隐藏容器（visibility），本组件不卸载；显示时 map.resize() 一次（09 §4.2）。
 //
 // 切片 ② 起：左栏是场景对象树，右栏是对象表单与链路读数，工具条上四个工具（09 §5）。
+// 切片 ⑧ 起（D-061）：右栏常驻目标与站点卡片栈，选中对象时表单叠在栈顶（RightColumn）。
 // 地图上的交互（点选、布站、画航点、拖动、测量）都在这里绑，画图在 useSituation，
 // 改文档在 editor/scenarioOps——三者分开，免得一个 useEffect 里既算几何又改状态。
 
@@ -19,7 +20,7 @@ import { installProbe } from './probe.js'
 import { ScenePackagePanel } from './ScenePackagePanel.js'
 import { MapToolbar } from './MapToolbar.js'
 import { ObjectTree } from './ObjectTree.js'
-import { ObjectPanel } from './ObjectForm.js'
+import { RightColumn } from './RightColumn.js'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { cursorStore } from '../shell/cursorStore.js'
 import { useAppState, useStore } from '../state/store.js'
@@ -298,7 +299,7 @@ export function SceneView({ active }: { active: boolean }) {
                       onSave={() => void onSave()} saving={saving} />
         </div>
       }
-      right={<ObjectPanel />}
+      right={<RightColumn />}
     />
   )
 }

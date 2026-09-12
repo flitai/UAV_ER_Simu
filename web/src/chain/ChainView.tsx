@@ -443,8 +443,10 @@ function ExperimentSetup(p: SetupProps) {
                   // 看不出差别；切到三站场景才暴露出来（D-053 实测）。
                   const sha = id === p.currentScenario ? p.sceneSha : ''
                   if (id && id !== p.currentScenario) void p.onLoadScenario(id)
-                  // 换场景等于换了一批站与源，旧的选择一律作废，由缺省全选重填
-                  const next = id === p.currentScenario ? c : { ...c, siteIds: [], emitterIds: [] }
+                  // 换场景等于换了一批站与源，旧的选择一律作废，由缺省全选重填。
+                  // 判据是**链路自己**上一份场景，不是场景页当前载入的那份：自 D-061 起场景页
+                  // 跟着最近任务走，可能早已是目标场景，按「载入的」判会把旧选择原样留下（切片 ⑧ 实测）。
+                  const next = id === (c.scenario?.scenario_id ?? '') ? c : { ...c, siteIds: [], emitterIds: [] }
                   p.onChange({ ...next, scenario: id ? { scenario_id: id, sha256: sha } : null }, '选场景')
                 }}>
                 <option value="">（未选）</option>

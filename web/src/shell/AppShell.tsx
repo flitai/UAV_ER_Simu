@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
 import { SceneView } from '../scene/SceneView.js'
-import { situationSnapshot } from '../scene/sceneStore.js'
+import { sceneStore, situationSnapshot } from '../scene/sceneStore.js'
+import { buildSiteCards, buildTargetCards, probeCards, probeSiteCards } from '../scene/cards/derive.js'
 import { ChainView } from '../chain/ChainView.js'
 import { ResultsView } from '../results/ResultsView.js'
 import { DataCenter } from '../data/DataCenter.js'
@@ -96,6 +97,8 @@ export function AppShell() {
       signalView: viewStore.get(),
       longTasks: longTasks.current?.snapshot() ?? null,
       ...situationSnapshot(),
+      cards: probeCards(buildTargetCards(st.scene.scenario.doc, sceneStore.get())),
+      siteCards: probeSiteCards(buildSiteCards(st.scene.scenario.doc, sceneStore.get())),
     })
   }), [store])
 

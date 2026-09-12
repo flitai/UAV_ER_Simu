@@ -80,7 +80,8 @@ try {
   // 到那时探针也没了，只看超时信息根本不知道发生了什么。
   await page.send('Runtime.enable')
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n').slice(0, 4).join(' | ')))
-  await page.send('Page.navigate', { url: `${BASE}#/scene` })
+  // 点名 demo-01：自 D-061 起页面开起来跟着最近任务的场景走，盘上跑过 demo-03 就会落到三站场景
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/scene` })
 
   let st = await page.waitFor((s) => s.ready && s.loaded && s.tilesLoaded && s.app?.scene?.status === 'ok',
     { label: '地图与场景就绪', timeoutMs: 120000 })
@@ -93,7 +94,11 @@ try {
     if (!st.layers.includes(id)) { check(`态势图层 ${id} 存在`, false); break }
   }
   check('七个态势图层齐全', ['cuav-site-dot', 'cuav-site-icon', 'cuav-route-line', 'cuav-waypoint-dot', 'cuav-target-icon', 'cuav-trail-line', 'cuav-link-line'].every((x) => st.layers.includes(x)))
-  const rendered = await page.evaluate("window.__map ? window.__map.queryRenderedFeatures({layers:['cuav-site-dot','cuav-waypoint-dot']}).length : -1")
+  // 场景自 D-061 起在采用最近任务之后才载入，常晚于瓦片就绪；要素要等地图把新数据画出来，轮询而不是只查一次
+  let rendered = -1
+  for (let i = 0; i < 25 && rendered < 4; i++) {
+    rendered = await page.evaluateAsync("new Promise((r) => setTimeout(() => r(window.__map ? window.__map.queryRenderedFeatures({layers:['cuav-site-dot','cuav-waypoint-dot']}).length : -1), 200))")
+  }
   check('站点与航点画在图上', rendered >= 4, `${rendered} 个要素`)
   const treeText = await page.evaluate("document.querySelector('[data-scene-tree]')?.textContent ?? ''")
   check('对象树列出站点、辐射源、航线与派生链路', /站点 \(1\)/.test(treeText) && /辐射源 \(1\)/.test(treeText) && /链路 \(1\)/.test(treeText) && /派生/.test(treeText))
@@ -127,7 +132,7 @@ try {
   // ---------- 提交切片 ② 框图 ----------
   // 手写框图，走公开端点送进界面（自由画布与它的示例下拉已由 D-060 删掉）
   const diagId = await loadDiagramViaApi(page, 'engine/tests/diagrams/slice2_scenario_link.json',
-                                         '#/diagram')
+                                         '?scenario=demo-01#/diagram')
   st = await waitApp(page, (a) => a.view === 'diagram' && a.context.diagramId === diagId, '载入切片 ② 框图')
   check('框图页载入切片 ② 示例', st.app.context.diagramId === 'slice2-scenario-link',
         st.app.context.diagramId ?? '')
