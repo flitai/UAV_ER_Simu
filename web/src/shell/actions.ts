@@ -6,7 +6,7 @@ import { idempotencyKey } from '../api/hash.js'
 import { listScenes, loadScene } from '../scene/scenePackage.js'
 import { TERMINAL } from '../state/reducer.js'
 import type { StoreApi } from '../state/store.js'
-import type { TaskRecord } from '../state/types.js'
+import type { ScenarioSummary, TaskRecord } from '../state/types.js'
 import { signalBuffer } from '../signal/buffer.js'
 
 export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<void> {
@@ -29,13 +29,22 @@ export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<
     } catch (e) { if (alive()) dispatch({ type: 'scene/error', message: String(e) }) }
   })())
   jobs.push((async () => {
+    // 场景与最近任务是**一个**作业：先采用最近任务（它带着自己的场景），再决定缺省场景。
+    // 原来两路并发、场景恒取清单第一项，刷新后就会出现「任务是 demo-03、场景页是 demo-01」，
+    // 地图上只剩 site-1 的测向线（13 报告 §6.1，D-061）。
+    let list: ScenarioSummary[] = []
     try {
-      const list = await listScenarios()
+      list = await listScenarios()
       if (!alive()) return
       dispatch({ type: 'scene/scenarioList', list })
-      // 载入第一个场景：切片 ② 只有一个 demo 场景，多场景的选择器随 U-4 的试验中心
-      if (list.length) await loadScenarioInto(store, list[0]!.scenario_id, alive)
     } catch (e) { if (alive()) dispatch({ type: 'scene/scenarioError', message: String((e as Error).message ?? e) }) }
+    try {
+      const tasks = await listTasks(1)
+      if (alive() && tasks.length) await adoptTask(store, tasks[0]!, alive)
+    } catch (e) { if (alive()) dispatch({ type: 'log/client', level: 'warn', message: `恢复最近任务失败：${(e as Error).message}` }) }
+    if (!alive()) return
+    // 没有任务、旧记录没有 scenario_id、或它的场景已不存在：退到清单第一项
+    if (store.getState().scene.scenario.status !== 'ok' && list.length) await loadScenarioInto(store, list[0]!.scenario_id, alive)
   })())
   jobs.push((async () => {
     try {
@@ -59,13 +68,6 @@ export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<
       if (alive()) dispatch({ type: 'log/client', level: 'warn', message: `读取已保存框图失败：${(e as Error).message}` })
     }
   })())
-  jobs.push((async () => {
-    try {
-      const tasks = await listTasks(1)
-      if (!alive() || tasks.length === 0) return
-      await adoptTask(store, tasks[0]!, alive)
-    } catch (e) { if (alive()) dispatch({ type: 'log/client', level: 'warn', message: `恢复最近任务失败：${(e as Error).message}` }) }
-  })())
   await Promise.all(jobs)
 }
 
@@ -88,6 +90,12 @@ export async function adoptTask(store: StoreApi, rec: TaskRecord, alive: () => b
   const { dispatch } = store
   signalBuffer.reset(rec.task_id)
   dispatch({ type: 'task/adopt', record: rec })
+  // 任务带着自己的场景（D-061，13 报告 §6.1）：与场景页当前载入的不同就换过来。
+  // 旧 task.json 没有这个键则不动，缺省场景由 bootstrap 决定；场景已不存在会落成 scenarioError，同样由它回退。
+  if (rec.scenario_id && store.getState().scene.scenario.id !== rec.scenario_id) {
+    await loadScenarioInto(store, rec.scenario_id, alive)
+    if (!alive()) return
+  }
   if (TERMINAL.has(rec.run_state) && rec.last_seq > 0) {
     try {
       const first = await getEvents(rec.task_id, 0, 1)

@@ -174,6 +174,13 @@ try {
     `图上 ${shown.lon.toFixed(6)},${shown.lat.toFixed(6)}；航迹 ${Number(lastTrack.lon).toFixed(6)},${Number(lastTrack.lat).toFixed(6)}`)
   check('链路读数已到达（视距、距离、路损、多普勒）', st.app.links.length === 1 && st.app.links[0].los === true && st.app.links[0].distance_m > 0 && st.app.links[0].pathLoss_dB > 50,
     JSON.stringify(st.app.links[0]))
+  // 链路线要真画在图上（13 报告 §6.2，D-061）：此前 link_id 按最后一个连字符拆分取不到站，
+  // 图层在、要素恒空，而这里只断言了数据，所以一直绿。
+  let linkDrawn = -1
+  for (let i = 0; i < 25 && linkDrawn < 1; i++) {
+    linkDrawn = await page.evaluateAsync("new Promise((r) => setTimeout(() => r(window.__map ? window.__map.queryRenderedFeatures({layers:['cuav-link-line']}).length : -1), 200))")
+  }
+  check('链路线渲染出要素（link_id 按已知的站与源精确匹配）', linkDrawn >= 1, `${linkDrawn} 个要素`)
 
   // ---------- 断言 ②：两时刻带内功率差 vs 几何路损差 ----------
   const links = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/links?t0=0&t1=1000000000&stride=1').then(r=>r.json())`)

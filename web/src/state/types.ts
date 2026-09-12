@@ -78,6 +78,8 @@ export interface TaskRecord {
   data_refs: { node_id: string; data_id: string; holdout: boolean }[]
   warnings: string[]
   last_seq: number
+  /** 任务绑定的场景标识（D-061）；旧记录没有 */
+  scenario_id?: string
 }
 
 /** WebSocket 文本帧与引擎 stdout 事件同构（docs/api-versions.md §4） */

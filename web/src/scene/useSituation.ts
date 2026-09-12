@@ -22,7 +22,7 @@ import {
   addSituationLayers, loadSituationIcons,
   setLinks, setPlannedRoute, setSites, setTargets, setTrails,
 } from './layers/situation.js'
-import { emitters, posOf, routeOf, sites, waypointsOf } from './editor/scenarioOps.js'
+import { emitters, posOf, routeOf, sites, splitLinkId, waypointsOf } from './editor/scenarioOps.js'
 import type { ScenarioDoc } from '../state/types.js'
 
 const TICK_MS = 50   // 20 Hz
@@ -131,12 +131,11 @@ export function useLiveSituation(map: MLMap | null, ready: boolean, doc: Scenari
       const d = docRef.current
       const lines: Array<{ link_id: string; from: [number, number]; to: [number, number]; line_of_sight: boolean; distance_m: number }> = []
       st.links.forEach((l) => {
-        const dash = l.link_id.lastIndexOf('-')
-        const siteId = dash > 0 ? l.link_id.slice(0, dash) : ''
-        const emId = dash > 0 ? l.link_id.slice(dash + 1) : ''
-        const site = sites(d).find((x) => x.id === siteId)
-        const sp = posOf(site)
-        const tgt = st.entities.get(emId)
+        // 按已知的站与源精确匹配，不按连字符拆（D-061）
+        const ids = splitLinkId(d, l.link_id)
+        if (!ids) return
+        const sp = posOf(sites(d).find((x) => x.id === ids.site))
+        const tgt = st.entities.get(ids.emitter)
         if (!sp || !tgt) return
         lines.push({
           link_id: l.link_id,

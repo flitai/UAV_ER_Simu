@@ -57,6 +57,16 @@ export function derivedLinks(doc: ScenarioDoc | null): Array<{ id: string; site:
   return out
 }
 
+/**
+ * 把链路标识拆回站与源。`link_id = "<site_id>-<emitter_id>"`（geo/src/scenario.cpp），而站与源的 id 本身就含 `-`
+ * （`site-1-uav-1`）：按最后一个连字符拆会得到 `site-1-uav` 与 `1`，站查不到，链路线因此从未画出（13 报告 §6.2，D-061）。
+ * 这里按文档里已知的站与源精确匹配，不猜分隔位置；对不上返回 null，不拿半截标识顶替（铁律 15）。
+ */
+export function splitLinkId(doc: ScenarioDoc | null, linkId: string): { site: string; emitter: string } | null {
+  for (const l of derivedLinks(doc)) if (l.id === linkId) return { site: l.site, emitter: l.emitter }
+  return null
+}
+
 /** 生成一个不与现有标识冲突的新标识。 */
 function freshId(existing: Set<string>, prefix: string): string {
   for (let i = 1; i < 1000; i++) {

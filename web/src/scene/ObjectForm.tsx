@@ -10,7 +10,7 @@ import { fmtDeg, fmtDelay, fmtHz, fmtMeters, parseSi } from '../shell/format.js'
 import { sceneStore, type PositionSample } from './sceneStore.js'
 import {
   activities, addActivity, emitters, insertWaypoint, posOf, removeActivity, removeEmitter,
-  removeWaypoint, routeOf, setPath, sites, waypointsOf, type Obj,
+  removeWaypoint, routeOf, setPath, sites, splitLinkId, waypointsOf, type Obj,
 } from './editor/scenarioOps.js'
 import { lookAngles, RoutePreview, type Waypoint } from './editor/preview.js'
 import {
@@ -374,9 +374,10 @@ function ActivityEditor({ doc, emitterId }: { doc: ScenarioDoc; emitterId: strin
 function LinkReadout({ linkId, doc }: { linkId: string; doc: ScenarioDoc }) {
   const st = useSyncExternalStore(sceneStore.subscribe, sceneStore.get, sceneStore.get)
   const live = st.links.get(linkId)
-  const dash = linkId.lastIndexOf('-')
-  const siteId = linkId.slice(0, dash)
-  const emId = linkId.slice(dash + 1)
+  // 按已知的站与源精确匹配，不按连字符拆（D-061）；对不上就只显示活值，几何回退空着
+  const ids = splitLinkId(doc, linkId)
+  const siteId = ids?.site ?? linkId
+  const emId = ids?.emitter ?? ''
   const sp = posOf(sites(doc).find((x) => x.id === siteId))
   const target = st.entities.get(emId)
   const ep = target ? { lon: target.lon, lat: target.lat, alt_m: target.alt_m } : posOf(emitters(doc).find((x) => x.id === emId))

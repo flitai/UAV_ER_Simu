@@ -261,7 +261,7 @@ export class TaskManager {
       d,
       sha,
     )
-    const { sidecar, dataRefs, warnings } = prep
+    const { sidecar, dataRefs, warnings, scenarioId } = prep
 
     // 落盘 → 同步校验 → 入队
     const taskId = await this.freshTaskId()
@@ -299,6 +299,8 @@ export class TaskManager {
       files: { diagram: FILE_DIAGRAM, events: FILE_EVENTS, ...(sidecar ? { resolved: FILE_RESOLVED } : {}) },
     }
     if (d.scenario_ref && typeof d.scenario_ref.sha256 === 'string') rec.scenario_sha256 = d.scenario_ref.sha256
+    // 标识也记下（D-061）：此前 prepareDiagram 算出了却在这里丢掉，刷新后前端只能猜场景
+    if (scenarioId) rec.scenario_id = scenarioId
     if (input.idempotencyKey) rec.idempotency_key = input.idempotencyKey
     await writeTask(this.store, rec)
 

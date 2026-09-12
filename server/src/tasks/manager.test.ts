@@ -326,3 +326,28 @@ test('服务退出收尾：运行中的标 failed 并杀进程，排队中的标
   assert.deepEqual(rq?.reasons, ['服务停止时任务尚在排队'])
   await assert.rejects(m3.submit({ body: await slice1() }), (e: unknown) => e instanceof HttpError && e.status === 503)
 })
+
+test('scenario_ref 的 scenario_id 进 task.json（D-061）：前端采用任务时据此载入它的场景', async () => {
+  const r2 = await makeRoot()
+  extraRoots.push(r2)
+  const dir = join(r2, 'data', 'scene', 'aoi-x', 'scenarios')
+  await fsp.mkdir(dir, { recursive: true })
+  await fsp.writeFile(join(dir, 'sx-1.scenario.json'), JSON.stringify({ scenario_id: 'sx-1', aoi: { id: 'aoi-x' } }))
+  const m2 = createTaskManager({ root: r2, engine: fakeEngine(r2), killGraceMs: 500 })
+  await m2.init()
+  try {
+    const body = { ...(await slice1()), scenario_ref: { scenario_id: 'sx-1', sha256: 'a'.repeat(64) } }
+    const r = await m2.submit({ body })
+    assert.equal(r.status, 201)
+    assert.equal(r.task.scenario_id, 'sx-1')
+    assert.equal(r.task.scenario_sha256, 'a'.repeat(64))
+    const rec = await done(m2, r.task.task_id)
+    assert.equal((await readTask(m2.storeConfig, rec.task_id))?.scenario_id, 'sx-1')
+    // 没有 scenario_ref 的框图不写这个键：缺的就是缺的，不编（铁律 15）
+    const r0 = await m2.submit({ body: await slice1() })
+    assert.equal(r0.task.scenario_id, undefined)
+    await done(m2, r0.task.task_id)
+  } finally {
+    m2.shutdownSync()
+  }
+})

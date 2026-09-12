@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import type { ScenarioDoc } from '../../state/types.js'
-import { addEmitter, addSite, emitters, moveEmitter, posOf, removeEmitter, routeOf, setPath, sites } from './scenarioOps.js'
+import { addEmitter, addSite, emitters, moveEmitter, posOf, removeEmitter, routeOf, setPath, sites, splitLinkId } from './scenarioOps.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 function demo(): ScenarioDoc {
@@ -101,4 +101,13 @@ test('setPath：不凭下标造数组元素——那会造出没有 id 的半个
   assert.equal(sites(doc).length, 1)
   assert.equal(setPath(doc, 'sites.7.receiver.nf_dB', 4), doc)   // 原样返回同一个引用
   assert.equal(sites(doc).length, 1)
+})
+
+test('链路标识按已知的站与源精确拆分：site-1-uav-1 是 site-1 与 uav-1，不是 site-1-uav 与 1（D-061）', () => {
+  const doc = demo()
+  assert.deepEqual(splitLinkId(doc, 'site-1-uav-1'), { site: 'site-1', emitter: 'uav-1' })
+  // 对不上的不猜：不存在的站、只有一半的标识、空文档
+  assert.equal(splitLinkId(doc, 'site-9-uav-1'), null)
+  assert.equal(splitLinkId(doc, 'site-1'), null)
+  assert.equal(splitLinkId(null, 'site-1-uav-1'), null)
 })

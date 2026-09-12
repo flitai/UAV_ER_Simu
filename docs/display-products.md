@@ -44,6 +44,7 @@ data/runs/<task_id>/
 | `task_id` | `t<YYYYMMDD>-<HHMMSS>-<4 hex>`，即目录名，也是引擎事件里的 `task_id` |
 | `diagram_id`、`name`、`diagram_sha256` | 取自框图；哈希对 `diagram.json` 的文本 |
 | `scenario_sha256` | 有 `scenario_ref` 时取其哈希 |
+| `scenario_id` | 有 `scenario_ref` 时取其 `scenario_id`（2026-09-12，D-061）：前端采用任务时据此载入它的场景，刷新后场景页不再落到清单第一项。是标识不是路径（D-037）；旧 `task.json` 没有这个键照常可读 |
 | `seed`、`seed_source` | 种子与来源 `diagram / cli`（开始事件后才有来源） |
 | `run_state` | `queued / running / finished / failed / cancelled` |
 | `result`、`reasons[]` | 结果四态与原因；排队与运行中为 `not_applicable`；取消 → `not_applicable`，失败 → `invalid` |

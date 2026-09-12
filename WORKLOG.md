@@ -4824,3 +4824,18 @@ EM-C-UAV 工程 `UI/` 目录的三张 T.META 概念图看过。现状用本机�
 `docs/scenario-format.md` §9 与 `docs/display-route.md` §6.3 各登记待写项。**代码、schema、黄金基准一件未动**；`ref/` 未跟踪，建议进 `.gitignore`（待用户表态）。
 
 **下一步**。切片 ⑧ 待用户排期：V-1（先修两处缺口）→ V-2（基准变更单独收口）→ V-3 → `slice8-smoke`。
+
+## 2026-09-12 V-1a：两处缺口修好（采用任务载入它的场景；链路线按已知站与源匹配）（D-061）
+
+**改了什么**。① 服务端 `TaskRecord` 加 `scenario_id`（`server/src/tasks/store.ts`），`submit()` 从 `prepareDiagram` 已经算出的
+`scenarioId` 写入（此前在解构时丢掉）；`docs/display-products.md` §1.1 加一行。② 前端 `TaskRecord` 加同名可选键；`adoptTask`
+在采用任务后若记录带 `scenario_id` 且与当前场景不同就 `loadScenarioInto`；`bootstrap` 把「场景清单」与「最近任务」并成一个作业，
+先采用任务、再在场景仍未就绪时退到清单第一项（旧记录没有该键、场景已删除都走这条回退）。③ `scenarioOps.ts` 新增 `splitLinkId(doc, linkId)`，
+按 `derivedLinks(doc)` 精确匹配；`useSituation.ts` 的链路线与 `ObjectForm.tsx` 的链路读数改用它，不再按最后一个连字符拆。
+
+**验证**（实测得到，macOS，原型阶段验证值）。服务 125 项（+1：带 `scenario_ref` 的框图记 `scenario_id`、不带的不写该键）、
+web 190 项（+1：`site-1-uav-1` 拆成 `site-1` 与 `uav-1`，对不上返回 null）全绿；`slice2-smoke` 27 → **28 项**，
+新断言「链路线渲染出要素」实测 1 个要素（改前为 0——这条断言就是为改前的静默失败立的）；`slice6-smoke` 63 项全绿；
+跑完 demo-03 任务后新开页面，`app.scene.scenarioId === 'demo-03'`、`sites === 3`，`GET /api/v1/tasks/{id}` 的 `scenario_id = demo-03`。
+黄金基准与示例场景零改动。**下一步**：V-1 主体——右栏目标列表 + 卡片栈 + 站点卡（13 报告 §3）。
+

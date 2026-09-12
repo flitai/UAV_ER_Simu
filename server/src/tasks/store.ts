@@ -44,6 +44,8 @@ export interface TaskRecord {
   name: string
   diagram_sha256: string
   scenario_sha256?: string
+  /** 有 scenario_ref 时取其 scenario_id（D-061）：前端采用任务时据此载入它的场景。是标识不是路径（D-037） */
+  scenario_id?: string
   seed: number | null
   seed_source: 'diagram' | 'cli' | null
   run_state: RunState
