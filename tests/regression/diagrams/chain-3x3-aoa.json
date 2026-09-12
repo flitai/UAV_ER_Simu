@@ -194,9 +194,14 @@
     {
       "id": "det__site-1",
       "type": "EnergyDetector",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-1"
+      },
       "params": {
         "band_lo_Hz": -225000,
-        "band_hi_Hz": 225000
+        "band_hi_Hz": 225000,
+        "noise_mode": "sliding"
       }
     },
     {
@@ -315,9 +320,14 @@
     {
       "id": "det__site-2",
       "type": "EnergyDetector",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-2"
+      },
       "params": {
         "band_lo_Hz": -225000,
-        "band_hi_Hz": 225000
+        "band_hi_Hz": 225000,
+        "noise_mode": "sliding"
       }
     },
     {
@@ -436,9 +446,14 @@
     {
       "id": "det__site-3",
       "type": "EnergyDetector",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-3"
+      },
       "params": {
         "band_lo_Hz": -225000,
-        "band_hi_Hz": 225000
+        "band_hi_Hz": 225000,
+        "noise_mode": "sliding"
       }
     },
     {

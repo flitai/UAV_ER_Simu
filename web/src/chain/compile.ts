@@ -387,7 +387,8 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
       const half = plan.fs_s5 > 0 ? plan.fs_s5 : plan.fs_s4
       const band: Record<string, ParamValue> = half > 0
         ? { band_lo_Hz: -0.45 * half, band_hi_Hz: 0.45 * half } : {}
-      push(nid, v.type, { ...slotParams('det', emsSel[0]!, site), ...band }, 'det')
+      push(nid, v.type, { ...slotParams('det', emsSel[0]!, site), ...band }, 'det',
+           bindOf(v.bind, emsSel[0]!, site))
       link(cursor.node, cursor.port, nid, 'in')
       markActive('det')
     }

@@ -183,8 +183,18 @@
 
 ### 5.6 检测识别评价只到检测
 
-`FeatureExtractor` / `TemplateClassifier` / `Evaluator` 三件待 C-4 / C-5，
-结果页的「检测识别」「评价」两个页签也随之待建。
+检测已落地（C-3，2026-09-12，D-063）：典型链路里的能量检测器**模板固定**为滑动噪声估计
+（`noise_mode = sliding`，卡片上写出来但不给改——静态门限不是交付形态，D-026），只纳入未命中帧
+（删截），门限随背景漂移；命中帧按 `merge_gap_frames` 并成突发。每站一个检测器，行里带站点标识。
+可改的参数：`nfft`、`pfa`、`noise_window_frames`（滑动窗长，帧）、`merge_gap_frames`、`band_power_dBm`；
+`noise_frames` 只对 `probe` 模式有意义，典型链路里不起作用。结果页「检测识别」页签列出突发；
+信号页页脚「叠加检测」把突发画到瀑布上。
+
+两条已知行为（模型卡 `models/detection/README.md`）：从仿真一开始就持续发射的目标会被噪声估计
+吸收、不会被检出——参考噪声必须有一段无信号的窗口（示例场景 `demo-01` 的无人机 3 s 才开机，
+正是为此）；噪声估计窗 W 帧之内的虚警率高于目标值，暖机期的零星命中是正常的。
+
+`FeatureExtractor` / `TemplateClassifier` / `Evaluator` 三件待 C-4 / C-5，结果页的「评价」页签也随之待建。
 
 ### 5.7 场景实体下拉依赖场景已载入
 

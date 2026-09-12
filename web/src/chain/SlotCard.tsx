@@ -41,7 +41,8 @@ function summaryText(chain: ChainState, id: SlotId, cat: Catalog | null): string
   const out: string[] = []
   for (const name of v.summary) {
     const ps = spec?.params.find((p) => p.name === name)
-    const raw: ParamValue | undefined = chain.slots[id].params[name] ?? (ps?.default as ParamValue | undefined)
+    // 模板固定的值优先：它才是编译进框图的那个，用户状态与目录缺省都不算数（D-063 的 noise_mode 就靠这一行）
+    const raw: ParamValue | undefined = v.fixed?.[name] ?? chain.slots[id].params[name] ?? (ps?.default as ParamValue | undefined)
     if (raw === undefined || raw === null) continue
     const text = typeof raw === 'number' ? formatEng(raw) : String(raw)
     out.push(`${name}  ${text}${ps?.unit ? ' ' + ps.unit : ''}`)

@@ -70,7 +70,7 @@ MATLAB 黄金向量（06 备忘录 §9D M-2、M-3）；第 11 项同时检查场
 
 | 文件 | 形状 | 覆盖的东西 |
 |---|---|---|
-| `chain-3x3-aoa.json` | 3 源 × 3 站 + 测向 + 交叉定位，49 节点 84 连线 | 实例后缀 `__`、`Superposition` 八可选口、双绑定的场景绑定信道、`DirectionFinder` 的 `scene1..3`、`MultiSiteLocator` 的 `b1..3`、按站实例化的观测点 |
+| `chain-3x3-aoa.json` | 3 源 × 3 站 + 测向 + 交叉定位，49 节点 84 连线 | 实例后缀 `__`、`Superposition` 八可选口、双绑定的场景绑定信道、`DirectionFinder` 的 `scene1..3`、`MultiSiteLocator` 的 `b1..3`、按站实例化的观测点、按站绑定且模板固定 `noise_mode = sliding` 的检测器 `det__<site>`（C-3，D-063） |
 | `chain-3x3-tdoa.json` | 同上但方法为 `tdoa`，52 节点 96 连线 | 另加隐含的 `toa__<site>` 节点与 `t1..3` 连线 |
 
 跑法（场景必须一并给，框图里只写 `scenario_id`，路径是内部参数，D-037）：

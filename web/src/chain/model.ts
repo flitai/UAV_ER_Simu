@@ -197,8 +197,11 @@ export const SLOTS: readonly SlotDef[] = [
   {
     id: 'det', label: '检测识别评价', hint: '检测、识别与评价',
     variants: [
-      { type: 'EnergyDetector', node: 'det', label: '能量检测',
-        summary: ['nfft', 'pfa', 'noise_mode'] },
+      // 典型链路里的检测器永远跑滑动噪声估计（D-026：交付形态不得是静态门限；D-063），
+      // 模板固定、卡片上写出来但不给改；probe 只在手写框图与黄金基准里出现。
+      // 绑站只为把 site_id 注入检测行——多站下每站一个检测器，行里不带站就分不清是谁检出的（D-053）。
+      { type: 'EnergyDetector', node: 'det', label: '能量检测', bind: 'site',
+        fixed: { noise_mode: 'sliding' }, summary: ['nfft', 'pfa', 'noise_mode'] },
     ],
   },
   {

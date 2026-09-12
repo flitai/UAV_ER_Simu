@@ -95,6 +95,14 @@ test('全合成：派生参数由频率计划填，用户不必填；场景带�
   const det = r.doc.nodes.find((n) => n.id === 'det')!
   assert.equal(det.params.band_lo_Hz, -0.45 * 500000)
   assert.equal(det.params.band_hi_Hz, 0.45 * 500000)
+  // 典型链路的检测器模板固定滑动噪声估计、按站绑定场景（D-063）：
+  // noise_mode 与目录缺省 probe 不同，所以一定写进框图；绑站只为给检测行注入 site_id
+  assert.equal(det.params.noise_mode, 'sliding')
+  assert.deepEqual(det.scene_binding, { scenario_id: 'demo-01', site_id: 'site-1' })
+  // 反解不把模板固定值回写进用户状态，往返仍逐字节
+  const back = parseChain(r.doc)!
+  assert.equal(back.slots.det.params.noise_mode, undefined)
+  assert.equal(serialize(compile(back, cat, scenario).doc, cat), serialize(r.doc, cat))
 })
 
 test('全合成：S4 在 DDC 未启用时兜底落到链尾；勾了的观测点才写进框图', () => {
@@ -229,6 +237,9 @@ test('回放模式：编译出的框图只有回放源与检测，没有场景�
   assert.deepEqual(r.doc.nodes.map((n) => n.id), ['tx', 'det'])
   assert.equal(r.doc.nodes[0]!.type, 'FileReplaySource')
   assert.equal(r.doc.scenario_ref, undefined)
+  // 没有场景就没有绑定：检测行将不带 site_id（D-063），模板固定的 noise_mode 照写
+  assert.equal(r.doc.nodes[1]!.scene_binding, undefined)
+  assert.equal(r.doc.nodes[1]!.params.noise_mode, 'sliding')
   assert.equal(r.doc.template_ref!.mode, 'replay')
   // 回放模式没有场景可派生频段：**不覆盖用户填的值**，也不拿 0 顶替（铁律 15）
   assert.equal(r.doc.nodes.find((n) => n.id === 'det')!.params.band_lo_Hz, undefined)
