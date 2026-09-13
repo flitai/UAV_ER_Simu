@@ -94,6 +94,18 @@ try {
     states.df === 'bypass' && states.loc === 'bypass', `df ${states.df} / loc ${states.loc}`)
   check('其余七个环节是启用态', ['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det'].every((k) => states[k] === 'active'),
     JSON.stringify(states))
+  // 检测识别评价一张卡、三个环节（C-4，10 报告 §2.1）：特征提取与模板识别挂在卡片里，不单独成卡
+  const subs = await evalJson(page, "Array.from(document.querySelectorAll('[data-slot=det] [data-slot-sub]')).map(e => [e.dataset.slotSub, e.dataset.slotSubState])")
+  check('检测识别评价卡片里挂着特征提取与模板识别两个子环节，都是启用态（C-4）',
+    JSON.stringify(subs) === JSON.stringify([['feat', 'active'], ['rec', 'active']]), JSON.stringify(subs))
+  await page.evaluate("(document.querySelector('[data-slot=det] [data-slot-sub=rec]').click(), true)")
+  const recPanel = await page.evaluate("document.querySelector('[data-form=slot] .pp-title')?.textContent ?? ''")
+  check('点子环节选中的是它自己：右栏给模板识别的参数面板', /模板/.test(recPanel), recPanel)
+  const recDerived = await page.evaluate("Array.from(document.querySelectorAll('[data-form=slot] [data-param-derived]')).map(e => e.dataset.paramDerived).join()")
+  await page.evaluate("(document.querySelector('[data-slot=det] [data-slot-sub=feat]').click(), true)")
+  const featDerived = await page.evaluate("Array.from(document.querySelectorAll('[data-form=slot] [data-param-derived]')).map(e => e.dataset.paramDerived).join()")
+  check('特征提取的 nfft 与突发合并空隙从检测器派生、只读（10 §4.3），识别器没有派生项',
+    featDerived === 'nfft,merge_gap_frames' && recDerived === '', `feat ${featDerived} / rec ${recDerived}`)
   const note = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-note]')?.textContent ?? ''")
   check('旁路的环节写明信号从哪里取，且不出现 MATLAB 字样', /旁路/.test(note) && !/MATLAB/.test(note), note.slice(0, 40))
 
@@ -450,12 +462,37 @@ try {
   check('摘要计数与行文件一致', dIdx.nodes.det.hits === det.length && dIdx.nodes.det.segments === bySeg.size,
     `hits ${dIdx.nodes.det.hits} / ${det.length}，段 ${dIdx.nodes.det.segments} / ${bySeg.size}`)
 
+  // ---------- ③c 特征与识别（C-4）：每段一行特征、一行识别，与检测段同节拍 ----------
+  const feat = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/features').then(r => r.json())`)
+  const rec = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/recognitions').then(r => r.json())`)
+  check('features.jsonl 与 recognitions.jsonl 每段各一行，带节点名、站点与溯源（C-4）',
+    Array.isArray(feat) && Array.isArray(rec) && feat.length === bySeg.size && rec.length === bySeg.size
+    && feat.every((r) => r.node_id === 'feat' && r.site_id === 'site-1' && r.trace?.model_id === 'FeatureExtractor')
+    && rec.every((r) => r.node_id === 'rec' && r.site_id === 'site-1' && r.trace?.model_id === 'TemplateClassifier' && r.library_version === 'v1'),
+    `特征 ${feat?.length ?? 0} 行，识别 ${rec?.length ?? 0} 行，段 ${bySeg.size}`)
+  const fL = feat.find((r) => r.segment_id === longest.id)
+  const rL = rec.find((r) => r.segment_id === longest.id)
+  check('最长段的特征：带宽只有几个 bin、占空比 1、质量 full（单音持续到结束）',
+    // demo-01 的单音在站中心之上 48828.125 Hz（场景 waveform.offset_Hz），质心应落在它的一个 bin（488 Hz）内
+    fL && fL.bandwidth_Hz < 5e3 && fL.duty === 1 && fL.quality === 'full' && Math.abs(fL.center_Hz - (2440.5e6 + 48828.125)) < 1e3,
+    fL ? `带宽 ${fL.bandwidth_Hz} Hz，质心 ${(fL.center_Hz / 1e6).toFixed(4)} MHz，平坦度 ${fL.spectral_flatness?.toFixed?.(3)}，${fL.quality}` : '无')
+  check('最长段判为 cw_beacon 且过接受门限（10 报告附录 D 的波形映射：tone → cw_beacon）',
+    rL && rL.result === 'known' && rL.label === 'cw_beacon',
+    rL ? `${rL.result} ${rL.label} p=${rL.posterior?.toFixed?.(2)} D=${rL.distance}` : '无')
+
   // 「检测识别」页签：突发列表一行一段；点最长段 → 时间轴与信号游标到该时刻
   await page.evaluate("(document.querySelector('[data-results-tab=detections]').click(), true)")
   st = await page.waitFor((s) => s.app?.resultsTab === 'detections' && s.app?.results?.detections?.status === 'final'
-    && (s.app?.results?.detections?.segments ?? 0) > 0, { label: '检测识别页签有数据', timeoutMs: 30000 })
+    && (s.app?.results?.detections?.segments ?? 0) > 0 && s.app?.results?.recognitions?.status === 'final',
+  { label: '检测识别页签有数据', timeoutMs: 30000 })
   const rowsDom = await waitDom(page, "document.querySelectorAll('[data-det-row]').length", bySeg.size)
   check('「检测识别」页签列出突发，一行一段', rowsDom === bySeg.size, `${rowsDom} 行`)
+  const labelCell = await page.evaluate(`document.querySelector('[data-det-row="det|${longest.id}"] [data-det-label]')?.textContent ?? ''`)
+  const resultCell = await page.evaluate(`document.querySelector('[data-det-row="det|${longest.id}"] [data-det-result]')?.dataset.detResult ?? ''`)
+  check('突发表把识别标签与结论接在检测段后面（C-4 最小集：标签 / 后验 / 结论三列）',
+    labelCell === 'cw_beacon' && resultCell === 'known', `${labelCell} / ${resultCell}`)
+  check('探针里的识别摘要与端点一致', st.app.results.recognitions.rows === rec.length && st.app.results.recognitions.labels?.cw_beacon >= 1,
+    JSON.stringify(st.app.results.recognitions))
   check('探针里的最长段与端点一致', Math.abs((st.app.results.detections.longest?.t_start ?? -1) - tStart) < 1e-9,
     String(st.app.results.detections.longest?.t_start))
   await page.evaluate(`(() => { const r = document.querySelector('[data-det-row="det|${longest.id}"]'); if (!r) return false; r.click(); return true })()`)

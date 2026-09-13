@@ -11,6 +11,7 @@ import type { SignalViewState } from '../signal/viewStore.js'
 import { spectrumGeomOf } from '../signal/viewport.js'
 import type { probeCards, probeSiteCards } from '../scene/cards/derive.js'
 import type { probeDetections } from '../results/detectionStore.js'
+import type { probeRecognitions } from '../results/recognitionStore.js'
 import { zones } from '../scene/editor/scenarioOps.js'
 import { focusTargetId } from '../scene/focus.js'
 
@@ -72,6 +73,8 @@ export interface ProbeExtras {
   timeline: { t: number | null; mode: 'live' | 'replay'; playing: boolean; speed: number; markers: number; source: 'live' | 'replay' | 'preview' }
   /** 检测行与突发（C-3，D-063），由 results/detectionStore.ts 的 probeDetections 算 */
   detections?: ReturnType<typeof probeDetections>
+  /** 识别行的摘要（C-4） */
+  recognitions?: ReturnType<typeof probeRecognitions>
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -233,7 +236,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       overlayDetections: s.signal.display.overlayDetections,
     },
     // 检测结果（C-3）：命中行数、段数、最长段——e2e 据此断言「3 s 开机后检出」
-    results: { detections: x.detections ?? null },
+    results: { detections: x.detections ?? null, recognitions: x.recognitions ?? null },
     perf: s.ui.devMode ? { longTasks: x.longTasks ?? null } : null,
     badges: { noScene: !s.scene.summary },
     mapInstanceId: x.mapInstanceId,

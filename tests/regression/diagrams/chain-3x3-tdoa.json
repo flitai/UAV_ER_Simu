@@ -205,6 +205,24 @@
       }
     },
     {
+      "id": "feat__site-1",
+      "type": "FeatureExtractor",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
+      "id": "rec__site-1",
+      "type": "TemplateClassifier",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
       "id": "df__site-1",
       "type": "DirectionFinder",
       "scene_binding": {
@@ -340,6 +358,24 @@
       }
     },
     {
+      "id": "feat__site-2",
+      "type": "FeatureExtractor",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-2"
+      },
+      "params": {}
+    },
+    {
+      "id": "rec__site-2",
+      "type": "TemplateClassifier",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-2"
+      },
+      "params": {}
+    },
+    {
       "id": "df__site-2",
       "type": "DirectionFinder",
       "scene_binding": {
@@ -473,6 +509,24 @@
         "band_hi_Hz": 225000,
         "noise_mode": "sliding"
       }
+    },
+    {
+      "id": "feat__site-3",
+      "type": "FeatureExtractor",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-3"
+      },
+      "params": {}
+    },
+    {
+      "id": "rec__site-3",
+      "type": "TemplateClassifier",
+      "scene_binding": {
+        "scenario_id": "demo-03",
+        "site_id": "site-3"
+      },
+      "params": {}
     },
     {
       "id": "df__site-3",
@@ -768,34 +822,34 @@
     {
       "id": "e25",
       "from": {
-        "node": "scn__site-1",
-        "port": "link:uav-1"
+        "node": "adc__site-1",
+        "port": "out"
       },
       "to": {
-        "node": "df__site-1",
-        "port": "scene1"
+        "node": "feat__site-1",
+        "port": "iq"
       }
     },
     {
       "id": "e26",
       "from": {
-        "node": "scn__site-1",
-        "port": "link:uav-2"
+        "node": "det__site-1",
+        "port": "out"
       },
       "to": {
-        "node": "df__site-1",
-        "port": "scene2"
+        "node": "feat__site-1",
+        "port": "det"
       }
     },
     {
       "id": "e27",
       "from": {
-        "node": "scn__site-1",
-        "port": "link:uav-3"
+        "node": "feat__site-1",
+        "port": "out"
       },
       "to": {
-        "node": "df__site-1",
-        "port": "scene3"
+        "node": "rec__site-1",
+        "port": "in"
       }
     },
     {
@@ -805,7 +859,7 @@
         "port": "link:uav-1"
       },
       "to": {
-        "node": "toa__site-1",
+        "node": "df__site-1",
         "port": "scene1"
       }
     },
@@ -816,7 +870,7 @@
         "port": "link:uav-2"
       },
       "to": {
-        "node": "toa__site-1",
+        "node": "df__site-1",
         "port": "scene2"
       }
     },
@@ -827,12 +881,45 @@
         "port": "link:uav-3"
       },
       "to": {
-        "node": "toa__site-1",
+        "node": "df__site-1",
         "port": "scene3"
       }
     },
     {
       "id": "e31",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "toa__site-1",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e32",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "toa__site-1",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e33",
+      "from": {
+        "node": "scn__site-1",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "toa__site-1",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e34",
       "from": {
         "node": "tx__uav-1",
         "port": "out"
@@ -843,52 +930,52 @@
       }
     },
     {
-      "id": "e32",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-1"
-      },
-      "to": {
-        "node": "tx_ant__uav-1__site-2",
-        "port": "scene"
-      }
-    },
-    {
-      "id": "e33",
-      "from": {
-        "node": "tx_ant__uav-1__site-2",
-        "port": "out"
-      },
-      "to": {
-        "node": "ch__uav-1__site-2",
-        "port": "in"
-      }
-    },
-    {
-      "id": "e34",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-1"
-      },
-      "to": {
-        "node": "ch__uav-1__site-2",
-        "port": "scene"
-      }
-    },
-    {
       "id": "e35",
       "from": {
-        "node": "ch__uav-1__site-2",
-        "port": "out"
+        "node": "scn__site-2",
+        "port": "link:uav-1"
       },
       "to": {
-        "node": "rx_ant__uav-1__site-2",
-        "port": "in"
+        "node": "tx_ant__uav-1__site-2",
+        "port": "scene"
       }
     },
     {
       "id": "e36",
       "from": {
+        "node": "tx_ant__uav-1__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-1__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e37",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "ch__uav-1__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e38",
+      "from": {
+        "node": "ch__uav-1__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-1__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e39",
+      "from": {
         "node": "scn__site-2",
         "port": "link:uav-1"
       },
@@ -898,7 +985,7 @@
       }
     },
     {
-      "id": "e37",
+      "id": "e40",
       "from": {
         "node": "tx__uav-2",
         "port": "out"
@@ -909,52 +996,52 @@
       }
     },
     {
-      "id": "e38",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-2"
-      },
-      "to": {
-        "node": "tx_ant__uav-2__site-2",
-        "port": "scene"
-      }
-    },
-    {
-      "id": "e39",
-      "from": {
-        "node": "tx_ant__uav-2__site-2",
-        "port": "out"
-      },
-      "to": {
-        "node": "ch__uav-2__site-2",
-        "port": "in"
-      }
-    },
-    {
-      "id": "e40",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-2"
-      },
-      "to": {
-        "node": "ch__uav-2__site-2",
-        "port": "scene"
-      }
-    },
-    {
       "id": "e41",
       "from": {
-        "node": "ch__uav-2__site-2",
-        "port": "out"
+        "node": "scn__site-2",
+        "port": "link:uav-2"
       },
       "to": {
-        "node": "rx_ant__uav-2__site-2",
-        "port": "in"
+        "node": "tx_ant__uav-2__site-2",
+        "port": "scene"
       }
     },
     {
       "id": "e42",
       "from": {
+        "node": "tx_ant__uav-2__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-2__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e43",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "ch__uav-2__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e44",
+      "from": {
+        "node": "ch__uav-2__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-2__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e45",
+      "from": {
         "node": "scn__site-2",
         "port": "link:uav-2"
       },
@@ -964,7 +1051,7 @@
       }
     },
     {
-      "id": "e43",
+      "id": "e46",
       "from": {
         "node": "tx__uav-3",
         "port": "out"
@@ -975,52 +1062,52 @@
       }
     },
     {
-      "id": "e44",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-3"
-      },
-      "to": {
-        "node": "tx_ant__uav-3__site-2",
-        "port": "scene"
-      }
-    },
-    {
-      "id": "e45",
-      "from": {
-        "node": "tx_ant__uav-3__site-2",
-        "port": "out"
-      },
-      "to": {
-        "node": "ch__uav-3__site-2",
-        "port": "in"
-      }
-    },
-    {
-      "id": "e46",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-3"
-      },
-      "to": {
-        "node": "ch__uav-3__site-2",
-        "port": "scene"
-      }
-    },
-    {
       "id": "e47",
       "from": {
-        "node": "ch__uav-3__site-2",
-        "port": "out"
+        "node": "scn__site-2",
+        "port": "link:uav-3"
       },
       "to": {
-        "node": "rx_ant__uav-3__site-2",
-        "port": "in"
+        "node": "tx_ant__uav-3__site-2",
+        "port": "scene"
       }
     },
     {
       "id": "e48",
       "from": {
+        "node": "tx_ant__uav-3__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-3__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e49",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "ch__uav-3__site-2",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e50",
+      "from": {
+        "node": "ch__uav-3__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-3__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e51",
+      "from": {
         "node": "scn__site-2",
         "port": "link:uav-3"
       },
@@ -1030,7 +1117,7 @@
       }
     },
     {
-      "id": "e49",
+      "id": "e52",
       "from": {
         "node": "rx_ant__uav-1__site-2",
         "port": "out"
@@ -1041,7 +1128,7 @@
       }
     },
     {
-      "id": "e50",
+      "id": "e53",
       "from": {
         "node": "rx_ant__uav-2__site-2",
         "port": "out"
@@ -1052,7 +1139,7 @@
       }
     },
     {
-      "id": "e51",
+      "id": "e54",
       "from": {
         "node": "rx_ant__uav-3__site-2",
         "port": "out"
@@ -1063,7 +1150,7 @@
       }
     },
     {
-      "id": "e52",
+      "id": "e55",
       "from": {
         "node": "sup__site-2",
         "port": "out"
@@ -1074,7 +1161,7 @@
       }
     },
     {
-      "id": "e53",
+      "id": "e56",
       "from": {
         "node": "rx_fe__site-2",
         "port": "out"
@@ -1085,7 +1172,7 @@
       }
     },
     {
-      "id": "e54",
+      "id": "e57",
       "from": {
         "node": "adc__site-2",
         "port": "out"
@@ -1096,52 +1183,85 @@
       }
     },
     {
-      "id": "e55",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-1"
-      },
-      "to": {
-        "node": "df__site-2",
-        "port": "scene1"
-      }
-    },
-    {
-      "id": "e56",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-2"
-      },
-      "to": {
-        "node": "df__site-2",
-        "port": "scene2"
-      }
-    },
-    {
-      "id": "e57",
-      "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-3"
-      },
-      "to": {
-        "node": "df__site-2",
-        "port": "scene3"
-      }
-    },
-    {
       "id": "e58",
       "from": {
-        "node": "scn__site-2",
-        "port": "link:uav-1"
+        "node": "adc__site-2",
+        "port": "out"
       },
       "to": {
-        "node": "toa__site-2",
-        "port": "scene1"
+        "node": "feat__site-2",
+        "port": "iq"
       }
     },
     {
       "id": "e59",
       "from": {
+        "node": "det__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat__site-2",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e60",
+      "from": {
+        "node": "feat__site-2",
+        "port": "out"
+      },
+      "to": {
+        "node": "rec__site-2",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e61",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "df__site-2",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e62",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "df__site-2",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e63",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "df__site-2",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e64",
+      "from": {
+        "node": "scn__site-2",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "toa__site-2",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e65",
+      "from": {
         "node": "scn__site-2",
         "port": "link:uav-2"
       },
@@ -1151,7 +1271,7 @@
       }
     },
     {
-      "id": "e60",
+      "id": "e66",
       "from": {
         "node": "scn__site-2",
         "port": "link:uav-3"
@@ -1162,7 +1282,7 @@
       }
     },
     {
-      "id": "e61",
+      "id": "e67",
       "from": {
         "node": "tx__uav-1",
         "port": "out"
@@ -1173,7 +1293,7 @@
       }
     },
     {
-      "id": "e62",
+      "id": "e68",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-1"
@@ -1184,7 +1304,7 @@
       }
     },
     {
-      "id": "e63",
+      "id": "e69",
       "from": {
         "node": "tx_ant__uav-1__site-3",
         "port": "out"
@@ -1195,7 +1315,7 @@
       }
     },
     {
-      "id": "e64",
+      "id": "e70",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-1"
@@ -1206,7 +1326,7 @@
       }
     },
     {
-      "id": "e65",
+      "id": "e71",
       "from": {
         "node": "ch__uav-1__site-3",
         "port": "out"
@@ -1217,7 +1337,7 @@
       }
     },
     {
-      "id": "e66",
+      "id": "e72",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-1"
@@ -1228,7 +1348,7 @@
       }
     },
     {
-      "id": "e67",
+      "id": "e73",
       "from": {
         "node": "tx__uav-2",
         "port": "out"
@@ -1239,7 +1359,7 @@
       }
     },
     {
-      "id": "e68",
+      "id": "e74",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-2"
@@ -1250,7 +1370,7 @@
       }
     },
     {
-      "id": "e69",
+      "id": "e75",
       "from": {
         "node": "tx_ant__uav-2__site-3",
         "port": "out"
@@ -1261,7 +1381,7 @@
       }
     },
     {
-      "id": "e70",
+      "id": "e76",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-2"
@@ -1272,7 +1392,7 @@
       }
     },
     {
-      "id": "e71",
+      "id": "e77",
       "from": {
         "node": "ch__uav-2__site-3",
         "port": "out"
@@ -1283,7 +1403,7 @@
       }
     },
     {
-      "id": "e72",
+      "id": "e78",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-2"
@@ -1294,7 +1414,7 @@
       }
     },
     {
-      "id": "e73",
+      "id": "e79",
       "from": {
         "node": "tx__uav-3",
         "port": "out"
@@ -1305,7 +1425,7 @@
       }
     },
     {
-      "id": "e74",
+      "id": "e80",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-3"
@@ -1316,7 +1436,7 @@
       }
     },
     {
-      "id": "e75",
+      "id": "e81",
       "from": {
         "node": "tx_ant__uav-3__site-3",
         "port": "out"
@@ -1327,7 +1447,7 @@
       }
     },
     {
-      "id": "e76",
+      "id": "e82",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-3"
@@ -1338,7 +1458,7 @@
       }
     },
     {
-      "id": "e77",
+      "id": "e83",
       "from": {
         "node": "ch__uav-3__site-3",
         "port": "out"
@@ -1349,7 +1469,7 @@
       }
     },
     {
-      "id": "e78",
+      "id": "e84",
       "from": {
         "node": "scn__site-3",
         "port": "link:uav-3"
@@ -1360,7 +1480,7 @@
       }
     },
     {
-      "id": "e79",
+      "id": "e85",
       "from": {
         "node": "rx_ant__uav-1__site-3",
         "port": "out"
@@ -1371,7 +1491,7 @@
       }
     },
     {
-      "id": "e80",
+      "id": "e86",
       "from": {
         "node": "rx_ant__uav-2__site-3",
         "port": "out"
@@ -1382,7 +1502,7 @@
       }
     },
     {
-      "id": "e81",
+      "id": "e87",
       "from": {
         "node": "rx_ant__uav-3__site-3",
         "port": "out"
@@ -1393,7 +1513,7 @@
       }
     },
     {
-      "id": "e82",
+      "id": "e88",
       "from": {
         "node": "sup__site-3",
         "port": "out"
@@ -1404,7 +1524,7 @@
       }
     },
     {
-      "id": "e83",
+      "id": "e89",
       "from": {
         "node": "rx_fe__site-3",
         "port": "out"
@@ -1415,7 +1535,7 @@
       }
     },
     {
-      "id": "e84",
+      "id": "e90",
       "from": {
         "node": "adc__site-3",
         "port": "out"
@@ -1426,73 +1546,106 @@
       }
     },
     {
-      "id": "e85",
-      "from": {
-        "node": "scn__site-3",
-        "port": "link:uav-1"
-      },
-      "to": {
-        "node": "df__site-3",
-        "port": "scene1"
-      }
-    },
-    {
-      "id": "e86",
-      "from": {
-        "node": "scn__site-3",
-        "port": "link:uav-2"
-      },
-      "to": {
-        "node": "df__site-3",
-        "port": "scene2"
-      }
-    },
-    {
-      "id": "e87",
-      "from": {
-        "node": "scn__site-3",
-        "port": "link:uav-3"
-      },
-      "to": {
-        "node": "df__site-3",
-        "port": "scene3"
-      }
-    },
-    {
-      "id": "e88",
-      "from": {
-        "node": "scn__site-3",
-        "port": "link:uav-1"
-      },
-      "to": {
-        "node": "toa__site-3",
-        "port": "scene1"
-      }
-    },
-    {
-      "id": "e89",
-      "from": {
-        "node": "scn__site-3",
-        "port": "link:uav-2"
-      },
-      "to": {
-        "node": "toa__site-3",
-        "port": "scene2"
-      }
-    },
-    {
-      "id": "e90",
-      "from": {
-        "node": "scn__site-3",
-        "port": "link:uav-3"
-      },
-      "to": {
-        "node": "toa__site-3",
-        "port": "scene3"
-      }
-    },
-    {
       "id": "e91",
+      "from": {
+        "node": "adc__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat__site-3",
+        "port": "iq"
+      }
+    },
+    {
+      "id": "e92",
+      "from": {
+        "node": "det__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat__site-3",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e93",
+      "from": {
+        "node": "feat__site-3",
+        "port": "out"
+      },
+      "to": {
+        "node": "rec__site-3",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e94",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "df__site-3",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e95",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "df__site-3",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e96",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "df__site-3",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e97",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "toa__site-3",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e98",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-2"
+      },
+      "to": {
+        "node": "toa__site-3",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e99",
+      "from": {
+        "node": "scn__site-3",
+        "port": "link:uav-3"
+      },
+      "to": {
+        "node": "toa__site-3",
+        "port": "scene3"
+      }
+    },
+    {
+      "id": "e100",
       "from": {
         "node": "df__site-1",
         "port": "out"
@@ -1503,7 +1656,7 @@
       }
     },
     {
-      "id": "e92",
+      "id": "e101",
       "from": {
         "node": "toa__site-1",
         "port": "out"
@@ -1514,7 +1667,7 @@
       }
     },
     {
-      "id": "e93",
+      "id": "e102",
       "from": {
         "node": "df__site-2",
         "port": "out"
@@ -1525,7 +1678,7 @@
       }
     },
     {
-      "id": "e94",
+      "id": "e103",
       "from": {
         "node": "toa__site-2",
         "port": "out"
@@ -1536,7 +1689,7 @@
       }
     },
     {
-      "id": "e95",
+      "id": "e104",
       "from": {
         "node": "df__site-3",
         "port": "out"
@@ -1547,7 +1700,7 @@
       }
     },
     {
-      "id": "e96",
+      "id": "e105",
       "from": {
         "node": "toa__site-3",
         "port": "out"

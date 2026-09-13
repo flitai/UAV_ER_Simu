@@ -66,10 +66,14 @@ function synthetic(): ChainState {
 test('全合成：编译出的节点与连线就是九环节链（DDC / 信道化本期未实现，自动跳过）', () => {
   const r = compile(synthetic(), cat, scenario)
   const ids = r.doc.nodes.map((n) => n.id)
-  assert.deepEqual(ids, ['scn', 'tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det'])
-  // 主链一路串下来，天线与信道另接场景参数帧
+  // 检测识别评价一张卡三个环节（C-4）：检测之后跟着特征提取与模板识别
+  assert.deepEqual(ids, ['scn', 'tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det', 'feat', 'rec'])
+  // 主链一路串下来，天线与信道另接场景参数帧；识别接特征输出
   const iq = r.doc.edges.filter((e) => e.to.port === 'in').map((e) => `${e.from.node}→${e.to.node}`)
-  assert.deepEqual(iq, ['tx→tx_ant', 'tx_ant→ch', 'ch→rx_ant', 'rx_ant→rx_fe', 'rx_fe→adc', 'adc→det'])
+  assert.deepEqual(iq, ['tx→tx_ant', 'tx_ant→ch', 'ch→rx_ant', 'rx_ant→rx_fe', 'rx_fe→adc', 'adc→det', 'feat→rec'])
+  // 特征提取的 iq 口接检测器的同一上游（S4 尾），det 口接检测器输出
+  const feat = r.doc.edges.filter((e) => e.to.node === 'feat').map((e) => `${e.from.node}→${e.to.port}`)
+  assert.deepEqual(feat, ['adc→iq', 'det→det'])
   const scene = r.doc.edges.filter((e) => e.to.port === 'scene').map((e) => e.to.node)
   assert.deepEqual(scene, ['tx_ant', 'ch', 'rx_ant'])
   for (const e of r.doc.edges.filter((x) => x.to.port === 'scene')) {
@@ -234,7 +238,7 @@ test('回放模式：编译出的框图只有回放源与检测，没有场景�
   const c = switchMode(emptyChain('replay', 'chain-replay'), 'replay')
   c.slots.tx.params = { data_id: 'dronerfb_0_CH0_S4' }
   const r = compile(c, cat, scenario)
-  assert.deepEqual(r.doc.nodes.map((n) => n.id), ['tx', 'det'])
+  assert.deepEqual(r.doc.nodes.map((n) => n.id), ['tx', 'det', 'feat', 'rec'])
   assert.equal(r.doc.nodes[0]!.type, 'FileReplaySource')
   assert.equal(r.doc.scenario_ref, undefined)
   // 没有场景就没有绑定：检测行将不带 site_id（D-063），模板固定的 noise_mode 照写
@@ -331,7 +335,7 @@ test('多源：前四环节按源分支，接收天线后叠加成一路（11 �
     'tx__uav-1', 'tx__uav-2',
     'tx_ant__uav-1', 'ch__uav-1', 'rx_ant__uav-1',
     'tx_ant__uav-2', 'ch__uav-2', 'rx_ant__uav-2',
-    'sup', 'rx_fe', 'adc', 'det',
+    'sup', 'rx_fe', 'adc', 'det', 'feat', 'rec',
   ])
   // 两条支路各自进叠加，此后只有一路
   const toSup = r.doc.edges.filter((e) => e.to.node === 'sup').map((e) => `${e.from.node}→${e.to.port}`)
@@ -365,8 +369,8 @@ test('多站：接收天线之后每环节一站一份，场景参数源也一�
   assert.deepEqual(ids, [
     'scn__site-1', 'scn__site-2',
     'tx',
-    'tx_ant__site-1', 'ch__site-1', 'rx_ant__site-1', 'rx_fe__site-1', 'adc__site-1', 'det__site-1',
-    'tx_ant__site-2', 'ch__site-2', 'rx_ant__site-2', 'rx_fe__site-2', 'adc__site-2', 'det__site-2',
+    'tx_ant__site-1', 'ch__site-1', 'rx_ant__site-1', 'rx_fe__site-1', 'adc__site-1', 'det__site-1', 'feat__site-1', 'rec__site-1',
+    'tx_ant__site-2', 'ch__site-2', 'rx_ant__site-2', 'rx_fe__site-2', 'adc__site-2', 'det__site-2', 'feat__site-2', 'rec__site-2',
   ])
   const scn = r.doc.nodes.filter((n) => n.id.startsWith('scn'))
   assert.equal(scn[0]!.params.report_entities, undefined, '第一个照常报实体（不写即缺省真）')
@@ -379,6 +383,33 @@ test('多站：接收天线之后每环节一站一份，场景参数源也一�
   // 辐射源只绑源：它一份波形扇出到全部站，绑站是错的（引擎也会拒，因为目录没声明 site_id）
   assert.deepEqual(r.doc.nodes.find((n) => n.id === 'tx')!.scene_binding,
     { scenario_id: 'demo-03', entity_id: 'uav-1' })
+})
+
+test('特征提取的帧长与合并空隙从检测器派生（10 §4.3），改检测器两处同步；往返逐字节（C-4）', () => {
+  const c = synthetic()
+  c.slots.det.params = { nfft: 512, merge_gap_frames: 3 }
+  c.slots.feat.params = { nfft: 4096, noise_gate: 3 }           // 残留的旧值必须被检测器的覆盖
+  c.slots.rec.params = { accept_threshold: 0.55 }
+  const r = compile(c, cat, scenario)
+  const feat = r.doc.nodes.find((n) => n.id === 'feat')!
+  const rec = r.doc.nodes.find((n) => n.id === 'rec')!
+  assert.equal(feat.type, 'FeatureExtractor')
+  assert.equal(feat.params.nfft, 512)
+  assert.equal(feat.params.merge_gap_frames, 3)
+  assert.equal(feat.params.noise_gate, 3)
+  assert.deepEqual(feat.scene_binding, { scenario_id: 'demo-01', site_id: 'site-1' })
+  assert.equal(rec.type, 'TemplateClassifier')
+  assert.equal(rec.params.accept_threshold, 0.55)
+  assert.equal(rec.params.library_version, undefined, '缺省 v1 不写；库文件位置是内部参数，永远不进框图（D-037）')
+  assert.equal(rec.params.library_path, undefined)
+  // 往返逐字节：解回来再编译，一样
+  const text = serialize(r.doc, cat)
+  const back = parseChain(parseOk(text))!
+  assert.equal(serialize(compile(back, cat, scenario).doc, cat), text)
+  assert.equal(back.slots.rec.params.accept_threshold, 0.55)
+  // 缺省检测器：特征提取器什么也不写（两边缺省相同）
+  const d = compile(synthetic(), cat, scenario).doc.nodes.find((n) => n.id === 'feat')!
+  assert.deepEqual(d.params, {})
 })
 
 test('多站：观测点每站各一份，产品目录名带站后缀', () => {
@@ -530,7 +561,7 @@ test('辐射源的变体由模式决定，卡片上不给第二个开关（D-057
   const r = switchMode(synthetic(), 'replay')
   assert.equal(r.slots.tx.variant, SLOT_BY_ID.tx.variants.findIndex((v: { type: string }) => v.type === 'FileReplaySource'))
   assert.equal(r.scenario, null, '回放数据与场景无关（防线二、三）')
-  assert.deepEqual(compile(r, cat, null).doc.nodes.map((n) => n.id), ['tx', 'det'])
+  assert.deepEqual(compile(r, cat, null).doc.nodes.map((n) => n.id), ['tx', 'det', 'feat', 'rec'])
 
   const back = switchMode(r, 'synthetic')
   assert.equal(back.slots.tx.variant, 0)

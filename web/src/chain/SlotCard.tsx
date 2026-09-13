@@ -17,12 +17,23 @@ import { paramLabel } from './paramLabels.js'
 
 type Obj = Record<string, unknown>
 
+/** 挂在卡片里的子环节（C-4）：一行一个，点它选中的是那个槽位 */
+export interface SlotMember {
+  id: SlotId
+  label: string
+  state: SlotState
+  selected: boolean
+  error: string | null
+  missing: string[]
+}
+
 export interface SlotCardProps {
   chain: ChainState
   id: SlotId
   catalog: Catalog | null
   state: SlotState
   selected: boolean
+  members?: SlotMember[]
   /** 缺哪些必填参数（按当前链路的实体算） */
   missing: string[]
   /** 当前链路（D-064）：中栏下拉选中的无人机与侦测站；卡片摘要显示这一条链的参数 */
@@ -134,6 +145,27 @@ export function SlotCard(p: SlotCardProps) {
         <div className="slot-body">
           {summaryText(p.chain, p.id, p.catalog, p.focusEmitter, p.focusSite, p.focusEntity).slice(0, 3).map((t) => (
             <div className="slot-param" key={t.k}><span className="k">{t.k}</span><span className="v">{t.v}</span></div>
+          ))}
+        </div>
+      )}
+
+      {/* 子环节（C-4）：检测识别评价一张卡、三个环节——检测在卡片正文，特征提取与模板识别各占一行 */}
+      {p.members && p.members.length > 0 && (
+        <div className="slot-members" data-slot-members>
+          {p.members.map((m) => (
+            <div key={m.id}
+              className={`slot-member${m.selected ? ' on' : ''}${m.error ? ' bad' : ''}${m.state !== 'active' ? ' dim' : ''}`}
+              data-slot-sub={m.id} data-slot-sub-state={m.state}
+              role="button" tabIndex={0}
+              title={SLOT_BY_ID[m.id].hint}
+              onClick={(e) => { e.stopPropagation(); p.onSelect(m.id) }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); p.onSelect(m.id) } }}
+            >
+              <span className="k">{m.label}</span>
+              <span className={`v${m.error ? ' bad' : m.missing.length ? ' warn' : ''}`}>
+                {m.error ? '✕' : m.missing.length ? '待填' : m.state === 'active' ? '✓' : (STATE_TEXT[m.state] || unavailableReason(variantOf(p.chain, m.id).type))}
+              </span>
+            </div>
           ))}
         </div>
       )}

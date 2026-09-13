@@ -26,6 +26,7 @@ import {
   effectiveParams, emptyChain, fromSceneOf, ownerEntity, slotState, splitProxy,
   tapOpId, variantOf,
   type ChainMode, type ChainState, type SlotId, type SlotPer, type TapId,
+  DERIVED_PARAMS,
 } from './model.js'
 import { freqPlan } from './plan.js'
 import { propView, visiblePropParams } from './effects.js'
@@ -387,10 +388,34 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
       const half = plan.fs_s5 > 0 ? plan.fs_s5 : plan.fs_s4
       const band: Record<string, ParamValue> = half > 0
         ? { band_lo_Hz: -0.45 * half, band_hi_Hz: 0.45 * half } : {}
-      push(nid, v.type, { ...slotParams('det', emsSel[0]!, site), ...band }, 'det',
-           bindOf(v.bind, emsSel[0]!, site))
+      const detParams = { ...slotParams('det', emsSel[0]!, site), ...band }
+      push(nid, v.type, detParams, 'det', bindOf(v.bind, emsSel[0]!, site))
       link(cursor.node, cursor.port, nid, 'in')
       markActive('det')
+
+      // 特征提取与模板识别（C-4）：挂在检测识别评价卡片里的两个槽位，按站各一份。
+      // 特征提取的 iq 口接检测器的同一上游（S4 尾），det 口接检测器输出；识别接特征输出。
+      // nfft 与 merge_gap_frames 从检测器**派生**（10 §4.3「必须等于检测器的」，装载器再核对一遍）：
+      // 先把本槽位状态里可能残留的旧值剔掉，再按检测器写——写了不一样的值引擎会拒整次运行。
+      if (active('feat')) {
+        const fv = variantOf(chain, 'feat')
+        const fid = nodeId(fv.node, { id: site, many: manySites })
+        const own = slotParams('feat', emsSel[0]!, site)
+        for (const k of DERIVED_PARAMS.feat ?? []) delete own[k]
+        const derivedFeat: Record<string, ParamValue> = {}
+        for (const k of DERIVED_PARAMS.feat ?? []) if (detParams[k] !== undefined) derivedFeat[k] = detParams[k]!
+        push(fid, fv.type, { ...own, ...derivedFeat }, 'feat', bindOf(fv.bind, emsSel[0]!, site))
+        link(cursor.node, cursor.port, fid, 'iq')
+        link(nid, 'out', fid, 'det')
+        markActive('feat')
+        if (active('rec')) {
+          const rv = variantOf(chain, 'rec')
+          const rid = nodeId(rv.node, { id: site, many: manySites })
+          push(rid, rv.type, slotParams('rec', emsSel[0]!, site), 'rec', bindOf(rv.bind, emsSel[0]!, site))
+          link(fid, 'out', rid, 'in')
+          markActive('rec')
+        }
+      }
     }
 
     // 测向不在 IQ 主链上：它吃的是本站对每个源的链路参数帧（D-053 §2.2）。

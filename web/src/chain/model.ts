@@ -22,6 +22,9 @@ export type SlotId =
   | 'tx' | 'tx_ant' | 'ch' | 'rx_ant' | 'rx_fe' | 'adc' | 'ddc' | 'chan' | 'det'
   // D-053：尾部两个槽位。`df` 一站一个测向机，`loc` 全图唯一的融合节点
   | 'df' | 'loc'
+  // C-4：挂在「检测识别评价」卡片里的两个槽位（10 报告 §2.1「固定三节点」）。它们不单独成卡，
+  // 编译与反解照常按槽位走——这样 parse / compile / 参数归属 / 待填一件不用改，只有画法不同
+  | 'feat' | 'rec'
 
 /** 观测点，钉在链上的固定位置（04 §5.4 的 S0–S5；S6 不是 IQ，是检测识别产品）。 */
 export type TapId = 's0' | 's1' | 's2' | 's3' | 's4' | 's5'
@@ -123,6 +126,11 @@ export interface SlotDef {
   replayNotApplicable?: boolean
   /** 参数显示在本卡片、编译到别的节点（D-058） */
   proxy?: SlotProxy
+  /**
+   * 挂在哪个槽位的卡片里（C-4）。有它的槽位不在链条上单独成卡，而是作为宿主卡片里的一行子环节；
+   * 点那一行选中的是本槽位，右栏照常给它的参数面板。编译、反解、参数归属都不看这个字段。
+   */
+  group?: SlotId
 }
 
 /** 槽位表。改这里就改了整条链，编译、反解与界面同时跟随。 */
@@ -202,6 +210,24 @@ export const SLOTS: readonly SlotDef[] = [
       // 绑站只为把 site_id 注入检测行——多站下每站一个检测器，行里不带站就分不清是谁检出的（D-053）。
       { type: 'EnergyDetector', node: 'det', label: '能量检测', bind: 'site',
         fixed: { noise_mode: 'sliding' }, summary: ['nfft', 'pfa', 'noise_mode'] },
+    ],
+  },
+  {
+    // 特征提取（C-4，10 报告 §4.3）：挂在检测识别评价卡片里，一站一份，吃 S4 尾的 IQ 与本站检测器的行。
+    // nfft 与 merge_gap_frames 由检测器**派生**（必须相等，装载器再核对一遍），用户只在检测器那一行填。
+    id: 'feat', label: '特征提取', hint: '按突发提取特征（EM-S-03）', group: 'det',
+    variants: [
+      { type: 'FeatureExtractor', node: 'feat', label: '特征提取', bind: 'site',
+        summary: ['bandwidth_method', 'noise_gate', 'window_frames'] },
+    ],
+  },
+  {
+    // 模板匹配识别（C-4，10 报告 §4.4）：吃本站的特征行，出 signal_role 层的标签。
+    // 模板库版本是用户参数，库文件位置由装载器注入（D-037 同法）。
+    id: 'rec', label: '模板识别', hint: '模板加权匹配识别（EM-S-04 E2）', group: 'det',
+    variants: [
+      { type: 'TemplateClassifier', node: 'rec', label: '模板匹配识别', bind: 'site',
+        summary: ['library_version', 'accept_threshold', 'min_quality'] },
     ],
   },
   {
@@ -433,8 +459,6 @@ export function writeParam(
 export const UNAVAILABLE_REASON: Readonly<Record<string, string>> = {
   DDC: '本期旁路，S4 直接取 ADC 输出',
   Channelizer: '本期旁路',
-  FeatureExtractor: '本期不启用',
-  TemplateClassifier: '本期不启用',
   Evaluator: '本期不启用',
 }
 
@@ -503,6 +527,8 @@ export const DERIVED_PARAMS: Partial<Record<SlotId, string[]>> = {
   tx: ['sample_rate_Hz', 'total_samples', 'center_frequency_Hz'],
   det: ['band_lo_Hz', 'band_hi_Hz'],
   ch: ['frequency_Hz'],
+  // 特征提取的分帧必须与检测器相同（10 §4.3）：从检测器派生，不在这里另填一份
+  feat: ['nfft', 'merge_gap_frames'],
 }
 
 /**
@@ -558,6 +584,14 @@ export function retiredNote(types: readonly string[]): string | null {
 export function proxyOf(id: SlotId): SlotProxy | undefined {
   return SLOT_BY_ID[id].proxy
 }
+
+/** 挂在这个槽位卡片里的子环节（C-4），按链路顺序。 */
+export function groupMembers(id: SlotId): SlotDef[] {
+  return SLOTS.filter((d) => d.group === id)
+}
+
+/** 链条上单独成卡的槽位（有 `group` 的挂在宿主卡片里）。 */
+export const GRID_SLOTS: readonly SlotDef[] = SLOTS.filter((d) => !d.group)
 
 /** 把一份参数按代理集合切成两半：`proxy` 走代理节点，`own` 留在本槽位的节点上。 */
 export function splitProxy(

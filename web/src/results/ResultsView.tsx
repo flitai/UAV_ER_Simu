@@ -10,6 +10,7 @@ import { tapLabel } from '../chain/model.js'
 import type { ResultsTab } from '../state/types.js'
 import { DetectionSummary, DetectionsPanel } from './DetectionsPanel.js'
 import { useDetections } from './detectionStore.js'
+import { useRecognitions } from './recognitionStore.js'
 
 const TABS: Array<{ id: ResultsTab; label: string }> = [{ id: 'signal', label: '信号' }, { id: 'detections', label: '检测识别' }, { id: 'tasks', label: '任务' }]
 
@@ -18,6 +19,8 @@ export function ResultsView() {
   const dispatch = useDispatch()
   // 检测行只在结果页可见时取（信号页的叠加与检测页签共用），运行中每 2 s 一次，终态取最后一次加索引
   useDetections(s.task.id, s.task.runState, s.ui.view === 'results')
+  // 识别行与检测段同节拍（C-4）：突发表按站与段号把标签接在检测段后面
+  useRecognitions(s.task.id, s.task.runState, s.ui.view === 'results')
   return (
     <ColumnLayout
       left={<>

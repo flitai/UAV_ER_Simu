@@ -280,6 +280,13 @@ try {
     det6.length > 0 && det6.every((r) => r.node_id === `det__${r.site_id}`), `${det6.length} 行`)
   const det2 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections?site_id=site-2&stride=50').then(r => r.json())`)
   check('检测端点支持按站过滤', det2.length > 0 && det2.every((r) => r.site_id === 'site-2'), `${det2.length} 行`)
+  // 特征与识别按站各一份（C-4）：有几段就有几行，行的节点名与站一致；demo-03 里被吸收的站没有段也就没有行
+  const rec6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/recognitions').then(r => r.json())`)
+  const feat6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/features').then(r => r.json())`)
+  check('recognitions.jsonl / features.jsonl 每行的节点名按站实例化（rec__<site> / feat__<site>），两者同节拍',
+    Array.isArray(rec6) && Array.isArray(feat6) && rec6.length === feat6.length
+    && rec6.every((r) => r.node_id === `rec__${r.site_id}`) && feat6.every((r) => r.node_id === `feat__${r.site_id}`),
+    `识别 ${rec6?.length ?? 0} 行，特征 ${feat6?.length ?? 0} 行`)
   const dIdx6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections/index').then(r => r.json())`)
   const idxNodes = Object.keys(dIdx6?.nodes ?? {}).sort()
   check('检测摘要索引有三个检测器，各带 trace 与站点', idxNodes.join() === 'det__site-1,det__site-2,det__site-3'

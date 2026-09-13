@@ -387,11 +387,37 @@ export interface DetectionsIndex {
   nodes: Record<string, DetectionNodeSummary>
 }
 
-export type DetectionsResult =
-  | { status: 'ok'; rows: DetectionRow[]; stride: number }
+/** 按行取的产品端点的四态（detections / recognitions 共用）。 */
+export type RowsResult<T> =
+  | { status: 'ok'; rows: T[]; stride: number }
   | { status: 'not_ready'; retryAfterMs: number }
   | { status: 'none' }
   | { status: 'error'; message: string }
+
+export type DetectionsResult = RowsResult<DetectionRow>
+
+/**
+ * 三态而不是抛：404 = 这次任务没有这种产品；409 = 运行中还没落盘（交给轮询，不在这里自旋）；
+ * 413 = 行太多，按服务端建议的 stride 重取**一次**并把实际用的 stride 一并返回。
+ */
+async function getRows<T>(kind: string, build: (stride: number) => string, stride0: number): Promise<RowsResult<T>> {
+  let stride = Math.max(1, Math.floor(stride0))
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await fetch(build(stride))
+    if (r.status === 200) return { status: 'ok', rows: await json<T[]>(r), stride }
+    if (r.status === 404) return { status: 'none' }
+    if (r.status === 409) return { status: 'not_ready', retryAfterMs: parseRetryAfterMs(r.headers.get('retry-after')) }
+    let body: Record<string, unknown> = {}
+    try { body = await json<Record<string, unknown>>(r) } catch { /* 忽略 */ }
+    if (r.status === 413) {
+      const sug = body['suggest'] as { stride?: unknown } | undefined
+      stride = typeof sug?.stride === 'number' && sug.stride > stride ? Math.floor(sug.stride) : stride * 2
+      continue
+    }
+    return { status: 'error', message: String(body['message'] ?? body['error'] ?? `${kind} HTTP ${r.status}`) }
+  }
+  return { status: 'error', message: `${kind} 抽稀到 ${stride} 仍超上限` }
+}
 
 export interface DetectionsQuery {
   t0?: number
@@ -407,8 +433,8 @@ export interface DetectionsQuery {
  * 413 = 行太多，按服务端建议的 stride 重取**一次**并把实际用的 stride 一并返回——多站长任务上逐帧
  * 全取会撞 16 MiB 上限，浏览器的突发列表只要命中帧（`hit: true`），抽稀后段的边界是近似的，界面要写明。
  */
-export async function getDetections(task: string, q: DetectionsQuery = {}, base = ''): Promise<DetectionsResult> {
-  const build = (stride: number): string => {
+export function getDetections(task: string, q: DetectionsQuery = {}, base = ''): Promise<DetectionsResult> {
+  return getRows<DetectionRow>('detections', (stride) => {
     const sp = new URLSearchParams()
     sp.set('t0', String(q.t0 ?? 0))
     sp.set('t1', String(q.t1 ?? 1e9))
@@ -417,24 +443,54 @@ export async function getDetections(task: string, q: DetectionsQuery = {}, base 
     if (q.site_id) sp.set('site_id', q.site_id)
     if (q.node_id) sp.set('node_id', q.node_id)
     return `${base}/api/v1/results/${encodeURIComponent(task)}/detections?${sp.toString()}`
-  }
-  let stride = Math.max(1, Math.floor(q.stride ?? 1))
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await fetch(build(stride))
-    if (r.status === 200) return { status: 'ok', rows: await json<DetectionRow[]>(r), stride }
-    if (r.status === 404) return { status: 'none' }
-    if (r.status === 409) return { status: 'not_ready', retryAfterMs: parseRetryAfterMs(r.headers.get('retry-after')) }
-    let body: Record<string, unknown> = {}
-    try { body = await json<Record<string, unknown>>(r) } catch { /* 忽略 */ }
-    if (r.status === 413) {
-      const sug = body['suggest'] as { stride?: unknown } | undefined
-      const next = typeof sug?.stride === 'number' && sug.stride > stride ? Math.floor(sug.stride) : stride * 2
-      stride = next
-      continue
-    }
-    return { status: 'error', message: String(body['message'] ?? body['error'] ?? `detections HTTP ${r.status}`) }
-  }
-  return { status: 'error', message: `detections 抽稀到 ${stride} 仍超上限` }
+  }, q.stride ?? 1)
+}
+
+// ---------------------------------------------------------------- 识别行（C-4）
+
+export interface RecognitionCandidate {
+  label: string
+  posterior: number
+  distance: number
+}
+
+/** `recognitions.jsonl` 的一行（docs/display-products.md §5.3）。每个突发一行，与 features.jsonl 同节拍。 */
+export interface RecognitionRow {
+  t_s: number
+  t_end_s: number
+  node_id: string
+  site_id?: string
+  segment_id: number
+  label: string
+  posterior: number
+  top_n: RecognitionCandidate[]
+  distance: number | null
+  result: 'known' | 'ambiguous' | 'unknown'
+  unknown_kind: string | null
+  evidence_quality: string
+  library_version: string
+  trace: Record<string, unknown>
+}
+
+export interface RecognitionsQuery {
+  t0?: number
+  t1?: number
+  stride?: number
+  site_id?: string
+  node_id?: string
+  result?: string
+  label?: string
+}
+
+export function getRecognitions(task: string, q: RecognitionsQuery = {}, base = ''): Promise<RowsResult<RecognitionRow>> {
+  return getRows<RecognitionRow>('recognitions', (stride) => {
+    const sp = new URLSearchParams()
+    sp.set('t0', String(q.t0 ?? 0))
+    sp.set('t1', String(q.t1 ?? 1e9))
+    sp.set('stride', String(stride))
+    for (const k of ['site_id', 'node_id', 'result', 'label'] as const) if (q[k]) sp.set(k, q[k]!)
+    return `${base}/api/v1/results/${encodeURIComponent(task)}/recognitions?${sp.toString()}`
+  }, q.stride ?? 1)
 }
 
 export type DetectionsIndexResult =

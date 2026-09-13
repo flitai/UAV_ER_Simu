@@ -420,6 +420,16 @@ button.mini { font-size: 11px; padding: 0 5px; }
 /* 传播信道卡片上的效应清单（D-058）：一行写完这一档包含哪几项，放不下就截断 */
 .slot-effects { margin: 0 10px 4px; font-size: 11px; line-height: 1.35;
   color: var(--muted, #7b7367); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 卡片里的子环节（C-4）：检测识别评价一张卡、三个环节 */
+.slot-members { margin: 4px 10px 0; padding-top: 4px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 2px; }
+.slot-member { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 11px;
+  padding: 1px 4px; border-radius: 3px; cursor: pointer; }
+.slot-member:hover { background: #f1efe9; }
+.slot-member.on { background: #dbeafe; }
+.slot-member.dim { color: var(--muted, #7b7367); }
+.slot-member .v { color: #15803d; }
+.slot-member .v.warn { color: #a16207; }
+.slot-member .v.bad, .slot-member.bad .k { color: #b91c1c; }
 .slot-error { padding: 4px 8px 0; font-size: 11px; color: #b91c1c; }
 .slot-bypass { padding: 4px 8px 0; font-size: 11px; display: flex; align-items: center; gap: 4px; }
 

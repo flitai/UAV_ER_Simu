@@ -24,9 +24,9 @@ import type { ScenarioDoc } from '../state/types.js'
 import { compile, parseChain, switchMode } from './compile.js'
 import {
   INST_SEP,
-  MODE_LABEL, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER,
+  MODE_LABEL, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER, GRID_SLOTS,
   DERIVED_PARAMS,
-  emptyChain, fromSceneOf, missingParams, ownerOf, paramScope, proxyOf, retiredNote, slotState,
+  emptyChain, fromSceneOf, groupMembers, missingParams, ownerOf, paramScope, proxyOf, retiredNote, slotState,
   splitProxy, variantOf, writeParam,
   type ChainMode, type ChainState, type ParamScope, type SlotId, type TapId,
 } from './model.js'
@@ -335,19 +335,29 @@ export function ChainView() {
               留一大片空白（2026-09-08 用户反馈）。错误列表留在块外，出错时不推动链条位置。 */}
           <div className="chain-body">
           <div className="chain-strip" data-chain-strip>
-            {SLOTS.map((def, i) => {
+            {GRID_SLOTS.map((def, i) => {
               const st = slotState(chain, def.id, catalog)
-              const p = snakePos(i, SLOTS.length)
+              const p = snakePos(i, GRID_SLOTS.length)
+              const missingOf = (id: SlotId, state: typeof st): string[] => state === 'active'
+                ? missingParams(chain, id, catalog, derivable,
+                    (f) => typeof readField(focusEntityOf(id).entity, f.rel) === 'number', focusEntityOf(id).id)
+                : []
+              // 挂在这张卡片里的子环节（C-4）：只在宿主启用时画，各自有状态、待填与报错
+              const members = st === 'active' ? groupMembers(def.id).map((m) => {
+                const ms = slotState(chain, m.id, catalog)
+                return { id: m.id, label: m.label, state: ms, selected: selected === m.id,
+                  error: errBySlot.get(m.id) ?? null, missing: missingOf(m.id, ms) }
+              }) : []
               return (
                 <div className="chain-cell" key={def.id}
                      style={{ gridColumn: p.col, gridRow: p.row + 1 }}
                      data-chain-pos={`${p.row + 1}:${p.col}`}>
                   <SlotCard
                     chain={chain} id={def.id} catalog={catalog} state={st}
-                    selected={selected === def.id}
+                    selected={selected === def.id || members.some((m) => m.selected)}
+                    members={members}
                     focusEmitter={focusEmitter} focusSite={focusSite} focusEntity={focusEntityOf(def.id).entity}
-                    missing={st === 'active' ? missingParams(chain, def.id, catalog, derivable,
-                      (f) => typeof readField(focusEntityOf(def.id).entity, f.rel) === 'number', focusEntityOf(def.id).id) : []}
+                    missing={missingOf(def.id, st)}
                     error={errBySlot.get(def.id) ?? null}
                     onSelect={setSelected}
                     onVariant={(id, variant) =>
@@ -632,7 +642,7 @@ function SlotPanel(p: {
           if (derivedNames.has(ps.name)) {
             return (
               <PRow key={ps.name} label={paramLabel(ps)} title={title} attrs={{ 'data-param-derived': ps.name }}>
-                <span className="pp-note">由频率计划派生</span>
+                <span className="pp-note">{p.id === 'feat' ? '与检测器相同' : '由频率计划派生'}</span>
               </PRow>
             )
           }

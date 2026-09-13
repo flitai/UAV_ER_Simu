@@ -6,10 +6,18 @@ import { fmtDb, fmtHz, fmtSeconds } from '../shell/format.js'
 import { seekTo } from '../shell/timelineOps.js'
 import { useAppState, useStore } from '../state/store.js'
 import { detectionStore, visibleSegments, type DetectionState } from './detectionStore.js'
+import { recKey, recognitionStore, type RecognitionState } from './recognitionStore.js'
 
 function useDetectionState(): DetectionState {
   return useSyncExternalStore(detectionStore.subscribe, detectionStore.get, detectionStore.get)
 }
+
+function useRecognitionState(): RecognitionState {
+  return useSyncExternalStore(recognitionStore.subscribe, recognitionStore.get, recognitionStore.get)
+}
+
+/** 结论只摆事实（D-039）：匹配上了、几个模板分不清、不属于任何模板 */
+const RESULT_TEXT: Record<string, string> = { known: '匹配', ambiguous: '歧义', unknown: '未知' }
 
 function siteIdsOf(st: DetectionState): string[] {
   const ids = new Set<string>()
@@ -23,7 +31,9 @@ export function DetectionsPanel() {
   const s = useAppState()
   const store = useStore()
   const st = useDetectionState()
+  const rec = useRecognitionState()
   const segs = visibleSegments(st)
+  const recognized = rec.rows.filter((r) => r.result !== 'unknown').length
   const sites = siteIdsOf(st)
   const node = st.index ? (st.siteFilter
     ? Object.values(st.index.nodes).find((n) => n.site_id === st.siteFilter) ?? null
@@ -43,6 +53,7 @@ export function DetectionsPanel() {
         {node && <span>门限 <b>{node.threshold.toFixed(3)}</b></span>}
         {node && <span>频段 <b>{fmtHz(node.f_lo_Hz)} – {fmtHz(node.f_hi_Hz)}</b></span>}
         {node && <span>噪声窗 <b>{node.noise_window_frames}</b> 帧{node.noise_stale_frames > 0 ? `，陈旧 ${node.noise_stale_frames}` : ''}</span>}
+        {rec.rows.length > 0 && <span data-rec-count>识别 <b>{recognized}</b> / {rec.rows.length}</span>}
         {st.stride > 1 && <span className="muted">已抽稀 1/{st.stride}</span>}
         <span className="spacer" />
         {sites.length > 1 && (
@@ -59,7 +70,7 @@ export function DetectionsPanel() {
         <table className="site-table det-table" data-det-table>
           <thead>
             <tr>
-              <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th><th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削顶</th>
+              <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th><th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削顶</th><th>标签</th><th>后验</th><th>结论</th>
             </tr>
           </thead>
           <tbody>
@@ -75,6 +86,16 @@ export function DetectionsPanel() {
                 <td className="num">{g.peak_band_power_dBm === null ? '—' : fmtDb(g.peak_band_power_dBm, '')}</td>
                 <td className="num">{g.peak_snr_dB.toFixed(1)}</td>
                 <td className="num">{g.overload ? '▲' : ''}</td>
+                {(() => {
+                  const r = rec.byKey[recKey(g.site_id, g.segment_id)]
+                  return (
+                    <>
+                      <td className="name" data-det-label>{r?.label ?? ''}</td>
+                      <td className="num">{r ? r.posterior.toFixed(2) : ''}</td>
+                      <td className="name" data-det-result={r?.result ?? ''}>{r ? RESULT_TEXT[r.result] ?? r.result : ''}</td>
+                    </>
+                  )
+                })()}
               </tr>
             ))}
           </tbody>
