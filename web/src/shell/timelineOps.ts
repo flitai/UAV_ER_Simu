@@ -2,15 +2,26 @@
 //
 // 两个时基：时间轴的 `t` 是引擎逻辑时间；信号页游标相对产品起点 `index.t0_s`。
 // 同步规则：时间轴改 t → 一次 `signal/cursor`（t − t0_s）；信号页改游标（键、点击）→ 时间轴跟到 t0_s + cursor。
-// 防回环靠比较数值：时间轴自己写出去的游标换算回来与 t 相等（容差 1e-6），不再写回。
+// 防回环靠比较数值：时间轴自己写出去的游标换算回来与 t 相等（容差 1e-6），不再写回；
+// 播放中时间轴的 t 每帧都在走，写出去的游标回来时 t 已经不等了，所以另记「自己写过的值」（selfWroteCursor）。
+//
+// 播放与窗口（2026-09-13，用户实测「播放时频谱与瀑布不动，只有时间游标在走」）：
+//   ① 播放推进时每 0.1 s 墙钟同步一次信号游标，与拖动同一节奏——原来只在暂停与到头时同步，信号页整段播放收不到游标；
+//   ② 游标跑出回看窗口就把窗口平移过去（跨度不变，前进时游标落在窗底 1/4 处、后退时落在窗顶 1/4 处），
+//      否则任务结束时自动收口的那两三秒窗口之外什么都画不出来。
 
 import type { Action, AppState } from '../state/types.js'
+import { spectrumGeomOf } from '../signal/viewport.js'
 import { timeStore } from './timeStore.js'
 import { activities } from '../scene/editor/scenarioOps.js'
 
 export interface StoreLike { getState(): AppState; dispatch(a: Action): void }
 
 export const CURSOR_EPS = 1e-6
+/** 播放中同步信号游标的墙钟间隔（与拖动时的 100 ms 一致） */
+export const PLAY_SYNC_S = 0.1
+let playSyncAcc = 0
+let selfWroteCursor: number | null = null
 
 /** 产品起点在逻辑时间轴上的位置；没有索引按 0（合成链的 S 观测点都从 0 起）。 */
 export function productT0(s: AppState): number {
@@ -46,7 +57,29 @@ export function syncSignalCursor(store: StoreLike, t: number): void {
   const want = t - productT0(s)
   if (cur !== null && Math.abs(cur - want) <= CURSOR_EPS) return
   if (s.signal.follow) store.dispatch({ type: 'signal/follow', on: false })
+  selfWroteCursor = want
   store.dispatch({ type: 'signal/cursor', t_s: want })
+  keepCursorInWindow(store, want)
+}
+
+/**
+ * 游标（相对 t0_s）不在回看窗口里就把窗口平移过去，跨度不变；在窗内不动。
+ * 窗口夹在产品的数据范围内，与 reducer 的 clampViewport 同一口径。
+ */
+export function keepCursorInWindow(store: StoreLike, cursorRel: number): void {
+  const s = store.getState()
+  const geom = s.signal.index ? spectrumGeomOf(s.signal.index) : null
+  if (!geom) return
+  const vp = s.signal.viewport
+  const span = vp.t1 - vp.t0
+  if (!(span > 0)) return
+  if (cursorRel >= vp.t0 - CURSOR_EPS && cursorRel <= vp.t1 + CURSOR_EPS) return
+  const maxT = geom.rowsAvail * geom.dt
+  // 前进出窗：游标放在窗底 1/4（瀑布最新行在顶，游标向上走）；后退出窗：放在窗顶 1/4
+  let t0 = cursorRel > vp.t1 ? cursorRel - 0.25 * span : cursorRel - 0.75 * span
+  if (t0 + span > maxT) t0 = maxT - span
+  if (t0 < 0) t0 = 0
+  store.dispatch({ type: 'signal/viewport', viewport: { t0, t1: t0 + span } })
 }
 
 /** 信号页游标变了（键、点击）：时间轴跟过去。返回是否真的动了。 */
@@ -54,6 +87,8 @@ export function followSignalCursor(store: StoreLike): boolean {
   const s = store.getState()
   const cur = s.signal.cursor_t_s
   if (cur === null) return false
+  // 时间轴自己刚写出去的游标回来了：播放中 t 已经继续走，按数值比会误判成「信号页改了游标」而把播放拉停
+  if (selfWroteCursor !== null && Math.abs(cur - selfWroteCursor) <= CURSOR_EPS) return false
   const t = productT0(s) + cur
   const ts = timeStore.get()
   if (ts.t !== null && Math.abs(ts.t - t) <= CURSOR_EPS && ts.mode === 'replay') return false
@@ -75,7 +110,9 @@ export function togglePlay(store: StoreLike): void {
   const dur = timelineDuration(s)
   if (dur <= 0) return
   const start = ts.mode === 'replay' && ts.t !== null && ts.t < dur - CURSOR_EPS ? ts.t : 0
+  playSyncAcc = 0
   timeStore.set({ t: start, mode: 'replay', playing: true })
+  syncSignalCursor(store, start)
 }
 
 /** 播放推进一步：返回是否到头。 */
@@ -90,6 +127,12 @@ export function advance(store: StoreLike, dtWall_s: number): boolean {
     return true
   }
   timeStore.set({ t: next })
+  // 播放中每 0.1 s 墙钟把游标写给信号页：迹线换帧、横线走、窗口跟着翻页
+  playSyncAcc += dtWall_s
+  if (playSyncAcc >= PLAY_SYNC_S) {
+    playSyncAcc = 0
+    syncSignalCursor(store, next)
+  }
   return false
 }
 

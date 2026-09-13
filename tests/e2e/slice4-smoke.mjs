@@ -469,6 +469,33 @@ try {
   st = await page.waitFor((s) => s.app?.signal?.overlayDetections === true, { label: '叠加检测开关', timeoutMs: 10000 })
   check('信号页脚有「叠加检测」开关，勾上后进探针', st.app.signal.overlayDetections === true)
 
+  // 播放时信号页要跟着动（2026-09-13 用户实测：原来只有时间轴游标在走）：
+  // Home 回 0 → 回看窗口平移到起点；空格播放 → 信号游标每 0.1 s 同步一次、窗口随游标翻页
+  await page.pressKey({ key: 'Home', code: 'Home', vk: 36 })
+  st = await page.waitFor((s) => s.app?.signal?.cursor_t_s !== null && Math.abs(s.app.signal.cursor_t_s) < 1e-6
+    && s.app.signal.shown && s.app.signal.shown.t0 < 0.01, { label: 'Home 后窗口回到起点', timeoutMs: 10000 })
+  check('Home 回 0：信号游标回 0，回看窗口平移到数据起点（不再停在结束时收口的末尾窗口）',
+    Math.abs(st.app.signal.cursor_t_s) < 1e-6 && st.app.signal.shown.t0 < 0.01, `窗口 ${st.app.signal.shown.t0.toFixed(3)}–${st.app.signal.shown.t1.toFixed(3)} s`)
+  const span0 = st.app.signal.shown.t1 - st.app.signal.shown.t0
+  await page.pressKey({ key: ' ', code: 'Space', vk: 32 })
+  st = await page.waitFor((s) => s.app?.timeline?.playing === true, { label: '空格播放', timeoutMs: 5000 })
+  const c1 = await page.waitFor((s) => s.app?.signal?.cursor_t_s > 0.3, { label: '播放中信号游标在走', timeoutMs: 10000 })
+  await sleep(700)
+  const c2 = await page.waitFor((s) => s.app?.signal?.cursor_t_s > c1.app.signal.cursor_t_s + 0.3, { label: '游标继续走', timeoutMs: 10000 })
+  check('播放中信号游标随时间轴前进（每 0.1 s 同步一次）',
+    c2.app.timeline.playing === true && c2.app.signal.cursor_t_s > c1.app.signal.cursor_t_s
+    && Math.abs(c2.app.timeline.t - (c2.app.signal.geom.t0_s + c2.app.signal.cursor_t_s)) < 0.25,
+    `游标 ${c1.app.signal.cursor_t_s.toFixed(2)} → ${c2.app.signal.cursor_t_s.toFixed(2)} s，时间轴 ${c2.app.timeline.t.toFixed(2)} s`)
+  // 这个任务只有 6 s，整段装在一个窗口里，播放时游标不会出窗（翻页由 timelineOps 单测守）；
+  // 这里守的是：播放全程游标始终在窗内、窗口跨度不变
+  const inWin = (a) => a.signal.cursor_t_s >= a.signal.shown.t0 - 0.01 && a.signal.cursor_t_s <= a.signal.shown.t1 + 0.01
+  check('播放中游标始终落在回看窗口内，窗口跨度不变',
+    inWin(c1.app) && inWin(c2.app) && Math.abs((c2.app.signal.shown.t1 - c2.app.signal.shown.t0) - span0) < 0.02 * span0,
+    `窗口 ${c2.app.signal.shown.t0.toFixed(2)}–${c2.app.signal.shown.t1.toFixed(2)} s，游标 ${c2.app.signal.cursor_t_s.toFixed(2)} s`)
+  await page.pressKey({ key: ' ', code: 'Space', vk: 32 })
+  st = await page.waitFor((s) => s.app?.timeline?.playing === false, { label: '空格暂停', timeoutMs: 5000 })
+  check('再按空格暂停', st.app.timeline.playing === false)
+
   await page.evaluate("(document.querySelector('.col.left .rail').click(), true)")
   await page.send('Page.navigate', { url: `${BASE}#/diagram` })
   await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '回框图页', timeoutMs: 60000 })
