@@ -58,7 +58,7 @@ export class WsClient {
   /** 订阅任务。同一任务重复调用是空操作（StrictMode 双 effect 安全）。 */
   subscribe(taskId: string, since: number): void {
     if (this.taskId === taskId && this.ws) return
-    this.close()
+    this.teardown()
     this.taskId = taskId
     this.tracker = new SeqTracker(since)
     this.state.lastSeq = since
@@ -71,11 +71,22 @@ export class WsClient {
   }
 
   close(): void {
+    this.teardown()
+    this.setStatus('closed')
+  }
+
+  /**
+   * 拆掉当前连接但**不上报状态**。换任务订阅走这里：旧连接拆掉紧接着就连新任务，
+   * 这不是掉线，上报一次 closed 会让 reducer 对着还是排队态的新任务弹「与服务的连接已断开」（实测误报）。
+   * 先把 this.ws 摘下再关：onclose 的 `this.ws === ws` 守卫因此不再进 onClose，也就不会二次上报。
+   */
+  private teardown(): void {
     this.manual = true
     this.stopTimers()
-    if (this.ws) { try { this.ws.close(CLOSE_MANUAL, 'client close') } catch { /* 忽略 */ } this.ws = null }
+    const ws = this.ws
+    this.ws = null
+    if (ws) { try { ws.close(CLOSE_MANUAL, 'client close') } catch { /* 忽略 */ } }
     this.taskId = null
-    this.setStatus('closed')
   }
 
   /** 只在开发者模式挂到 window.__cuav：模拟断线，走真实的重连与 since 补取路径。 */

@@ -184,3 +184,18 @@ test('序号推进后节流上报状态：不断线也能让界面的 lastSeq �
   m.timers.advance(1000)
   assert.equal(m.seqs.length, n, '关闭后没有滞留的节流上报')
 })
+
+test('换任务订阅不上报 closed：旧连接拆掉紧接着连新任务，界面不该弹「已断开」', () => {
+  const m = make()
+  m.c.subscribe('a', 0)
+  m.ws().open()
+  const n = m.statuses.length
+  m.c.subscribe('b', 0)
+  m.ws().open()
+  assert.deepEqual(m.statuses.slice(n), ['connected'])
+  assert.equal(FakeWs.instances[0]!.closedWith, 4000)
+  assert.deepEqual(JSON.parse(m.ws().sent[0]!), { subscribe: 'b', since: 0 })
+  // 显式 close 仍然上报一次 closed
+  m.c.close()
+  assert.equal(m.statuses.at(-1), 'closed')
+})
