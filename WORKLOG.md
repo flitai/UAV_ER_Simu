@@ -5098,3 +5098,13 @@ closed → connected → closed → closed → connected）；已修（提交 41
 **顺带**：`--validate` 不给 `--library-root` 时能不能找到缺省库取决于 cwd（ctest 在构建目录、手跑在仓库根），这样的断言不能写进测试，改成指到一个不存在的目录。
 
 **验证**：引擎 233 项 doctest + 11 项 ctest（新增 `cuav_run_validate_slice4_recognize` 带 `--library-root`）、服务 126 项、web 213 项全绿；`check-paths` / `check-ascii` 过。
+
+### 2026-09-14 · C-4 第三步：引擎级验收——三类合成波形的识别准确率
+
+`engine/tests/test_recognition_chain.cpp`：测试专用调度源（背景白噪声 + 按时间表叠加的突发，自带发生器逐样点确定；窄带噪声样突发按
+1024 点块在频域随机生成再逆变换，块网格相对突发起点、不与检测器分帧对齐），经 `EnergyDetector(sliding)` → `FeatureExtractor` → `TemplateClassifier`，
+带内信噪比 10 dB：cw_beacon = 24 段 0.6 s 单音（fs 500 kS/s）、telemetry_burst = 24 段 10 ms / 100 ms 周期的 40 kHz 窄带突发（fs 500 kS/s）、
+video_link = 8 段 0.55 s 全带白噪声（fs 2.5 MS/s，检测频段 ±1.125 MHz 过库里 1 MHz 的下界）。**实测（macOS，原型阶段验证值）**：
+56 段全部各出一行 full、突发之外零虚警行；判对 55，准确率 **0.982**（判据 ≥ 0.9）；唯一一个错是 telemetry 的第一段——没有「上一段」，
+跳频差与间隔缺失，定频与跳频在其余特征上区间重叠、后验分摊、落 `unknown_ambiguous`（模型卡 §4 已写明：分清跳频与定频至少要两个突发）。
+定频突发零个判成 rc_hopping。用时 2.3 s。`rc_hopping` 一类本期没有生成器，验收留 C-8 / G-6。引擎 234 项 doctest + 11 项 ctest 全绿。
