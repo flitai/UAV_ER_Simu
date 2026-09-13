@@ -2,7 +2,7 @@
 // 检测识别页签自 C-3 起有突发列表（D-063），识别与时间线条带留 C-9；任务页签留 U-4。
 
 import { ColumnLayout } from '../shell/ColumnLayout.js'
-import { resultBadge, runStateGlyph } from '../shell/badges.js'
+import { fmtFactor } from '../shell/format.js'
 import { InstrumentPanel } from '../signal/InstrumentPanel.js'
 import { SignalView } from '../signal/SignalView.js'
 import { useAppState, useDispatch } from '../state/store.js'
@@ -18,28 +18,33 @@ export function ResultsView() {
   const dispatch = useDispatch()
   // 检测行只在结果页可见时取（信号页的叠加与检测页签共用），运行中每 2 s 一次，终态取最后一次加索引
   useDetections(s.task.id, s.task.runState, s.ui.view === 'results')
-  const rg = runStateGlyph(s.task.runState)
-  const rb = resultBadge(s.task.runState, s.task.result)
   return (
     <ColumnLayout
       left={<>
-        <div className="group">
+        {/* 左栏只放面包屑里没有的任务事实（2026-09-13 用户指出编号 / 徽标 / 实验名与顶栏重复、观测点列表与中栏页签重复）：
+            观测点切换只在中栏页签（左栏收起也能切，2026-09-08）；一个事实一处（D-062 原则） */}
+        <div className="group" data-task-facts>
           <h2>任务</h2>
-          <div className="task-line"><span className="task-id">{s.task.id ?? '无任务'}</span> <span className="badge run">{rg.glyph}</span> <span className={`badge result ${rb.tone}${rb.hollow ? ' hollow' : ''}`}>{rb.glyph} {rb.text}{rb.suffix}</span></div>
-          {s.task.name && <div className="muted">{s.task.name}</div>}
-        </div>
-        <div className="group">
-          <h2>观测点</h2>
-          {s.task.observationPoints.length === 0 && <div className="muted">无</div>}
-          <ul className="op-list">
-            {s.task.observationPoints.map((o) => (
-              <li key={o.op_id} className={o.op_id === s.signal.opId ? 'on' : ''}>
-                <button type="button" onClick={() => dispatch({ type: 'signal/selectOp', opId: o.op_id })}>
-                  <b>{tapLabel(o.op_id)}</b> <span className="muted">{o.node}.{o.port} · {o.products.join(' / ')}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {!s.task.id && <div className="muted">无任务</div>}
+          {s.task.id && (
+            <>
+              <div className="form-row pp-line"><span className="form-label">种子</span><span className="form-value pp-ro">{s.context.seed ?? '—'}</span></div>
+              <div className="form-row pp-line"><span className="form-label">时长</span><span className="form-value pp-ro">{s.task.duration_s > 0 ? `${s.task.duration_s} s` : '—'}</span></div>
+              <div className="form-row pp-line"><span className="form-label">实时因子</span><span className="form-value pp-ro">{fmtFactor(s.task.realtimeFactor)}</span></div>
+              <div className="form-row pp-line"><span className="form-label">观测点</span><span className="form-value pp-ro">{s.task.observationPoints.length}</span></div>
+              {/* 引擎备注：结果有效时只是各节点的说明（噪声底、末尾丢样点……），折叠；降级 / 无效时原因要一眼看到 */}
+              {s.task.reasons.length > 0 && (
+                s.task.result === 'valid'
+                  ? (
+                    <details className="form-details" data-task-reasons>
+                      <summary>引擎备注 {s.task.reasons.length} 条</summary>
+                      <ul className="pp-notes">{s.task.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                    </details>
+                  )
+                  : <ul className="pp-notes bad" data-task-reasons>{s.task.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+              )}
+            </>
+          )}
         </div>
       </>}
       center={

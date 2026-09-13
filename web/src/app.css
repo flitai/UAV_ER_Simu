@@ -350,6 +350,8 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .pp-value > input.bad { border-color: var(--bad); background: #fdf3f3; }
 .pp-value .form-unit { flex: 0 0 auto; }
 .pp-tag, .pp-note { color: var(--poi); font-size: 11px; white-space: nowrap; }
+.pp-notes { margin: 4px 0 0; padding-left: 16px; font-size: 11px; color: var(--dim); line-height: 1.5; }
+.pp-notes.bad { color: var(--bad); }
 .pp-ro { font-variant-numeric: tabular-nums; }
 .pp-value > .pp-scope { flex: 0 0 auto; }
 
