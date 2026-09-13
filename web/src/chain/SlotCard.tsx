@@ -8,10 +8,14 @@ import { CATEGORY_COLOR, findComponent } from '../api/catalog.js'
 import { formatEng } from '../diagram/format.js'
 import type { ParamValue } from '../diagram/doc.js'
 import {
-  SLOT_BY_ID, instanceBadge, proxyOf, unavailableReason, variantOf,
+  SLOT_BY_ID, effectiveParams, fromSceneOf, ownerEntity, proxyOf, unavailableReason, variantOf,
   type ChainState, type SlotId, type SlotState,
 } from './model.js'
 import { propView } from './effects.js'
+import { readField } from '../scene/editor/deviceFields.js'
+import { paramLabel } from './paramLabels.js'
+
+type Obj = Record<string, unknown>
 
 export interface SlotCardProps {
   chain: ChainState
@@ -19,8 +23,12 @@ export interface SlotCardProps {
   catalog: Catalog | null
   state: SlotState
   selected: boolean
-  /** 缺哪些必填参数 */
+  /** 缺哪些必填参数（按当前链路的实体算） */
   missing: string[]
+  /** 当前链路（D-064）：中栏下拉选中的无人机与侦测站；卡片摘要显示这一条链的参数 */
+  focusEmitter: string
+  focusSite: string
+  focusEntity: Obj | undefined
   /** 引擎报错落到本槽位时的报文 */
   error: string | null
   onSelect: (id: SlotId) => void
@@ -35,17 +43,29 @@ const STATE_TEXT: Record<SlotState, string> = {
   unavailable: '未实现',
 }
 
-function summaryText(chain: ChainState, id: SlotId, cat: Catalog | null): string[] {
+function summaryText(
+  chain: ChainState, id: SlotId, cat: Catalog | null, emitterId: string, siteId: string, entity: Obj | undefined,
+): Array<{ k: string; v: string }> {
   const v = variantOf(chain, id)
   const spec = cat ? findComponent(cat, v.type) : null
-  const out: string[] = []
+  // 当前链路的有效参数（共用底值 + 该实体的单独设置，D-054）；由场景带出的从场景实体读（D-064）
+  const eff = effectiveParams(chain, id, ownerEntity(id, emitterId, siteId))
+  const scene = new Map(fromSceneOf(id).map((f) => [f.name, f]))
+  const out: Array<{ k: string; v: string }> = []
   for (const name of v.summary) {
     const ps = spec?.params.find((p) => p.name === name)
+    const sf = scene.get(name)
+    const fromScene = sf ? readField(entity, sf.rel) : undefined
     // 模板固定的值优先：它才是编译进框图的那个，用户状态与目录缺省都不算数（D-063 的 noise_mode 就靠这一行）
-    const raw: ParamValue | undefined = v.fixed?.[name] ?? chain.slots[id].params[name] ?? (ps?.default as ParamValue | undefined)
+    const raw: ParamValue | undefined = v.fixed?.[name]
+      ?? (typeof fromScene === 'number' ? fromScene : undefined)
+      ?? eff[name] ?? (ps?.default as ParamValue | undefined)
     if (raw === undefined || raw === null) continue
     const text = typeof raw === 'number' ? formatEng(raw) : String(raw)
-    out.push(`${name}  ${text}${ps?.unit ? ' ' + ps.unit : ''}`)
+    // 标签用与右栏同一张中文短名表，值带单位（2026-09-13 与参数面板一并改版）。
+    // 工程词头与单位连写：formatEng 给 "2.44 G"，直接接 Hz 就是 "2.44 GHz"（与左栏频率计划同一写法）；没有词头时补一个空格
+    const withUnit = !ps?.unit ? text : text.includes(' ') ? text + ps.unit : `${text} ${ps.unit}`
+    out.push({ k: paramLabel({ name }), v: withUnit })
   }
   return out
 }
@@ -57,7 +77,6 @@ export function SlotCard(p: SlotCardProps) {
   const dim = p.state === 'not_applicable' || p.state === 'unavailable' || p.state === 'bypass'
   const badge = p.error ? '✕' : p.missing.length ? '待填' : p.state === 'active' ? '✓' : STATE_TEXT[p.state]
   const color = spec ? CATEGORY_COLOR[spec.category] : '#94a3b8'
-  const count = instanceBadge(p.chain, p.id)
 
   return (
     <div
@@ -72,8 +91,7 @@ export function SlotCard(p: SlotCardProps) {
     >
       <div className="slot-head" style={{ borderTopColor: color }}>
         <span className="slot-name">{def.label}</span>
-        {/* 实例角标（D-053）：这个环节在多源多站下展开成几份。单源单站时不显示 */}
-        {count && <span className="slot-count" data-slot-count={p.id}>{count}</span>}
+        {/* 不标 ×N（D-064）：框图显示的是中栏下拉选中的那一条链；展开成几份是编译的事，不是用户要看的 */}
         <span className={`slot-badge${p.error ? ' bad' : p.missing.length ? ' warn' : ''}`} data-slot-badge>{badge}</span>
       </div>
 
@@ -114,8 +132,8 @@ export function SlotCard(p: SlotCardProps) {
 
       {p.state === 'active' && (
         <div className="slot-body">
-          {summaryText(p.chain, p.id, p.catalog).slice(0, 3).map((t) => (
-            <div className="slot-param" key={t}>{t}</div>
+          {summaryText(p.chain, p.id, p.catalog, p.focusEmitter, p.focusSite, p.focusEntity).slice(0, 3).map((t) => (
+            <div className="slot-param" key={t.k}><span className="k">{t.k}</span><span className="v">{t.v}</span></div>
           ))}
         </div>
       )}

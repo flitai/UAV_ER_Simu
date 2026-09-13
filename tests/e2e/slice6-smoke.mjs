@@ -85,13 +85,12 @@ try {
     st.app.chain.siteIds.length === 3 && st.app.chain.emitterIds.length === 3,
     `${st.app.chain.siteIds.join()} × ${st.app.chain.emitterIds.join()}`)
 
-  // ---------- ③ 实例角标 ----------
-  const badges = await evalJson(page,
-    "Object.fromEntries(Array.from(document.querySelectorAll('[data-slot-count]')).map(e => [e.dataset.slotCount, e.textContent.trim()]))")
-  check('辐射源按源实例化：×3', badges.tx === '×3', JSON.stringify(badges.tx))
-  check('传播信道按链路实例化：×9（3 源 × 3 站）', badges.ch === '×9', String(badges.ch))
-  check('接收机前端按站实例化：×3', badges.rx_fe === '×3', String(badges.rx_fe))
-  check('多站定位是单例，写「3 站」而不是 ×3', badges.loc === '3 站', String(badges.loc))
+  // ---------- ③ 框图显示的是当前链路（D-064）：卡片不标 ×N，中栏下拉列出参与的实例 ----------
+  const badges3 = await evalJson(page, "document.querySelectorAll('[data-slot-count]').length")
+  check('三站三源下卡片也不标 ×N：框图显示的是中栏下拉选中的那一条链（D-064）', badges3 === 0, `${badges3} 个角标`)
+  const picks = await evalJson(page,
+    "Array.from(document.querySelectorAll('[data-chain-entity-bar] select')).map(e => e.options.length)")
+  check('中栏「当前链路」两个下拉各列出 3 个参与的实例', picks.length === 2 && picks[0] === 3 && picks[1] === 3, picks.join('/'))
 
   // ---------- ③b 逐实体与按型号配参数（D-054）----------
   // 三个站在 demo-03 里都没写型号，先给 site-3 标一个，才能看出「同型号」这一档的边界

@@ -172,6 +172,14 @@ export function ChainView() {
   // 但 hook 不能放在早退之后，故用空数组兜底——解不开时它本来就没有意义。
   const [focusEmitter, setFocusEmitter] = useFocus(parsed?.emitterIds ?? [])
   const [focusSite, setFocusSite] = useFocus(parsed?.siteIds ?? [])
+  // 当前链路上、某个槽位归属的那个实体（D-064）：卡片摘要与「待填」都按它算
+  const focusEntityOf = (id: SlotId): { id: string; entity: Obj | undefined } => {
+    const owner = ownerOf(id)
+    if (owner === 'shared') return { id: '', entity: undefined }
+    const fid = owner === 'emitter' ? focusEmitter : focusSite
+    const list = owner === 'site' ? sceneSites(scenarioDoc) : sceneEmitters(scenarioDoc)
+    return { id: fid, entity: list.find((x) => String(x.id) === fid) as Obj | undefined }
+  }
 
   // 当前框图不是本模板生成的：给一条出路，不硬解（10 报告 §5.5）
   if (!parsed) {
@@ -308,6 +316,7 @@ export function ChainView() {
               混在一行里两种语义会打架。传播信道与多站定位不随它变，面板上会写明。 */}
           {chain.mode !== 'replay' && (
             <div className="chain-entity-bar" data-chain-entity-bar>
+              <span className="chain-entity-lead" title="框图显示并编辑这一条链路的参数；参与计算的实例在左栏勾选（D-064）">当前链路</span>
               <EntityPick label="无人机" kind="emitter" doc={scenarioDoc}
                 ids={chain.emitterIds} value={focusEmitter} onChange={setFocusEmitter} />
               <EntityPick label="侦测站" kind="site" doc={scenarioDoc}
@@ -333,7 +342,9 @@ export function ChainView() {
                   <SlotCard
                     chain={chain} id={def.id} catalog={catalog} state={st}
                     selected={selected === def.id}
-                    missing={st === 'active' ? missingParams(chain, def.id, catalog, derivable) : []}
+                    focusEmitter={focusEmitter} focusSite={focusSite} focusEntity={focusEntityOf(def.id).entity}
+                    missing={st === 'active' ? missingParams(chain, def.id, catalog, derivable,
+                      (f) => typeof readField(focusEntityOf(def.id).entity, f.rel) === 'number', focusEntityOf(def.id).id) : []}
                     error={errBySlot.get(def.id) ?? null}
                     onSelect={setSelected}
                     onVariant={(id, variant) =>
@@ -582,7 +593,7 @@ function SlotPanel(p: {
   const fromScene = fromSceneOf(p.id)
   const sceneNames = new Map(fromScene.map((f) => [f.name, f]))
   const sceneHas = (f: { rel: string }) => typeof readField(entity, f.rel) === 'number'
-  const pending = missingParams(p.chain, p.id, p.catalog, p.derivable, sceneHas)
+  const pending = missingParams(p.chain, p.id, p.catalog, p.derivable, sceneHas, focus)
 
   const scopeKey = (name: string) => `${p.id}:${focus}:${name}`
   const scopeOf = (name: string): ParamScope => {

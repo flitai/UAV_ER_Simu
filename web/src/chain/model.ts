@@ -311,22 +311,6 @@ export interface ChainState {
   taps: Record<TapId, boolean>
 }
 
-/**
- * 某个槽位实例化出几份，以及卡片右上角写什么（D-053 §5.2）。
- * N = K = 1 时返回空串——画面与单源单站时代一模一样。
- */
-export function instanceBadge(chain: ChainState, id: SlotId): string {
-  const N = Math.max(chain.emitterIds.length, 1)
-  const K = Math.max(chain.siteIds.length, 1)
-  if (N <= 1 && K <= 1) return ''
-  switch (SLOT_BY_ID[id].per ?? 'site') {
-    case 'emitter': return N > 1 ? `×${N}` : ''
-    case 'link': return N * K > 1 ? `×${N * K}` : ''
-    case 'single': return K > 1 ? `${K} 站` : ''
-    default: return K > 1 ? `×${K}` : ''
-  }
-}
-
 /** 某个槽位在当前模式与目录下的实际状态。 */
 export function slotState(chain: ChainState, id: SlotId, cat: Catalog | null): SlotState {
   const def = SLOT_BY_ID[id]
@@ -485,6 +469,8 @@ export function missingParams(
   derivable: readonly string[] = ALL_DERIVED,
   /** 场景当前能不能给出这个由场景带出的参数（D-054）；不传即一律按「给不出」看待 */
   sceneHas: (f: FromSceneParam) => boolean = () => false,
+  /** 按哪个实体的有效参数判（D-064）：卡片与面板显示的是中栏下拉选中的那一条链，待填也按它算 */
+  entityId = '',
 ): string[] {
   if (!cat) return []
   const v = variantOf(chain, id)
@@ -496,12 +482,13 @@ export function missingParams(
     // 无条件放行等于把「场景里没写天线增益」这件事咽掉，引擎那边才报「缺必填参数」，
     // 报错还指向组件而不是指向场景（铁律 15）。缺省判据是「给不出」，最保守的那一侧。
     .concat(fromSceneOf(id).filter(sceneHas).map((f) => f.name))
+  const eff = effectiveParams(chain, id, entityId)
   const out: string[] = []
   for (const p of spec.params as ParamSpec[]) {
     if (!p.required || p.internal) continue
     if (p.name in fixed) continue
     if (derived.includes(p.name)) continue
-    const val = chain.slots[id].params[p.name]
+    const val = eff[p.name]
     if (val === undefined || val === '') out.push(p.name)
   }
   return out
