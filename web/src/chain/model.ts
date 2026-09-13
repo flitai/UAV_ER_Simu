@@ -428,13 +428,14 @@ export function writeParam(
  * 表里没有的组件走 `unavailableReason()` 的兜底——那多半不是「本期未实现」，
  * 而是应用服务的目录旧了（引擎重建过但服务没重启），说成「未实现」会把人引到错路上。
  */
+// 只写事实（本期旁路、信号从哪里取），不写工具链与步骤号：界面上不出现 MATLAB（D-036），
+// 也不向用户解释「还没做」（D-039 ②，用户 2026-09-13 要求去掉「未实现」标记）。
 export const UNAVAILABLE_REASON: Readonly<Record<string, string>> = {
-  DDC: '待 MATLAB Coder 产物（M-2）；本期旁路，S4 直接取 ADC 输出',
-  Channelizer: '待 MATLAB Coder 产物（M-3）；本期旁路',
-  FeatureExtractor: '待特征提取组件（C-4）',
-  TemplateClassifier: '待模板匹配识别（C-4）',
-  Evaluator: '待评价器（C-5）',
-  MultiSiteLocator: '待多站定位组件（L-4 / L-5）',
+  DDC: '本期旁路，S4 直接取 ADC 输出',
+  Channelizer: '本期旁路',
+  FeatureExtractor: '本期不启用',
+  TemplateClassifier: '本期不启用',
+  Evaluator: '本期不启用',
 }
 
 /** 某个组件不在目录里时该说什么。 */

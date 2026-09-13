@@ -40,7 +40,7 @@ const STATE_TEXT: Record<SlotState, string> = {
   active: '',
   bypass: '旁路',
   not_applicable: '回放数据已含',
-  unavailable: '未实现',
+  unavailable: '',   // 不标「未实现」（用户 2026-09-13）：卡片说明里写它本期旁路即可
 }
 
 function summaryText(

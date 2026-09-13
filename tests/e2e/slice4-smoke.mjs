@@ -85,15 +85,17 @@ try {
     cards.join(' → '))
 
   const states = await evalJson(page, "Object.fromEntries(Array.from(document.querySelectorAll('[data-slot]')).map(e => [e.dataset.slot, e.dataset.slotState]))")
-  check('DDC 与信道化标未实现而不是隐藏（M-2 / M-3 未到）',
+  check('DDC 与信道化仍在链上、状态 unavailable，但卡片不标「未实现」（2026-09-13）',
     states.ddc === 'unavailable' && states.chan === 'unavailable', JSON.stringify(states))
+  const ddcBadge = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-badge]')?.textContent ?? ''")
+  check('DDC 卡片右上角没有徽标文字', ddcBadge === '', JSON.stringify(ddcBadge))
   // 两个新槽位都缺省旁路：测向在单站演示里没有增量，多站定位至少要两个站（D-053 §2.4）
   check('测向与多站定位缺省都旁路，单站的缺省链因此逐字节不变（D-053）',
     states.df === 'bypass' && states.loc === 'bypass', `df ${states.df} / loc ${states.loc}`)
   check('其余七个环节是启用态', ['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det'].every((k) => states[k] === 'active'),
     JSON.stringify(states))
   const note = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-note]')?.textContent ?? ''")
-  check('未实现的环节给出理由，不是空着', /M-2/.test(note), note.slice(0, 40))
+  check('旁路的环节写明信号从哪里取，且不出现 MATLAB 字样', /旁路/.test(note) && !/MATLAB/.test(note), note.slice(0, 40))
 
   // 观测点一行写全名，不是只写 S0…S5 让人去悬停（2026-09-08 用户反馈）
   const tapLabels = await evalJson(page, "Array.from(document.querySelectorAll('.tap-row [data-tap]')).map((e) => e.textContent.trim())")
