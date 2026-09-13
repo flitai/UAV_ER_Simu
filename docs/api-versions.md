@@ -260,7 +260,7 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 
 | type | 何时 | payload |
 |---|---|---|
-| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`detection_rows`（C-3：落盘的检测行数）、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
+| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`detection_rows`（C-3：落盘的检测行数）、`feature_rows`、`recognition_rows`（C-4：落盘的特征行数与识别行数）、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
 | `progress` | 每轮调度，按墙钟节流（`--progress-interval-ms`，默认 100；0 = 每轮） | `round`、`nodes[]`（同上） |
 | `log` | 装载摘要、种子覆盖、组件日志 | `level`、`message` |
 | `product_row` | 观测点每写一行 | `op_id`、`kind ∈ {spectrum, envelope}`、`row_index`、`row_len`。**不带数据**：该行已逐行刷到 `<out>/<op_id>/<kind>.f32`，服务端按 `row_index × row_len × 4` 的偏移读出并转成二进制帧（§4） |
@@ -268,11 +268,13 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 | `bearing` | `DirectionFinder` 每产出一行（D-053，L-3 起） | 载荷 = `bearings.jsonl` 的行去掉 `t_s`（信封里已有）：`site_id, emitter_id, link_id, bearing_deg, bearing_std_deg, elevation_deg, snr_dB, level_dBm, df_quality, df_result_state, use_policy, method, bias_deg, sigma{method,snr,cal,att,multipath,mixture}, line_of_sight, mixture, signal_role, truth_consumed, state, reasons, trace`（`docs/display-products.md` §5）|
 | `position` | `MultiSiteLocator` 每产出一行（D-053，L-4 / L-5 起） | 载荷 = `positions.jsonl` 的行去掉 `t_s`：`emitter_id, method, lon, lat, crs, coord_version, enu_origin, cov_m2, ellipse, cep_m, gdop, geometry_quality, time_quality, participating_sites, reference_site, residuals, outlier_sites, truth_consumed, state, reasons, trace` |
 | `detection` | `EnergyDetector` 每个**突发的首帧**一条（C-3，D-063）——不是每帧、也不是每命中帧：持续信号下逐命中帧发是每秒几百条，比产品行还密，重连补取会整段重放。逐帧的行只在 `detections.jsonl` 里 | 载荷 = `detections.jsonl` 的该行去掉 `t_s`：`node_id, site_id?, start_sample, frame_index, segment_id, f_lo_Hz, f_hi_Hz, statistic, threshold, hit（恒 true）, band_power_dBm?, noise_dBm?, snr_dB, overload, noise_frames_used`（`docs/display-products.md` §5） |
+| `feature` | `FeatureExtractor` 每个**突发收口**一条（C-4）——与 `detection` 同量级：一个突发一条 | 载荷 = `features.jsonl` 的该行去掉 `t_s`：`node_id, site_id?, t_end_s, duration_s, segment_id, frames, center_Hz, bandwidth_Hz, signal_bins, has_dBm, band_power_dBm?, peak_dBm?, snr_dB, spectral_flatness, crest_factor_dB, duty, interval_from_prev_s, hop_from_prev_Hz, overload, quality, trace`（`docs/display-products.md` §5.2） |
+| `recognition` | `TemplateClassifier` 每行特征一条（C-4） | 载荷 = `recognitions.jsonl` 的该行去掉 `t_s`：`node_id, site_id?, t_end_s, segment_id, label, posterior, top_n, distance, result, unknown_kind, evidence_quality, library_version, trace`（`docs/display-products.md` §5.3） |
 | `error` | 装载失败或运行失败 | `{code, node_id, port, message}`（`docs/diagram-format.md` §4）；运行失败 `code = run_failed`，`node_id` 为出错节点 |
 | `validate` | `--validate` 成功时一条 | `ok`、`diagram_id`、`name`、`nodes[]`、`edges`、`observation_points[]`、`run`、`engine_version` |
 
 `t_s`：`product_row` / `entity` / `link` / `bearing` / `position` 为该行或该帧的逻辑时间；`progress`、`log` 与结束的 `task.state` 取此前见过的
-最大逻辑时间；开始的 `task.state` 与 `validate` 为 0；`detection` 为该突发首帧的逻辑时间。
+最大逻辑时间；开始的 `task.state` 与 `validate` 为 0；`detection` 为该突发首帧的逻辑时间；`feature` 与 `recognition` 为该突发首命中帧的逻辑时间（行里的 `t_s`）。
 
 退出码：
 
@@ -291,6 +293,7 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 | `--scenario <场景文件>` | `--validate` / `--run` | 可给多份；键取文件自身的 `scenario_id`。应用服务走解析旁挂的 `scenarios` 段，这个入口是给单机与回归用的 |
 | `--scene-root <目录>` | `--validate` / `--run` / `--scenario-track` | 观测区域清单的根，缺省 `data/scene`；空串表示跳过 `aoi.manifest_sha256` 核对，跳过要在结果里标明 |
 | `--scenario-track <场景> [--track-rate Hz]` | 独立子命令 | 只跑运动学，输出 `entity` 事件流，不建产品目录。**不发 progress、不按墙钟节流，stdout 逐字节可复现**；`--track-rate` 缺省 10，范围 [1, 100] |
+| `--library-root <目录>` | `--validate` / `--run` | 识别模板库目录（C-4），缺省 `models/recognition`（cwd = 仓库根时可用）；`TemplateClassifier` 的用户参数 `library_version` 由装载器换成内部参数 `library_path = <目录>/library-<version>.json`（D-037 同法），版本号先过 `^v[0-9]+$`。ctest 从构建目录跑，要传源码树里的位置 |
 
 `--scenario-track` 的成功输出以一条 `task.state`（`run_state = finished`）收口，带
 `scenario_id / scenario_sha256 / aoi_id / aoi_manifest_checked / entities / samples / track_rate_Hz`。

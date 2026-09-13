@@ -729,3 +729,89 @@ TEST_CASE("装载器：错误报文四键；文件装载对缺失文件与非法
                                       r, nullptr, o, d, e), e.message);
     CHECK(d.graph.size() == 5);
 }
+
+TEST_CASE("装载器：特征提取器与上游检测器的分帧契约——nfft、merge_gap_frames 不同或检测器不是 sliding 都拒，一致则通过（C-4）") {
+    json base = read_json(std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_detect.json");
+    base["nodes"].push_back(node("feat", "FeatureExtractor", json{{"nfft", 256}}));
+    base["edges"].push_back(json{{"id", "e5"}, {"from", {{"node", "mix"}, {"port", "out"}}}, {"to", {{"node", "feat"}, {"port", "iq"}}}});
+    base["edges"].push_back(json{{"id", "e6"}, {"from", {{"node", "det"}, {"port", "out"}}}, {"to", {{"node", "feat"}, {"port", "det"}}}});
+    {
+        LoadedDiagram d;
+        DiagramError e;
+        CHECK_MESSAGE(try_load(base, d, e), e.message);
+    }
+    // nfft 不同：错误落在特征提取器的 det 口上，说明书里点名两边的值
+    {
+        json bad = base;
+        bad["nodes"][5]["params"]["nfft"] = 512;
+        DiagramError e = expect_fail(bad, "param");
+        CHECK(e.node_id == "feat");
+        CHECK(e.port == "det");
+        CHECK(e.message.find("nfft") != std::string::npos);
+        CHECK(e.message.find("512") != std::string::npos);
+        CHECK(e.message.find("256") != std::string::npos);
+    }
+    // 缺省值也参与比较：检测器不写 merge_gap_frames（缺省 2）、特征提取器写 3
+    {
+        json bad = base;
+        bad["nodes"][5]["params"]["merge_gap_frames"] = 3;
+        DiagramError e = expect_fail(bad, "param");
+        CHECK(e.node_id == "feat");
+        CHECK(e.message.find("merge_gap_frames") != std::string::npos);
+    }
+    // 检测器是 probe：收集期不产出检测行，接特征提取的检测器必须是 sliding
+    {
+        json bad = base;
+        bad["nodes"][3]["params"]["noise_mode"] = "probe";
+        DiagramError e = expect_fail(bad, "param");
+        CHECK(e.node_id == "feat");
+        CHECK(e.message.find("sliding") != std::string::npos);
+    }
+}
+
+TEST_CASE("装载器：library_version 换成内部参数 library_path 注入（D-037 同法）；非法版本号与不存在的库都被拒（C-4）") {
+    json base = read_json(std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_feature.json");
+    base["nodes"].push_back(node("rec", "TemplateClassifier", json{{"library_version", "v1"}}));
+    base["edges"].push_back(json{{"id", "e7"}, {"from", {{"node", "feat"}, {"port", "out"}}}, {"to", {{"node", "rec"}, {"port", "in"}}}});
+    Registry r = test_registry();
+    LoadOptions o;
+    o.library_root = std::string(CUAV_SOURCE_DIR) + "/../models/recognition";
+    {
+        LoadedDiagram d;
+        DiagramError e;
+        CHECK_MESSAGE(load_diagram(base, r, nullptr, o, d, e), e.message);
+    }
+    {   // 缺省版本 v1：不写 library_version 也装得起来
+        json ok = base;
+        ok["nodes"][6]["params"] = json::object();
+        LoadedDiagram d;
+        DiagramError e;
+        CHECK_MESSAGE(load_diagram(ok, r, nullptr, o, d, e), e.message);
+    }
+    {   // 版本号是浏览器给的字符串：不合 ^v[0-9]+$ 即拒，不让它进路径
+        json bad = base;
+        bad["nodes"][6]["params"]["library_version"] = "../library-v1";
+        LoadedDiagram d;
+        DiagramError e;
+        CHECK_FALSE(load_diagram(bad, r, nullptr, o, d, e));
+        CHECK(e.code == "param");
+        CHECK(e.node_id == "rec");
+        CHECK(e.message.find("library_version") != std::string::npos);
+    }
+    {   // 合法版本号但库不存在：configure 报模板库打不开，归 param
+        json bad = base;
+        bad["nodes"][6]["params"]["library_version"] = "v9";
+        LoadedDiagram d;
+        DiagramError e;
+        CHECK_FALSE(load_diagram(bad, r, nullptr, o, d, e));
+        CHECK(e.code == "param");
+        CHECK(e.node_id == "rec");
+        CHECK(e.message.find("模板库") != std::string::npos);
+    }
+    {   // 路径本身是内部参数，框图里出现即拒
+        json bad = base;
+        bad["nodes"][6]["params"]["library_path"] = "models/recognition/library-v1.json";
+        expect_fail(bad, "internal_param");
+    }
+}
+

@@ -122,6 +122,10 @@ struct LoadOptions {
     IScenarioResolver* scenarios = nullptr;
     // 场景数据包根目录，用于核对场景的 aoi.manifest_sha256。空串表示跳过核对（并在结果里标明）。
     std::string scene_root = "data/scene";
+    // 识别模板库目录（C-4）：TemplateClassifier 的用户参数 library_version 由装载器换成内部参数
+    // library_path = <library_root>/library-<version>.json（D-037 同法）。cwd = 仓库根时缺省值可用；
+    // ctest 从构建目录跑，测试要传源码树里的位置。
+    std::string library_root = "models/recognition";
 };
 
 // 框图的 run 段，原样交给运行器：种子建 Xoshiro256pp，max_rounds 交给 Graph::run。

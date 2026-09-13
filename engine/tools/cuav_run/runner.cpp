@@ -143,6 +143,43 @@ json detection_summary_json(const DetectionSummary& s) {
     return j;
 }
 
+// ---- 特征行的落盘形状（C-4，10 报告 §4.3）----
+// 每个突发一行、行自带 trace（量级小，不另设索引）；没有前一段时 interval / hop 写 null——缺的就是缺的；
+// 未标定时省 band_power_dBm / peak_dBm，与检测行同规。
+json feature_json(const FeatureReport& r) {
+    const FeatureRow& f = r.row;
+    json j{{"t_s", f.t_s}, {"t_end_s", f.t_end_s}, {"duration_s", f.duration_s}, {"node_id", r.node_id},
+           {"segment_id", f.segment_id}, {"frames", f.frames},
+           {"center_Hz", f.center_Hz}, {"bandwidth_Hz", f.bandwidth_Hz}, {"signal_bins", f.signal_bins},
+           {"has_dBm", f.has_dBm}, {"snr_dB", f.snr_dB}, {"spectral_flatness", f.spectral_flatness},
+           {"crest_factor_dB", f.crest_factor_dB}, {"duty", f.duty}, {"overload", f.overload},
+           {"quality", f.quality}, {"trace", trace_json(r.trace)}};
+    if (!r.site_id.empty()) j["site_id"] = r.site_id;
+    if (f.has_dBm) {
+        j["band_power_dBm"] = f.band_power_dBm;
+        j["peak_dBm"] = f.peak_dBm;
+    }
+    j["interval_from_prev_s"] = f.has_prev ? json(f.interval_from_prev_s) : json(nullptr);
+    j["hop_from_prev_Hz"] = f.has_prev ? json(f.hop_from_prev_Hz) : json(nullptr);
+    return j;
+}
+
+// ---- 识别行的落盘形状（C-4，10 报告 §4.4）----
+json recognition_json(const RecognitionReport& r) {
+    const RecognitionRow& x = r.row;
+    json top = json::array();
+    for (const auto& c : x.top_n) top.push_back(json{{"label", c.label}, {"posterior", c.posterior}, {"distance", c.distance}});
+    json j{{"t_s", x.t_s}, {"t_end_s", x.t_end_s}, {"node_id", r.node_id}, {"segment_id", x.segment_id},
+           {"label", x.label}, {"posterior", x.posterior}, {"top_n", top},
+           {"distance", x.distance >= 0.0 ? json(x.distance) : json(nullptr)},
+           {"result", x.result},
+           {"unknown_kind", x.unknown_kind.empty() ? json(nullptr) : json(x.unknown_kind)},
+           {"evidence_quality", x.evidence_quality}, {"library_version", x.library_version},
+           {"trace", trace_json(r.trace)}};
+    if (!r.site_id.empty()) j["site_id"] = r.site_id;
+    return j;
+}
+
 // 事件出口：stdout 一行一条，--out 给了就原样再落 events.jsonl；两处都逐行 flush，服务端读到即完整。
 class EventSink {
 public:
@@ -296,6 +333,23 @@ public:
         det_summaries_[s.node_id] = detection_summary_json(s);
     }
 
+    // 特征行（C-4）：每个突发一行落 features.jsonl，同时发一条 feature 事件（按突发，量级与 detection 事件同）
+    void on_feature(const FeatureReport& r) override {
+        if (r.row.t_end_s > last_t_s_) last_t_s_ = r.row.t_end_s;
+        json row = feature_json(r);
+        sink_.emit("feature", r.row.t_s, strip_t(row));
+        write_jsonl(features_, "features.jsonl", row);
+        ++features_written_;
+    }
+
+    void on_recognition(const RecognitionReport& r) override {
+        if (r.row.t_end_s > last_t_s_) last_t_s_ = r.row.t_end_s;
+        json row = recognition_json(r);
+        sink_.emit("recognition", r.row.t_s, strip_t(row));
+        write_jsonl(recognitions_, "recognitions.jsonl", row);
+        ++recognitions_written_;
+    }
+
     // 运行结束后写 detections.index.json：每个检测器一条摘要（含 trace），有检测器才写。
     // 与观测点产品的索引同一分工：行文件是数据，索引是元数据。
     void write_detections_index() {
@@ -316,6 +370,8 @@ public:
     std::uint64_t bearings_written() const { return bearings_written_; }
     std::uint64_t positions_written() const { return positions_written_; }
     std::uint64_t detections_written() const { return detections_written_; }
+    std::uint64_t features_written() const { return features_written_; }
+    std::uint64_t recognitions_written() const { return recognitions_written_; }
     std::uint64_t detection_events() const { return detection_events_; }
     std::uint64_t progress_events() const { return progress_events_; }
     std::uint64_t rounds_seen() const { return rounds_seen_; }
@@ -337,11 +393,12 @@ private:
     std::chrono::milliseconds interval_;
     bool throttle_;
     std::string out_dir_;
-    std::ofstream track_, links_, bearings_, positions_, detections_;
+    std::ofstream track_, links_, bearings_, positions_, detections_, features_, recognitions_;
     std::uint64_t entities_ = 0;
     std::uint64_t links_written_ = 0;
     std::uint64_t bearings_written_ = 0, positions_written_ = 0;
     std::uint64_t detections_written_ = 0, detection_events_ = 0;
+    std::uint64_t features_written_ = 0, recognitions_written_ = 0;
     std::map<std::string, std::int64_t> last_segment_;    // 每个检测器最近一次发过事件的段号
     std::map<std::string, json> det_summaries_;
     bool has_last_ = false;
@@ -458,6 +515,7 @@ int do_validate(const Options& opt, std::ostream& events, std::ostream& diag) {
     LoadOptions lo;   // out_dir 为空：只校验，不落盘
     lo.scenarios = sresolver;
     lo.scene_root = opt.scene_root;
+    lo.library_root = opt.library_root;
     if (!load_diagram_file(opt.diagram_path, registry, resolver, lo, d, e)) {
         sink.emit("error", 0.0, to_json(e));
         diag << "框图校验失败 [" << e.code << "] " << e.message << "\n";
@@ -521,6 +579,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
     lo.out_dir = opt.out_dir;
     lo.scenarios = sresolver;
     lo.scene_root = opt.scene_root;
+    lo.library_root = opt.library_root;
     if (!load_diagram_file(opt.diagram_path, registry, resolver, lo, d, e)) {
         sink.emit("error", 0.0, to_json(e));
         sink.emit("task.state", 0.0, json{{"run_state", "failed"}, {"result", "invalid"}, {"reasons", json::array({e.message})}});
@@ -569,7 +628,9 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
     }
     json common{{"diagram_id", d.diagram_id}, {"seed", d.run.seed}, {"rounds", rep.rounds},
                 {"wall_s", wall_s}, {"realtime_factor", wall_s > 0.0 ? d.run.duration_s / wall_s : 0.0},
-                {"product_rows", obs.rows()}, {"detection_rows", obs.detections_written()}, {"nodes", nodes},
+                {"product_rows", obs.rows()}, {"detection_rows", obs.detections_written()},
+                {"feature_rows", obs.features_written()}, {"recognition_rows", obs.recognitions_written()},
+                {"nodes", nodes},
                 {"started_utc", started}, {"ended_utc", ended}, {"engine_version", engine_version()}};
 
     if (!rep.ok) {
@@ -680,10 +741,10 @@ const char* usage() {
         "用法：\n"
         "  cuav_run --catalog\n"
         "  cuav_run --validate <框图.json> [--task-id <id>] [--resolved <旁挂.json> | --data-index <索引.json>...]\n"
-        "           [--scenario <场景.json>...] [--scene-root <目录>]\n"
+        "           [--scenario <场景.json>...] [--scene-root <目录>] [--library-root <目录>]\n"
         "  cuav_run --run <框图.json> --out <产品目录> [--task-id <id>] [--seed N]\n"
         "           [--resolved <旁挂.json> | --data-index <索引.json>...] [--scenario <场景.json>...]\n"
-        "           [--scene-root <目录>] [--progress-interval-ms N]\n"
+        "           [--scene-root <目录>] [--library-root <目录>] [--progress-interval-ms N]\n"
         "  cuav_run --scenario-track <场景.json> [--track-rate Hz] [--scene-root <目录>]\n"
         "退出码：0 成功；1 命令行错误；2 框图装载失败；3 运行失败；4 产品目录或事件文件不可写。\n"
         "stdout 每行一条 JSON 事件 {seq, task_id, type, t_s, payload}；诊断文字在 stderr。\n";
@@ -693,6 +754,7 @@ bool parse_args(int argc, const char* const* argv, Options& opt, std::string& er
     opt = Options();
     bool track_rate_given = false;
     bool scene_root_given = false;
+    bool library_root_given = false;
     auto set_mode = [&](Mode m) {
         if (opt.mode != Mode::None) { err = "只能给一个子命令"; return false; }
         opt.mode = m;
@@ -733,6 +795,7 @@ bool parse_args(int argc, const char* const* argv, Options& opt, std::string& er
             track_rate_given = true;
         }
         else if (a == "--scene-root") { if (!value(opt.scene_root)) return false; scene_root_given = true; }
+        else if (a == "--library-root") { if (!value(opt.library_root)) return false; library_root_given = true; }
         else if (a == "--progress-interval-ms") {
             std::string v;
             if (!value(v)) return false;
@@ -754,6 +817,9 @@ bool parse_args(int argc, const char* const* argv, Options& opt, std::string& er
     if (opt.mode != Mode::ScenarioTrack && track_rate_given) { err = "--track-rate 只与 --scenario-track 搭配"; return false; }
     if (opt.mode == Mode::Catalog || opt.mode == Mode::Help) {
         if (scene_root_given) { err = "--scene-root 只与 --validate / --run / --scenario-track 搭配"; return false; }
+    }
+    if (library_root_given && opt.mode != Mode::Run && opt.mode != Mode::Validate) {
+        err = "--library-root 只与 --validate / --run 搭配"; return false;
     }
     if (opt.diagram_path.empty() && (opt.mode == Mode::Run || opt.mode == Mode::Validate)) { err = "缺框图文件"; return false; }
     return true;

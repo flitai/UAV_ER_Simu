@@ -247,6 +247,92 @@ bool inject_data(const ComponentInfo& info, const std::string& node_id, IDataRes
     return true;
 }
 
+// library_version → library_path（C-4，D-037 同法）。只对同时声明用户参数 library_version 与内部参数
+// library_path 的组件生效。版本号来自浏览器，先按 ^v[0-9]+$ 过一道，否则这里就是一个路径穿越口。
+bool inject_library(const ComponentInfo& info, const std::string& node_id, const LoadOptions& options,
+                    std::map<std::string, std::string>& txt, DiagramError& err) {
+    const ParamSpec* v = find_spec(info, "library_version");
+    const ParamSpec* p = find_spec(info, "library_path");
+    if (!v || !p || !p->internal) return true;
+    std::string version = v->has_default ? v->default_text : std::string("v1");
+    auto it = txt.find("library_version");
+    if (it != txt.end() && !it->second.empty()) version = it->second;
+    bool ok = version.size() >= 2 && version[0] == 'v';
+    for (std::size_t i = 1; ok && i < version.size(); ++i) ok = version[i] >= '0' && version[i] <= '9';
+    if (!ok) {
+        err = fail("param", node_id, "", "节点 " + node_id + " 的 library_version 必须形如 v1、v2（字母 v 加数字）：\"" +
+                   version + "\"");
+        return false;
+    }
+    txt["library_path"] = options.library_root + "/library-" + version + ".json";
+    return true;
+}
+
+// C-4：特征提取器与上游检测器的分帧契约（10 报告 §4.3）。装载器是唯一能同时看到两个节点参数的
+// 地方（组件的 check_wiring 只拿得到自己的口名），所以对齐检查放在这里、在连线成立之后；
+// 运行时组件再按 frame_index 守一道。默认值从目录描述取，不在这里手抄第二份。
+struct NodeSnap {
+    std::string type;
+    ComponentInfo info;
+    std::map<std::string, double> num;
+    std::map<std::string, std::string> txt;
+};
+
+double effective_number(const ComponentInfo& info, const std::map<std::string, double>& num,
+                        const std::string& k, double fallback) {
+    auto it = num.find(k);
+    if (it != num.end()) return it->second;
+    const ParamSpec* s = find_spec(info, k);
+    return (s && s->has_default) ? s->default_number : fallback;
+}
+
+std::string effective_text(const ComponentInfo& info, const std::map<std::string, std::string>& txt,
+                           const std::string& k, const std::string& fallback) {
+    auto it = txt.find(k);
+    if (it != txt.end() && !it->second.empty()) return it->second;
+    const ParamSpec* s = find_spec(info, k);
+    return (s && s->has_default) ? s->default_text : fallback;
+}
+
+std::string num_text(double v) {
+    std::ostringstream o;
+    o << v;
+    return o.str();
+}
+
+bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const std::string& fn,
+                             const std::string& tn, const std::string& tp, const std::string& who,
+                             DiagramError& err) {
+    auto t = snaps.find(tn);
+    auto f = snaps.find(fn);
+    if (t == snaps.end() || f == snaps.end()) return true;
+    if (t->second.type != "FeatureExtractor" || tp != "det" || f->second.type != "EnergyDetector") return true;
+    const double nf_det = effective_number(f->second.info, f->second.num, "nfft", 1024.0);
+    const double nf_feat = effective_number(t->second.info, t->second.num, "nfft", 1024.0);
+    if (nf_det != nf_feat) {
+        err = fail("param", tn, tp, who + "：特征提取器 " + tn + " 的 nfft = " + num_text(nf_feat) +
+                   " 与上游检测器 " + fn + " 的 nfft = " + num_text(nf_det) +
+                   " 不同——特征按检测器的分帧对齐，两者必须相等（10 报告 §4.3）");
+        return false;
+    }
+    const double gap_det = effective_number(f->second.info, f->second.num, "merge_gap_frames", 2.0);
+    const double gap_feat = effective_number(t->second.info, t->second.num, "merge_gap_frames", 2.0);
+    if (gap_det != gap_feat) {
+        err = fail("param", tn, tp, who + "：特征提取器 " + tn + " 的 merge_gap_frames = " + num_text(gap_feat) +
+                   " 与上游检测器 " + fn + " 的 merge_gap_frames = " + num_text(gap_det) +
+                   " 不同——段的收口判据必须与检测器的合并判据一致");
+        return false;
+    }
+    const std::string mode = effective_text(f->second.info, f->second.txt, "noise_mode", "probe");
+    if (mode != "sliding") {
+        err = fail("param", tn, tp, who + "：上游检测器 " + fn + " 的 noise_mode = " + mode +
+                   "：探针收集期不产出检测行，特征提取器会把整段 IQ 帧攒在内存里等；"
+                   "接特征提取的检测器必须是 sliding（D-063 典型链路的固定值）");
+        return false;
+    }
+    return true;
+}
+
 // 一次装载里只读一次场景文件、只算一次哈希；顺带做跨节点一致性检查。
 struct ScenarioCache {
     bool loaded = false;
@@ -738,6 +824,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
 
     // 2. 节点：结构校验、参数分流、内部参数注入、按注册表构造
     ScenarioCache scenario_cache;
+    std::map<std::string, NodeSnap> snaps;   // 连线阶段的跨节点检查要用（C-4）
     static const std::set<std::string> kNodeKeys = {"id", "type", "label", "params", "position", "scene_binding"};
     for (const auto& n : j["nodes"]) {
         if (!need_object(n, "nodes[] 每项", "", err)) return false;
@@ -816,11 +903,20 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
         std::map<std::string, std::string> txt;
         if (!split_params(info, n["params"], who, id, num, txt, err)) return false;
         if (!inject_data(info, id, resolver, txt, err)) return false;
+        if (!inject_library(info, id, options, txt, err)) return false;
         {
             const nlohmann::json* binding = n.contains("scene_binding") ? &n["scene_binding"] : nullptr;
             if (!inject_scene(info, id, binding, out, options, scenario_cache, num, txt, err)) return false;
         }
         if (!fill_run_derived(info, id, out.run, num, err)) return false;
+        {
+            NodeSnap snap;
+            snap.type = type;
+            snap.info = info;
+            snap.num = num;
+            snap.txt = txt;
+            snaps[id] = snap;
+        }
 
         std::unique_ptr<IComponent> comp = registry.create_configured(type, num, txt, e);
         if (!comp) {
@@ -880,6 +976,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
             return false;
         }
         ++out.edge_count;
+        if (!check_feature_alignment(snaps, fn, tn, tp, who, err)) return false;
     }
 
     // 4. 观测点：在 IQStream 输出口后并联一个 ObservationTap，不改用户的边

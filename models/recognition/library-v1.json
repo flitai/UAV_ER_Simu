@@ -1,0 +1,58 @@
+{
+  "schema": "cuav-recognition-library/1",
+  "library_version": "v1",
+  "label_layer": "signal_role",
+  "source": "assumed",
+  "notes": [
+    "10 报告附录 D 的四类区间，取值为假定值：只对本项目现有合成波形（tone / noise / burst 与 G-6 的 hop）有效，不代表任何真实机型。",
+    "甲方数据到货后按 04 §11.3 用实测特征分布标定区间与尺度，升 library_version 并记决策；不得调这里的数使某次演示通过（铁律 10）。",
+    "background 不作显式模板：不匹配任何一类时由开放集给 unknown（EM-S-04 §10.9）。",
+    "区间外距离：对数域特征取 (ln 边界 − ln x) / log_scale，线性特征取 (边界 − x) / (半区间宽)；下界 0 与缺上界在对数域视为不设界。",
+    "平坦度是检测频段内原始 PSD 的几何均值 / 算术均值，对窄信号随信噪比变化（README §3）：附录 D 原写 cw [0, 0.2]、burst 类 [0.3, 1]，按合成波形的实测工作点放宽为 cw [0, 0.5]（权重降为 1、带宽升为 3）、burst 类 [0.1, 1]。"
+  ],
+  "distance": {
+    "log_scale": 0.3,
+    "log_floor": { "bandwidth_Hz": 1.0, "duration_s": 1e-06, "hop_from_prev_Hz": 1.0, "interval_from_prev_s": 1e-06 }
+  },
+  "feature_order": ["bandwidth_Hz", "duration_s", "duty", "spectral_flatness", "hop_from_prev_Hz", "interval_from_prev_s"],
+  "features": {
+    "bandwidth_Hz": { "domain": "log" },
+    "duration_s": { "domain": "log" },
+    "duty": { "domain": "linear" },
+    "spectral_flatness": { "domain": "linear" },
+    "hop_from_prev_Hz": { "domain": "log", "abs": true },
+    "interval_from_prev_s": { "domain": "log" }
+  },
+  "templates": [
+    {
+      "label": "video_link",
+      "description": "宽带、噪声样、长时占用（图传下行）",
+      "intervals": { "bandwidth_Hz": [1000000.0, 40000000.0], "duration_s": [0.5, null], "duty": [0.8, 1.0], "spectral_flatness": [0.6, 1.0] },
+      "weights": { "bandwidth_Hz": 2.0, "duration_s": 1.0, "duty": 2.0, "spectral_flatness": 1.0 }
+    },
+    {
+      "label": "telemetry_burst",
+      "description": "窄带、短突发、周期（遥测 / 遥控定频）",
+      "intervals": { "bandwidth_Hz": [20000.0, 500000.0], "duration_s": [0.0005, 0.05], "duty": [0.02, 0.6], "spectral_flatness": [0.1, 1.0], "hop_from_prev_Hz": [0.0, 20000.0], "interval_from_prev_s": [0.005, 1.0] },
+      "weights": { "bandwidth_Hz": 2.0, "duration_s": 1.0, "duty": 1.0, "spectral_flatness": 1.0, "hop_from_prev_Hz": 1.0, "interval_from_prev_s": 2.0 }
+    },
+    {
+      "label": "rc_hopping",
+      "description": "窄带、短突发、跳频（遥控跳频）",
+      "intervals": { "bandwidth_Hz": [20000.0, 2000000.0], "duration_s": [0.0005, 0.02], "duty": [0.05, 0.8], "spectral_flatness": [0.1, 1.0], "hop_from_prev_Hz": [200000.0, null], "interval_from_prev_s": [0.001, 0.1] },
+      "weights": { "bandwidth_Hz": 1.0, "duration_s": 1.0, "duty": 1.0, "spectral_flatness": 1.0, "hop_from_prev_Hz": 3.0, "interval_from_prev_s": 1.0 }
+    },
+    {
+      "label": "cw_beacon",
+      "description": "带宽约等于分辨率、连续（单音信标）",
+      "intervals": { "bandwidth_Hz": [0.0, 20000.0], "duration_s": [0.5, null], "duty": [0.8, 1.0], "spectral_flatness": [0.0, 0.5] },
+      "weights": { "bandwidth_Hz": 3.0, "duration_s": 1.0, "duty": 1.0, "spectral_flatness": 1.0 }
+    }
+  ],
+  "scenario_waveform_map": [
+    { "waveform": "noise", "condition": "bw_Hz >= 1e6", "label": "video_link" },
+    { "waveform": "burst", "condition": "无 hop", "label": "telemetry_burst" },
+    { "waveform": "burst", "condition": "有 hop（G-6）", "label": "rc_hopping" },
+    { "waveform": "tone", "condition": "", "label": "cw_beacon" }
+  ]
+}

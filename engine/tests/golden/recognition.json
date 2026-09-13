@@ -1,0 +1,668 @@
+{
+  "schema": "cuav-engine-golden/1",
+  "purpose": "引擎侧模板匹配识别器与 algos/reference/classify.py 的逐行对拍基准（C-4，10 报告 §4.4）",
+  "generator": "algos/reference/classify.py --write-golden",
+  "library": "models/recognition/library-v1.json",
+  "library_version": "v1",
+  "params": {
+    "accept_threshold": 0.5,
+    "ambiguity_margin": 0.2,
+    "unknown_distance": 4.0,
+    "min_quality": "short"
+  },
+  "tolerance": {
+    "rel": 1e-09,
+    "note": "两侧同为 float64 同算法；后验与距离按相对误差 1e-9，标签、判决、unknown_kind、top_n 的顺序逐字相同"
+  },
+  "rows": [
+    {
+      "t_s": 0.0,
+      "t_end_s": 2.0,
+      "duration_s": 2.0,
+      "segment_id": 0,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 2000.0,
+      "signal_bins": 3,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.05,
+      "crest_factor_dB": 9.0,
+      "duty": 1.0,
+      "overload": false,
+      "quality": "full",
+      "has_prev": false,
+      "interval_from_prev_s": 0.0,
+      "hop_from_prev_Hz": 0.0
+    },
+    {
+      "t_s": 3.0,
+      "t_end_s": 4.5,
+      "duration_s": 1.5,
+      "segment_id": 1,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 8000000.0,
+      "signal_bins": 800,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.9,
+      "crest_factor_dB": 9.0,
+      "duty": 0.95,
+      "overload": false,
+      "quality": "full",
+      "has_prev": false,
+      "interval_from_prev_s": 0.0,
+      "hop_from_prev_Hz": 0.0
+    },
+    {
+      "t_s": 5.0,
+      "t_end_s": 5.01,
+      "duration_s": 0.01,
+      "segment_id": 2,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 100000.0,
+      "signal_bins": 20,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.6,
+      "crest_factor_dB": 9.0,
+      "duty": 0.2,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.1,
+      "hop_from_prev_Hz": 0.0
+    },
+    {
+      "t_s": 5.2,
+      "t_end_s": 5.205,
+      "duration_s": 0.005,
+      "segment_id": 3,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 200000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.6,
+      "crest_factor_dB": 9.0,
+      "duty": 0.3,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.02,
+      "hop_from_prev_Hz": 1200000.0
+    },
+    {
+      "t_s": 6.0,
+      "t_end_s": 6.01,
+      "duration_s": 0.01,
+      "segment_id": 4,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 100000.0,
+      "signal_bins": 20,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.6,
+      "crest_factor_dB": 9.0,
+      "duty": 0.3,
+      "overload": false,
+      "quality": "full",
+      "has_prev": false,
+      "interval_from_prev_s": 0.0,
+      "hop_from_prev_Hz": 0.0
+    },
+    {
+      "t_s": 7.0,
+      "t_end_s": 7.2,
+      "duration_s": 0.2,
+      "segment_id": 5,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 500000.0,
+      "signal_bins": 100,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.4,
+      "crest_factor_dB": 9.0,
+      "duty": 0.7,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.5,
+      "hop_from_prev_Hz": 50000.0
+    },
+    {
+      "t_s": 8.0,
+      "t_end_s": 8.002,
+      "duration_s": 0.002,
+      "segment_id": 6,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 30000.0,
+      "signal_bins": 4,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.5,
+      "crest_factor_dB": 9.0,
+      "duty": 0.1,
+      "overload": false,
+      "quality": "short",
+      "has_prev": true,
+      "interval_from_prev_s": 0.05,
+      "hop_from_prev_Hz": 3000.0
+    },
+    {
+      "t_s": 9.0,
+      "t_end_s": 9.002,
+      "duration_s": 0.002,
+      "segment_id": 7,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 0.0,
+      "signal_bins": 0,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.5,
+      "crest_factor_dB": 9.0,
+      "duty": 0.1,
+      "overload": false,
+      "quality": "low_snr",
+      "has_prev": false,
+      "interval_from_prev_s": 0.0,
+      "hop_from_prev_Hz": 0.0
+    },
+    {
+      "t_s": 10.0,
+      "t_end_s": 10.9,
+      "duration_s": 0.9,
+      "segment_id": 8,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 12000.0,
+      "signal_bins": 2,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.15,
+      "crest_factor_dB": 9.0,
+      "duty": 0.85,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 1.0,
+      "hop_from_prev_Hz": 0.0
+    },
+    {
+      "t_s": 12.0,
+      "t_end_s": 42.0,
+      "duration_s": 30.0,
+      "segment_id": 9,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 25000000.0,
+      "signal_bins": 2000,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.95,
+      "crest_factor_dB": 9.0,
+      "duty": 1.0,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 2.0,
+      "hop_from_prev_Hz": 1000000.0
+    },
+    {
+      "t_s": 13.0,
+      "t_end_s": 13.05,
+      "duration_s": 0.05,
+      "segment_id": 10,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 20000.0,
+      "signal_bins": 4,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.3,
+      "crest_factor_dB": 9.0,
+      "duty": 0.02,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.005,
+      "hop_from_prev_Hz": 20000.0
+    },
+    {
+      "t_s": 14.0,
+      "t_end_s": 14.5,
+      "duration_s": 0.5,
+      "segment_id": 11,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 100000.0,
+      "signal_bins": 20,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.9,
+      "crest_factor_dB": 9.0,
+      "duty": 0.5,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.3,
+      "hop_from_prev_Hz": 0.0
+    },
+    {
+      "t_s": 15.0,
+      "t_end_s": 115.0,
+      "duration_s": 100.0,
+      "segment_id": 12,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 100000.0,
+      "signal_bins": 20,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.99,
+      "crest_factor_dB": 9.0,
+      "duty": 0.0,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 5.0,
+      "hop_from_prev_Hz": 0.0
+    }
+  ],
+  "expected": [
+    {
+      "t_s": 0.0,
+      "t_end_s": 2.0,
+      "segment_id": 0,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "cw_beacon",
+          "posterior": 0.7894717786223105,
+          "distance": 0.0
+        },
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.042847132709552885,
+          "distance": 5.8274507179224235
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.04095922933012741,
+          "distance": 5.917573843596224
+        }
+      ],
+      "label": "cw_beacon",
+      "posterior": 0.7894717786223105,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 3.0,
+      "t_end_s": 4.5,
+      "segment_id": 1,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "video_link",
+          "posterior": 0.7845994933455037,
+          "distance": 0.0
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.0693105656405122,
+          "distance": 4.853152062213501
+        },
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.0352462376703818,
+          "distance": 6.205629194439307
+        }
+      ],
+      "label": "video_link",
+      "posterior": 0.7845994933455037,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 5.0,
+      "t_end_s": 5.01,
+      "segment_id": 2,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.81825732813255,
+          "distance": 0.0
+        },
+        {
+          "label": "cw_beacon",
+          "posterior": 0.042350160817857314,
+          "distance": 5.922409301516917
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.028255549240265493,
+          "distance": 6.731773995231244
+        }
+      ],
+      "label": "telemetry_burst",
+      "posterior": 0.81825732813255,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 5.2,
+      "t_end_s": 5.205,
+      "segment_id": 3,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "rc_hopping",
+          "posterior": 0.6108837385194773,
+          "distance": 0.0
+        },
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.26032170939083965,
+          "distance": 1.7059769009258756
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.030211637956641054,
+          "distance": 6.013358894920162
+        }
+      ],
+      "label": "rc_hopping",
+      "posterior": 0.6108837385194773,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 6.0,
+      "t_end_s": 6.01,
+      "segment_id": 4,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.4479516743473436,
+          "distance": 0.0
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.4479516743473436,
+          "distance": 0.0
+        },
+        {
+          "label": "cw_beacon",
+          "posterior": 0.025199245142627908,
+          "distance": 5.75574263485025
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.060623666724112645,
+      "distance": 0.0,
+      "result": "unknown",
+      "unknown_kind": "unknown_ambiguous"
+    },
+    {
+      "t_s": 7.0,
+      "t_end_s": 7.2,
+      "segment_id": 5,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.43680542369148356,
+          "distance": 1.0025139036900481
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.29623048675864433,
+          "distance": 1.779213940552248
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.13419661820793763,
+          "distance": 3.362877536994924
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.09758704930569524,
+      "distance": 1.0025139036900481,
+      "result": "unknown",
+      "unknown_kind": "unknown_ambiguous"
+    },
+    {
+      "t_s": 8.0,
+      "t_end_s": 8.002,
+      "segment_id": 6,
+      "evidence_quality": "short",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.767553821831109,
+          "distance": 0.0
+        },
+        {
+          "label": "cw_beacon",
+          "posterior": 0.06590725561932492,
+          "distance": 4.909920134548191
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.05561166211278529,
+          "distance": 5.2496313473499105
+        }
+      ],
+      "label": "telemetry_burst",
+      "posterior": 0.767553821831109,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 9.0,
+      "t_end_s": 9.002,
+      "segment_id": 7,
+      "evidence_quality": "low_snr",
+      "library_version": "v1",
+      "label": "unknown",
+      "result": "unknown",
+      "unknown_kind": "unknown_low_quality",
+      "posterior": 0.0,
+      "distance": null,
+      "top_n": []
+    },
+    {
+      "t_s": 10.0,
+      "t_end_s": 10.9,
+      "segment_id": 8,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "cw_beacon",
+          "posterior": 0.6150413024839452,
+          "distance": 0.0
+        },
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.257960202957186,
+          "distance": 1.737768206284716
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.043687031529997054,
+          "distance": 5.289276254660153
+        }
+      ],
+      "label": "cw_beacon",
+      "posterior": 0.6150413024839452,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 12.0,
+      "t_end_s": 42.0,
+      "segment_id": 9,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "video_link",
+          "posterior": 0.8196463272738883,
+          "distance": 0.0
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.054688183763872016,
+          "distance": 5.414450543730229
+        },
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.012886067135609648,
+          "distance": 8.305452556695315
+        }
+      ],
+      "label": "video_link",
+      "posterior": 0.8196463272738883,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 13.0,
+      "t_end_s": 13.05,
+      "segment_id": 10,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.6172451278287264,
+          "distance": 0.0
+        },
+        {
+          "label": "cw_beacon",
+          "posterior": 0.16997634232403297,
+          "distance": 2.579213940552248
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.1203322478813479,
+          "distance": 3.270019171190123
+        }
+      ],
+      "label": "telemetry_burst",
+      "posterior": 0.6172451278287264,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 14.0,
+      "t_end_s": 14.5,
+      "segment_id": 11,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.5619165723032938,
+          "distance": 0.9594104554141857
+        },
+        {
+          "label": "cw_beacon",
+          "posterior": 0.1618268643311453,
+          "distance": 3.4490631873901694
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.15321538524880038,
+          "distance": 3.5584278811044947
+        }
+      ],
+      "label": "telemetry_burst",
+      "posterior": 0.5619165723032938,
+      "distance": 0.9594104554141857,
+      "result": "known",
+      "unknown_kind": null
+    },
+    {
+      "t_s": 15.0,
+      "t_end_s": 115.0,
+      "segment_id": 12,
+      "evidence_quality": "full",
+      "library_version": "v1",
+      "top_n": [
+        {
+          "label": "cw_beacon",
+          "posterior": 0.26690328274783265,
+          "distance": 4.342396520723503
+        },
+        {
+          "label": "telemetry_burst",
+          "posterior": 0.24460723347671115,
+          "distance": 4.51686164149279
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.17166370207033,
+          "distance": 5.225094547771161
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.3167410668376363,
+      "distance": 4.342396520723503,
+      "result": "unknown",
+      "unknown_kind": "unknown_novel"
+    }
+  ]
+}

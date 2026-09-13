@@ -51,9 +51,11 @@ const JSONL_KINDS: Record<string, { file: string; key?: (r: JsonlRecord) => stri
   links: { file: 'links.jsonl', key: (r) => String(r.link_id ?? '') },
   // 检测行按节点抽稀（C-3，D-063）：多站下每站一个检测器 det__<site>，全局计数会隔站丢行
   detections: { file: 'detections.jsonl', key: (r) => String(r.node_id ?? '') },
-  // C-4 / C-5 的产物；读取层先行，生产者随后（与 track / links 当初同法）
-  features: { file: 'features.jsonl', key: (r) => String(r.segment_id ?? '') },
-  recognitions: { file: 'recognitions.jsonl', key: (r) => String(r.segment_id ?? '') },
+  // 特征与识别行（C-4，生产者 FeatureExtractor / TemplateClassifier）：每个突发一行，抽稀键 = 节点 + 段号——
+  // 多站下每站一个 feat__<site>，段号只在站内唯一，只按 segment_id 会把两站的第 0 段当成一条曲线
+  features: { file: 'features.jsonl', key: (r) => `${String(r.node_id ?? '')}:${String(r.segment_id ?? '')}` },
+  recognitions: { file: 'recognitions.jsonl', key: (r) => `${String(r.node_id ?? '')}:${String(r.segment_id ?? '')}` },
+  // C-5 的产物；读取层先行，生产者随后（与 track / links 当初同法）
   truth: { file: 'truth.jsonl' },
   // 测向与定位报告（D-053，L-3 / L-4）。抽稀键取「一条曲线」的自然身份：
   // 测向是逐链路的一串方位，定位是逐目标逐方法的一串位置。
@@ -71,6 +73,9 @@ const JSONL_FILTERS: Record<string, readonly string[]> = {
   positions: ['emitter_id', 'method'],
   // hit 是布尔：过滤按 String(值) 比较，查询串写 hit=true 即只取命中帧（浏览器的突发列表只要这些）
   detections: ['site_id', 'node_id', 'hit'],
+  // 特征与识别（C-4）：按站 / 节点取一站的突发；识别另可按结论与标签筛
+  features: ['site_id', 'node_id', 'quality'],
+  recognitions: ['site_id', 'node_id', 'result', 'label'],
 }
 
 /** 命中结果路由返回 true（含 405 与各种错误）；不是结果路由返回 false，交回主路由。 */

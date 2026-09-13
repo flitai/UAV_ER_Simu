@@ -31,6 +31,9 @@ std::string temp_root() {
 
 std::string fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice1_tone_noise_psd.json"; }
 std::string detect_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_detect.json"; }
+std::string feature_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_feature.json"; }
+std::string recognize_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_recognize.json"; }
+std::string library_root() { return std::string(CUAV_SOURCE_DIR) + "/../models/recognition"; }
 
 struct Result {
     int code = -1;
@@ -169,7 +172,7 @@ TEST_CASE("cuav_run --catalog：输出与 catalog_json() 逐字节相同，且�
     CHECK(r.out == catalog_json(builtin_registry()).dump(2) + "\n");
     json j = json::parse(r.out);
     CHECK(j["schema_version"] == "cuav-catalog/1");
-    CHECK(j["components"].size() == 19);
+    CHECK(j["components"].size() == 21);
 }
 
 TEST_CASE("cuav_run --validate：合法框图一条 validate 事件；非法框图一条 error 事件并退出 2") {
@@ -399,3 +402,120 @@ TEST_CASE("cuav_run --run：回放框图经 --data-index 或 --resolved 解析�
     CHECK(r.code == ExitOk);
     CHECK(r.events[0]["type"] == "validate");
 }
+
+TEST_CASE("cuav_run --run：带特征提取器的框图每个突发落一行 features.jsonl（行自带 trace），feature 事件按突发，task.state 带 feature_rows（C-4）") {
+    const std::string out = temp_root() + "/run_feature";
+    Result r = run_cli({"--run", feature_fixture(), "--out", out});
+    REQUIRE_MESSAGE(r.code == ExitOk, r.diag);
+
+    const std::string text = read_file(out + "/features.jsonl");
+    REQUIRE(!text.empty());
+    CHECK(text[text.size() - 1] == '\n');
+    std::vector<json> rows;
+    {
+        std::istringstream is(text);
+        std::string line;
+        while (std::getline(is, line)) if (!line.empty()) rows.push_back(json::parse(line));
+    }
+    REQUIRE(!rows.empty());
+    double last_t = -1.0;
+    const json* longest = nullptr;
+    for (const auto& row : rows) {
+        CHECK(row["t_s"].is_number());
+        CHECK(row["t_s"].get<double>() >= last_t);
+        last_t = row["t_s"].get<double>();
+        CHECK(row["t_end_s"].get<double>() > row["t_s"].get<double>());
+        CHECK(row["node_id"] == "feat");
+        CHECK_FALSE(row.contains("site_id"));
+        for (const char* k : {"duration_s", "segment_id", "frames", "center_Hz", "bandwidth_Hz", "signal_bins",
+                              "has_dBm", "snr_dB", "spectral_flatness", "crest_factor_dB", "duty", "overload",
+                              "quality", "interval_from_prev_s", "hop_from_prev_Hz", "trace"}) {
+            CHECK_MESSAGE(row.contains(k), "特征行缺键 " << k);
+        }
+        CHECK(row["has_dBm"] == true);                       // 合成源已标定
+        CHECK(row.contains("band_power_dBm"));
+        CHECK(row.contains("peak_dBm"));
+        CHECK(row["trace"]["model_id"] == "FeatureExtractor");
+        CHECK(row["trace"]["model_layer"] == "M3");
+        if (!longest || row["frames"].get<std::uint64_t>() > (*longest)["frames"].get<std::uint64_t>()) longest = &row;
+    }
+    // 单音从第 2000 帧起持续到结束：最长的一段占了余下的几乎全部帧，质心在 2.44 GHz + 50 kHz 的一个 bin 内
+    REQUIRE(longest);
+    CHECK((*longest)["frames"].get<std::uint64_t>() >= 5000);
+    CHECK((*longest)["quality"] == "full");
+    CHECK(std::fabs((*longest)["center_Hz"].get<double>() - (2.44e9 + 50e3)) < 1e6 / 256.0);
+    CHECK((*longest)["duty"].get<double>() == 1.0);
+
+    // 事件按突发：条数 = 行数，载荷 = 行去掉 t_s
+    CHECK(count_type(r, "feature") == rows.size());
+    for (const auto& e : r.events) {
+        if (e["type"] != "feature") continue;
+        CHECK_FALSE(e["payload"].contains("t_s"));
+        CHECK(e["payload"]["node_id"] == "feat");
+    }
+    // 结束事件带 feature_rows
+    const json* last_state = nullptr;
+    for (const auto& e : r.events) if (e["type"] == "task.state") last_state = &e;
+    REQUIRE(last_state);
+    CHECK((*last_state)["payload"]["run_state"] == "finished");
+    CHECK((*last_state)["payload"]["feature_rows"] == rows.size());
+}
+
+TEST_CASE("cuav_run --run：带模板识别器的框图每行特征落一行 recognitions.jsonl，recognition 事件按突发，--library-root 定位模板库（C-4）") {
+    const std::string out = temp_root() + "/run_recognize";
+    Result r = run_cli({"--run", recognize_fixture(), "--out", out, "--library-root", library_root()});
+    REQUIRE_MESSAGE(r.code == ExitOk, r.diag);
+
+    std::vector<json> feats, recs;
+    for (const auto& pair : std::vector<std::pair<const char*, std::vector<json>*>>{{"features.jsonl", &feats}, {"recognitions.jsonl", &recs}}) {
+        const std::string text = read_file(out + "/" + pair.first);
+        REQUIRE(!text.empty());
+        CHECK(text[text.size() - 1] == '\n');
+        std::istringstream is(text);
+        std::string line;
+        while (std::getline(is, line)) if (!line.empty()) pair.second->push_back(json::parse(line));
+    }
+    REQUIRE(!recs.empty());
+    REQUIRE(recs.size() == feats.size());
+    const json* longest = nullptr;
+    std::size_t longest_frames = 0;
+    for (std::size_t i = 0; i < recs.size(); ++i) {
+        const json& row = recs[i];
+        CHECK(row["node_id"] == "rec");
+        CHECK_FALSE(row.contains("site_id"));
+        CHECK(row["segment_id"] == feats[i]["segment_id"]);
+        CHECK(row["t_s"] == feats[i]["t_s"]);
+        for (const char* k : {"t_end_s", "label", "posterior", "top_n", "distance", "result", "unknown_kind",
+                              "evidence_quality", "library_version", "trace"}) {
+            CHECK_MESSAGE(row.contains(k), "识别行缺键 " << k);
+        }
+        CHECK(row["library_version"] == "v1");
+        CHECK(row["trace"]["model_id"] == "TemplateClassifier");
+        CHECK(row["trace"]["parameter_version"] == "library-v1");
+        const std::string res = row["result"].get<std::string>();
+        CHECK((res == "known" || res == "ambiguous" || res == "unknown"));
+        if (feats[i]["frames"].get<std::size_t>() > longest_frames) { longest_frames = feats[i]["frames"].get<std::size_t>(); longest = &row; }
+    }
+    // 从第 2000 帧持续到结束的单音（约 1.5 s、几个 bin 宽、占空比 1）判为 cw_beacon
+    REQUIRE(longest);
+    CHECK((*longest)["result"] == "known");
+    CHECK((*longest)["label"] == "cw_beacon");
+    CHECK(count_type(r, "recognition") == recs.size());
+    const json* last_state = nullptr;
+    for (const auto& e : r.events) if (e["type"] == "task.state") last_state = &e;
+    REQUIRE(last_state);
+    CHECK((*last_state)["payload"]["recognition_rows"] == recs.size());
+
+    // 指到一个没有库的目录：装载失败、退出码 2（缺省目录能不能找到取决于 cwd，不在这里断言）
+    Result miss = run_cli({"--validate", recognize_fixture(), "--library-root", temp_root() + "/no_such_library_dir"});
+    CHECK(miss.code == ExitDiagram);
+}
+
+TEST_CASE("cuav_run：--library-root 只与 --validate / --run 搭配") {
+    Options o;
+    std::string err;
+    const char* argv[] = {"cuav_run", "--catalog", "--library-root", "x"};
+    CHECK_FALSE(parse_args(4, argv, o, err));
+    CHECK(err.find("--library-root") != std::string::npos);
+}
+

@@ -425,17 +425,37 @@ test('定位端点：抽稀键是 emitter_id:method，method 可精确过滤（D
   assert.equal(thin.length, 4)
 })
 
-test('新增三个 JSONL 端点按 segment_id 抽稀（features / recognitions / truth，C-6）', async () => {
+test('特征与识别端点按「节点 + 段号」抽稀，可按站 / 节点 / 质量 / 结论 / 标签精确过滤（C-4）', async () => {
   const rows: string[] = []
+  const recs: string[] = []
   for (let i = 0; i < 4; i++) {
-    rows.push(JSON.stringify({ t_s: i * 0.1, segment_id: i % 2, center_Hz: 2.44e9 }))
+    for (const [node, site] of [['feat__site-1', 'site-1'], ['feat__site-2', 'site-2']]) {
+      rows.push(JSON.stringify({ t_s: i * 0.1, node_id: node, site_id: site, segment_id: i, quality: i % 2 ? 'short' : 'full', center_Hz: 2.44e9 }))
+      recs.push(JSON.stringify({ t_s: i * 0.1, node_id: node.replace('feat', 'rec'), site_id: site, segment_id: i,
+        result: i % 2 ? 'unknown' : 'known', label: i % 2 ? 'unknown' : 'cw_beacon' }))
+    }
   }
   await fsp.writeFile(join(dir, 'features.jsonl'), rows.join('\n') + '\n')
+  await fsp.writeFile(join(dir, 'recognitions.jsonl'), recs.join('\n') + '\n')
   const all = await fetch(url(`${taskId}/features`))
   assert.equal(all.status, 200)
-  assert.equal(all.headers.get('x-cuav-rows'), '4')
+  assert.equal(all.headers.get('x-cuav-rows'), '8')
+  // 每个突发一行、键各不相同：stride 抽稀不减行（两站的第 0 段不是同一条曲线）
   const thin = (await (await fetch(url(`${taskId}/features?stride=2`))).json()) as Array<{ segment_id: number }>
-  assert.equal(thin.length, 2, '两个 segment_id 各留第 0 条')
+  assert.equal(thin.length, 8)
+  const one = (await (await fetch(url(`${taskId}/features?site_id=site-2&quality=full`))).json()) as Array<{ site_id: string; quality: string }>
+  assert.equal(one.length, 2)
+  assert.ok(one.every((r) => r.site_id === 'site-2' && r.quality === 'full'))
+  const known = (await (await fetch(url(`${taskId}/recognitions?result=known`))).json()) as Array<{ label: string }>
+  assert.equal(known.length, 4)
+  assert.ok(known.every((r) => r.label === 'cw_beacon'))
+  const lab = (await (await fetch(url(`${taskId}/recognitions?label=unknown&node_id=rec__site-1`))).json()) as Array<{ node_id: string }>
+  assert.equal(lab.length, 2)
+  assert.ok(lab.every((r) => r.node_id === 'rec__site-1'))
+  // truth 没有抽稀键：全局计数，stride=4 只留第 0、4 行（C-5 定真值行的身份后再给键）
+  await fsp.writeFile(join(dir, 'truth.jsonl'), rows.join('\n') + '\n')
+  const tr = (await (await fetch(url(`${taskId}/truth?stride=4`))).json()) as unknown[]
+  assert.equal(tr.length, 2)
 })
 
 test('检测端点：按 node_id 抽稀，site_id / node_id / hit 可精确过滤；detections/index 三态（C-3，D-063）', async () => {

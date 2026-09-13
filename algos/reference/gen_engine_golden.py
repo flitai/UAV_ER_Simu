@@ -37,6 +37,17 @@ uniform 取高 53 位、normal 用 Box-Muller 且缓存另一支、complex_norma
 
     uv run --quiet --with numpy python algos/reference/gen_engine_golden.py --mode sliding \\
         -o engine/tests/golden/energy_detector_sliding.json
+
+## 特征模式（C-4）
+
+`--mode features` 生成 `features.json`：输入 = 同一噪声流 + 四段门控单音（不同频偏、幅度、长短，
+含一段只有两帧的弱单音）+ 一段门控白噪声（第二个种子 `--seed2`，全流生成再乘门，与 C++ 测试里的
+门控噪声源逐位相同），按 C++ 测试的混合树同一结合顺序在 complex64 里相加；检测按 sliding，特征按
+`features.py`。期望值是逐段的特征行；生成器断言没有 bin 卡在噪声闸或累积功率边界的 ±1e-4 内
+（引擎 float32 FFT 与这里 float64 的差异会在那里翻转，与 `borderline_frames` 同一政策）。
+
+    uv run --quiet --with numpy python algos/reference/gen_engine_golden.py --mode features \\
+        -o engine/tests/golden/features.json
 """
 from __future__ import annotations
 
@@ -50,6 +61,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import energy_detector as ed          # noqa: E402
+import features as ft                 # noqa: E402
 
 MASK64 = (1 << 64) - 1
 
@@ -186,6 +198,112 @@ def write_sliding(args, noise: np.ndarray, mask: np.ndarray, m_bins: int, eta: f
     return 0
 
 
+# 特征模式的突发计划（C-4）。写死在这里而不是命令行：它是黄金基准的一部分，改它就是改基准。
+FEATURE_TONES = [
+    # (频偏 Hz, 幅度, 起始帧, 终止帧)
+    (50e3, 0.75, 1500, 1700),
+    (-20e3, 0.6, 1800, 1806),
+    (50e3, 0.75, 1900, 1950),
+    (30e3, 0.3, 3000, 3002),
+]
+FEATURE_NOISE_BURST = (3.0, 2200, 2600)   # (功率, 起始帧, 终止帧)
+FEATURE_PARAMS = {"nfft": None, "bandwidth_method": "occupied_99", "min_frames": 2,
+                  "window_frames": 64, "noise_gate": 4.0}
+
+
+def gated_noise(n: int, seed2: int, power: float, start_sample: int, stop_sample: int) -> np.ndarray:
+    """C++ 测试里 GatedNoiseSource 的逐样点复刻：自带发生器、全流抽数、门外置零、门内乘 float32(√power)。"""
+    rng = Xoshiro256pp(seed2)
+    k = np.float32(math.sqrt(power))
+    out = np.zeros(n, dtype=np.complex64)
+    for i in range(n):
+        c = rng.complex_normal()
+        if start_sample <= i < stop_sample:
+            out[i] = complex(np.float32(np.float32(c.real) * k), np.float32(np.float32(c.imag) * k))
+    return out
+
+
+def write_features(args, noise: np.ndarray, mask: np.ndarray, m_bins: int, eta: float) -> int:
+    n = noise.size
+    nfft = args.nfft
+    # 混合树与 C++ 测试相同：prev = 噪声；逐个单音 mix(a = 单音, b = prev)；最后 mix(a = 门控噪声, b = prev)。
+    # float32 加法可交换，只有结合顺序要一样。
+    acc = noise.astype(np.complex64)
+    tone_specs = []
+    for off, amp, f0, f1 in FEATURE_TONES:
+        t = tone_burst(n, args.sample_rate, off, amp, f0 * nfft, f1 * nfft)
+        acc = (t + acc).astype(np.complex64)
+        tone_specs.append({"offset_Hz": off, "amplitude": amp, "phase_rad": 0.0,
+                           "start_sample": f0 * nfft, "stop_sample": f1 * nfft})
+    p2, g0, g1 = FEATURE_NOISE_BURST
+    g = gated_noise(n, args.seed2, p2, g0 * nfft, g1 * nfft)
+    x = (g + acc).astype(np.complex64)
+
+    power = ed.frame_bin_power(x, nfft)
+    r = ed.sliding_from_power(power, mask, args.pfa, args.window_frames, args.merge_gap)
+    lam = r["statistic"]
+    borderline = int(np.count_nonzero(np.abs(lam / eta - 1.0) < 1e-5))
+    if borderline:
+        raise SystemExit(f"有 {borderline} 帧卡在门限 ±1e-5 内：换种子或幅度后重生成")
+    fp = dict(FEATURE_PARAMS)
+    fp["nfft"] = nfft
+    rows, margins = ft.extract(x, args.sample_rate, 0.0, nfft, r, args.band_lo, args.band_hi,
+                               bandwidth_method=fp["bandwidth_method"], min_frames=fp["min_frames"],
+                               window_frames=fp["window_frames"], merge_gap_frames=args.merge_gap,
+                               noise_gate=fp["noise_gate"], calibrated=True)
+    if margins["min_gate_margin"] < 1e-4 or margins["min_cum_margin"] < 1e-4:
+        raise SystemExit(f"有 bin 卡在噪声闸或累积功率边界 ±1e-4 内（{margins}）：换种子或幅度后重生成")
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧特征提取器与 algos/reference/features.py 的逐段对拍基准（C-4，10 报告 §4.3）",
+        "generator": "algos/reference/gen_engine_golden.py --mode features",
+        "params": {
+            "seed": args.seed, "seed2": args.seed2, "nfft": nfft, "frames": args.frames,
+            "sample_rate_Hz": args.sample_rate,
+            "band_lo_Hz": args.band_lo, "band_hi_Hz": args.band_hi, "pfa": args.pfa,
+            "noise_power": 1.0, "noise_mode": "sliding",
+            "noise_window_frames": args.window_frames, "merge_gap_frames": args.merge_gap,
+            "tones": tone_specs,
+            "noise_burst": {"power": p2, "start_sample": g0 * nfft, "stop_sample": g1 * nfft},
+            "feature": {"nfft": nfft, "bandwidth_method": fp["bandwidth_method"], "min_frames": fp["min_frames"],
+                        "window_frames": fp["window_frames"], "merge_gap_frames": args.merge_gap,
+                        "noise_gate": fp["noise_gate"], "window": "hann_periodic"},
+        },
+        "tolerance": {
+            "exact": ["segment_id", "frames", "signal_bins", "quality", "overload", "has_dBm", "has_prev",
+                      "t_s", "t_end_s", "duration_s", "duty", "bandwidth_Hz", "interval_from_prev_s"],
+            "center_Hz_abs": 1e-3 * args.sample_rate / nfft,
+            "hop_Hz_abs": 2e-3 * args.sample_rate / nfft,
+            "flatness_abs": 1e-5,
+            "dB_abs": 1e-4,
+            "crest_rel": 1e-9,
+            "note": "计数、时间、段号、质量、按 bin 计的带宽逐位相同；质心按千分之一 bin；平坦度 1e-5；"
+                    "三个 dBm 与 snr 按 1e-4 dB（引擎 float32 FFT 对 numpy float64）；"
+                    "峰均比只吃逐位相同的样点、double 累加，按 1e-9",
+        },
+        "expected": {
+            "m_bins": m_bins,
+            "threshold": eta,
+            "frames": int(lam.size),
+            "hits": int(np.count_nonzero(r["hit"])),
+            "segments": r["segments"],
+            "borderline_frames": borderline,
+            "min_gate_margin": margins["min_gate_margin"],
+            "min_cum_margin": margins["min_cum_margin"],
+            "rows": rows,
+        },
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    full = sum(1 for q in rows if q["quality"] == "full")
+    print(f"features 黄金基准：{lam.size} 帧，命中 {doc['expected']['hits']}，段 {r['segments']}，"
+          f"特征行 {len(rows)}（full {full}），闸裕度 {margins['min_gate_margin']:.2e}，"
+          f"边界裕度 {margins['min_cum_margin']:.2e} → {args.out}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -197,7 +315,8 @@ def main(argv=None) -> int:
     ap.add_argument("--band-lo", type=float, default=-1e5)
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
-    ap.add_argument("--mode", choices=("probe", "sliding"), default="probe")
+    ap.add_argument("--mode", choices=("probe", "sliding", "features"), default="probe")
+    ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
     ap.add_argument("--tone-offset", type=float, default=50e3, help="sliding：单音频偏 Hz")
@@ -219,6 +338,8 @@ def main(argv=None) -> int:
 
     if args.mode == "sliding":
         return write_sliding(args, x, mask, m_bins, eta)
+    if args.mode == "features":
+        return write_features(args, x, mask, m_bins, eta)
 
     power = ed.frame_bin_power(x, args.nfft)
     # 引擎按「先攒够 noise_frames 帧估噪声，再判决全部帧（含探针帧）」的顺序处理，

@@ -44,6 +44,9 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   // 检测
   band_lo_Hz: '频段下限', band_hi_Hz: '频段上限', pfa: '虚警率', noise_frames: '探针帧数',
   noise_window_frames: '滑动窗长', merge_gap_frames: '突发合并空隙', band_power_dBm: '附 dBm 读数',
+  // C-4：特征提取与模板识别
+  bandwidth_method: '带宽口径', min_frames: '最少帧数', window_frames: '占空比窗', noise_gate: '噪声闸',
+  library_version: '模板库版本', accept_threshold: '接受门限', ambiguity_margin: '歧义间隔', unknown_distance: '未知距离', min_quality: '最低质量',
   // 测向
   method: '体制', min_snr_dB: '最低信噪比', bias_deg: '系统偏差',
   sigma_method_deg: 'σ 体制', sigma_snr_ref_deg: 'σ 信噪比项', snr_ref_dB: '参考信噪比',

@@ -5039,3 +5039,62 @@ e2e 只依赖 `[data-op-tab]` 与 `.col.left .rail`，未动。09 报告修订�
 **顺带挖出一处旧竞态**：`slice8` 删掉框图页那一步后红了——地址栏 `?scenario=demo-03` 打开，场景却落在 demo-01。用 CDP 抓请求发起方堆栈：demo-03 的请求 0.163 s 发出、0.165 s 返回 200，0.166 s 启动作业的**兜底**又去载了清单第一项 demo-01。根因是 `store.getState()` 给的是上一次渲染的状态（`ref.current` 在渲染时才更新），`await` 刚 dispatch 完、React 还没重渲染那一瞬读到的仍是「载入中」，兜底以为点名的场景没载成。这条路自 D-061 ⑨ 加 `?scenario=` 起就有，此前 slice8 在框图页多选一次把它盖住了。修法：`loadScenarioInto` / `adoptTask` 返回是否载入成功，兜底只看返回值不读 store。教训：**dispatch 之后不要立刻 `getState()` 判断刚才那次 dispatch 的结果**，用返回值或等下一帧。
 
 **验证**：web 212 项；`slice8` 42（左栏表单计数改为不计场景选择器）、`slice6` 66（开页点名 `?scenario=demo-01`——框图跟着场景页走之后，盘上最近一次任务若是三站场景，缺省链就不再是 1 站 1 源，这是新规则的真实后果）、`slice2` 29、`slice4` 100 全绿；`?scenario=demo-03#/diagram` 的启动时序用 CDP 复核：只发一次场景请求、场景与框图都落在 demo-03。
+
+### 2026-09-13 · C-4 第一步：`FeatureExtractor` 落地（特征提取 + Python 参考 + 黄金基准）
+
+**起因**：用户问「运行后显示与服务器断开正常吗？降级又是什么意思？」并要下一步计划。核实两件事：① 「与服务的连接已断开」是误报——换订阅时客户端
+`subscribe()` 先 `close()`，`close()` 上报一次 `closed`，reducer 对着还是排队态的新任务把它当成真掉线（用真实 WsClient + reducer 复现：状态序列
+closed → connected → closed → closed → connected）；已修（提交 415fe5f：换订阅走不上报状态的 `teardown()`，`ws.test.ts` 加一例）。② demo-01 缺省链
+的「降级」是 ADC 过载：最近点路损 70.6 dB（约 33 m），接收电平 −38.6 dBm，前端增益 20 dB 后 −18.6 dBm 超满量程 −20 dBm，全程削顶 6.09% > 1%——
+是引擎的真实判断，缺省链不改（计划 Q2）。下一步按 06 §0.3 = **C-4 特征与识别**，计划分六步（步骤 0 误报 → 1 特征提取 → 2 模板识别 → 3 引擎级验收 → 4a/4b/4c 服务端与前端 → 5 回填）。
+
+**规划阶段核实到的两条调度风险**（写进 `processing.h` 头注）：调度器每轮按拓扑序跑一遍、节点只在**所有已连输入**都有数据时才跑、输出按赋值覆盖深度 1 的缓冲；
+`EnergyDetector::process` 在本块没凑满一帧时返回 Idle（probe 收集期整段 Idle），双输入的下游那一轮被跳过、IQ 块被下一轮覆盖，**静默丢块**。处置三条：
+检测器消费了块就产出（没有完成帧时给空列表，黄金基准只比行、`energy_detector*.json` 逐字节不变）；特征提取器核对块的 `start_sample` 首尾相接，断档即报错；
+定为约定「消费了输入的轮次必产出」，C-5 的评价器（det + rec 双输入）靠它活。第二条：双输入节点收不到上游 flush 的尾块——sliding 下检测器 flush 不出数据，本步不受影响，C-5 前置契约同上。
+
+**做了什么**：
+- 结构：`FeatureRow` / `FeatureVector`、`PortData.features`、`FeatureReport` + `IRunObserver::on_feature`。
+- 组件 `FeatureExtractor`（M3 / E2，`model_id = EM-S-03`）：端口 `iq` + `det` → `out`；与检测器同律切帧、按 `frame_index` / `start_sample` 逐帧对齐；段收口 = 新 `segment_id` / 连续未命中 > `merge_gap_frames` / flush；
+  **两套谱**——电量（带内功率、信噪比、噪声 = e / Λ）用矩形帧与检测器逐位同源，形状（质心、带宽、平坦度、峰值）用同一帧加周期 Hann 窗：第一版只用矩形帧，
+  对不在 bin 上的单音 sinc² 旁瓣把 99% 占用带宽量到几十个 bin，`cw_beacon` 永远配不上，改成加窗后单音 3 个 bin（11.7 kHz @ fs 1e6 / 256）、噪声突发 51 bin 平坦度 0.9988。
+  去噪 + 过闸 `noise_gate · n_bin / √F`；「上一段」只由 full / overload 质量的段充当。
+- 装载器跨节点检查（连线阶段）：`feat.nfft == det.nfft`、`merge_gap_frames` 相等、检测器必须 `sliding`，错误码 `param` 落在 `feat` 的 `det` 口。
+- 运行器：`features.jsonl` 每突发一行（行自带 trace）、`feature` 事件每突发一条、`task.state.feature_rows`。
+- Python `algos/reference/features.py`（显式循环累加）；`gen_engine_golden.py --mode features`（同一噪声流 + 四段门控单音 + 一段第二种子的门控噪声；生成器断言没有 bin 卡在闸或累积功率边界 ±1e-4 内）；
+  黄金基准 `engine/tests/golden/features.json`（4000 帧、38 段、6 段 full）；`--mode probe / sliding` 输出与既有文件逐字节相同（`cmp` 核过）。
+- 目录黄金基准 19 → 20，脚本核对只多 `FeatureExtractor` 一条、端口表与既有组件逐字未变。文档：`display-products.md` §1 / §5.2、`api-versions.md` §4.1、`component-catalog.md`。
+
+**实测（macOS，原型阶段验证值）**：黄金基准逐段对拍首跑即过；组件测试里单音幅度 0.5 时段内每百帧漏三帧（Λ ≈ 2.25 对门限 1.75，信号与噪声的交叉项把 Λ 的散布抬到 0.26），
+是物理不是缺陷，测试改用幅度 0.8（Λ ≈ 4.2）。引擎 225 项 doctest + 10 项 ctest、服务 126 项全绿；`check-paths` / `check-ascii` 过。
+
+### 2026-09-13 · C-4 第二步：`TemplateClassifier` 与模板库 v1 落地（识别 + Python 参考 + 黄金基准 + 服务端过滤）
+
+**做了什么**：
+- 结构：`RecognitionRow` / `RecognitionCandidate` / `RecognitionList`、`PortData.recognitions`、`RecognitionReport` + `on_recognition`。
+- 组件 `TemplateClassifier`（`engine/src/recognition.cpp`，M2 / E2 / V2，`model_id = EM-S-04`）：`in: FeatureVector` → `out: RecognitionList`；
+  EM-S-04 §10.5 区间外距离（对数域 `(ln 边界 − ln x)/0.3`、线性域除以半区间宽、缺失特征不计）→ 加权平均综合距离 → `exp(−D/2)` 加未知假设
+  `exp(−unknown_distance/2)` 归一成后验 → known / ambiguous / unknown（`unknown_low_quality / unknown_novel / unknown_ambiguous`）；
+  只到 `signal_role` 层；消费即产出。库文件 `models/recognition/library-v1.json`（严格结构校验：未知键、区间颠倒、线性特征缺上界、缺权重、
+  引用不存在的特征、版本不符都拒），模型卡 `models/recognition/README.md`。
+- 装载器：`library_version` → 内部参数 `library_path = <library_root>/library-<v>.json`（`inject_library`，D-037 同法），版本号先过 `^v[0-9]+$`
+  （浏览器给的字符串，否则是路径穿越口）；`LoadOptions::library_root` 缺省 `models/recognition`，`cuav_run` 加 `--library-root`（ctest 从构建目录跑要传源码树里的位置）。
+- 运行器：`recognitions.jsonl` 每行特征一行、`recognition` 事件、`task.state.recognition_rows`。
+- Python `algos/reference/classify.py`（`--write-golden` 出 `engine/tests/golden/recognition.json`：13 行手造特征，覆盖四类中心、缺上一段、
+  开放集 novel / ambiguous、低质量、短段与区间端点；两侧 float64，rel ≤ 1e-9）。
+- 服务端：`features` / `recognitions` 的抽稀键改为「节点 + 段号」（多站下段号只在站内唯一，只按 `segment_id` 会把两站的第 0 段当一条曲线），
+  过滤键 `features: site_id / node_id / quality`、`recognitions: site_id / node_id / result / label`。
+- 目录黄金基准 19 → 21（脚本核对只多 `FeatureExtractor` / `TemplateClassifier` 两条）；web 的三条目录守卫随之更新（内部参数 21 → 28、可绑定 6 → 8、九个新参数的中文短标签）。
+- 文档：`display-products.md` §5.3、`api-versions.md`（`recognition` 事件、`recognition_rows`、`--library-root`）、`component-catalog.md`。
+
+**两处与 10 报告 §4.4 不同，都是第一次对着真实特征值发现的、写进模型卡 §2 / §3（10 报告 §11 待记）**：
+① **平坦度区间**：附录 D 写 cw `[0, 0.2]`、burst 类 `[0.3, 1]`。平坦度按 EM-S-03 是检测频段内原始 PSD 的几何 / 算术均值，对占带内一小部分 bin 的窄信号随
+信噪比变（`≈ ρ^f / (1 − f + f·ρ)`，`f` = 信号占带内 bin 的比例、`ρ` = 每 bin 信噪比）：单音在 51 bin 频段里 20 dB 时约 0.3；链路测试里的单音实测 0.297，
+按附录 D 判成 unknown。放宽为 cw `[0, 0.5]`（权重 1、带宽权重 3）、burst 类 `[0.1, 1]`；video 占满频段稳定在 0.9 以上不动。
+② **接受门限 0.6 → 0.5**：未知假设恒占一份似然 0.135，四模板下正确类即使 `D = 0` 后验也只有 0.55–0.8——0.5 s 单音对 cw 的 `D = 0`、后验 0.594
+（telemetry / rc 只在时长与带宽上各差一个量级，`D ≈ 2.5 / 3.3`，似然仍在分母里），0.6 判成 unknown；且 0.6 / 0.2 下 ambiguous 不可达
+（`p1 ≥ 0.6` 蕴含领先 ≥ 0.2）。改 0.5 两条一起解决。这两处都是把假定值对到定义的实际取值范围上，不是调参使某次演示通过（库本来就是假定值、第一次落地）。
+
+**顺带**：`--validate` 不给 `--library-root` 时能不能找到缺省库取决于 cwd（ctest 在构建目录、手跑在仓库根），这样的断言不能写进测试，改成指到一个不存在的目录。
+
+**验证**：引擎 233 项 doctest + 11 项 ctest（新增 `cuav_run_validate_slice4_recognize` 带 `--library-root`）、服务 126 项、web 213 项全绿；`check-paths` / `check-ascii` 过。

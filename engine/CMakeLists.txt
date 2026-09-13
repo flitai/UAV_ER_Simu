@@ -34,6 +34,7 @@ add_library(cuav_engine STATIC
   src/graph.cpp
   src/sources.cpp
   src/processing.cpp
+  src/recognition.cpp
   src/locate.cpp
   src/spectrum.cpp
   src/platform.cpp
@@ -117,6 +118,11 @@ add_test(NAME cuav_run_scenario_track
           --track-rate 2 --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")
 add_test(NAME cuav_run_validate_slice4_detect
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_detect.json")
+add_test(NAME cuav_run_validate_slice4_feature
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_feature.json")
+add_test(NAME cuav_run_validate_slice4_recognize
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_recognize.json"
+          --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"

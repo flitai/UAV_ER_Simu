@@ -188,6 +188,116 @@ private:
     ModelTrace trace() const;
 };
 
+// 突发特征提取（C-4，10 报告 §4.3；EM-S-03 §10.5–§10.10）。M3 观测量提取件：吃 IQ 与检测行，
+// 按检测器给的 segment_id 在段收口时出一行特征，算法与 algos/reference/features.py 严格同序
+// （黄金基准 engine/tests/golden/features.json 逐段对拍）。
+//
+// 与检测器的对齐是硬契约：同样从收到的第一个样点起切帧、不加窗、不重叠、nfft 相同，于是本组件的
+// 第 k 帧就是检测行 frame_index = k 那一帧。装载器核对两边的 nfft / merge_gap_frames / noise_mode，
+// 运行时再按 frame_index 与 start_sample 逐帧核对——对不上即报错，不猜。
+//
+// 两条调度约定（C-4 落地时核实到的两处风险）：
+//   ① IQ 块必须连续（start_sample 首尾相接），断档即 Step::Error。调度器的缓冲深度为 1、按赋值覆盖，
+//      上游若有一轮没产出，本节点那一轮被跳过、块被下一轮覆盖——静默丢块是铁律 15 不允许的。
+//      为此 EnergyDetector 自 C-4 起「消费了块就产出」（没有完成帧时给空列表）。
+//   ② 本组件同样「消费了输入的轮次必产出」（哪怕是空的 FeatureVector）：C-5 的评价器是双输入节点，
+//      靠这条约定才不会被跳过。
+//
+// 段的收口时机：出现新的 segment_id、或连续未命中帧数超过 merge_gap_frames（检测器的合并判据，
+// 超过它就不可能再并进来）、或 flush()。谱统计只用命中帧：合并空隙里的非命中帧不计。
+// 两套谱：**电量**（带内功率、信噪比、噪声）用不加窗的帧——与检测器逐位同源，噪声由检测行的 Λ 反推
+// （noise = e / Λ）；**形状**（质心、带宽、平坦度、峰值）用同一帧加周期 Hann 窗的 PSD——不加窗的
+// 矩形帧对不在 bin 上的单音漏出 sinc² 旁瓣，99% 占用带宽会量到几十个 bin，cw 这一类永远配不上；
+// 加窗后噪声每 bin 功率按 Σw²/nfft 缩放，去噪与过闸都在加窗域做。
+// 去噪：段均 PSD 减去带内白噪声估计，再过一道闸 noise_gate · n_bin / √F（F 帧平均后噪声 bin 的散布
+// 按 1/√F 收窄）——不去噪的话，单音在 10 dB 带内信噪比下的占用带宽会吞进大半个噪声频段。
+class FeatureExtractor : public IComponent {
+public:
+    std::string type_name() const override { return "FeatureExtractor"; }
+    std::vector<PortSpec> inputs() const override {
+        return {PortSpec{"iq", PortType::IQStream}, PortSpec{"det", PortType::DetectionList}};
+    }
+    std::vector<PortSpec> outputs() const override {
+        return {PortSpec{"out", PortType::FeatureVector}};
+    }
+    ComponentInfo describe() const override;
+    bool configure(const std::map<std::string, double>& params,
+                   const std::map<std::string, std::string>& text_params,
+                   std::string& err) override;
+    bool init(IRandom& rng, std::string& err) override;
+    void attach(IRunObserver* obs) override { obs_ = obs; }
+    void set_node_name(const std::string& name) override { node_name_ = name; }
+    Step process(PortMap& in, PortMap& out, std::string& err) override;
+    Step flush(PortMap& out, std::string& err) override;
+    void reset() override;
+    ComponentStatus status() const override { return status_; }
+
+    std::uint64_t frames() const { return frames_; }
+    std::uint64_t segments() const { return segments_; }
+
+private:
+    struct Frame {
+        std::uint64_t index = 0;
+        std::vector<double> power;    // fftshift 后逐 bin |X_k|²（未归一化 DFT，与检测器同算）
+        std::vector<double> power_w;  // 同一帧加周期 Hann 窗后的 |X_k|²，只供形状量
+        double sum_abs2 = 0.0;        // 时域 Σ|x|²（double 累加）
+        double max_abs2 = 0.0;
+        bool calibrated = false;
+    };
+    struct Segment {
+        std::int64_t id = -1;
+        std::uint64_t first_frame = 0, last_frame = 0, frames = 0;
+        std::vector<double> psd_sum;
+        std::vector<double> psd_w_sum;
+        double e_sum = 0.0, noise_sum = 0.0, sum_abs2 = 0.0, max_abs2 = 0.0;
+        bool overload = false, calibrated = true;
+        double duty = 0.0;
+    };
+
+    std::size_t nfft_ = 1024;
+    std::string bandwidth_method_ = "occupied_99";
+    std::uint64_t min_frames_ = 2;
+    std::size_t window_frames_ = 64;
+    std::uint64_t merge_gap_ = 2;
+    double noise_gate_ = 4.0;
+    std::string site_id_;
+    std::string node_name_;
+    IRunObserver* obs_ = nullptr;
+    std::vector<float> window_;       // 周期 Hann，configure 时按 nfft 建
+    double wsum_ = 0.0, wsq_ = 0.0;   // Σw、Σw²（按 float32 的窗值用 double 累加）
+
+    double sample_rate_Hz_ = 0.0;
+    double center_frequency_Hz_ = 0.0;
+    bool has_expected_ = false;
+    std::uint64_t expected_start_ = 0;
+    std::vector<Complex> carry_;
+    std::uint64_t next_frame_index_ = 0;
+    bool frame_calibrated_ = false;
+    std::deque<Frame> pending_frames_;           // 已切出、还没等到检测行的帧
+    bool band_ready_ = false;
+    double band_lo_Hz_ = 0.0, band_hi_Hz_ = 0.0;  // 相对中心频率，取自检测行
+    std::vector<std::size_t> band_bins_;
+    bool open_ = false;
+    Segment cur_;
+    std::uint64_t gap_ = 0;
+    std::deque<bool> hit_window_;
+    bool has_prev_ = false;
+    double prev_t_end_s_ = 0.0, prev_center_Hz_ = 0.0;
+    std::vector<FeatureRow> pending_rows_;
+    std::uint64_t frames_ = 0;
+    std::uint64_t segments_ = 0;
+    ComponentStatus status_;
+
+    void clear_state();
+    void build_band(double f_lo_abs, double f_hi_abs);
+    void push_frame(const std::vector<Complex>& frame);
+    void apply(const Detection& d, const Frame& f);
+    void close_segment();
+    FeatureRow compute_row(const Segment& s) const;
+    void report(const FeatureRow& r);
+    ModelTrace trace() const;
+};
+
 // 检测结果汇聚。首期只做计数与极值摘要，够上层取用；
 // 完整的候选片段清单（时间、频率、带宽、功率、门限、质量、追溯）留给 EM-S-02 的完整实现。
 class DetectionSink : public IComponent {

@@ -10,6 +10,7 @@ namespace cuav {
 namespace {
 
 const double kLn2 = 0.69314718055994530942;
+const double kTwoPi = 6.283185307179586476925286766559;
 
 double get(const std::map<std::string, double>& p, const std::string& k, double dflt) {
     auto it = p.find(k);
@@ -545,7 +546,9 @@ Step EnergyDetector::process(PortMap& in, PortMap& out, std::string& err) {
         }
     }
 
-    if (pending_.empty()) return Step::Idle;
+    // 消费了块就产出，没有完成帧时给**空列表**（C-4）。此前这里返回 Idle：下游双输入节点
+    // （FeatureExtractor 的 iq + det）那一轮会因 det 口没数据被跳过，IQ 块被下一轮覆盖，静默丢块。
+    // 空列表对既有下游无害（DetectionSink 只是空转一轮），黄金基准只比行不比块数。
     PortData d;
     d.type = PortType::DetectionList;
     d.has_data = true;
@@ -636,6 +639,392 @@ void EnergyDetector::reset() {
     sample_rate_Hz_ = 0.0;
 }
 
+// -------------------------------------------------------------- FeatureExtractor
+
+bool FeatureExtractor::configure(const std::map<std::string, double>& params,
+                                 const std::map<std::string, std::string>& text_params,
+                                 std::string& err) {
+    nfft_ = static_cast<std::size_t>(get(params, "nfft", 1024.0));
+    if (nfft_ == 0 || (nfft_ & (nfft_ - 1)) != 0) {
+        err = "FeatureExtractor 的 nfft 必须是 2 的幂";
+        return false;
+    }
+    bandwidth_method_ = "occupied_99";
+    auto bm = text_params.find("bandwidth_method");
+    if (bm != text_params.end() && !bm->second.empty()) bandwidth_method_ = bm->second;
+    if (bandwidth_method_ != "occupied_99" && bandwidth_method_ != "edge_minus_20dB") {
+        err = "FeatureExtractor 的 bandwidth_method 必须是 occupied_99 / edge_minus_20dB";
+        return false;
+    }
+    const double mf = get(params, "min_frames", 2.0);
+    if (mf < 1.0) { err = "FeatureExtractor 的 min_frames 必须不小于 1"; return false; }
+    min_frames_ = static_cast<std::uint64_t>(mf);
+    const double wf = get(params, "window_frames", 64.0);
+    if (wf < 1.0) { err = "FeatureExtractor 的 window_frames 必须不小于 1"; return false; }
+    window_frames_ = static_cast<std::size_t>(wf);
+    const double gap = get(params, "merge_gap_frames", 2.0);
+    if (gap < 0.0) { err = "FeatureExtractor 的 merge_gap_frames 不得为负"; return false; }
+    merge_gap_ = static_cast<std::uint64_t>(gap);
+    noise_gate_ = get(params, "noise_gate", 4.0);
+    if (noise_gate_ < 0.0) { err = "FeatureExtractor 的 noise_gate 不得为负"; return false; }
+    auto sid = text_params.find("site_id");
+    site_id_ = sid == text_params.end() ? std::string() : sid->second;
+    // 周期 Hann（与 SpectrumAnalyzer 同式），窗值存 float32 与样点相乘；Σw、Σw² 按存下的 float32 值用 double 累加
+    window_.assign(nfft_, 0.0f);
+    wsum_ = 0.0;
+    wsq_ = 0.0;
+    for (std::size_t n = 0; n < nfft_; ++n) {
+        const double w = 0.5 - 0.5 * std::cos(kTwoPi * static_cast<double>(n) / static_cast<double>(nfft_));
+        window_[n] = static_cast<float>(w);
+        wsum_ += static_cast<double>(window_[n]);
+        wsq_ += static_cast<double>(window_[n]) * static_cast<double>(window_[n]);
+    }
+    return true;
+}
+
+void FeatureExtractor::clear_state() {
+    has_expected_ = false;
+    expected_start_ = 0;
+    carry_.clear();
+    next_frame_index_ = 0;
+    frame_calibrated_ = false;
+    pending_frames_.clear();
+    band_ready_ = false;
+    band_lo_Hz_ = band_hi_Hz_ = 0.0;
+    band_bins_.clear();
+    open_ = false;
+    cur_ = Segment();
+    gap_ = 0;
+    hit_window_.clear();
+    has_prev_ = false;
+    prev_t_end_s_ = prev_center_Hz_ = 0.0;
+    pending_rows_.clear();
+    frames_ = 0;
+    segments_ = 0;
+    status_ = ComponentStatus();
+}
+
+// 不抽共享随机流：本组件没有随机性，抽一个数就会把后面所有节点的子种子挪位（D-058 ④ 的教训）。
+bool FeatureExtractor::init(IRandom&, std::string&) {
+    clear_state();
+    return true;
+}
+
+ModelTrace FeatureExtractor::trace() const {
+    ModelTrace t = make_trace("FeatureExtractor", "M3", "E2", "V3");
+    if (!site_id_.empty()) t.trace_id = "FeatureExtractor:" + site_id_;
+    return t;
+}
+
+// 频段 bin 与检测器 build_mask 同一规则：fftshift 后第 k 个 bin 的频率 (k − nfft/2)·fs/nfft 落在 [lo, hi)。
+// 频段取自检测行的绝对频率再减中心频率：两端都是整数 Hz 时这一步精确，与检测器的 bin 集合逐个相同。
+void FeatureExtractor::build_band(double f_lo_abs, double f_hi_abs) {
+    band_lo_Hz_ = f_lo_abs - center_frequency_Hz_;
+    band_hi_Hz_ = f_hi_abs - center_frequency_Hz_;
+    band_bins_.clear();
+    for (std::size_t k = 0; k < nfft_; ++k) {
+        const double idx = static_cast<double>(k) - static_cast<double>(nfft_ / 2);
+        const double f = idx * sample_rate_Hz_ / static_cast<double>(nfft_);
+        if (f >= band_lo_Hz_ && f < band_hi_Hz_) band_bins_.push_back(k);
+    }
+    band_ready_ = true;
+}
+
+void FeatureExtractor::push_frame(const std::vector<Complex>& frame) {
+    Frame f;
+    f.index = next_frame_index_++;
+    std::vector<Complex> x = frame;
+    dsp::fft_inplace(x);
+    dsp::fftshift(x);
+    f.power.resize(nfft_);
+    for (std::size_t k = 0; k < nfft_; ++k) {
+        const double re = static_cast<double>(x[k].real());
+        const double im = static_cast<double>(x[k].imag());
+        f.power[k] = re * re + im * im;
+    }
+    std::vector<Complex> xw(nfft_);
+    for (std::size_t n = 0; n < nfft_; ++n) xw[n] = frame[n] * window_[n];
+    dsp::fft_inplace(xw);
+    dsp::fftshift(xw);
+    f.power_w.resize(nfft_);
+    for (std::size_t k = 0; k < nfft_; ++k) {
+        const double re = static_cast<double>(xw[k].real());
+        const double im = static_cast<double>(xw[k].imag());
+        f.power_w[k] = re * re + im * im;
+    }
+    double s = 0.0, mx = 0.0;
+    for (std::size_t i = 0; i < frame.size(); ++i) {
+        const double re = static_cast<double>(frame[i].real());
+        const double im = static_cast<double>(frame[i].imag());
+        const double a = re * re + im * im;
+        s += a;
+        if (a > mx) mx = a;
+    }
+    f.sum_abs2 = s;
+    f.max_abs2 = mx;
+    f.calibrated = frame_calibrated_;
+    pending_frames_.push_back(f);
+}
+
+void FeatureExtractor::apply(const Detection& d, const Frame& f) {
+    hit_window_.push_back(d.hit);
+    if (hit_window_.size() > window_frames_) hit_window_.pop_front();
+    if (d.hit) {
+        if (open_ && cur_.id != d.segment_id) close_segment();
+        if (!open_) {
+            cur_ = Segment();
+            cur_.id = d.segment_id;
+            cur_.first_frame = d.frame_index;
+            cur_.psd_sum.assign(nfft_, 0.0);
+            cur_.psd_w_sum.assign(nfft_, 0.0);
+            open_ = true;
+        }
+        cur_.last_frame = d.frame_index;
+        cur_.frames++;
+        for (std::size_t k = 0; k < nfft_; ++k) cur_.psd_sum[k] += f.power[k];
+        for (std::size_t k = 0; k < nfft_; ++k) cur_.psd_w_sum[k] += f.power_w[k];
+        // 带内能量按 bin 升序累加，与检测器的 e 逐位相同；噪声估计由 Λ 反推：noise = e / Λ
+        double e = 0.0;
+        for (std::size_t j = 0; j < band_bins_.size(); ++j) e += f.power[band_bins_[j]];
+        cur_.e_sum += e;
+        cur_.noise_sum += d.statistic > 0.0 ? e / d.statistic : 0.0;
+        cur_.sum_abs2 += f.sum_abs2;
+        if (f.max_abs2 > cur_.max_abs2) cur_.max_abs2 = f.max_abs2;
+        cur_.overload = cur_.overload || d.overload;
+        cur_.calibrated = cur_.calibrated && f.calibrated;
+        std::size_t hits = 0;
+        for (std::deque<bool>::const_iterator it = hit_window_.begin(); it != hit_window_.end(); ++it) if (*it) ++hits;
+        cur_.duty = static_cast<double>(hits) / static_cast<double>(hit_window_.size());
+        gap_ = 0;
+    } else if (open_) {
+        gap_++;
+        if (gap_ > merge_gap_) close_segment();
+    }
+}
+
+FeatureRow FeatureExtractor::compute_row(const Segment& s) const {
+    FeatureRow r;
+    const double fs = sample_rate_Hz_;
+    const double F = static_cast<double>(s.frames);
+    const std::size_t M = band_bins_.size();
+    r.segment_id = s.id;
+    r.frames = s.frames;
+    r.t_s = static_cast<double>(s.first_frame * nfft_) / fs;
+    r.t_end_s = static_cast<double>((s.last_frame + 1) * nfft_) / fs;
+    r.duration_s = r.t_end_s - r.t_s;
+
+    std::vector<double> mean_psd(nfft_);
+    for (std::size_t k = 0; k < nfft_; ++k) mean_psd[k] = s.psd_w_sum[k] / F;   // 形状量用加窗 PSD
+    const double e_mean = s.e_sum / F;
+    const double noise_mean = s.noise_sum / F;
+    // 每 bin 噪声：矩形帧下 noise_band / M；加窗后白噪声每 bin 功率按 Σw²/nfft 缩放
+    const double n_bin = M ? noise_mean / static_cast<double>(M) * (wsq_ / static_cast<double>(nfft_)) : 0.0;
+    const double gate = n_bin * noise_gate_ / std::sqrt(F);
+
+    // 去噪 + 过闸后的信号 bin
+    std::vector<double> sig(M, 0.0);
+    double total = 0.0;
+    std::size_t nsig = 0;
+    for (std::size_t j = 0; j < M; ++j) {
+        const double v = mean_psd[band_bins_[j]] - n_bin;
+        sig[j] = v > gate ? v : 0.0;
+        if (sig[j] > 0.0) ++nsig;
+        total += sig[j];
+    }
+    r.signal_bins = nsig;
+    const double bin = fs / static_cast<double>(nfft_);
+    if (total > 0.0) {
+        double num = 0.0;
+        for (std::size_t j = 0; j < M; ++j) {
+            const double idx = static_cast<double>(band_bins_[j]) - static_cast<double>(nfft_ / 2);
+            num += idx * fs / static_cast<double>(nfft_) * sig[j];
+        }
+        r.center_Hz = center_frequency_Hz_ + num / total;
+        std::size_t lo = 0, hi = M - 1;
+        if (bandwidth_method_ == "occupied_99") {
+            const double edge = 0.005 * total;
+            double cum = 0.0;
+            for (std::size_t j = 0; j < M; ++j) { cum += sig[j]; if (cum >= edge) { lo = j; break; } }
+            cum = 0.0;
+            for (std::size_t j = M; j-- > 0;) { cum += sig[j]; if (cum >= edge) { hi = j; break; } }
+        } else {
+            double peak = 0.0;
+            for (std::size_t j = 0; j < M; ++j) if (sig[j] > peak) peak = sig[j];
+            const double thr = peak * 0.01;
+            for (std::size_t j = 0; j < M; ++j) if (sig[j] >= thr) { lo = j; break; }
+            for (std::size_t j = M; j-- > 0;) if (sig[j] >= thr) { hi = j; break; }
+        }
+        r.bandwidth_Hz = static_cast<double>(band_bins_[hi] - band_bins_[lo] + 1) * bin;
+    } else {
+        r.center_Hz = center_frequency_Hz_ + 0.5 * (band_lo_Hz_ + band_hi_Hz_);
+        r.bandwidth_Hz = 0.0;
+    }
+
+    // 平坦度：带内**原始**段均 PSD（含噪声底）的几何均值 / 算术均值（EM-S-03 的定义）
+    bool anyzero = M == 0;
+    double logsum = 0.0, arith = 0.0;
+    for (std::size_t j = 0; j < M; ++j) {
+        const double v = mean_psd[band_bins_[j]];
+        if (v <= 0.0) anyzero = true; else logsum += std::log(v);
+        arith += v;
+    }
+    r.spectral_flatness = (anyzero || arith <= 0.0) ? 0.0
+                          : std::exp(logsum / static_cast<double>(M)) / (arith / static_cast<double>(M));
+
+    const double n2 = static_cast<double>(nfft_) * static_cast<double>(nfft_);
+    r.has_dBm = s.calibrated;
+    if (r.has_dBm) {
+        // 带内功率按矩形帧的 Parseval（与检测行同式）；峰值 bin 按加窗 PSD 除以相干增益 (Σw)²
+        r.band_power_dBm = 10.0 * std::log10(std::max(e_mean / n2, 1e-30));
+        double pk = 0.0;
+        for (std::size_t j = 0; j < M; ++j) if (mean_psd[band_bins_[j]] > pk) pk = mean_psd[band_bins_[j]];
+        r.peak_dBm = 10.0 * std::log10(std::max(pk / (wsum_ * wsum_), 1e-30));
+    }
+    r.snr_dB = 10.0 * std::log10(std::max(e_mean, 1e-30) / std::max(noise_mean, 1e-30));
+    const double mean_abs2 = s.sum_abs2 / (F * static_cast<double>(nfft_));
+    r.crest_factor_dB = mean_abs2 > 0.0 ? 10.0 * std::log10(std::max(s.max_abs2 / mean_abs2, 1e-30)) : 0.0;
+    r.duty = s.duty;
+    r.overload = s.overload;
+    r.quality = s.overload ? "overload" : (s.frames < min_frames_ ? "short" : (nsig == 0 ? "low_snr" : "full"));
+    return r;
+}
+
+void FeatureExtractor::close_segment() {
+    FeatureRow r = compute_row(cur_);
+    r.has_prev = has_prev_;
+    if (has_prev_) {
+        r.interval_from_prev_s = r.t_s - prev_t_end_s_;
+        r.hop_from_prev_Hz = r.center_Hz - prev_center_Hz_;
+    }
+    // 只有量得出信号的段才充当「上一段」：一帧虚警夹在两个真突发之间，不该把跳频差与间隔搅乱
+    if (r.quality == "full" || r.quality == "overload") {
+        has_prev_ = true;
+        prev_t_end_s_ = r.t_end_s;
+        prev_center_Hz_ = r.center_Hz;
+    }
+    pending_rows_.push_back(r);
+    report(r);
+    segments_++;
+    open_ = false;
+    gap_ = 0;
+}
+
+void FeatureExtractor::report(const FeatureRow& r) {
+    if (obs_ == nullptr) return;
+    FeatureReport fr;
+    fr.node_id = node_name_;
+    fr.site_id = site_id_;
+    fr.row = r;
+    fr.trace = trace();
+    obs_->on_feature(fr);
+}
+
+Step FeatureExtractor::process(PortMap& in, PortMap& out, std::string& err) {
+    auto iq = in.find("iq");
+    auto dt = in.find("det");
+    if (iq == in.end() || !iq->second.has_data || dt == in.end() || !dt->second.has_data) return Step::Idle;
+    const Block& blk = iq->second.iq;
+    if (sample_rate_Hz_ == 0.0) {
+        sample_rate_Hz_ = blk.meta.sample_rate_Hz;
+        center_frequency_Hz_ = blk.meta.center_frequency_Hz;
+        if (sample_rate_Hz_ <= 0.0) { err = "FeatureExtractor 收到的块没有采样率"; return Step::Error; }
+    } else if (blk.meta.sample_rate_Hz != sample_rate_Hz_) {
+        err = "FeatureExtractor 中途收到不同采样率的块";
+        return Step::Error;
+    }
+    if (has_expected_ && blk.meta.start_sample != expected_start_) {
+        err = "FeatureExtractor 的 IQ 块不连续：期望首样点 " + std::to_string(expected_start_) + "，收到 " +
+              std::to_string(blk.meta.start_sample) +
+              "——上游有一轮没产出、深度 1 的缓冲被覆盖了；不静默丢块（铁律 15）";
+        return Step::Error;
+    }
+    expected_start_ = blk.meta.start_sample + blk.size();
+    has_expected_ = true;
+    status_.blocks_in++;
+    status_.samples_in += blk.size();
+    status_.state = worst(status_.state, blk.meta.state);
+    frame_calibrated_ = blk.meta.calibration.calibrated;
+
+    // 切帧与检测器同律：拼余量、满 nfft 出一帧、不加窗不重叠
+    std::size_t pos = 0;
+    while (pos < blk.size()) {
+        const std::size_t need = nfft_ - carry_.size();
+        const std::size_t take = std::min(need, blk.size() - pos);
+        carry_.insert(carry_.end(), blk.samples.begin() + static_cast<long>(pos),
+                      blk.samples.begin() + static_cast<long>(pos + take));
+        pos += take;
+        if (carry_.size() == nfft_) {
+            push_frame(carry_);
+            carry_.clear();
+        }
+    }
+
+    // 逐行对齐检测行：本组件的第 k 帧 = 检测行 frame_index = k
+    for (const Detection& d : dt->second.detections.items) {
+        if (pending_frames_.empty()) {
+            err = "FeatureExtractor 收到检测行 frame_index = " + std::to_string(d.frame_index) +
+                  "，却没有对应的 IQ 帧：检测器与本组件的 nfft 不同，或上游丢了块";
+            return Step::Error;
+        }
+        const Frame& f = pending_frames_.front();
+        if (f.index != d.frame_index || d.start_sample != d.frame_index * nfft_) {
+            err = "FeatureExtractor 与检测器的帧对不上：检测行 frame_index = " + std::to_string(d.frame_index) +
+                  "、start_sample = " + std::to_string(d.start_sample) + "，本组件下一帧 index = " +
+                  std::to_string(f.index) + "（nfft = " + std::to_string(nfft_) + "）；两边的 nfft 必须相同";
+            return Step::Error;
+        }
+        if (!band_ready_) build_band(d.f_lo_Hz, d.f_hi_Hz);
+        apply(d, f);
+        pending_frames_.pop_front();
+        frames_++;
+    }
+
+    // 消费即产出（可为空）
+    PortData o;
+    o.type = PortType::FeatureVector;
+    o.has_data = true;
+    o.features.items.swap(pending_rows_);
+    o.features.meta = blk.meta;
+    o.features.meta.trace = trace();
+    out["out"] = o;
+    status_.blocks_out++;
+    return Step::Produced;
+}
+
+Step FeatureExtractor::flush(PortMap& out, std::string& err) {
+    (void)err;
+    if (open_) close_segment();
+    if (!carry_.empty()) {
+        status_.notes.push_back("末尾 " + std::to_string(carry_.size()) + " 个样点不足一帧，已丢弃（与检测器同律）");
+        carry_.clear();
+    }
+    if (!pending_frames_.empty()) {
+        // 检测器在收尾时才产出的行到不了双输入节点（调度器只给单输入的下游转发尾块），
+        // 这些帧因此没有判决可依，按缺失记降级，不假装它们不存在
+        status_.state = worst(status_.state, State::Degraded);
+        status_.notes.push_back("有 " + std::to_string(pending_frames_.size()) +
+                                " 帧 IQ 没有等到对应的检测行，未参与特征提取");
+        pending_frames_.clear();
+    }
+    if (pending_rows_.empty()) return Step::Finished;
+    PortData o;
+    o.type = PortType::FeatureVector;
+    o.has_data = true;
+    o.features.items.swap(pending_rows_);
+    o.features.meta.sample_rate_Hz = sample_rate_Hz_;
+    o.features.meta.center_frequency_Hz = center_frequency_Hz_;
+    o.features.meta.trace = trace();
+    out["out"] = o;
+    status_.blocks_out++;
+    return Step::Finished;
+}
+
+void FeatureExtractor::reset() {
+    clear_state();
+    sample_rate_Hz_ = 0.0;
+    center_frequency_Hz_ = 0.0;
+}
+
 // ---------------------------------------------------------------- DetectionSink
 
 Step DetectionSink::process(PortMap& in, PortMap& out, std::string& err) {
@@ -712,6 +1101,46 @@ ComponentInfo EnergyDetector::describe() const {
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入；本组件不读它").internal_only(),
         ParamSpec::text("scenario_id", "场景标识，由装载器注入").internal_only(),
         ParamSpec::text("site_id", "本检测器所属站点，由装载器按 scene_binding 注入；只作检测行的身份，不影响算法")
+            .internal_only(),
+    };
+    return i;
+}
+
+ComponentInfo FeatureExtractor::describe() const {
+    ComponentInfo i;
+    i.type = type_name();
+    i.category = category::Algorithm;
+    i.display_name = "特征提取";
+    i.description = "按检测器并好的突发出一行特征（EM-S-03 §10.5–§10.10，10 报告 §4.3）：与检测器同律切帧"
+                    "（同 nfft、不加窗不重叠、按 frame_index 对齐），段内命中帧的平均功率谱减去由 Λ 反推的"
+                    "带内噪声估计并过闸后，给出功率质心、99% 占用带宽（或 −20 dB 边）、带内功率与峰值、"
+                    "信噪比、谱平坦度、峰均比、占空比、与上一段的间隔与频差、质量标记；"
+                    "口径与 algos/reference/features.py 一致，黄金基准逐段对拍。"
+                    "IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补";
+    i.model_layer = "M3";
+    i.model_level = "E2";
+    i.model_id = "EM-S-03";
+    i.version = "0.1.0";
+    i.inputs = inputs();
+    i.outputs = outputs();
+    i.stateful = true;
+    // 绑站只为给特征行注入 site_id（与检测器同法，D-063 ④）；本组件不读场景文件
+    i.scene_bindable = true;
+    i.params = {
+        ParamSpec::number("nfft", "", "帧长，必须等于上游检测器的 nfft（装载器核对）")
+            .def(1024.0).at_least(2.0).constrained("2 的幂；= EnergyDetector.nfft"),
+        ParamSpec::choice("bandwidth_method", {"occupied_99", "edge_minus_20dB"},
+                          "带宽口径：占用带宽（去噪后累积功率 0.5%–99.5% 的跨度）或峰值以下 20 dB 的边")
+            .def_text("occupied_99"),
+        ParamSpec::number("min_frames", "", "少于这么多命中帧的段标 quality = short，仍出行").def(2.0).at_least(1.0),
+        ParamSpec::number("window_frames", "", "占空比的统计窗（帧），在段末命中帧处回看").def(64.0).at_least(1.0),
+        ParamSpec::number("merge_gap_frames", "", "段收口判据：连续未命中帧超过它即收口；必须等于检测器的同名参数（装载器核对）")
+            .def(2.0).at_least(0.0).constrained("= EnergyDetector.merge_gap_frames"),
+        ParamSpec::number("noise_gate", "", "去噪后信号 bin 的闸：段均 PSD 减噪声后须高于 noise_gate · 每 bin 噪声 / √帧数")
+            .def(4.0).at_least(0.0),
+        ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入；本组件不读它").internal_only(),
+        ParamSpec::text("scenario_id", "场景标识，由装载器注入").internal_only(),
+        ParamSpec::text("site_id", "本节点所属站点，由装载器按 scene_binding 注入；只作特征行的身份，不影响算法")
             .internal_only(),
     };
     return i;

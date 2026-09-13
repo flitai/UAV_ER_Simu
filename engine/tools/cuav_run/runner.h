@@ -42,6 +42,7 @@ struct Options {
     std::vector<std::string> scenario_paths;      // --scenario <场景文件>，可多份（单机与回归用）
     double track_rate_Hz = 10.0;                  // --track-rate，只与 --scenario-track 搭配，[1, 100]
     std::string scene_root = "data/scene";        // --scene-root；空串表示跳过观测区域清单哈希核对
+    std::string library_root = "models/recognition";   // --library-root；识别模板库目录（C-4）
     std::uint64_t progress_interval_ms = 100;     // progress 事件的最小墙钟间隔；0 = 每轮都发
 };
 

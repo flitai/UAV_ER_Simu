@@ -116,7 +116,7 @@ test('内部参数在目录里有标记，画布据此隐藏（D-037）', () => 
   // 2 处路径类（manifest_path、out_dir）+ 三个场景绑定组件各 3 处（scenario_path、scenario_id、实体标识）
   // + SceneBoundChannel 的 site_id（D-053 多站绑定）+ DirectionFinder 与 ToaEstimator 各 3 处
   // + EnergyDetector 3 处（D-063 绑站只为给检测行注入 site_id）= 21
-  assert.equal(internal.length, 21, '全库 21 处内部参数')
+  assert.equal(internal.length, 28, '全库 28 处内部参数（C-4 起特征提取与模板识别各带站点身份，识别另有 library_path）')
   assert.ok(internal.includes('EnergyDetector.site_id'), '检测器的站点标识是内部参数（D-063）')
   assert.ok(internal.includes('SceneBoundChannel.site_id'), '多站绑定的站点标识也是内部参数（D-053）')
   assert.ok(internal.includes('FileReplaySource.manifest_path'))
@@ -138,12 +138,12 @@ test('ScenarioSource 是动态端口的唯一使用者，未 configure 时没有
   assert.equal(others.length, 0)
 })
 
-test('可绑定场景的组件恰是六个；回放源不可绑定（06 防线二、三）', () => {
+test('可绑定场景的组件恰是八个；回放源不可绑定（06 防线二、三）', () => {
   const b = cat.components.filter((c) => c.scene_bindable).map((c) => c.type).sort()
   // DirectionFinder 与 ToaEstimator 自 D-053 起也绑场景：前者要采样率 / 噪声系数 / 发射功率，
   // 后者还要站钟（缺 clock 即拒绝运行）。MultiSiteLocator 不绑——站址随报告走。
   // EnergyDetector 自 D-063 起绑站，只为给检测行注入 site_id（多站下每站一个检测器），不读场景文件
-  assert.deepEqual(b, ['DirectionFinder', 'EnergyDetector', 'ScenarioSource', 'SceneBoundChannel', 'SceneEmitterSource', 'ToaEstimator'])
+  assert.deepEqual(b, ['DirectionFinder', 'EnergyDetector', 'FeatureExtractor', 'ScenarioSource', 'SceneBoundChannel', 'SceneEmitterSource', 'TemplateClassifier', 'ToaEstimator'])
   assert.equal(cat.components.find((c) => c.type === 'MultiSiteLocator')!.scene_bindable ?? false, false)
   assert.equal(findComponent(cat, 'FileReplaySource')!.scene_bindable ?? false, false)
 })

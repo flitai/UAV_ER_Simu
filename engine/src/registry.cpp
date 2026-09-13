@@ -5,6 +5,7 @@
 
 #include "cuav/components/locate.h"
 #include "cuav/components/processing.h"
+#include "cuav/components/recognition.h"
 #include "cuav/components/sources.h"
 #include "cuav/components/spectrum.h"
 #include "cuav/components/antenna.h"
@@ -219,6 +220,8 @@ Registry builtin_registry() {
     ok = r.add<ToaEstimator>(err) && ok;
     ok = r.add<MultiSiteLocator>(err) && ok;
     ok = r.add<EnergyDetector>(err) && ok;
+    ok = r.add<FeatureExtractor>(err) && ok;   // C-4
+    ok = r.add<TemplateClassifier>(err) && ok; // C-4
     ok = r.add<SpectrumAnalyzer>(err) && ok;
     ok = r.add<ObservationTap>(err) && ok;
     ok = r.add<DetectionSink>(err) && ok;

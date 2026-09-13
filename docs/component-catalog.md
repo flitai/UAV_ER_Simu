@@ -111,6 +111,17 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 | `ReceiverFrontEnd` 接收机前端 | receiver | M3 / E2 | cpp；噪声系数生等效输入热噪声（与 `geo/link_budget.cpp` 共用 −174 dBm/Hz 常数）、增益、本振频偏、IQ 幅相不平衡、直流偏置；私有随机子流；`noise_mode = none` 供混合增强模式 |
 | `AdcQuantizer` ADC 量化 | receiver | M3 / E2 | cpp；`bits` / `full_scale_dBm` / 削顶；**削顶是数据标记不是降级**，逐块进 `clip_count` 与 `state_reasons`，全程比例超 `degrade_clip_ratio` 才在 `flush()` 降级 |
 
+切片 ④b 新增（2026-09-13，C-4）：
+
+| 组件 | 类别 | M / E | 实现 |
+|---|---|---|---|
+| `FeatureExtractor` 特征提取 | algorithm | M3 / E2 | cpp，`model_id = EM-S-03`；输入 `iq: IQStream` + `det: DetectionList`，输出 `FeatureVector`；与上游检测器同律切帧、按 `frame_index` 对齐，**装载器核对 `nfft` / `merge_gap_frames` 相等且检测器为 `sliding`**（错误码 `param`，落在 `det` 口）；参数 `nfft` / `bandwidth_method` / `min_frames` / `window_frames` / `merge_gap_frames` / `noise_gate`；`scene_bindable`，绑站只为把 `site_id` 注入特征行（内部参数 `scenario_path / scenario_id / site_id`）；每个突发经观察者上报一行 `features.jsonl`（`docs/display-products.md` §5.2）；参考实现 `algos/reference/features.py`，黄金基准 `engine/tests/golden/features.json` |
+| `TemplateClassifier` 模板匹配识别 | algorithm | M2 / E2 | cpp，`model_id = EM-S-04`；输入 `FeatureVector`，输出 `RecognitionList`；EM-S-04 E2 区间加权匹配 + 开放集，标签只到 `signal_role` 层；用户参数 `library_version`（缺省 `v1`）/ `accept_threshold` / `ambiguity_margin` / `unknown_distance` / `min_quality`，**内部参数 `library_path`** 由装载器按版本号从 `--library-root`（缺省 `models/recognition`）注入（D-037 同法，版本号先过 `^v[0-9]+$`）；`scene_bindable`，绑站只为把 `site_id` 注入识别行；每行特征经观察者上报一行 `recognitions.jsonl`（§5.3）；模板库与模型卡 `models/recognition/{library-v1.json, README.md}`，参考实现 `algos/reference/classify.py`，黄金基准 `engine/tests/golden/recognition.json` |
+
+同批 `EnergyDetector` 的一处**行为改动、目录不变**：消费了块就产出，没有完成帧时给空 `DetectionList`（此前返回 Idle）。
+调度器的缓冲深度为 1、按赋值覆盖，检测器空闲的那一轮会让双输入的下游（特征提取器）被跳过、IQ 块被下一轮覆盖，
+静默丢块；黄金基准只比行不比块数，`energy_detector*.json` 逐字节不变。
+
 同批给两个既有组件加参数（**缺省保持旧行为**，既有示例与产品基准一个字未改）：
 `SceneEmitterSource.emit_at_tx_power`（真时按场景 `tx_power_dBm` 出电平，使 S0 读到发射功率本身）、
 `SceneBoundChannel.gain_mode`（`link_budget` 为原口径，`path_loss_only` 只施加路损，
@@ -130,7 +141,8 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 - [x] D-051 的接口部分（C-1，2026-09-07）：端口类型 `RecognitionList`（`port_types` 6 → 7、`port_compat` 36 → 49，既有 36 行逐字未变）；`PortSpec.optional`（为假时不输出，既有条目字节不变）。黄金基准 `tests/golden/component-catalog.json` 据此更新一次，WORKLOG 有记录
 - [x] D-051 的天线与接收机（C-2，2026-09-07）：新增 `AntennaGain` / `ReceiverFrontEnd` / `AdcQuantizer`，`SceneEmitterSource.emit_at_tx_power` 与 `SceneBoundChannel.gain_mode` 加参；组件 12 → 15，黄金基准更新一次
 - [x] D-051 / D-063 的检测升级（C-3，2026-09-12）：`EnergyDetector` 加 `noise_mode / noise_window_frames / merge_gap_frames / band_power_dBm` 与三个内部参数、`scene_bindable = true`（缺省保旧行为，`energy_detector.json` 黄金基准逐字节不变）。黄金基准据此更新一次，差异经脚本逐项核对只有这一条
-- [ ] D-051 的其余组件（C-4 / C-5 / C-10 分批）：`FeatureExtractor` / `TemplateClassifier` / `Evaluator` / `DDC` / `Channelizer`
+- [x] D-051 的特征提取与模板识别（C-4，2026-09-13）：新增 `FeatureExtractor` / `TemplateClassifier`，组件 19 → 21；黄金基准据此更新一次，差异经脚本逐项核对只有这两条新增，端口表与既有组件的 `ports` / `params` 逐字未变
+- [ ] D-051 的其余组件（C-5 / C-10 分批）：`Evaluator` / `DDC` / `Channelizer`
 - [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
 
 ## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）

@@ -81,6 +81,23 @@ struct DetectionSummary {
     std::vector<std::string> notes;
 };
 
+// 特征行（C-4）。与检测行同一范式：自描述的行加节点与站点身份。特征是按突发出的（每个突发一行），
+// 量级比检测行小两个数量级，所以行**自带 trace**（与 bearings.jsonl 同法），不另设索引文件。
+struct FeatureReport {
+    std::string node_id;
+    std::string site_id;     // 未绑站时为空，运行器省略该键
+    FeatureRow row;
+    ModelTrace trace;
+};
+
+// 识别行（C-4）。与特征行同范式：每个突发一行、自带 trace。
+struct RecognitionReport {
+    std::string node_id;
+    std::string site_id;
+    RecognitionRow row;
+    ModelTrace trace;
+};
+
 class IRunObserver {
 public:
     virtual ~IRunObserver() {}
@@ -97,6 +114,9 @@ public:
     // 观察者这条路由运行器落 detections.jsonl / detections.index.json 并发事件。
     virtual void on_detection(const DetectionReport&) {}
     virtual void on_detection_summary(const DetectionSummary&) {}
+    // 突发特征（C-4）：端口上照旧交 FeatureVector 给下游，这条路由运行器落 features.jsonl 并发 feature 事件
+    virtual void on_feature(const FeatureReport&) {}
+    virtual void on_recognition(const RecognitionReport&) {}
     // 一行显示产品：kind ∈ {spectrum, envelope}；row 为 float32，len 个元素；t_s 为该行首样点的逻辑时间。
     virtual void on_product_row(const std::string& op_id, const std::string& kind, std::uint64_t row_index,
                                 const float* row, std::size_t len, double t_s) {

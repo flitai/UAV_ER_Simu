@@ -2,7 +2,8 @@
 
 **状态**：字段已冻结（2026-09-04，决策 D-030、D-031）。观测点组件与产品写盘已实现（B-3，2026-09-05）；
 抽取端点已实现（B-7，2026-09-06，决策 D-046，`server/src/products/`），归约的确切定义见 §3.1。
-`bearings.jsonl` 与 `positions.jsonl` 的生产者随 D-053 的 L-3 / L-4 上线；`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘）；`detections.jsonl` 与 `detections.index.json` 的生产者 2026-09-12 上线（C-3，D-063：`EnergyDetector` 经观察者逐帧上报、flush 时一条摘要，字段见 §5）。
+`bearings.jsonl` 与 `positions.jsonl` 的生产者随 D-053 的 L-3 / L-4 上线；`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘）；`detections.jsonl` 与 `detections.index.json` 的生产者 2026-09-12 上线（C-3，D-063：`EnergyDetector` 经观察者逐帧上报、flush 时一条摘要，字段见 §5）；
+`features.jsonl` 与 `recognitions.jsonl` 的生产者 2026-09-13 上线（C-4：`FeatureExtractor` / `TemplateClassifier` 每个突发一行，字段见 §5.2 / §5.3）。
 
 **依据**：铁律 7（原始 IQ 不进浏览器；展示数据按时间窗、频段、像素宽、统计量抽取；禁止
 JSON / Base64 封装二进制）；04 §6.4（展示数据五类）、§8.3（引擎向应用服务发布降采样显示
@@ -23,6 +24,8 @@ data/runs/<task_id>/
 │                                自 D-058 起含 free_space_dB / extra_loss_dB / included_loss_terms）
 ├── detections.jsonl             检测行，每帧一行（C-3，§5；生产者 EnergyDetector，惰性建文件；多站下每站一个检测器各写自己的行）
 ├── detections.index.json        检测摘要 cuav-detections-index/1：每个检测器一条（参数、门限、计数、四态、trace），运行结束时写
+├── features.jsonl               突发特征，每个突发一行、行自带 trace（C-4，§5.2；生产者 FeatureExtractor，惰性建文件；多站下 feat__<site> 各写自己的行）
+├── recognitions.jsonl           突发识别，每个突发一行、行自带 trace（C-4，§5.3；生产者 TemplateClassifier；多站下 rec__<site> 各写自己的行）
 ├── bearings.jsonl               单站测向报告，每行一条链路一帧（D-053，§5；生产者 DirectionFinder，惰性建文件）
 ├── positions.jsonl              多站定位报告，每行一个解（D-053，§5；生产者 MultiSiteLocator）
 └── <observation_point_id>/      每个观测点一个子目录
@@ -287,6 +290,48 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `…{frames, hits, segments, noise_stale_frames, overload_frames}` | 计数；`noise_stale_frames` = 环连续超过 W 帧未更新时判决的帧数（信号持续占满时的正常状态，记 note 不降级） |
 | `…{calibrated, state, notes}` | 输入是否标定、检测器的四态与 notes（环从未填满 → `degraded`） |
 | `…trace` | 溯源七件（`model_id = EnergyDetector`、`M2` / `E2` / `V3`；绑站时 `trace_id = EnergyDetector:<site_id>`）——行不带 trace，铁律 8 由这里兑现 |
+
+### 5.2 突发特征行（C-4）
+
+**`features.jsonl`**（生产者 `FeatureExtractor`，**每个突发一行**，在段收口时写：出现新的 `segment_id`、连续未命中帧超过
+`merge_gap_frames`、或运行结束；写盘契约同上；行**自带 `trace`**——每个突发一行的量级比检测行小两个数量级，不另设索引文件）
+
+| 字段 | 说明 |
+|---|---|
+| `t_s` / `t_end_s` / `duration_s` | 段首命中帧首样点、段末命中帧末样点的逻辑时间及其差 |
+| `node_id` / `site_id?` | 同检测行；`site_id` 只在节点按站绑定场景时出现 |
+| `segment_id` / `frames` | 检测器给的突发编号；段内**命中帧**数（合并空隙里的非命中帧不计，谱与时域统计也只用命中帧） |
+| `center_Hz` | 绝对频率：段均加窗 PSD 去噪、过闸后信号 bin 的功率质心；没有信号 bin 时取检测频段中点 |
+| `bandwidth_Hz` / `signal_bins` | `occupied_99`（去噪后累积功率 0.5%–99.5% 的跨度）或 `edge_minus_20dB`（峰值以下 20 dB 的边），按 bin 计；过闸的 bin 数，0 即 `quality = low_snr` |
+| `band_power_dBm?` / `peak_dBm?` | 段均带内功率（矩形帧 Parseval，与检测行同式）与段均加窗 PSD 的峰值 bin 功率（除以相干增益 (Σw)²）；段内任一帧未标定则**两键都省**，`has_dBm` 为假 |
+| `snr_dB` | `10·log10(段均带内功率 / 段均噪声估计)`，即 (S+N)/N；噪声由检测行的 Λ 反推（`e / Λ`），与检测器逐位同源 |
+| `spectral_flatness` | 带内**原始**加窗段均 PSD（含噪声底）的几何均值 / 算术均值，[0, 1] |
+| `crest_factor_dB` | 命中帧时域样点的峰值 |x|² / 均值 |x|² |
+| `duty` | 段末命中帧处，最近 `window_frames` 帧里命中帧的占比 |
+| `interval_from_prev_s` / `hop_from_prev_Hz` | 本段起点 − 上一段终点、本段质心 − 上一段质心；「上一段」只由 `quality ∈ {full, overload}` 的段充当（一帧虚警夹在两个真突发之间不该搅乱它们）；没有上一段时两键都是 `null` |
+| `overload` / `quality` | 段内任一命中帧含削顶块；`full / short（少于 min_frames 帧）/ low_snr（没有信号 bin）/ overload`（EM-S-03 §10.13） |
+| `trace` | 溯源七件（`model_id = FeatureExtractor`、`EM-S-03`、`M3` / `E2` / `V3`；绑站时 `trace_id = FeatureExtractor:<site_id>`） |
+
+两套谱的分工（`engine/src/processing.cpp` 头注）：电量（带内功率、信噪比、噪声）用与检测器同律的矩形帧，形状（质心、带宽、平坦度、峰值）用同一帧加周期 Hann 窗的 PSD——矩形帧对不在 bin 上的单音漏出 sinc² 旁瓣，99% 占用带宽会量到几十个 bin。参考实现 `algos/reference/features.py`，黄金基准 `engine/tests/golden/features.json`（`gen_engine_golden.py --mode features`）。
+
+### 5.3 突发识别行（C-4）
+
+**`recognitions.jsonl`**（生产者 `TemplateClassifier`，**每行特征一行识别**，与 `features.jsonl` 同节拍、同 `(node_id 对应, segment_id)`；行自带 `trace`）
+
+| 字段 | 说明 |
+|---|---|
+| `t_s` / `t_end_s` / `segment_id` | 取自对应的特征行 |
+| `node_id` / `site_id?` | 识别器节点名；`site_id` 只在节点按站绑定场景时出现 |
+| `label` / `posterior` | Top-1 模板的 `signal_role` 标签（`video_link / telemetry_burst / rc_hopping / cw_beacon`）及其后验；`unknown` 时 `label = "unknown"`、`posterior` = 未知假设的后验 |
+| `top_n[{label, posterior, distance}]` | 至多 3 个模板按后验降序（并列保持库序）；低质量直接判 unknown 时为空 |
+| `distance` | Top-1 模板的综合距离 `D`（unknown 时为最近模板的距离）；低质量直接判 unknown 时 `null` |
+| `result` | `known / ambiguous / unknown`（判决规则见 `models/recognition/README.md` §1；缺省参数下 `ambiguous` 不可达，见 §2） |
+| `unknown_kind` | `unknown` 时 `unknown_low_quality / unknown_novel / unknown_ambiguous`，否则 `null` |
+| `evidence_quality` | 特征行的 `quality` |
+| `library_version` | 所用模板库版本（库文件 `models/recognition/library-<version>.json`，取值标 `assumed`） |
+| `trace` | 溯源七件（`model_id = TemplateClassifier`、`EM-S-04`、`M2` / `E2` / `V2`、`parameter_version = library-<version>`） |
+
+参考实现 `algos/reference/classify.py`，黄金基准 `engine/tests/golden/recognition.json`（`classify.py --write-golden`）。
 
 ## 6. 待写
 

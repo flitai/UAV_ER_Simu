@@ -48,6 +48,62 @@ struct DetectionList {
     BlockMeta meta;
 };
 
+// 一个突发的特征（C-4，10 报告 §4.3；EM-S-03 §10.5–§10.10）。FeatureExtractor 按检测器给的
+// segment_id 在段收口时出一行；运行器落 features.jsonl 时逐字段写出，TemplateClassifier 按它匹配模板。
+// 「段」= 检测器并好的突发；段内只有**命中帧**参与谱与时域统计，合并空隙里的非命中帧不计。
+struct FeatureRow {
+    double t_s = 0.0;                 // 段首命中帧首样点的逻辑时间
+    double t_end_s = 0.0;             // 段末命中帧末样点的逻辑时间 = (last_frame + 1) · nfft / fs
+    double duration_s = 0.0;
+    std::uint64_t frames = 0;         // 段内命中帧数
+    std::int64_t segment_id = -1;
+    double center_Hz = 0.0;           // 绝对频率：去噪并过闸后信号 bin 的功率质心；没有信号 bin 时取检测频段中点
+    double bandwidth_Hz = 0.0;        // occupied_99（累积功率 0.5%–99.5% 的跨度）或 edge_minus_20dB；没有信号 bin 时为 0
+    std::size_t signal_bins = 0;      // 过了噪声闸的 bin 数；0 即 quality = low_snr
+    double band_power_dBm = 0.0;      // 段均带内功率，has_dBm 为真时有效（Parseval，同检测行）
+    double peak_dBm = 0.0;            // 段均 PSD 在带内的峰值 bin 功率
+    bool has_dBm = false;             // 段内每一帧都已标定
+    double snr_dB = 0.0;              // 10·log10(段均带内功率 / 段均噪声估计)，即 (S+N)/N，与检测行同口径
+    double spectral_flatness = 0.0;   // 带内原始 PSD 的几何均值 / 算术均值，[0, 1]
+    double crest_factor_dB = 0.0;     // 命中帧样点的峰值 |x|² / 均值 |x|²
+    double duty = 0.0;                // 段末命中帧处，最近 window_frames 帧里命中帧的占比
+    bool has_prev = false;            // 本节点此前有过 full / overload 质量的段
+    double interval_from_prev_s = 0.0;   // 本段起点 − 上一段终点
+    double hop_from_prev_Hz = 0.0;       // 本段质心 − 上一段质心
+    bool overload = false;            // 段内任一命中帧含削顶块
+    std::string quality;              // full / short / low_snr / overload（EM-S-03 §10.13）
+};
+
+struct FeatureVector {
+    std::vector<FeatureRow> items;
+    BlockMeta meta;
+};
+
+// 一个突发的识别结果（C-4，10 报告 §4.4）。TemplateClassifier 对每行特征出一行；标签只到 signal_role 层。
+struct RecognitionCandidate {
+    std::string label;
+    double posterior = 0.0;
+    double distance = 0.0;
+};
+
+struct RecognitionRow {
+    double t_s = 0.0, t_end_s = 0.0;
+    std::int64_t segment_id = -1;
+    std::string label;                          // Top-1 模板的标签；unknown 时为 "unknown"
+    double posterior = 0.0;                     // label 的后验；unknown 时是未知假设的后验
+    std::vector<RecognitionCandidate> top_n;    // 至多 3 个模板，按后验降序（低质量直接判 unknown 时为空）
+    double distance = -1.0;                     // Top-1 模板的综合距离；负值 = 未算（运行器写 null）
+    std::string result;                         // known / ambiguous / unknown
+    std::string unknown_kind;                   // unknown 时：unknown_low_quality / unknown_novel / unknown_ambiguous
+    std::string evidence_quality;               // 特征行的 quality
+    std::string library_version;
+};
+
+struct RecognitionList {
+    std::vector<RecognitionRow> items;
+    BlockMeta meta;
+};
+
 // 一帧功率谱（P1-4a）。口径：Welch 平均的功率谱（不是密度），每段加窗、|DFT|²、各段平均、
 // 除以 (Σw)²，零频居中；复单音峰值等于其功率 A²，满量程单音读 0 dBFS。
 // 值用 double：显示产品落盘时再转 float32，但帧本身要能与 MATLAB / numpy 对到 1e-9。
@@ -177,6 +233,8 @@ struct PortData {
     bool has_data = false;
     Block iq;
     DetectionList detections;
+    FeatureVector features;               // C-4：一轮可能收口零到多个段
+    RecognitionList recognitions;         // C-4：与 features 同节拍
     std::vector<SpectrumFrame> spectra;   // 一个输入块可能切出多帧，一次 process 全部交出
     // 慢变参数帧也是向量：块长可能大于一帧的样点数（一块配多帧），也可能小于（多块共用一帧），
     // 单帧字段只能表达后者。生产端每轮交出**恰好覆盖本轮样点窗口的全部帧**（至少一帧），
@@ -191,6 +249,8 @@ struct PortData {
         has_data = false;
         iq.samples.clear();
         detections.items.clear();
+        features.items.clear();
+        recognitions.items.clear();
         spectra.clear();
         scenes.clear();          // 原来漏了这一句：缓冲里会长期挂着上一轮的帧
         bearings.clear();

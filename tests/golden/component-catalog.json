@@ -725,6 +725,122 @@
       "version": "0.2.0"
     },
     {
+      "category": "algorithm",
+      "description": "按检测器并好的突发出一行特征（EM-S-03 §10.5–§10.10，10 报告 §4.3）：与检测器同律切帧（同 nfft、不加窗不重叠、按 frame_index 对齐），段内命中帧的平均功率谱减去由 Λ 反推的带内噪声估计并过闸后，给出功率质心、99% 占用带宽（或 −20 dB 边）、带内功率与峰值、信噪比、谱平坦度、峰均比、占空比、与上一段的间隔与频差、质量标记；口径与 algos/reference/features.py 一致，黄金基准逐段对拍。IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补",
+      "display_name": "特征提取",
+      "implementation": "cpp",
+      "model_id": "EM-S-03",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "constraint": "2 的幂；= EnergyDetector.nfft",
+          "default": 1024.0,
+          "description": "帧长，必须等于上游检测器的 nfft（装载器核对）",
+          "min": 2.0,
+          "name": "nfft",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "occupied_99",
+          "description": "带宽口径：占用带宽（去噪后累积功率 0.5%–99.5% 的跨度）或峰值以下 20 dB 的边",
+          "enum": [
+            "occupied_99",
+            "edge_minus_20dB"
+          ],
+          "name": "bandwidth_method",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 2.0,
+          "description": "少于这么多命中帧的段标 quality = short，仍出行",
+          "min": 1.0,
+          "name": "min_frames",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 64.0,
+          "description": "占空比的统计窗（帧），在段末命中帧处回看",
+          "min": 1.0,
+          "name": "window_frames",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "constraint": "= EnergyDetector.merge_gap_frames",
+          "default": 2.0,
+          "description": "段收口判据：连续未命中帧超过它即收口；必须等于检测器的同名参数（装载器核对）",
+          "min": 0.0,
+          "name": "merge_gap_frames",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 4.0,
+          "description": "去噪后信号 bin 的闸：段均 PSD 减噪声后须高于 noise_gate · 每 bin 噪声 / √帧数",
+          "min": 0.0,
+          "name": "noise_gate",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入；本组件不读它",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "本节点所属站点，由装载器按 scene_binding 注入；只作特征行的身份，不影响算法",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "iq",
+            "type": "IQStream"
+          },
+          {
+            "name": "det",
+            "type": "DetectionList"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "FeatureVector"
+          }
+        ]
+      },
+      "scene_bindable": true,
+      "stateful": true,
+      "type": "FeatureExtractor",
+      "version": "0.1.0"
+    },
+    {
       "category": "data",
       "description": "读本项目 .iq（复 int16 交织、小端）与旁挂清单，按清单分段顺序回放；量化码按清单 power.calibration 换算到引擎功率单位（D-047），无常数则只除满量程并标未标定；04 §15.2 标准算例第 9 项。回放数据不得绑定场景（06 备忘录防线二、三）",
       "display_name": "文件回放源",
@@ -1962,6 +2078,118 @@
       "scene_bindable": false,
       "stateful": false,
       "type": "Superposition",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
+      "description": "EM-S-04 E2 工程模板加权匹配（10 报告 §4.4）：对每行突发特征逐模板取区间外距离、按权重平均成综合距离，似然 exp(−D/2) 加未知假设 exp(−unknown_distance/2) 归一成后验；最大后验过接受门限且领先次大 ambiguity_margin 才判 known，领先不足为 ambiguous，不过门限为 unknown（开放集）；特征质量低于 min_quality 直接 unknown_low_quality。标签只到 signal_role 层（video_link / telemetry_burst / rc_hopping / cw_beacon）；模板库取值标 assumed，只对合成波形有效（models/recognition/README.md）；口径与 algos/reference/classify.py 一致",
+      "display_name": "模板匹配识别",
+      "implementation": "cpp",
+      "model_id": "EM-S-04",
+      "model_layer": "M2",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": "v1",
+          "description": "模板库版本，形如 v1；库文件位置由装载器据此注入（D-037）",
+          "name": "library_version",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "default": 0.5,
+          "description": "最大后验不低于它才判 known / ambiguous，否则 unknown；未知假设恒占一份似然，四模板下正确类在 D = 0 时的后验常在 0.55–0.8，故缺省 0.5（模型卡 §2）",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "accept_threshold",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 0.2,
+          "description": "最大后验领先次大不低于它才判 known，否则 ambiguous",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "ambiguity_margin",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 4.0,
+          "description": "未知假设的等效综合距离：似然 exp(−unknown_distance/2)",
+          "min": 0.0,
+          "name": "unknown_distance",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "short",
+          "description": "特征质量低于此档的突发直接判 unknown_low_quality，不算后验",
+          "enum": [
+            "full",
+            "overload",
+            "short",
+            "low_snr"
+          ],
+          "name": "min_quality",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "description": "模板库文件位置，由装载器按 library_version 注入；不得出现在框图里",
+          "internal": true,
+          "name": "library_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入；本组件不读它",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "本节点所属站点，由装载器按 scene_binding 注入；只作识别行的身份，不影响算法",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "FeatureVector"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "RecognitionList"
+          }
+        ]
+      },
+      "scene_bindable": true,
+      "stateful": false,
+      "type": "TemplateClassifier",
       "version": "0.1.0"
     },
     {
