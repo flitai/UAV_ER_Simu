@@ -336,9 +336,9 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .pp-scope { font-size: 11px; max-width: 76px; }
 /* 参数面板（链路页右栏，2026-09-13 改版）：与场景对象表单同一套 .form-row 网格；
    标签中文短名，标识 / 说明 / 范围在悬停提示；单位与来源标记跟在控件后面，不换行 */
-.param-panel .pp-title { font-size: var(--fs-title, 13px); font-weight: 600; margin-bottom: 4px; }
-.param-panel .pp-sub { color: var(--dim); font-size: 11px; margin: 0 0 6px; line-height: 1.5; }
-.param-panel .pp-warn { color: var(--bad); font-size: 12px; margin-top: 4px; }
+.pp-title { font-size: var(--fs-title, 13px); font-weight: 600; margin-bottom: 4px; }
+.pp-sub { color: var(--dim); font-size: 11px; margin: 0 0 6px; line-height: 1.5; }
+.pp-warn { color: var(--bad); font-size: 12px; margin-top: 4px; }
 .pp-line { margin: 0; }
 .pp-line .form-label { cursor: help; }
 .pp-value > input, .pp-value > select, .pp-value > .data-id-field {
@@ -406,7 +406,6 @@ button.mini { font-size: 11px; padding: 0 5px; }
   border-radius: 8px; padding: 0 6px; margin-left: auto; margin-right: 6px;
 }
 /* 站点 / 目标多选（D-053 §5.1） */
-.pp-multi { align-items: flex-start; }
 .pp-checks { display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .pp-check { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
 .slot-badge.warn { color: #a16207; }
@@ -462,8 +461,8 @@ button.mini { font-size: 11px; padding: 0 5px; }
   background: #fdf6e3; border: 1px solid #dfbe83; border-radius: 4px; max-height: 120px; overflow: auto; }
 .chain-errors li { margin: 2px 0; }
 
-.plan-checks { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; }
-.plan-checks li { margin: 4px 0; }
+.plan-checks { list-style: none; margin: 6px 0 0; padding: 6px 0 0; font-size: 12px; border-top: 1px solid var(--border); }
+.plan-checks li { margin: 3px 0; cursor: help; }
 .plan-checks .ok { color: #15803d; }
 .plan-checks .bad { color: #b91c1c; }
 .plan-detail { color: var(--muted, #7b7367); font-size: 11px; padding-left: 14px; }

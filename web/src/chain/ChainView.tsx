@@ -405,9 +405,9 @@ function MultiPick(p: {
     p.onChange(has ? p.picked.filter((x) => x !== id) : [...p.all].filter((x) => x === id || p.picked.includes(x)))
   }
   return (
-    <div className="pp-row pp-multi">
-      <span>{p.label}{p.picked.length > 1 ? ` ×${p.picked.length}` : ''}</span>
-      <div className="pp-checks" data-multi={p.kind}>
+    <div className="form-row pp-line">
+      <span className="form-label">{p.label}{p.picked.length > 1 ? ` ×${p.picked.length}` : ''}</span>
+      <div className="form-value pp-checks" data-multi={p.kind}>
         {p.all.length === 0 && <span className="muted">（先选场景）</span>}
         {p.all.map((x) => (
           <label key={x} className="pp-check">
@@ -427,16 +427,16 @@ function ExperimentSetup(p: SetupProps) {
     <div className="chain-setup" data-form="chain-setup">
       <div className="group">
         <div className="pp-title">试验设置</div>
-        <div className="pp-row"><span>模式</span>
-          <select data-field="mode" value={c.mode}
+        <label className="form-row pp-line"><span className="form-label">模式</span>
+          <span className="form-value"><select className="form-input" data-field="mode" value={c.mode}
             onChange={(e) => p.onChange(switchMode(c, e.target.value as ChainMode), '换模式')}>
             {MODES.map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
-          </select>
-        </div>
+          </select></span>
+        </label>
         {c.mode !== 'replay' && (
           <>
-            <div className="pp-row"><span>场景</span>
-              <select data-field="scenario" value={c.scenario?.scenario_id ?? ''}
+            <label className="form-row pp-line"><span className="form-label">场景</span>
+              <span className="form-value"><select className="form-input" data-field="scenario" value={c.scenario?.scenario_id ?? ''}
                 onChange={(e) => {
                   const id = e.target.value
                   // sha256 取当前载入场景的落盘字节哈希；换场景时同时把它**载入**，
@@ -452,8 +452,8 @@ function ExperimentSetup(p: SetupProps) {
                 }}>
                 <option value="">（未选）</option>
                 {p.scenarios.map((x) => <option key={x} value={x}>{x}</option>)}
-              </select>
-            </div>
+              </select></span>
+            </label>
             {/* 站点与目标都是多选（D-053）：K 个站各跑一条接收链，N 个源在接收天线后叠加。
                 至少各选一个——一个都不选就没有链路可算，此时提交按钮由频率计划检查拦住。 */}
             <MultiPick label="站点" kind="site" all={p.sites} picked={c.siteIds}
@@ -462,33 +462,34 @@ function ExperimentSetup(p: SetupProps) {
               onChange={(v) => p.onChange({ ...c, emitterIds: v }, '选目标')} />
           </>
         )}
-        <label className="pp-row"><span>时长 s</span>
-          <input data-field="duration_s" defaultValue={String(c.run.duration_s)}
+        <label className="form-row pp-line"><span className="form-label">时长</span>
+          <span className="form-value"><input className="form-input" data-field="duration_s" defaultValue={String(c.run.duration_s)}
             onBlur={(e) => {
               const v = Number(e.target.value)
-              if (Number.isFinite(v) && v > 0) p.onChange({ ...c, run: { ...c.run, duration_s: v } }, '改时长')
-            }} />
+              if (Number.isFinite(v) && v > 0 && v !== c.run.duration_s) p.onChange({ ...c, run: { ...c.run, duration_s: v } }, '改时长')
+            }} /><span className="form-unit">s</span></span>
         </label>
-        <label className="pp-row"><span>种子</span>
-          <input data-field="seed" defaultValue={String(c.run.seed)}
+        <label className="form-row pp-line"><span className="form-label">种子</span>
+          <span className="form-value"><input className="form-input" data-field="seed" defaultValue={String(c.run.seed)}
             onBlur={(e) => {
               const v = Number(e.target.value)
-              if (Number.isInteger(v) && v >= 0) p.onChange({ ...c, run: { ...c.run, seed: v } }, '改种子')
-            }} />
+              if (Number.isInteger(v) && v >= 0 && v !== c.run.seed) p.onChange({ ...c, run: { ...c.run, seed: v } }, '改种子')
+            }} /></span>
         </label>
         {p.error && <div className="pp-warn" data-setup-error>{p.error}</div>}
       </div>
 
       <div className="group" data-freq-plan>
         <div className="pp-title">频率计划</div>
-        <div className="pp-row"><span>宽带采样率</span><code>{formatEng(p.plan.fs_rf)}Hz</code></div>
-        <div className="pp-row"><span>观测中心</span><code>{formatEng(p.plan.f_rx)}Hz</code></div>
-        <div className="pp-row"><span>S4 采样率</span><code>{formatEng(p.plan.fs_s4)}Hz</code></div>
+        <div className="form-row pp-line"><span className="form-label">宽带采样率</span><span className="form-value pp-ro">{formatEng(p.plan.fs_rf)}Hz</span></div>
+        <div className="form-row pp-line"><span className="form-label">观测中心</span><span className="form-value pp-ro">{formatEng(p.plan.f_rx)}Hz</span></div>
+        <div className="form-row pp-line"><span className="form-label">S4 采样率</span><span className="form-value pp-ro">{formatEng(p.plan.fs_s4)}Hz</span></div>
+        {/* 每条检查一行；通过的把依据收进悬停提示，不通过才把原因写在行下——八句话一次铺开是堆砌（2026-09-13 用户实测） */}
         <ul className="plan-checks">
           {p.checks.map((k) => (
-            <li key={k.id} data-check={k.id} data-ok={k.ok ? '1' : '0'}>
+            <li key={k.id} data-check={k.id} data-ok={k.ok ? '1' : '0'} data-detail={k.detail} title={k.detail}>
               <span className={k.ok ? 'ok' : 'bad'}>{k.ok ? '✓' : '✕'}</span> {k.label}
-              <div className="plan-detail">{k.detail}</div>
+              {!k.ok && <div className="plan-detail">{k.detail}</div>}
             </li>
           ))}
         </ul>
