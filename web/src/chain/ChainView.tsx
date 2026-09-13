@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { useAppState, useDispatch, useStore } from '../state/store.js'
-import { loadScenarioInto, saveDiagram, saveScenario } from '../shell/actions.js'
+import { saveDiagram, saveScenario } from '../shell/actions.js'
 import { isCatalog, findComponent, type Catalog, type ParamSpec } from '../api/catalog.js'
 import { parse as parseDoc, serialize, type ParamValue } from '../diagram/doc.js'
 import { Field, range } from '../diagram/Field.js'
@@ -88,6 +88,10 @@ function useSceneSync(
   // `scenario` 置空（防线二、三：回放数据与场景无关），切回来却没人把它填回去，
   // 界面上只剩「无人机（先选场景）」（2026-09-09 用户实测撞到）。
   const needAdopt = !!chain && chain.mode !== 'replay' && !chain.scenario && sceneLoaded
+  // 场景在场景页换了（2026-09-13 用户定：场景页是唯一入口，框图跟着走）：链路引用换过去，
+  // 站点与目标按新场景缺省全选——旧的选择属于上一份场景，留着只会选中不存在的实体。
+  const sceneChanged = !!chain && chain.mode !== 'replay' && sceneLoaded
+    && !!chain.scenario && chain.scenario.scenario_id !== s.scene.scenario.id
   const needPick = !!chain && chain.mode !== 'replay' && sceneInSync
     && ((siteIdList.length > 0 && chain.siteIds.length === 0)
       || (emitterIdList.length > 0 && chain.emitterIds.length === 0))
@@ -96,21 +100,23 @@ function useSceneSync(
   const needSha = !!chain && chain.mode !== 'replay' && sceneInSync
     && !!chain.scenario && chain.scenario.sha256 !== s.scene.scenario.sha256
     && !!s.scene.scenario.sha256
-  const needSync = needPick || needSha || needAdopt
+  const needSync = needPick || needSha || needAdopt || sceneChanged
   useEffect(() => {
     if (!needSync || !chain) return
-    const scenario = chain.scenario
-      ? { ...chain.scenario, sha256: s.scene.scenario.sha256 }
-      : (needAdopt ? { scenario_id: s.scene.scenario.id!, sha256: s.scene.scenario.sha256 } : null)
+    const follow = needAdopt || sceneChanged
+    const scenario = follow
+      ? { scenario_id: s.scene.scenario.id!, sha256: s.scene.scenario.sha256 }
+      : (chain.scenario ? { ...chain.scenario, sha256: s.scene.scenario.sha256 } : null)
     const next: ChainState = {
       ...chain,
       scenario,
-      siteIds: chain.siteIds.length ? chain.siteIds : siteIdList,
-      emitterIds: chain.emitterIds.length ? chain.emitterIds : emitterIdList,
+      siteIds: sceneChanged || !chain.siteIds.length ? siteIdList : chain.siteIds,
+      emitterIds: sceneChanged || !chain.emitterIds.length ? emitterIdList : chain.emitterIds,
     }
     const { doc } = compile(next, catalog, scenarioDoc)
-    dispatch({ type: 'diagram/setDoc', text: serialize(doc, catalog), label: '按载入的场景补齐站点、目标与哈希' })
-  }, [needSync, needAdopt, siteIdList.join(','), emitterIdList.join(','), s.scene.scenario.sha256])
+    dispatch({ type: 'diagram/setDoc', text: serialize(doc, catalog),
+               label: sceneChanged ? '跟随场景页切换场景' : '按载入的场景补齐站点、目标与哈希' })
+  }, [needSync, needAdopt, sceneChanged, siteIdList.join(','), emitterIdList.join(','), s.scene.scenario.sha256, s.scene.scenario.id])
 }
 
 /**
@@ -276,12 +282,9 @@ export function ChainView() {
         left={
           <ExperimentSetup
             chain={chain} checks={checks} plan={plan}
-            scenarios={s.scene.scenario.list.map((x: { scenario_id: string }) => x.scenario_id)}
             currentScenario={s.scene.scenario.id}
-            sceneSha={s.scene.scenario.sha256}
             sites={siteIdList}
             emitters={emitterIdList}
-            onLoadScenario={(id) => loadScenarioInto(store, id, () => true)}
             error={errBySlot.get('__setup') ?? null}
             onChange={commit}
           />
@@ -388,13 +391,9 @@ interface SetupProps {
   chain: ChainState
   checks: ReturnType<typeof planChecks>
   plan: ReturnType<typeof freqPlan>
-  scenarios: string[]
   currentScenario: string | null
-  sceneSha: string
   sites: string[]
   emitters: string[]
-  /** 换场景时把它载入 store（D-053）。不载入的话站与源的列表仍是上一份场景的 */
-  onLoadScenario: (id: string) => Promise<void>
   error: string | null
   onChange: (next: ChainState, label: string) => void
 }
@@ -446,25 +445,11 @@ function ExperimentSetup(p: SetupProps) {
         </label>
         {c.mode !== 'replay' && (
           <>
-            <label className="form-row pp-line"><span className="form-label">场景</span>
-              <span className="form-value"><select className="form-input" data-field="scenario" value={c.scenario?.scenario_id ?? ''}
-                onChange={(e) => {
-                  const id = e.target.value
-                  // sha256 取当前载入场景的落盘字节哈希；换场景时同时把它**载入**，
-                  // 否则站点与目标的列表仍是上一份场景的——多站之前只有一个站一个源，
-                  // 看不出差别；切到三站场景才暴露出来（D-053 实测）。
-                  const sha = id === p.currentScenario ? p.sceneSha : ''
-                  if (id && id !== p.currentScenario) void p.onLoadScenario(id)
-                  // 换场景等于换了一批站与源，旧的选择一律作废，由缺省全选重填。
-                  // 判据是**链路自己**上一份场景，不是场景页当前载入的那份：自 D-061 起场景页
-                  // 跟着最近任务走，可能早已是目标场景，按「载入的」判会把旧选择原样留下（切片 ⑧ 实测）。
-                  const next = id === (c.scenario?.scenario_id ?? '') ? c : { ...c, siteIds: [], emitterIds: [] }
-                  p.onChange({ ...next, scenario: id ? { scenario_id: id, sha256: sha } : null }, '选场景')
-                }}>
-                <option value="">（未选）</option>
-                {p.scenarios.map((x) => <option key={x} value={x}>{x}</option>)}
-              </select></span>
-            </label>
+            {/* 场景在场景页选（2026-09-13 用户定）：这里只写当前跟着的是哪一份，不给第二个入口（D-057 同理） */}
+            <div className="form-row pp-line" title="在场景页左栏切换场景；框图跟着场景页当前载入的场景走">
+              <span className="form-label">场景</span>
+              <span className="form-value pp-ro" data-chain-scenario>{c.scenario?.scenario_id ?? p.currentScenario ?? '（未选）'}</span>
+            </div>
             {/* 站点与目标都是多选（D-053）：K 个站各跑一条接收链，N 个源在接收天线后叠加。
                 至少各选一个——一个都不选就没有链路可算，此时提交按钮由频率计划检查拦住。 */}
             <MultiPick label="站点" kind="site" all={p.sites} picked={c.siteIds}

@@ -84,9 +84,9 @@ try {
   trace('已发 Page.navigate')
   await page.waitFor((s) => s.ready && s.app?.view === 'diagram' && s.app?.chain?.template === 'chain-v1', { label: '框图页', timeoutMs: 90000 })
   trace('过了 框图页')
+  // 地址带 ?scenario=demo-03 已把场景页切到 demo-03，框图跟着走（2026-09-13），不再需要在框图页选
+  await page.waitFor((s) => s.app?.chain?.scenarioId === 'demo-03', { label: '框图跟着 demo-03', timeoutMs: 30000 })
   await sleep(800)
-  await page.evaluate(setSelect('[data-form=chain-setup] [data-field=scenario]', 'demo-03'))
-  await sleep(1500)
   await waitDom(page, "document.querySelectorAll('[data-multi=site] input').length", 3)
   await waitDom(page,
     "Array.from(document.querySelectorAll('[data-multi=site] input, [data-multi=emitter] input')).every(e => e.checked)", true)
@@ -135,7 +135,8 @@ try {
     siteCards: document.querySelectorAll('[data-site-card]').length,
     selBar: document.querySelectorAll('[data-selection-bar]').length,
     placeholder: /在左栏或地图上选一个对象/.test(document.body.textContent),
-    leftForms: document.querySelector('[data-scene-tree]')?.closest('.col-body')?.querySelectorAll('[data-form]').length ?? -1,
+    // 左栏顶部的场景选择器（D-065）是配置入口不是对象表单，不计
+    leftForms: document.querySelector('[data-scene-tree]')?.closest('.col-body')?.querySelectorAll('[data-form]:not([data-form=scene-pick])').length ?? -1,
     treeRows: document.querySelectorAll('[data-scene-tree] .tree-row').length,
     pkgOpen: document.querySelector('[data-scene-package]')?.open ?? null,
     topbarTime: document.querySelectorAll('.run-time').length,

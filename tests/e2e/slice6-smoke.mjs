@@ -55,8 +55,9 @@ try {
   page = await Page.open(chrome.port, 'about:blank')
   await page.send('Runtime.enable')
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n')[0]))
-  await page.send('Page.navigate', { url: `${BASE}#/diagram` })
-  await page.waitFor((s) => s.ready && s.app?.view === 'diagram', { label: '框图页', timeoutMs: 90000 })
+  // 框图跟着场景页当前场景走（D-065）：盘上最近一次任务可能是三站场景，点名 demo-01 才有「缺省 1 站 1 源」的前提
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
+  await page.waitFor((s) => s.ready && s.app?.view === 'diagram' && s.app?.chain?.scenarioId === 'demo-01', { label: '框图页', timeoutMs: 90000 })
   await sleep(800)
 
   // ---------- ① 缺省仍是单源单站，退化路径没被破坏 ----------
@@ -69,9 +70,16 @@ try {
   const noBadge = await evalJson(page, "document.querySelectorAll('[data-slot-count]').length")
   check('单源单站时不显示实例角标（画面与多站之前一模一样）', noBadge === 0, `${noBadge} 个角标`)
 
-  // ---------- ② 切到 demo-03：三站三源，缺省全选 ----------
-  await page.evaluate(setSelect('[data-form=chain-setup] [data-field=scenario]', 'demo-03'))
-  await sleep(1500)
+  // ---------- ② 在场景页切到 demo-03（场景只在场景页选，框图跟着走，2026-09-13）：三站三源，缺省全选 ----------
+  await page.send('Page.navigate', { url: `${BASE}#/scene` })
+  await page.waitFor((s) => s.app?.view === 'scene', { label: '场景页', timeoutMs: 60000 })
+  await sleep(600)
+  await page.evaluate(setSelect('[data-form=scene-pick] [data-field=scenario]', 'demo-03'))
+  st = await page.waitFor((s) => s.app?.scene?.scenarioId === 'demo-03' && s.app?.scene?.status === 'ok', { label: '场景页切到 demo-03', timeoutMs: 30000 })
+  await page.send('Page.navigate', { url: `${BASE}#/diagram` })
+  st = await page.waitFor((s) => s.app?.view === 'diagram' && s.app?.chain?.scenarioId === 'demo-03', { label: '框图页跟着场景页', timeoutMs: 30000 })
+  check('场景在场景页选，框图页跟着切到 demo-03', st.app.chain.scenarioId === 'demo-03', st.app.chain.scenarioId)
+  await sleep(800)
   const nSite = await waitDom(page, "document.querySelectorAll('[data-multi=site] input').length", 3)
   const nEm = await waitDom(page, "document.querySelectorAll('[data-multi=emitter] input').length", 3)
   check('切到 demo-03 后站与源各有三个复选框', nSite === 3 && nEm === 3, `站 ${nSite} / 源 ${nEm}`)

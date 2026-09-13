@@ -42,15 +42,19 @@ export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<
       dispatch({ type: 'scene/scenarioList', list })
     } catch (e) { if (alive()) dispatch({ type: 'scene/scenarioError', message: String((e as Error).message ?? e) }) }
     const wanted = want && list.some((x) => x.scenario_id === want) ? want : null
+    let loaded = false
     try {
       const tasks = await listTasks(1)
-      if (alive() && tasks.length) await adoptTask(store, tasks[0]!, alive, { loadScenario: !wanted })
+      if (alive() && tasks.length) loaded = await adoptTask(store, tasks[0]!, alive, { loadScenario: !wanted })
     } catch (e) { if (alive()) dispatch({ type: 'log/client', level: 'warn', message: `恢复最近任务失败：${(e as Error).message}` }) }
     if (!alive()) return
-    if (wanted) await loadScenarioInto(store, wanted, alive)
+    if (wanted) loaded = await loadScenarioInto(store, wanted, alive)
     if (!alive()) return
-    // 没有任务、旧记录没有 scenario_id、或它的场景已不存在：退到清单第一项
-    if (store.getState().scene.scenario.status !== 'ok' && list.length) await loadScenarioInto(store, list[0]!.scenario_id, alive)
+    // 没有任务、旧记录没有 scenario_id、或它的场景已不存在：退到清单第一项。
+    // 判据用**载入函数的返回值**，不读 store：getState() 给的是上一次渲染的状态，刚 dispatch 完
+    // 还没重渲染那一瞬读到的仍是「载入中」，兜底就会把点名的场景换成清单第一项——
+    // `?scenario=demo-03` 打开后落在 demo-01，2026-09-13 实测（此前 slice8 在框图页多选一次盖住了它）。
+    if (!loaded && store.getState().scene.scenario.status !== 'ok' && list.length) await loadScenarioInto(store, list[0]!.scenario_id, alive)
   })())
   jobs.push((async () => {
     try {
@@ -77,44 +81,49 @@ export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<
   await Promise.all(jobs)
 }
 
-/** 载入一个场景到 store：读全文与**落盘字节**的哈希，后者写进框图 scenario_ref 用。 */
-export async function loadScenarioInto(store: StoreApi, id: string, alive: () => boolean): Promise<void> {
+/** 载入一个场景到 store：读全文与**落盘字节**的哈希，后者写进框图 scenario_ref 用。返回是否载入成功。 */
+export async function loadScenarioInto(store: StoreApi, id: string, alive: () => boolean): Promise<boolean> {
   const { dispatch } = store
   dispatch({ type: 'scene/scenarioLoading', id })
   try {
     const r = await getScenario(id)
-    if (!alive()) return
-    if (!r) { dispatch({ type: 'scene/scenarioError', message: `没有场景 ${id}` }); return }
+    if (!alive()) return false
+    if (!r) { dispatch({ type: 'scene/scenarioError', message: `没有场景 ${id}` }); return false }
     dispatch({ type: 'scene/scenarioLoaded', id, doc: r.doc, sha256: r.sha256 })
+    return true
   } catch (e) {
     if (alive()) dispatch({ type: 'scene/scenarioError', message: String((e as Error).message ?? e) })
+    return false
   }
 }
 
 /** 采用一个已有任务：已结束的先补首尾两条事件（时长与最终逻辑时间），再以 since = last_seq 订阅。 */
 export async function adoptTask(
   store: StoreApi, rec: TaskRecord, alive: () => boolean, opts: { loadScenario?: boolean } = {},
-): Promise<void> {
+): Promise<boolean> {
   const { dispatch } = store
   signalBuffer.reset(rec.task_id)
   dispatch({ type: 'task/adopt', record: rec })
   // 任务带着自己的场景（D-061，13 报告 §6.1）：与场景页当前载入的不同就换过来。
   // 旧 task.json 没有这个键则不动，缺省场景由 bootstrap 决定；场景已不存在会落成 scenarioError，同样由它回退。
+  // 返回值 = 这次有没有把任务的场景载入成功（bootstrap 据此决定要不要退到清单第一项）。
+  let loaded = false
   if (opts.loadScenario !== false && rec.scenario_id && store.getState().scene.scenario.id !== rec.scenario_id) {
-    await loadScenarioInto(store, rec.scenario_id, alive)
-    if (!alive()) return
+    loaded = await loadScenarioInto(store, rec.scenario_id, alive)
+    if (!alive()) return loaded
   }
   if (TERMINAL.has(rec.run_state) && rec.last_seq > 0) {
     try {
       const first = await getEvents(rec.task_id, 0, 1)
       const last = rec.last_seq > 1 ? await getEvents(rec.task_id, rec.last_seq - 1, 1) : { events: [] }
-      if (!alive() || store.getState().task.id !== rec.task_id) return
+      if (!alive() || store.getState().task.id !== rec.task_id) return loaded
       const wall = performance.now()
       const evs = [...first.events, ...last.events].filter((e) => e.type === 'task.state')
       if (evs.length) dispatch({ type: 'stream/batch', events: evs.map((e) => ({ ...e })), wallMs: wall, silent: true })
       // 上面折叠的结束事件会推进 lastSeq；订阅仍按记录里的 last_seq
     } catch { /* 拿不到就只显示记录里的信息 */ }
   }
+  return loaded
 }
 
 export async function runDiagram(store: StoreApi): Promise<void> {
