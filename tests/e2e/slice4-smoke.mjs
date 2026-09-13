@@ -626,7 +626,8 @@ try {
   const txErr = await page.evaluate("document.querySelector('[data-slot=tx] [data-slot-error]')?.textContent ?? ''")
   check('辐射源卡片上不再报未知参数', !txErr.includes('未知参数'), txErr || '（无错误）')
   const txPending = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
-  check('改为提示回放源真正缺的那一项（数据标识）', txPending.includes('data_id'), txPending)
+  // 待填行自 2026-09-13 起写中文短名（「录音」即 data_id）
+  check('改为提示回放源真正缺的那一项（数据标识）', txPending.includes('录音') || txPending.includes('data_id'), txPending)
 
   // ---------- 从下拉里挑一段录音（D-056）----------
   // 此前这里是个空文本框，要用户背标识；现在是挑单，服务端按机型分组抽样

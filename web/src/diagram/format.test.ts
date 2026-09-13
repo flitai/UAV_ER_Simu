@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseEng, formatEng, summarize } from './format.js'
+import { parseEng, formatEng, formatEngExact, summarize } from './format.js'
 
 test('工程计数法输入：前缀、科学计数、负号', () => {
   assert.equal(parseEng('2.44G'), 2.44e9)
@@ -35,4 +35,13 @@ test('节点摘要取最能说明用途的一两项，带单位', () => {
   assert.deepEqual(summarize({ center_frequency_Hz: 2.4405e9, level_dBm: -70 }, unit), ['2.44 G Hz', '-70 dBm'])
   assert.deepEqual(summarize({ data_id: 'dronerfb_0_CH0_S4' }, unit), ['dronerfb_0_CH0_S4'])
   assert.deepEqual(summarize({}, unit), [])
+})
+
+test('formatEngExact：输入框用的工程计数法能无损往返（formatEng 三位有效数字只给摘要看）', () => {
+  for (const v of [1024, 8192, 65536, 48828.125, 2440500000, 500000, 1e-3, 6.1e-6, -20, 0.45, 20260907, 1.5]) {
+    assert.equal(parseEng(formatEngExact(v)), v, `${v} → ${formatEngExact(v)}`)
+  }
+  assert.equal(formatEngExact(1024), '1.024 k')
+  assert.equal(formatEngExact(2440500000), '2.4405 G')
+  assert.equal(formatEngExact(0), '0')
 })

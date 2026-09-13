@@ -40,6 +40,26 @@ export function formatEng(v: number): string {
   return trim(scaled) + (pick ? ' ' + pick[0] : '')
 }
 
+/**
+ * 输入框用的工程计数法：**能无损往返**（`parseEng(formatEngExact(v)) === v`，12 位有效数字内）。
+ * `formatEng` 只留三位有效数字是给卡片摘要看的；拿它填输入框，1024 会显示成 1.02k，
+ * 用户点进去再点出来就被解析成 1020 写回——nfft 不再是 2 的幂，引擎当场拒（2026-09-13 实测发现）。
+ */
+export function formatEngExact(v: number): string {
+  if (!Number.isFinite(v)) return String(v)
+  if (v === 0) return '0'
+  const [mant, expStr] = v.toExponential(11).split('e')
+  const e = Number(expStr)
+  let pick: [string, number] | null = null
+  for (const f of PREFIX) if (e >= f[1] && e - f[1] < 3) { pick = f; break }
+  const exp = pick ? pick[1] : 0
+  const scaled = Number(`${mant}e${e - exp}`)
+  // 12 位有效数字再去尾零：整数原样，小数不丢位
+  let s = Number(scaled.toPrecision(12)).toString()
+  if (/e/i.test(s)) s = scaled.toFixed(12).replace(/0+$/, '').replace(/\.$/, '')
+  return s + (pick ? ' ' + pick[0] : '')
+}
+
 function trim(v: number): string {
   const a = Math.abs(v)
   const s = a >= 100 ? v.toFixed(0) : a >= 10 ? v.toFixed(1) : v.toFixed(2)

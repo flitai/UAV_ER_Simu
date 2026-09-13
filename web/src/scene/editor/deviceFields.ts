@@ -68,7 +68,7 @@ export const SITE_DEVICE_FIELDS: readonly DeviceField[] = [
   { key: 'site.clock_sigma', label: '站钟同步 σ', unit: 'ns', rel: 'clock.sync_sigma_ns', type: 'number' },
   { key: 'site.clock_bias', label: '固定钟差', unit: 'ns', rel: 'clock.bias_ns', type: 'number' },
   { key: 'site.rx_delay', label: '通道群时延', unit: 'ns', rel: 'clock.rx_delay_ns', type: 'number' },
-  { key: 'site.rx_delay_sigma', label: '群时延不确定度', unit: 'ns', rel: 'clock.rx_delay_sigma_ns', type: 'number' },
+  { key: 'site.rx_delay_sigma', label: '群时延 σ', unit: 'ns', rel: 'clock.rx_delay_sigma_ns', type: 'number' },
   {
     key: 'site.sync_state', label: '同步状态', unit: '', rel: 'clock.sync_state', type: 'enum',
     options: ['locked', 'holdover', 'unsynced'], fallback: 'locked',

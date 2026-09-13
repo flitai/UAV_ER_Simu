@@ -9,7 +9,7 @@
 
 import { DataIdField } from '../data/DataIdField.js'
 import type { ParamSpec } from '../api/catalog.js'
-import { formatEng, parseEng } from './format.js'
+import { formatEng, formatEngExact, parseEng } from './format.js'
 import type { ParamValue } from './doc.js'
 
 export function Field({ ps, value, onChange }: { ps: ParamSpec; value: ParamValue | undefined; onChange: (v: ParamValue | undefined) => void }) {
@@ -42,13 +42,16 @@ export function Field({ ps, value, onChange }: { ps: ParamSpec; value: ParamValu
     return (
       <input
         className={`${isDefault ? 'dim' : ''}${bad ? ' bad' : ''}`} data-field={ps.name}
-        defaultValue={typeof shown === 'number' ? formatEng(shown).replace(' ', '') : String(shown)}
+        // 显示用无损的工程计数（1024 → 1.024k），否则光是点进点出就会把值改掉
+        defaultValue={typeof shown === 'number' ? formatEngExact(shown).replace(' ', '') : String(shown)}
         onBlur={(e) => {
           const t = e.target.value.trim()
-          if (t === '') return onChange(undefined)
+          if (t === '') { if (value !== undefined) onChange(undefined); return }
           const v = parseEng(t)
           if (v === null) { e.target.classList.add('bad'); return }
           e.target.classList.remove('bad')
+          // 没改就不写：写回一个相等的值也会进撤销栈、把框图标脏
+          if (v === (value !== undefined ? value : ps.default)) return
           onChange(v)
         }}
       />

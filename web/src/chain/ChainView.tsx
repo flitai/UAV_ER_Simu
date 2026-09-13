@@ -8,7 +8,7 @@
 // **本视图不持有第二份状态**：链路状态由 `parseChain()` 从 `s.diagram.text` 解出，
 // 改完由 `compile()` 编译回框图再 `diagram/setDoc`。撤销重做与脏标记因此沿用 U-2 的那一套。
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { useAppState, useDispatch, useStore } from '../state/store.js'
 import { loadScenarioInto, saveDiagram, saveScenario } from '../shell/actions.js'
@@ -18,6 +18,7 @@ import { Field, range } from '../diagram/Field.js'
 import { formatEng } from '../diagram/format.js'
 import { emitters as sceneEmitters, setPath, sites as sceneSites, type Obj } from '../scene/editor/scenarioOps.js'
 import { fieldsFor, modelOf, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
+import { paramLabel, paramTitle } from './paramLabels.js'
 import { DeviceRow } from '../scene/ObjectForm.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { compile, parseChain, switchMode } from './compile.js'
@@ -593,19 +594,14 @@ function SlotPanel(p: {
   return (
     <div className="param-panel" data-form="slot">
       <div className="group">
-        <div className="pp-title">{def.label} · {spec.display_name}</div>
-        <div className="pp-row"><span>环节</span><span className="dim">{def.hint}</span></div>
-        <div className="pp-row"><span>组件</span><code>{v.type}</code></div>
-        <div className="pp-row" data-slot-owner={owner}>
-          <span>参数归属</span>
+        <div className="pp-title" title={`${def.hint} · ${v.type}`}>{def.label} · {spec.display_name}</div>
+        {/* 归属只写一行（D-054）：谁的参数、什么型号；环节与组件名收进标题的悬停提示 */}
+        <div className="pp-sub" data-slot-owner={owner}>
           {owner === 'shared'
-            ? <span className="dim">全图共用</span>
-            : <span className="dim">
-                {owner === 'emitter' ? '无人机' : '侦测站'} {focus || '（未选）'}
-                {model ? ` · 型号 ${model}` : ''}
-              </span>}
+            ? '全图共用'
+            : `${owner === 'emitter' ? '无人机' : '侦测站'} ${focus || '（未选）'}${model ? ` · 型号 ${model}` : ''}`}
         </div>
-        {pending.length > 0 && <div className="pp-warn" data-pending>待填：{pending.join('、')}</div>}
+        {pending.length > 0 && <div className="pp-warn" data-pending>待填：{pending.map((n) => paramLabel({ name: n })).join('、')}</div>}
       </div>
 
       {/* 场景里的设备参数（D-054）：真理源在场景文件，这里改即改场景，随后自动保存 */}
@@ -624,21 +620,23 @@ function SlotPanel(p: {
       <PropagationGroup slot={p.id} chain={p.chain} catalog={p.catalog} onParam={p.onParam} />
 
       <div className="group">
-        {(spec.params as ParamSpec[]).filter((ps) => !ps.internal).map((ps) => {
-          if (ps.name in fixed) {
-            return (
-              <div className="pp-row" key={ps.name} data-param-fixed={ps.name}>
-                <span>{ps.name}</span>
-                <span className="dim">{String(fixed[ps.name])}（模板固定）</span>
-              </div>
-            )
-          }
+        <div className="pp-title">模型参数</div>
+        {/* 模板固定的参数合成一行：它们不给改，逐行摆出来只是占地方 */}
+        {Object.keys(fixed).length > 0 && (
+          <div className="pp-sub">
+            模板固定：
+            {Object.entries(fixed).map(([k, val], i) => (
+              <span key={k} data-param-fixed={k}>{i > 0 ? '、' : ''}{paramLabel({ name: k })} = {String(val)}</span>
+            ))}
+          </div>
+        )}
+        {(spec.params as ParamSpec[]).filter((ps) => !ps.internal && !(ps.name in fixed)).map((ps) => {
+          const title = paramTitle(ps, range(ps))
           if (derivedNames.has(ps.name)) {
             return (
-              <div className="pp-row" key={ps.name} data-param-derived={ps.name}>
-                <span>{ps.name}</span>
-                <span className="dim">由频率计划派生</span>
-              </div>
+              <PRow key={ps.name} label={paramLabel(ps)} title={title} attrs={{ 'data-param-derived': ps.name }}>
+                <span className="pp-note">由频率计划派生</span>
+              </PRow>
             )
           }
           const sf = sceneNames.get(ps.name)
@@ -646,12 +644,10 @@ function SlotPanel(p: {
             // 由场景逐实体带出：值在上面那组里改，这里只说明来源，免得两处都能改却不同步
             const val = readField(entity, sf.rel)
             return (
-              <div className="pp-row" key={ps.name} data-param-from-scene={ps.name}>
-                <span>{ps.name}</span>
-                <span className="dim">
-                  {typeof val === 'number' ? `${val}${ps.unit ? ` ${ps.unit}` : ''} · 来自场景` : '来自场景（未设置）'}
-                </span>
-              </div>
+              <PRow key={ps.name} label={paramLabel(ps)} title={title} attrs={{ 'data-param-from-scene': ps.name }}
+                unit={typeof val === 'number' ? ps.unit : undefined} tag={typeof val === 'number' ? '来自场景' : '来自场景 · 未设置'}>
+                {typeof val === 'number' && <span className="pp-ro">{val}</span>}
+              </PRow>
             )
           }
           const scope = scopeOf(ps.name)
@@ -660,31 +656,53 @@ function SlotPanel(p: {
             : p.chain.slots[p.id].params[ps.name]
           const targets = scope === 'entity' ? (focus ? [focus] : []) : sameModel
           return (
-            <label className="pp-row" key={ps.name}>
-              <span title={ps.description}>{ps.name}{ps.unit ? ` (${ps.unit})` : ''}</span>
+            <PRow key={ps.name} label={paramLabel(ps)} title={title} unit={ps.unit} htmlFor={ps.name}>
               <Field ps={ps} value={cur} onChange={(x) => p.onParam(ps.name, x, scope, targets)} />
-              {kind && participants.length > 1
-                ? (
-                  <select className="pp-scope" data-param-scope={ps.name} value={scope}
-                    title="改这一项影响谁"
-                    onChange={(e) => {
-                      const next = e.target.value as ParamScope
-                      setScopePick((m) => ({ ...m, [scopeKey(ps.name)]: next }))
-                      // 收回「共用」要当场生效：把覆盖清掉，三个站立刻回到一套参数。
-                      // 另外两档只记意图——此刻各实体的值还一样，写下去会被归约原样打回。
-                      if (next === 'shared') p.onParam(ps.name, cur, 'shared', [])
-                    }}>
-                    <option value="shared">共用</option>
-                    <option value="model">同型号</option>
-                    <option value="entity">单独</option>
-                  </select>
-                )
-                : <em className="pp-range">{range(ps)}</em>}
-            </label>
+              {kind && participants.length > 1 && (
+                <select className="pp-scope" data-param-scope={ps.name} value={scope}
+                  title="改这一项影响谁"
+                  onChange={(e) => {
+                    const next = e.target.value as ParamScope
+                    setScopePick((m) => ({ ...m, [scopeKey(ps.name)]: next }))
+                    // 收回「共用」要当场生效：把覆盖清掉，三个站立刻回到一套参数。
+                    // 另外两档只记意图——此刻各实体的值还一样，写下去会被归约原样打回。
+                    if (next === 'shared') p.onParam(ps.name, cur, 'shared', [])
+                  }}>
+                  <option value="shared">共用</option>
+                  <option value="model">同型号</option>
+                  <option value="entity">单独</option>
+                </select>
+              )}
+            </PRow>
           )
         })}
       </div>
     </div>
+  )
+}
+
+/**
+ * 参数面板的一行：与场景对象表单同一套网格（`.form-row`：标签列固定宽、控件占满、单位跟在后面）。
+ * 标签只放中文短名，英文标识、说明与范围在悬停提示里——直接铺出来又长又乱（2026-09-13 用户实测）。
+ */
+function PRow(p: {
+  label: string
+  title?: string
+  unit?: string
+  tag?: string
+  htmlFor?: string
+  attrs?: Record<string, string>
+  children?: ReactNode
+}) {
+  return (
+    <label className="form-row pp-line" {...(p.attrs ?? {})}>
+      <span className="form-label" title={p.title}>{p.label}</span>
+      <span className="form-value pp-value">
+        {p.children}
+        {p.unit && <span className="form-unit">{p.unit}</span>}
+        {p.tag && <span className="pp-tag">{p.tag}</span>}
+      </span>
+    </label>
   )
 }
 
@@ -719,24 +737,15 @@ function PropagationGroup(p: {
   return (
     <div className="group" data-form="propagation">
       <div className="pp-title">传播效应 · 全图共用</div>
-      <div className="pp-row" data-prop-summary={view.terms.join(',')}>
-        <span>本档包含</span><span className="dim">{view.text}</span>
-      </div>
-      {view.level === 'E1' && (
-        <div className="pp-row"><span /><span className="dim">
-          E1 只算自由空间路损、多普勒与时延
-        </span></div>
-      )}
+      <div className="pp-sub" data-prop-summary={view.terms.join(',')}>本档包含：{view.text}</div>
       {conflict && <div className="pp-warn" data-prop-conflict>{conflict}</div>}
 
       {(host.params as ParamSpec[]).filter((ps) => !ps.internal && show.has(ps.name)).map((ps) => (
-        <label className="pp-row" key={ps.name}>
-          <span title={ps.description}>{ps.name}{ps.unit ? ` (${ps.unit})` : ''}</span>
+        <PRow key={ps.name} label={paramLabel(ps)} title={paramTitle(ps, range(ps))} unit={ps.unit}>
           {ps.name === 'prop_level'
             ? <LevelField value={cur[ps.name]} onChange={(x) => p.onParam(ps.name, x, 'shared', [])} />
             : <Field ps={ps} value={cur[ps.name]} onChange={(x) => p.onParam(ps.name, x, 'shared', [])} />}
-          <em className="pp-range">{range(ps)}</em>
-        </label>
+        </PRow>
       ))}
     </div>
   )

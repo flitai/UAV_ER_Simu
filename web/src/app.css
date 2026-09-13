@@ -232,11 +232,12 @@ details.scene-panel > summary::-webkit-details-marker { display: none; }
 .tree-row.indent { padding-left: 18px; }
 
 .form-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-.form-label { color: var(--dim); flex: 0 0 76px; }
-.form-value { flex: 1 1 auto; min-width: 0; }
+/* 标签列 88 px：七字标签（群时延不确定度）一行放得下；控件与单位同一行，单位不再折到下一行（2026-09-13） */
+.form-label { color: var(--dim); flex: 0 0 88px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.form-value { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .form-unit { color: var(--poi); font-size: 11px; flex: 0 0 auto; }
 .form-input {
-  width: 100%; border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px;
+  flex: 1 1 auto; min-width: 0; width: auto; border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px;
   background: var(--white); font-variant-numeric: tabular-nums;
 }
 .form-input.bad { border-color: var(--bad); background: #fdf3f3; }
@@ -333,6 +334,23 @@ button.mini { font-size: 11px; padding: 0 5px; }
 
 /* 参数的设置范围：共用 / 同型号 / 单独 */
 .pp-scope { font-size: 11px; max-width: 76px; }
+/* 参数面板（链路页右栏，2026-09-13 改版）：与场景对象表单同一套 .form-row 网格；
+   标签中文短名，标识 / 说明 / 范围在悬停提示；单位与来源标记跟在控件后面，不换行 */
+.param-panel .pp-title { font-size: var(--fs-title, 13px); font-weight: 600; margin-bottom: 4px; }
+.param-panel .pp-sub { color: var(--dim); font-size: 11px; margin: 0 0 6px; line-height: 1.5; }
+.param-panel .pp-warn { color: var(--bad); font-size: 12px; margin-top: 4px; }
+.pp-line { margin: 0; }
+.pp-line .form-label { cursor: help; }
+.pp-value > input, .pp-value > select, .pp-value > .data-id-field {
+  flex: 1 1 auto; min-width: 0; width: auto; border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px;
+  background: var(--white); font-variant-numeric: tabular-nums;
+}
+.pp-value > input.dim, .pp-value > select.dim { color: var(--poi); }
+.pp-value > input.bad { border-color: var(--bad); background: #fdf3f3; }
+.pp-value .form-unit { flex: 0 0 auto; }
+.pp-tag, .pp-note { color: var(--poi); font-size: 11px; white-space: nowrap; }
+.pp-ro { font-variant-numeric: tabular-nums; }
+.pp-value > .pp-scope { flex: 0 0 auto; }
 
 /* 链条块占满工具条以下的高度并纵向居中，不把一行卡片吊在顶上（2026-09-08 用户反馈） */
 .chain-body { flex: 1; min-height: 0; display: flex; flex-direction: column;
