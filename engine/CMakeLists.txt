@@ -35,6 +35,7 @@ add_library(cuav_engine STATIC
   src/sources.cpp
   src/processing.cpp
   src/recognition.cpp
+  src/evaluation.cpp
   src/locate.cpp
   src/spectrum.cpp
   src/platform.cpp
@@ -97,6 +98,7 @@ add_executable(cuav_engine_tests
   tests/test_locate_golden.cpp
   tests/test_receiver_chain.cpp
   tests/test_recognition_chain.cpp
+  tests/test_evaluation.cpp
 )
 target_link_libraries(cuav_engine_tests PRIVATE cuav_runner)
 # 黄金基准放源码树里，测试要按源码目录找它，不能依赖运行时工作目录

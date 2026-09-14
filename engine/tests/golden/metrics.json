@@ -1,0 +1,6554 @@
+{
+ "schema": "cuav-engine-golden/1",
+ "purpose": "引擎侧 evaluate() 与 algos/reference/evaluate.py 的逐值对拍基准（C-5，10 报告 §4.5 / 附录 C）",
+ "generator": "algos/reference/evaluate.py --write-golden",
+ "params": {
+  "truth_source": "scenario",
+  "match_overlap": 0.5,
+  "roc_points": 32,
+  "frame_dt_s": 0.000256,
+  "threshold": 1.1,
+  "has_rec": true
+ },
+ "tolerance": {
+  "rel": 1e-09,
+  "abs": 1e-12,
+  "note": "两侧同为 float64 同算法、同一累加顺序；整数与标签逐位相同，null 对 null"
+ },
+ "inputs": {
+  "detections": [
+   {
+    "frame_index": 0,
+    "start_sample": 0,
+    "t_s": 0.0,
+    "statistic": 1.0744999656881054,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 1,
+    "start_sample": 256,
+    "t_s": 0.000256,
+    "statistic": 0.9611551886083465,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 2,
+    "start_sample": 512,
+    "t_s": 0.000512,
+    "statistic": 1.0100824194832103,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 3,
+    "start_sample": 768,
+    "t_s": 0.000768,
+    "statistic": 0.9473665301209306,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 4,
+    "start_sample": 1024,
+    "t_s": 0.001024,
+    "statistic": 0.902088967124393,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 5,
+    "start_sample": 1280,
+    "t_s": 0.0012799999999999999,
+    "statistic": 1.051301974611268,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 6,
+    "start_sample": 1536,
+    "t_s": 0.001536,
+    "statistic": 1.0331701430323386,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 7,
+    "start_sample": 1792,
+    "t_s": 0.001792,
+    "statistic": 0.6408530192708055,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 8,
+    "start_sample": 2048,
+    "t_s": 0.002048,
+    "statistic": 0.7507756987904686,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 9,
+    "start_sample": 2304,
+    "t_s": 0.002304,
+    "statistic": 0.7673718996995151,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 10,
+    "start_sample": 2560,
+    "t_s": 0.0025599999999999998,
+    "statistic": 0.8065850715890281,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 11,
+    "start_sample": 2816,
+    "t_s": 0.002816,
+    "statistic": 0.9149951963358055,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 12,
+    "start_sample": 3072,
+    "t_s": 0.003072,
+    "statistic": 1.052177012414423,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 13,
+    "start_sample": 3328,
+    "t_s": 0.003328,
+    "statistic": 0.8932184199703012,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 14,
+    "start_sample": 3584,
+    "t_s": 0.003584,
+    "statistic": 0.7183246010221211,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 15,
+    "start_sample": 3840,
+    "t_s": 0.0038399999999999997,
+    "statistic": 1.0841865072585106,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 16,
+    "start_sample": 4096,
+    "t_s": 0.004096,
+    "statistic": 0.7196379749251307,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 17,
+    "start_sample": 4352,
+    "t_s": 0.004352,
+    "statistic": 0.8667510613732075,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 18,
+    "start_sample": 4608,
+    "t_s": 0.004608,
+    "statistic": 0.9972485386149146,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 19,
+    "start_sample": 4864,
+    "t_s": 0.004863999999999999,
+    "statistic": 0.6432694588167147,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 20,
+    "start_sample": 5120,
+    "t_s": 0.0051199999999999996,
+    "statistic": 1.0159805734727432,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 21,
+    "start_sample": 5376,
+    "t_s": 0.005376,
+    "statistic": 0.8298180110688234,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 22,
+    "start_sample": 5632,
+    "t_s": 0.005632,
+    "statistic": 0.8994603321959538,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 23,
+    "start_sample": 5888,
+    "t_s": 0.005888,
+    "statistic": 0.9343660988937187,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 24,
+    "start_sample": 6144,
+    "t_s": 0.006144,
+    "statistic": 0.7673790399445283,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 25,
+    "start_sample": 6400,
+    "t_s": 0.0063999999999999994,
+    "statistic": 0.684539498163335,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 26,
+    "start_sample": 6656,
+    "t_s": 0.006656,
+    "statistic": 1.0739527511942875,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 27,
+    "start_sample": 6912,
+    "t_s": 0.006912,
+    "statistic": 1.0717264273126887,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 28,
+    "start_sample": 7168,
+    "t_s": 0.007168,
+    "statistic": 0.9835995633257901,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 29,
+    "start_sample": 7424,
+    "t_s": 0.007424,
+    "statistic": 1.079992529155103,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 30,
+    "start_sample": 7680,
+    "t_s": 0.007679999999999999,
+    "statistic": 1.0326306871918316,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 31,
+    "start_sample": 7936,
+    "t_s": 0.007936,
+    "statistic": 0.8575968830779488,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 32,
+    "start_sample": 8192,
+    "t_s": 0.008192,
+    "statistic": 0.6593992798419916,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 33,
+    "start_sample": 8448,
+    "t_s": 0.008447999999999999,
+    "statistic": 0.7020730419268304,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 34,
+    "start_sample": 8704,
+    "t_s": 0.008704,
+    "statistic": 1.1150282272928747,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 0,
+    "overload": false
+   },
+   {
+    "frame_index": 35,
+    "start_sample": 8960,
+    "t_s": 0.00896,
+    "statistic": 1.115574458782199,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 0,
+    "overload": false
+   },
+   {
+    "frame_index": 36,
+    "start_sample": 9216,
+    "t_s": 0.009216,
+    "statistic": 1.0557875970650503,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 37,
+    "start_sample": 9472,
+    "t_s": 0.009472,
+    "statistic": 1.0627401157980338,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 38,
+    "start_sample": 9728,
+    "t_s": 0.009727999999999999,
+    "statistic": 0.7161845847299554,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 39,
+    "start_sample": 9984,
+    "t_s": 0.009984,
+    "statistic": 0.9240922123112556,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 40,
+    "start_sample": 10240,
+    "t_s": 0.010239999999999999,
+    "statistic": 0.7843953652037958,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 41,
+    "start_sample": 10496,
+    "t_s": 0.010496,
+    "statistic": 1.0752583172021863,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 42,
+    "start_sample": 10752,
+    "t_s": 0.010752,
+    "statistic": 1.0471601808547961,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 43,
+    "start_sample": 11008,
+    "t_s": 0.011007999999999999,
+    "statistic": 1.0676939471234368,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 44,
+    "start_sample": 11264,
+    "t_s": 0.011264,
+    "statistic": 0.662574060680193,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 45,
+    "start_sample": 11520,
+    "t_s": 0.011519999999999999,
+    "statistic": 0.6526791670545282,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 46,
+    "start_sample": 11776,
+    "t_s": 0.011776,
+    "statistic": 0.900420207737207,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 47,
+    "start_sample": 12032,
+    "t_s": 0.012032,
+    "statistic": 0.965341672592773,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 48,
+    "start_sample": 12288,
+    "t_s": 0.012288,
+    "statistic": 0.7857700376707455,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 49,
+    "start_sample": 12544,
+    "t_s": 0.012544,
+    "statistic": 0.6150258107020474,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 50,
+    "start_sample": 12800,
+    "t_s": 0.012799999999999999,
+    "statistic": 0.7755305693457173,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 51,
+    "start_sample": 13056,
+    "t_s": 0.013056,
+    "statistic": 0.9486557162316145,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 52,
+    "start_sample": 13312,
+    "t_s": 0.013312,
+    "statistic": 0.6057736892988357,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 53,
+    "start_sample": 13568,
+    "t_s": 0.013568,
+    "statistic": 0.7000342855393686,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 54,
+    "start_sample": 13824,
+    "t_s": 0.013824,
+    "statistic": 0.9465677219898354,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 55,
+    "start_sample": 14080,
+    "t_s": 0.014079999999999999,
+    "statistic": 0.659510425307352,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 56,
+    "start_sample": 14336,
+    "t_s": 0.014336,
+    "statistic": 1.140285134881077,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 1,
+    "overload": false
+   },
+   {
+    "frame_index": 57,
+    "start_sample": 14592,
+    "t_s": 0.014591999999999999,
+    "statistic": 1.0685428588964279,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 58,
+    "start_sample": 14848,
+    "t_s": 0.014848,
+    "statistic": 1.1168980304438734,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 1,
+    "overload": false
+   },
+   {
+    "frame_index": 59,
+    "start_sample": 15104,
+    "t_s": 0.015104,
+    "statistic": 1.0276056299202119,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 60,
+    "start_sample": 15360,
+    "t_s": 0.015359999999999999,
+    "statistic": 0.8317836265220377,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 61,
+    "start_sample": 15616,
+    "t_s": 0.015616,
+    "statistic": 1.0961829605311284,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 62,
+    "start_sample": 15872,
+    "t_s": 0.015872,
+    "statistic": 0.6075426505761448,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 63,
+    "start_sample": 16128,
+    "t_s": 0.016128,
+    "statistic": 0.8009176491575424,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 64,
+    "start_sample": 16384,
+    "t_s": 0.016384,
+    "statistic": 1.07506038402672,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 65,
+    "start_sample": 16640,
+    "t_s": 0.01664,
+    "statistic": 0.9321179118889135,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 66,
+    "start_sample": 16896,
+    "t_s": 0.016895999999999998,
+    "statistic": 1.0818385375812736,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 67,
+    "start_sample": 17152,
+    "t_s": 0.017152,
+    "statistic": 1.137982757036275,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 2,
+    "overload": false
+   },
+   {
+    "frame_index": 68,
+    "start_sample": 17408,
+    "t_s": 0.017408,
+    "statistic": 1.0588500129928229,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 69,
+    "start_sample": 17664,
+    "t_s": 0.017664,
+    "statistic": 0.7550688672396287,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 70,
+    "start_sample": 17920,
+    "t_s": 0.01792,
+    "statistic": 0.9774187285131423,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 71,
+    "start_sample": 18176,
+    "t_s": 0.018175999999999998,
+    "statistic": 0.6776114164745444,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 72,
+    "start_sample": 18432,
+    "t_s": 0.018432,
+    "statistic": 0.7539947030761661,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 73,
+    "start_sample": 18688,
+    "t_s": 0.018688,
+    "statistic": 0.8806703259787618,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 74,
+    "start_sample": 18944,
+    "t_s": 0.018944,
+    "statistic": 1.0467128751438781,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 75,
+    "start_sample": 19200,
+    "t_s": 0.0192,
+    "statistic": 0.9575857656947766,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 76,
+    "start_sample": 19456,
+    "t_s": 0.019455999999999998,
+    "statistic": 1.0052375996252134,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 77,
+    "start_sample": 19712,
+    "t_s": 0.019712,
+    "statistic": 0.927748899694465,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 78,
+    "start_sample": 19968,
+    "t_s": 0.019968,
+    "statistic": 1.2650880126167032,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 79,
+    "start_sample": 20224,
+    "t_s": 0.020224,
+    "statistic": 1.2675166875290302,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 80,
+    "start_sample": 20480,
+    "t_s": 0.020479999999999998,
+    "statistic": 1.6621280230665967,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 81,
+    "start_sample": 20736,
+    "t_s": 0.020735999999999997,
+    "statistic": 1.653643341223881,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 82,
+    "start_sample": 20992,
+    "t_s": 0.020992,
+    "statistic": 1.47093354740996,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 83,
+    "start_sample": 21248,
+    "t_s": 0.021248,
+    "statistic": 1.5160981700433425,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 84,
+    "start_sample": 21504,
+    "t_s": 0.021504,
+    "statistic": 1.3387041954271306,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 85,
+    "start_sample": 21760,
+    "t_s": 0.021759999999999998,
+    "statistic": 1.3798289869287064,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 86,
+    "start_sample": 22016,
+    "t_s": 0.022015999999999997,
+    "statistic": 1.3484055357581957,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 87,
+    "start_sample": 22272,
+    "t_s": 0.022272,
+    "statistic": 1.781129744588577,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 88,
+    "start_sample": 22528,
+    "t_s": 0.022528,
+    "statistic": 1.3207482730311817,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 89,
+    "start_sample": 22784,
+    "t_s": 0.022784,
+    "statistic": 1.5316677334406328,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 90,
+    "start_sample": 23040,
+    "t_s": 0.023039999999999998,
+    "statistic": 1.7558693843126736,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 91,
+    "start_sample": 23296,
+    "t_s": 0.023295999999999997,
+    "statistic": 1.2038065394176134,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 92,
+    "start_sample": 23552,
+    "t_s": 0.023552,
+    "statistic": 1.4241838303309644,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 93,
+    "start_sample": 23808,
+    "t_s": 0.023808,
+    "statistic": 1.5989406976513032,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 94,
+    "start_sample": 24064,
+    "t_s": 0.024064,
+    "statistic": 1.3425973350462488,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 95,
+    "start_sample": 24320,
+    "t_s": 0.024319999999999998,
+    "statistic": 1.0044940233860877,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 96,
+    "start_sample": 24576,
+    "t_s": 0.024576,
+    "statistic": 1.4029689303128678,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 97,
+    "start_sample": 24832,
+    "t_s": 0.024832,
+    "statistic": 1.1039564420136811,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 98,
+    "start_sample": 25088,
+    "t_s": 0.025088,
+    "statistic": 1.7257277129452446,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 99,
+    "start_sample": 25344,
+    "t_s": 0.025344,
+    "statistic": 1.495205280785048,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 100,
+    "start_sample": 25600,
+    "t_s": 0.025599999999999998,
+    "statistic": 1.6962662370736359,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": true
+   },
+   {
+    "frame_index": 101,
+    "start_sample": 25856,
+    "t_s": 0.025856,
+    "statistic": 1.1779818341071693,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": true
+   },
+   {
+    "frame_index": 102,
+    "start_sample": 26112,
+    "t_s": 0.026112,
+    "statistic": 1.26893879871463,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": true
+   },
+   {
+    "frame_index": 103,
+    "start_sample": 26368,
+    "t_s": 0.026368,
+    "statistic": 1.6613406287631465,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": true
+   },
+   {
+    "frame_index": 104,
+    "start_sample": 26624,
+    "t_s": 0.026624,
+    "statistic": 1.6477796509395581,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": true
+   },
+   {
+    "frame_index": 105,
+    "start_sample": 26880,
+    "t_s": 0.026879999999999998,
+    "statistic": 1.4009350268073963,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": true
+   },
+   {
+    "frame_index": 106,
+    "start_sample": 27136,
+    "t_s": 0.027136,
+    "statistic": 1.4717654813972871,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 107,
+    "start_sample": 27392,
+    "t_s": 0.027392,
+    "statistic": 1.5946542330856581,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 108,
+    "start_sample": 27648,
+    "t_s": 0.027648,
+    "statistic": 1.6209134028588834,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 109,
+    "start_sample": 27904,
+    "t_s": 0.027903999999999998,
+    "statistic": 1.613721733906874,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 110,
+    "start_sample": 28160,
+    "t_s": 0.028159999999999998,
+    "statistic": 1.4528687401004599,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 111,
+    "start_sample": 28416,
+    "t_s": 0.028416,
+    "statistic": 1.7269466349369411,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 112,
+    "start_sample": 28672,
+    "t_s": 0.028672,
+    "statistic": 1.6276373200305327,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 113,
+    "start_sample": 28928,
+    "t_s": 0.028928,
+    "statistic": 1.605820741253385,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 114,
+    "start_sample": 29184,
+    "t_s": 0.029183999999999998,
+    "statistic": 1.3049359384599526,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 115,
+    "start_sample": 29440,
+    "t_s": 0.029439999999999997,
+    "statistic": 1.280941379991304,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 116,
+    "start_sample": 29696,
+    "t_s": 0.029696,
+    "statistic": 1.5273173494535508,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 117,
+    "start_sample": 29952,
+    "t_s": 0.029952,
+    "statistic": 1.7422775463083005,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 118,
+    "start_sample": 30208,
+    "t_s": 0.030208,
+    "statistic": 1.6634858491502706,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 119,
+    "start_sample": 30464,
+    "t_s": 0.030463999999999998,
+    "statistic": 1.0463067470093046,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 120,
+    "start_sample": 30720,
+    "t_s": 0.030719999999999997,
+    "statistic": 1.7120230188409455,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 121,
+    "start_sample": 30976,
+    "t_s": 0.030976,
+    "statistic": 1.2212435205648329,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 122,
+    "start_sample": 31232,
+    "t_s": 0.031232,
+    "statistic": 1.191242444141082,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 123,
+    "start_sample": 31488,
+    "t_s": 0.031487999999999995,
+    "statistic": 1.4662866466648299,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 124,
+    "start_sample": 31744,
+    "t_s": 0.031744,
+    "statistic": 1.3310655807118845,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 125,
+    "start_sample": 32000,
+    "t_s": 0.032,
+    "statistic": 1.4947129885459929,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 126,
+    "start_sample": 32256,
+    "t_s": 0.032256,
+    "statistic": 1.7773749171812199,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 127,
+    "start_sample": 32512,
+    "t_s": 0.032512,
+    "statistic": 1.379814037937177,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 128,
+    "start_sample": 32768,
+    "t_s": 0.032768,
+    "statistic": 1.5488340541876675,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 129,
+    "start_sample": 33024,
+    "t_s": 0.033024,
+    "statistic": 1.5404220270913838,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 130,
+    "start_sample": 33280,
+    "t_s": 0.03328,
+    "statistic": 1.64254588698007,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 131,
+    "start_sample": 33536,
+    "t_s": 0.033535999999999996,
+    "statistic": 1.720724673376951,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 132,
+    "start_sample": 33792,
+    "t_s": 0.033791999999999996,
+    "statistic": 1.6298499662140422,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 133,
+    "start_sample": 34048,
+    "t_s": 0.034048,
+    "statistic": 1.3643783778384249,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 134,
+    "start_sample": 34304,
+    "t_s": 0.034304,
+    "statistic": 1.3937954847870508,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 135,
+    "start_sample": 34560,
+    "t_s": 0.03456,
+    "statistic": 1.6031636616050964,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 136,
+    "start_sample": 34816,
+    "t_s": 0.034816,
+    "statistic": 1.2697392455571708,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 137,
+    "start_sample": 35072,
+    "t_s": 0.035072,
+    "statistic": 1.207225915460963,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 138,
+    "start_sample": 35328,
+    "t_s": 0.035328,
+    "statistic": 1.4416920889880762,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 139,
+    "start_sample": 35584,
+    "t_s": 0.035584,
+    "statistic": 1.6725616766148699,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 140,
+    "start_sample": 35840,
+    "t_s": 0.03584,
+    "statistic": 1.5482416352200374,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 141,
+    "start_sample": 36096,
+    "t_s": 0.036095999999999996,
+    "statistic": 1.6364450912082051,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 142,
+    "start_sample": 36352,
+    "t_s": 0.036351999999999995,
+    "statistic": 1.148476699119486,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 143,
+    "start_sample": 36608,
+    "t_s": 0.036608,
+    "statistic": 1.2998155496692827,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 144,
+    "start_sample": 36864,
+    "t_s": 0.036864,
+    "statistic": 1.2010954570853503,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 145,
+    "start_sample": 37120,
+    "t_s": 0.03712,
+    "statistic": 1.6733762665357261,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 146,
+    "start_sample": 37376,
+    "t_s": 0.037376,
+    "statistic": 1.795649027697218,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 147,
+    "start_sample": 37632,
+    "t_s": 0.037632,
+    "statistic": 1.362775716480799,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 148,
+    "start_sample": 37888,
+    "t_s": 0.037888,
+    "statistic": 1.405780907490965,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 149,
+    "start_sample": 38144,
+    "t_s": 0.038144,
+    "statistic": 1.426603034270164,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 150,
+    "start_sample": 38400,
+    "t_s": 0.0384,
+    "statistic": 1.4643660185709253,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 151,
+    "start_sample": 38656,
+    "t_s": 0.038655999999999996,
+    "statistic": 1.2751112460564227,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 152,
+    "start_sample": 38912,
+    "t_s": 0.038911999999999995,
+    "statistic": 1.427077885544019,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 153,
+    "start_sample": 39168,
+    "t_s": 0.039168,
+    "statistic": 1.220078461844968,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 154,
+    "start_sample": 39424,
+    "t_s": 0.039424,
+    "statistic": 1.4020230036800798,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 155,
+    "start_sample": 39680,
+    "t_s": 0.03968,
+    "statistic": 1.5193195009804876,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 156,
+    "start_sample": 39936,
+    "t_s": 0.039936,
+    "statistic": 1.0546653723262533,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 157,
+    "start_sample": 40192,
+    "t_s": 0.040192,
+    "statistic": 1.7309946829951999,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 158,
+    "start_sample": 40448,
+    "t_s": 0.040448,
+    "statistic": 1.6938873959148875,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 159,
+    "start_sample": 40704,
+    "t_s": 0.040704,
+    "statistic": 1.2524253785545962,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 160,
+    "start_sample": 40960,
+    "t_s": 0.040959999999999996,
+    "statistic": 1.553203078500593,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 161,
+    "start_sample": 41216,
+    "t_s": 0.041215999999999996,
+    "statistic": 1.0123449454546014,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 162,
+    "start_sample": 41472,
+    "t_s": 0.041471999999999995,
+    "statistic": 1.148202269279587,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 163,
+    "start_sample": 41728,
+    "t_s": 0.041728,
+    "statistic": 1.5386559958977042,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 164,
+    "start_sample": 41984,
+    "t_s": 0.041984,
+    "statistic": 1.1704934639401365,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 165,
+    "start_sample": 42240,
+    "t_s": 0.04224,
+    "statistic": 1.5374921780499529,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 166,
+    "start_sample": 42496,
+    "t_s": 0.042496,
+    "statistic": 1.3031787560077612,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 167,
+    "start_sample": 42752,
+    "t_s": 0.042752,
+    "statistic": 1.262511096985227,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 168,
+    "start_sample": 43008,
+    "t_s": 0.043008,
+    "statistic": 1.5943248909674117,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 169,
+    "start_sample": 43264,
+    "t_s": 0.043264,
+    "statistic": 1.4996517895969914,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 170,
+    "start_sample": 43520,
+    "t_s": 0.043519999999999996,
+    "statistic": 1.51044097345019,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 171,
+    "start_sample": 43776,
+    "t_s": 0.043775999999999995,
+    "statistic": 1.027703420996672,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 172,
+    "start_sample": 44032,
+    "t_s": 0.044031999999999995,
+    "statistic": 1.2199334145837755,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 173,
+    "start_sample": 44288,
+    "t_s": 0.044288,
+    "statistic": 1.0506763035500852,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 174,
+    "start_sample": 44544,
+    "t_s": 0.044544,
+    "statistic": 1.7918916370004556,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 175,
+    "start_sample": 44800,
+    "t_s": 0.0448,
+    "statistic": 1.3665165321496673,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 176,
+    "start_sample": 45056,
+    "t_s": 0.045056,
+    "statistic": 1.1028780511564844,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 177,
+    "start_sample": 45312,
+    "t_s": 0.045312,
+    "statistic": 1.2270883102227224,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 178,
+    "start_sample": 45568,
+    "t_s": 0.045568,
+    "statistic": 1.7735710568357188,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 179,
+    "start_sample": 45824,
+    "t_s": 0.045824,
+    "statistic": 1.5422096719469622,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 180,
+    "start_sample": 46080,
+    "t_s": 0.046079999999999996,
+    "statistic": 1.5707020661427236,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 181,
+    "start_sample": 46336,
+    "t_s": 0.046335999999999995,
+    "statistic": 1.790092599854396,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 182,
+    "start_sample": 46592,
+    "t_s": 0.046591999999999995,
+    "statistic": 1.6253310854326228,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 183,
+    "start_sample": 46848,
+    "t_s": 0.046848,
+    "statistic": 1.2626294842583503,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 184,
+    "start_sample": 47104,
+    "t_s": 0.047104,
+    "statistic": 1.2180657784354672,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 185,
+    "start_sample": 47360,
+    "t_s": 0.04736,
+    "statistic": 1.5582118603535602,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 186,
+    "start_sample": 47616,
+    "t_s": 0.047616,
+    "statistic": 1.0734810637783756,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 187,
+    "start_sample": 47872,
+    "t_s": 0.047872,
+    "statistic": 1.7537669102805267,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 188,
+    "start_sample": 48128,
+    "t_s": 0.048128,
+    "statistic": 1.3219840808339995,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 189,
+    "start_sample": 48384,
+    "t_s": 0.048383999999999996,
+    "statistic": 1.1362380972744712,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 190,
+    "start_sample": 48640,
+    "t_s": 0.048639999999999996,
+    "statistic": 1.409765211366594,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 191,
+    "start_sample": 48896,
+    "t_s": 0.048895999999999995,
+    "statistic": 1.322651794030566,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 192,
+    "start_sample": 49152,
+    "t_s": 0.049152,
+    "statistic": 1.3407866862725977,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 193,
+    "start_sample": 49408,
+    "t_s": 0.049408,
+    "statistic": 1.799022179119687,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 194,
+    "start_sample": 49664,
+    "t_s": 0.049664,
+    "statistic": 1.1409354621484455,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 3,
+    "overload": false
+   },
+   {
+    "frame_index": 195,
+    "start_sample": 49920,
+    "t_s": 0.04992,
+    "statistic": 0.7855515980482328,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 196,
+    "start_sample": 50176,
+    "t_s": 0.050176,
+    "statistic": 0.9934525592415896,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 197,
+    "start_sample": 50432,
+    "t_s": 0.050432,
+    "statistic": 1.0389158765655802,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 198,
+    "start_sample": 50688,
+    "t_s": 0.050688,
+    "statistic": 0.7703664673179001,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 199,
+    "start_sample": 50944,
+    "t_s": 0.050943999999999996,
+    "statistic": 0.7803264163629036,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 200,
+    "start_sample": 51200,
+    "t_s": 0.051199999999999996,
+    "statistic": 1.046419422551717,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 201,
+    "start_sample": 51456,
+    "t_s": 0.051455999999999995,
+    "statistic": 0.6427186609165823,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 202,
+    "start_sample": 51712,
+    "t_s": 0.051712,
+    "statistic": 0.6139379219282989,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 203,
+    "start_sample": 51968,
+    "t_s": 0.051968,
+    "statistic": 0.6353074714192369,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 204,
+    "start_sample": 52224,
+    "t_s": 0.052224,
+    "statistic": 0.6405269683640331,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 205,
+    "start_sample": 52480,
+    "t_s": 0.05248,
+    "statistic": 0.639366272627338,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 206,
+    "start_sample": 52736,
+    "t_s": 0.052736,
+    "statistic": 0.9526248846991106,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 207,
+    "start_sample": 52992,
+    "t_s": 0.052992,
+    "statistic": 0.6494742493318866,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 208,
+    "start_sample": 53248,
+    "t_s": 0.053248,
+    "statistic": 1.0453565184622977,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 209,
+    "start_sample": 53504,
+    "t_s": 0.053503999999999996,
+    "statistic": 0.902426733168284,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 210,
+    "start_sample": 53760,
+    "t_s": 0.053759999999999995,
+    "statistic": 1.1106126287911096,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 4,
+    "overload": false
+   },
+   {
+    "frame_index": 211,
+    "start_sample": 54016,
+    "t_s": 0.054015999999999995,
+    "statistic": 0.8482069087623291,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 212,
+    "start_sample": 54272,
+    "t_s": 0.054272,
+    "statistic": 0.916710699582457,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 213,
+    "start_sample": 54528,
+    "t_s": 0.054528,
+    "statistic": 0.8926089538644169,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 214,
+    "start_sample": 54784,
+    "t_s": 0.054784,
+    "statistic": 1.0123038699357747,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 215,
+    "start_sample": 55040,
+    "t_s": 0.05504,
+    "statistic": 0.9576845090746724,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 216,
+    "start_sample": 55296,
+    "t_s": 0.055296,
+    "statistic": 1.101146083673862,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 5,
+    "overload": false
+   },
+   {
+    "frame_index": 217,
+    "start_sample": 55552,
+    "t_s": 0.055552,
+    "statistic": 1.118356823608011,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 5,
+    "overload": false
+   },
+   {
+    "frame_index": 218,
+    "start_sample": 55808,
+    "t_s": 0.055807999999999996,
+    "statistic": 0.6864121153818852,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 219,
+    "start_sample": 56064,
+    "t_s": 0.056063999999999996,
+    "statistic": 1.0507962602094176,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 220,
+    "start_sample": 56320,
+    "t_s": 0.056319999999999995,
+    "statistic": 0.9002054477140409,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 221,
+    "start_sample": 56576,
+    "t_s": 0.056575999999999994,
+    "statistic": 1.0199986079316854,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 222,
+    "start_sample": 56832,
+    "t_s": 0.056832,
+    "statistic": 0.9076365335334611,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 223,
+    "start_sample": 57088,
+    "t_s": 0.057088,
+    "statistic": 0.629086603444327,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 224,
+    "start_sample": 57344,
+    "t_s": 0.057344,
+    "statistic": 1.0549843521645197,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 225,
+    "start_sample": 57600,
+    "t_s": 0.0576,
+    "statistic": 0.8334683121613347,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 226,
+    "start_sample": 57856,
+    "t_s": 0.057856,
+    "statistic": 0.8856637597601695,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 227,
+    "start_sample": 58112,
+    "t_s": 0.058112,
+    "statistic": 0.8402652518541581,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 228,
+    "start_sample": 58368,
+    "t_s": 0.058367999999999996,
+    "statistic": 0.6004014820489302,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 229,
+    "start_sample": 58624,
+    "t_s": 0.058623999999999996,
+    "statistic": 1.0459875077415246,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 230,
+    "start_sample": 58880,
+    "t_s": 0.058879999999999995,
+    "statistic": 0.6721204703933831,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 231,
+    "start_sample": 59136,
+    "t_s": 0.059135999999999994,
+    "statistic": 0.8810241670069971,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 232,
+    "start_sample": 59392,
+    "t_s": 0.059392,
+    "statistic": 0.6659570300507571,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 233,
+    "start_sample": 59648,
+    "t_s": 0.059648,
+    "statistic": 1.0967589670716265,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 234,
+    "start_sample": 59904,
+    "t_s": 0.059904,
+    "statistic": 1.4652609159665113,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 235,
+    "start_sample": 60160,
+    "t_s": 0.06016,
+    "statistic": 1.286272756563376,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 236,
+    "start_sample": 60416,
+    "t_s": 0.060416,
+    "statistic": 1.4626218201392374,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 237,
+    "start_sample": 60672,
+    "t_s": 0.060672,
+    "statistic": 1.2193699721883529,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 238,
+    "start_sample": 60928,
+    "t_s": 0.060927999999999996,
+    "statistic": 1.727192315517019,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 239,
+    "start_sample": 61184,
+    "t_s": 0.061183999999999995,
+    "statistic": 1.28944639063506,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 240,
+    "start_sample": 61440,
+    "t_s": 0.061439999999999995,
+    "statistic": 1.1309555174175931,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 241,
+    "start_sample": 61696,
+    "t_s": 0.061695999999999994,
+    "statistic": 1.433855972638013,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 242,
+    "start_sample": 61952,
+    "t_s": 0.061952,
+    "statistic": 1.1384340653083067,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 243,
+    "start_sample": 62208,
+    "t_s": 0.062208,
+    "statistic": 1.6731176707692,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 244,
+    "start_sample": 62464,
+    "t_s": 0.062464,
+    "statistic": 1.1431424974526303,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 245,
+    "start_sample": 62720,
+    "t_s": 0.06272,
+    "statistic": 1.7726269462362918,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 246,
+    "start_sample": 62976,
+    "t_s": 0.06297599999999999,
+    "statistic": 1.2152871926965196,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 247,
+    "start_sample": 63232,
+    "t_s": 0.063232,
+    "statistic": 1.36855899478606,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 248,
+    "start_sample": 63488,
+    "t_s": 0.063488,
+    "statistic": 1.4644918400449598,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 249,
+    "start_sample": 63744,
+    "t_s": 0.063744,
+    "statistic": 1.5757400716032652,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 6,
+    "overload": false
+   },
+   {
+    "frame_index": 250,
+    "start_sample": 64000,
+    "t_s": 0.064,
+    "statistic": 1.0647786062046711,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 251,
+    "start_sample": 64256,
+    "t_s": 0.064256,
+    "statistic": 0.9311519202702363,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 252,
+    "start_sample": 64512,
+    "t_s": 0.064512,
+    "statistic": 0.9200558603184255,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 253,
+    "start_sample": 64768,
+    "t_s": 0.06476799999999999,
+    "statistic": 1.0384417382778874,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 254,
+    "start_sample": 65024,
+    "t_s": 0.065024,
+    "statistic": 0.7432421055420605,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 255,
+    "start_sample": 65280,
+    "t_s": 0.06527999999999999,
+    "statistic": 0.7621023765427097,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 256,
+    "start_sample": 65536,
+    "t_s": 0.065536,
+    "statistic": 0.8550364677800655,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 257,
+    "start_sample": 65792,
+    "t_s": 0.065792,
+    "statistic": 0.6593166987844502,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 258,
+    "start_sample": 66048,
+    "t_s": 0.066048,
+    "statistic": 1.0344280174230505,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 259,
+    "start_sample": 66304,
+    "t_s": 0.066304,
+    "statistic": 0.9071715054988918,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 260,
+    "start_sample": 66560,
+    "t_s": 0.06656,
+    "statistic": 0.9140826175783681,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 261,
+    "start_sample": 66816,
+    "t_s": 0.066816,
+    "statistic": 0.7180311436093559,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 262,
+    "start_sample": 67072,
+    "t_s": 0.06707199999999999,
+    "statistic": 1.1199244504954184,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 7,
+    "overload": false
+   },
+   {
+    "frame_index": 263,
+    "start_sample": 67328,
+    "t_s": 0.067328,
+    "statistic": 0.7598257192687975,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 264,
+    "start_sample": 67584,
+    "t_s": 0.06758399999999999,
+    "statistic": 1.1362774760197254,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 7,
+    "overload": false
+   },
+   {
+    "frame_index": 265,
+    "start_sample": 67840,
+    "t_s": 0.06784,
+    "statistic": 0.7864836633064417,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 266,
+    "start_sample": 68096,
+    "t_s": 0.068096,
+    "statistic": 1.076791058495893,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 267,
+    "start_sample": 68352,
+    "t_s": 0.068352,
+    "statistic": 1.1152204445119738,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 7,
+    "overload": false
+   },
+   {
+    "frame_index": 268,
+    "start_sample": 68608,
+    "t_s": 0.068608,
+    "statistic": 0.8770009660470895,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 269,
+    "start_sample": 68864,
+    "t_s": 0.068864,
+    "statistic": 0.6379117880644445,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 270,
+    "start_sample": 69120,
+    "t_s": 0.06912,
+    "statistic": 0.6876961394074965,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 271,
+    "start_sample": 69376,
+    "t_s": 0.069376,
+    "statistic": 0.8546397076250354,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 272,
+    "start_sample": 69632,
+    "t_s": 0.069632,
+    "statistic": 0.65364698910395,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 273,
+    "start_sample": 69888,
+    "t_s": 0.06988799999999999,
+    "statistic": 0.8185472531538969,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 274,
+    "start_sample": 70144,
+    "t_s": 0.070144,
+    "statistic": 0.6417215768834394,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 275,
+    "start_sample": 70400,
+    "t_s": 0.07039999999999999,
+    "statistic": 0.8410474324470474,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 276,
+    "start_sample": 70656,
+    "t_s": 0.070656,
+    "statistic": 0.6068657634552111,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 277,
+    "start_sample": 70912,
+    "t_s": 0.070912,
+    "statistic": 0.9740452958516194,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 278,
+    "start_sample": 71168,
+    "t_s": 0.071168,
+    "statistic": 0.8215799040972426,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 279,
+    "start_sample": 71424,
+    "t_s": 0.071424,
+    "statistic": 0.9090359216818545,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 280,
+    "start_sample": 71680,
+    "t_s": 0.07168,
+    "statistic": 0.9237888733439581,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 281,
+    "start_sample": 71936,
+    "t_s": 0.071936,
+    "statistic": 1.0787981062015923,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 282,
+    "start_sample": 72192,
+    "t_s": 0.07219199999999999,
+    "statistic": 1.3275253824765052,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 283,
+    "start_sample": 72448,
+    "t_s": 0.072448,
+    "statistic": 1.0012862678449395,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 284,
+    "start_sample": 72704,
+    "t_s": 0.07270399999999999,
+    "statistic": 1.2297317777807941,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 285,
+    "start_sample": 72960,
+    "t_s": 0.07296,
+    "statistic": 1.3255137691070993,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 286,
+    "start_sample": 73216,
+    "t_s": 0.073216,
+    "statistic": 1.0181436047105081,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 287,
+    "start_sample": 73472,
+    "t_s": 0.073472,
+    "statistic": 1.6238123063183791,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 288,
+    "start_sample": 73728,
+    "t_s": 0.073728,
+    "statistic": 1.2286988796177516,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 289,
+    "start_sample": 73984,
+    "t_s": 0.073984,
+    "statistic": 1.1544832075314722,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 290,
+    "start_sample": 74240,
+    "t_s": 0.07424,
+    "statistic": 1.6785249920054408,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 291,
+    "start_sample": 74496,
+    "t_s": 0.07449599999999999,
+    "statistic": 1.2810888647013436,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 292,
+    "start_sample": 74752,
+    "t_s": 0.074752,
+    "statistic": 1.5556917243527302,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 293,
+    "start_sample": 75008,
+    "t_s": 0.07500799999999999,
+    "statistic": 1.6750544514051113,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 294,
+    "start_sample": 75264,
+    "t_s": 0.075264,
+    "statistic": 1.4444479806145938,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 295,
+    "start_sample": 75520,
+    "t_s": 0.07551999999999999,
+    "statistic": 1.3598132892054458,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 296,
+    "start_sample": 75776,
+    "t_s": 0.075776,
+    "statistic": 1.7687942457762573,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 8,
+    "overload": false
+   },
+   {
+    "frame_index": 297,
+    "start_sample": 76032,
+    "t_s": 0.076032,
+    "statistic": 0.835937307126992,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 298,
+    "start_sample": 76288,
+    "t_s": 0.076288,
+    "statistic": 0.6294255801205387,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 299,
+    "start_sample": 76544,
+    "t_s": 0.076544,
+    "statistic": 0.609712544346575,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 300,
+    "start_sample": 76800,
+    "t_s": 0.0768,
+    "statistic": 1.0756486388725053,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 301,
+    "start_sample": 77056,
+    "t_s": 0.077056,
+    "statistic": 0.7801735848576024,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 302,
+    "start_sample": 77312,
+    "t_s": 0.07731199999999999,
+    "statistic": 0.6169780692566348,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 303,
+    "start_sample": 77568,
+    "t_s": 0.077568,
+    "statistic": 0.8355548395814529,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 304,
+    "start_sample": 77824,
+    "t_s": 0.07782399999999999,
+    "statistic": 0.967775160294557,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 305,
+    "start_sample": 78080,
+    "t_s": 0.07808,
+    "statistic": 0.7093234103069084,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 306,
+    "start_sample": 78336,
+    "t_s": 0.078336,
+    "statistic": 0.6349943867386572,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 307,
+    "start_sample": 78592,
+    "t_s": 0.078592,
+    "statistic": 0.6138615110720791,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 308,
+    "start_sample": 78848,
+    "t_s": 0.078848,
+    "statistic": 0.9995377315242641,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 309,
+    "start_sample": 79104,
+    "t_s": 0.079104,
+    "statistic": 0.7932578175889329,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 310,
+    "start_sample": 79360,
+    "t_s": 0.07936,
+    "statistic": 0.9116173312215132,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 311,
+    "start_sample": 79616,
+    "t_s": 0.07961599999999999,
+    "statistic": 0.9374883621197201,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 312,
+    "start_sample": 79872,
+    "t_s": 0.079872,
+    "statistic": 0.6626248713375615,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 313,
+    "start_sample": 80128,
+    "t_s": 0.08012799999999999,
+    "statistic": 0.9825309053397348,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 314,
+    "start_sample": 80384,
+    "t_s": 0.080384,
+    "statistic": 0.9672333065593084,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 315,
+    "start_sample": 80640,
+    "t_s": 0.08063999999999999,
+    "statistic": 1.127552443260059,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 9,
+    "overload": false
+   },
+   {
+    "frame_index": 316,
+    "start_sample": 80896,
+    "t_s": 0.080896,
+    "statistic": 1.0060383262587587,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 317,
+    "start_sample": 81152,
+    "t_s": 0.081152,
+    "statistic": 0.6930892353795152,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 318,
+    "start_sample": 81408,
+    "t_s": 0.081408,
+    "statistic": 0.6784802151245075,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 319,
+    "start_sample": 81664,
+    "t_s": 0.081664,
+    "statistic": 1.1041189671187714,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 10,
+    "overload": false
+   },
+   {
+    "frame_index": 320,
+    "start_sample": 81920,
+    "t_s": 0.08191999999999999,
+    "statistic": 1.033937255629426,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 321,
+    "start_sample": 82176,
+    "t_s": 0.082176,
+    "statistic": 1.1061982559126378,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 10,
+    "overload": false
+   },
+   {
+    "frame_index": 322,
+    "start_sample": 82432,
+    "t_s": 0.08243199999999999,
+    "statistic": 0.7861750597503842,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 323,
+    "start_sample": 82688,
+    "t_s": 0.082688,
+    "statistic": 0.8468790560567717,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 324,
+    "start_sample": 82944,
+    "t_s": 0.08294399999999999,
+    "statistic": 0.662707951936656,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 325,
+    "start_sample": 83200,
+    "t_s": 0.0832,
+    "statistic": 1.0206577593592119,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 326,
+    "start_sample": 83456,
+    "t_s": 0.083456,
+    "statistic": 0.9402580822253959,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 327,
+    "start_sample": 83712,
+    "t_s": 0.083712,
+    "statistic": 1.1023627447231135,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 328,
+    "start_sample": 83968,
+    "t_s": 0.083968,
+    "statistic": 1.57914209334623,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 329,
+    "start_sample": 84224,
+    "t_s": 0.084224,
+    "statistic": 1.4892840676122732,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 330,
+    "start_sample": 84480,
+    "t_s": 0.08448,
+    "statistic": 1.6456916429630666,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 331,
+    "start_sample": 84736,
+    "t_s": 0.08473599999999999,
+    "statistic": 1.4265069577711982,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 332,
+    "start_sample": 84992,
+    "t_s": 0.084992,
+    "statistic": 1.4529237243682003,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 333,
+    "start_sample": 85248,
+    "t_s": 0.08524799999999999,
+    "statistic": 1.489652651611595,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 334,
+    "start_sample": 85504,
+    "t_s": 0.085504,
+    "statistic": 1.2485607008460389,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 335,
+    "start_sample": 85760,
+    "t_s": 0.08576,
+    "statistic": 1.3863937634165064,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 336,
+    "start_sample": 86016,
+    "t_s": 0.086016,
+    "statistic": 1.460537803605319,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 337,
+    "start_sample": 86272,
+    "t_s": 0.086272,
+    "statistic": 1.3026764849004495,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 338,
+    "start_sample": 86528,
+    "t_s": 0.086528,
+    "statistic": 1.4505511668788376,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 339,
+    "start_sample": 86784,
+    "t_s": 0.086784,
+    "statistic": 1.5330671475425508,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 340,
+    "start_sample": 87040,
+    "t_s": 0.08703999999999999,
+    "statistic": 1.7166809176867446,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 341,
+    "start_sample": 87296,
+    "t_s": 0.087296,
+    "statistic": 1.2830190533889778,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 342,
+    "start_sample": 87552,
+    "t_s": 0.08755199999999999,
+    "statistic": 1.135604565664691,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 343,
+    "start_sample": 87808,
+    "t_s": 0.087808,
+    "statistic": 1.4463310796857383,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 344,
+    "start_sample": 88064,
+    "t_s": 0.08806399999999999,
+    "statistic": 1.0603966999646517,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 345,
+    "start_sample": 88320,
+    "t_s": 0.08832,
+    "statistic": 0.9725015038397324,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 346,
+    "start_sample": 88576,
+    "t_s": 0.088576,
+    "statistic": 1.1427483205932711,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 11,
+    "overload": false
+   },
+   {
+    "frame_index": 347,
+    "start_sample": 88832,
+    "t_s": 0.088832,
+    "statistic": 0.6878239701472302,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 348,
+    "start_sample": 89088,
+    "t_s": 0.089088,
+    "statistic": 0.6320043404051809,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 349,
+    "start_sample": 89344,
+    "t_s": 0.08934399999999999,
+    "statistic": 0.805434842720418,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 350,
+    "start_sample": 89600,
+    "t_s": 0.0896,
+    "statistic": 1.0478165206115746,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 351,
+    "start_sample": 89856,
+    "t_s": 0.08985599999999999,
+    "statistic": 0.9388080830625862,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 352,
+    "start_sample": 90112,
+    "t_s": 0.090112,
+    "statistic": 0.7474248347366464,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 353,
+    "start_sample": 90368,
+    "t_s": 0.09036799999999999,
+    "statistic": 1.0583785460561288,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 354,
+    "start_sample": 90624,
+    "t_s": 0.090624,
+    "statistic": 1.0434140935759306,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 355,
+    "start_sample": 90880,
+    "t_s": 0.09088,
+    "statistic": 0.9716501706789201,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 356,
+    "start_sample": 91136,
+    "t_s": 0.091136,
+    "statistic": 0.9306187849121836,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 357,
+    "start_sample": 91392,
+    "t_s": 0.091392,
+    "statistic": 1.0276605347910837,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 358,
+    "start_sample": 91648,
+    "t_s": 0.091648,
+    "statistic": 0.6848596744193258,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 359,
+    "start_sample": 91904,
+    "t_s": 0.091904,
+    "statistic": 0.7509306819282784,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 360,
+    "start_sample": 92160,
+    "t_s": 0.09215999999999999,
+    "statistic": 1.0597455474549062,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 361,
+    "start_sample": 92416,
+    "t_s": 0.092416,
+    "statistic": 0.6068366600253473,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 362,
+    "start_sample": 92672,
+    "t_s": 0.09267199999999999,
+    "statistic": 1.1396233322208087,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 12,
+    "overload": false
+   },
+   {
+    "frame_index": 363,
+    "start_sample": 92928,
+    "t_s": 0.092928,
+    "statistic": 1.0361830373972771,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 364,
+    "start_sample": 93184,
+    "t_s": 0.09318399999999999,
+    "statistic": 0.6788902362990696,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 365,
+    "start_sample": 93440,
+    "t_s": 0.09344,
+    "statistic": 0.9348485831462594,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 366,
+    "start_sample": 93696,
+    "t_s": 0.093696,
+    "statistic": 0.7228646396352338,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 367,
+    "start_sample": 93952,
+    "t_s": 0.093952,
+    "statistic": 0.7948249954412798,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 368,
+    "start_sample": 94208,
+    "t_s": 0.094208,
+    "statistic": 1.06328081063097,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 369,
+    "start_sample": 94464,
+    "t_s": 0.09446399999999999,
+    "statistic": 0.9644586356191726,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 370,
+    "start_sample": 94720,
+    "t_s": 0.09472,
+    "statistic": 0.7022507988945925,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 371,
+    "start_sample": 94976,
+    "t_s": 0.09497599999999999,
+    "statistic": 0.7389083072195046,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 372,
+    "start_sample": 95232,
+    "t_s": 0.095232,
+    "statistic": 1.1075244543778404,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 373,
+    "start_sample": 95488,
+    "t_s": 0.09548799999999999,
+    "statistic": 1.1462403477025687,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 374,
+    "start_sample": 95744,
+    "t_s": 0.095744,
+    "statistic": 1.0677247049286853,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 375,
+    "start_sample": 96000,
+    "t_s": 0.096,
+    "statistic": 1.7263119808712126,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 376,
+    "start_sample": 96256,
+    "t_s": 0.096256,
+    "statistic": 1.2991158729177368,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 377,
+    "start_sample": 96512,
+    "t_s": 0.096512,
+    "statistic": 1.3956391649978857,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 378,
+    "start_sample": 96768,
+    "t_s": 0.09676799999999999,
+    "statistic": 1.6783772073080594,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 379,
+    "start_sample": 97024,
+    "t_s": 0.097024,
+    "statistic": 1.247030581123891,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 380,
+    "start_sample": 97280,
+    "t_s": 0.09727999999999999,
+    "statistic": 1.0826369405509355,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 381,
+    "start_sample": 97536,
+    "t_s": 0.097536,
+    "statistic": 1.496204003886777,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 382,
+    "start_sample": 97792,
+    "t_s": 0.09779199999999999,
+    "statistic": 1.6117854548776815,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 383,
+    "start_sample": 98048,
+    "t_s": 0.098048,
+    "statistic": 1.3306043724805547,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 384,
+    "start_sample": 98304,
+    "t_s": 0.098304,
+    "statistic": 1.3157840440551767,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 385,
+    "start_sample": 98560,
+    "t_s": 0.09856,
+    "statistic": 1.6547542388015763,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 386,
+    "start_sample": 98816,
+    "t_s": 0.098816,
+    "statistic": 1.7270761694814176,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 387,
+    "start_sample": 99072,
+    "t_s": 0.099072,
+    "statistic": 1.1163939953005322,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 388,
+    "start_sample": 99328,
+    "t_s": 0.099328,
+    "statistic": 1.2260238944212731,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 389,
+    "start_sample": 99584,
+    "t_s": 0.09958399999999999,
+    "statistic": 1.3020814527818807,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 390,
+    "start_sample": 99840,
+    "t_s": 0.09984,
+    "statistic": 1.6806433684086295,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 391,
+    "start_sample": 100096,
+    "t_s": 0.10009599999999999,
+    "statistic": 0.639616395943675,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 392,
+    "start_sample": 100352,
+    "t_s": 0.100352,
+    "statistic": 1.0968311034989795,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 393,
+    "start_sample": 100608,
+    "t_s": 0.10060799999999999,
+    "statistic": 1.1303680944529704,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 13,
+    "overload": false
+   },
+   {
+    "frame_index": 394,
+    "start_sample": 100864,
+    "t_s": 0.100864,
+    "statistic": 1.097791650655148,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 395,
+    "start_sample": 101120,
+    "t_s": 0.10112,
+    "statistic": 0.6769868672879992,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 396,
+    "start_sample": 101376,
+    "t_s": 0.101376,
+    "statistic": 0.819598576408427,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 397,
+    "start_sample": 101632,
+    "t_s": 0.101632,
+    "statistic": 0.7805050960424347,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 398,
+    "start_sample": 101888,
+    "t_s": 0.10188799999999999,
+    "statistic": 0.9636083787054074,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 399,
+    "start_sample": 102144,
+    "t_s": 0.102144,
+    "statistic": 0.6693405920289072,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 400,
+    "start_sample": 102400,
+    "t_s": 0.10239999999999999,
+    "statistic": 0.9410879224865445,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 401,
+    "start_sample": 102656,
+    "t_s": 0.102656,
+    "statistic": 0.6781971197420303,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 402,
+    "start_sample": 102912,
+    "t_s": 0.10291199999999999,
+    "statistic": 0.8033144529115076,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 403,
+    "start_sample": 103168,
+    "t_s": 0.103168,
+    "statistic": 0.9205030330767696,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 404,
+    "start_sample": 103424,
+    "t_s": 0.103424,
+    "statistic": 0.9173581559243182,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 405,
+    "start_sample": 103680,
+    "t_s": 0.10368,
+    "statistic": 0.7842994361566163,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 406,
+    "start_sample": 103936,
+    "t_s": 0.103936,
+    "statistic": 0.7044013890831701,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 407,
+    "start_sample": 104192,
+    "t_s": 0.10419199999999999,
+    "statistic": 0.9621963956203328,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 408,
+    "start_sample": 104448,
+    "t_s": 0.104448,
+    "statistic": 0.7427734561850543,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 409,
+    "start_sample": 104704,
+    "t_s": 0.10470399999999999,
+    "statistic": 0.6760467950519395,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 410,
+    "start_sample": 104960,
+    "t_s": 0.10496,
+    "statistic": 0.6190857861170056,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 411,
+    "start_sample": 105216,
+    "t_s": 0.10521599999999999,
+    "statistic": 0.9848408603479004,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 412,
+    "start_sample": 105472,
+    "t_s": 0.105472,
+    "statistic": 0.9028663588012216,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 413,
+    "start_sample": 105728,
+    "t_s": 0.10572799999999999,
+    "statistic": 0.8929779019791659,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 414,
+    "start_sample": 105984,
+    "t_s": 0.105984,
+    "statistic": 0.7431685286006261,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 415,
+    "start_sample": 106240,
+    "t_s": 0.10624,
+    "statistic": 1.0170225462072686,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 416,
+    "start_sample": 106496,
+    "t_s": 0.106496,
+    "statistic": 0.6098179558031797,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 417,
+    "start_sample": 106752,
+    "t_s": 0.106752,
+    "statistic": 0.8154803909377625,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 418,
+    "start_sample": 107008,
+    "t_s": 0.10700799999999999,
+    "statistic": 0.7211798362492259,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 419,
+    "start_sample": 107264,
+    "t_s": 0.107264,
+    "statistic": 0.9867998106729188,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 420,
+    "start_sample": 107520,
+    "t_s": 0.10751999999999999,
+    "statistic": 0.9287399296209007,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 421,
+    "start_sample": 107776,
+    "t_s": 0.107776,
+    "statistic": 0.6104819537464446,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 422,
+    "start_sample": 108032,
+    "t_s": 0.10803199999999999,
+    "statistic": 0.8870250649427519,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 423,
+    "start_sample": 108288,
+    "t_s": 0.108288,
+    "statistic": 1.0105865864975065,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 424,
+    "start_sample": 108544,
+    "t_s": 0.108544,
+    "statistic": 0.8977757080339973,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 425,
+    "start_sample": 108800,
+    "t_s": 0.1088,
+    "statistic": 0.8569298001120327,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 426,
+    "start_sample": 109056,
+    "t_s": 0.109056,
+    "statistic": 0.6574346326679434,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 427,
+    "start_sample": 109312,
+    "t_s": 0.10931199999999999,
+    "statistic": 0.9886032062303477,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 428,
+    "start_sample": 109568,
+    "t_s": 0.109568,
+    "statistic": 1.0904658567114291,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 429,
+    "start_sample": 109824,
+    "t_s": 0.10982399999999999,
+    "statistic": 0.7387673984445797,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 430,
+    "start_sample": 110080,
+    "t_s": 0.11008,
+    "statistic": 1.2681360714356877,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 431,
+    "start_sample": 110336,
+    "t_s": 0.11033599999999999,
+    "statistic": 1.039119662055972,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 432,
+    "start_sample": 110592,
+    "t_s": 0.110592,
+    "statistic": 1.2155482572317422,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 433,
+    "start_sample": 110848,
+    "t_s": 0.11084799999999999,
+    "statistic": 1.3037114691821865,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 434,
+    "start_sample": 111104,
+    "t_s": 0.111104,
+    "statistic": 1.6291379182396297,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 435,
+    "start_sample": 111360,
+    "t_s": 0.11136,
+    "statistic": 1.5745764218885077,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 436,
+    "start_sample": 111616,
+    "t_s": 0.11161599999999999,
+    "statistic": 1.1434317994856857,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 437,
+    "start_sample": 111872,
+    "t_s": 0.111872,
+    "statistic": 1.5537059212565154,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 438,
+    "start_sample": 112128,
+    "t_s": 0.11212799999999999,
+    "statistic": 1.606313396233738,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 439,
+    "start_sample": 112384,
+    "t_s": 0.112384,
+    "statistic": 1.2536550055407967,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 440,
+    "start_sample": 112640,
+    "t_s": 0.11263999999999999,
+    "statistic": 1.2062103166441869,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 441,
+    "start_sample": 112896,
+    "t_s": 0.112896,
+    "statistic": 1.1635557710462154,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 442,
+    "start_sample": 113152,
+    "t_s": 0.11315199999999999,
+    "statistic": 1.484646865490323,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 443,
+    "start_sample": 113408,
+    "t_s": 0.113408,
+    "statistic": 1.531407881287409,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 444,
+    "start_sample": 113664,
+    "t_s": 0.113664,
+    "statistic": 1.5023177898762334,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 445,
+    "start_sample": 113920,
+    "t_s": 0.11392,
+    "statistic": 1.2543198386690475,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 446,
+    "start_sample": 114176,
+    "t_s": 0.114176,
+    "statistic": 1.581164820287015,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 447,
+    "start_sample": 114432,
+    "t_s": 0.11443199999999999,
+    "statistic": 1.7284035180998094,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 448,
+    "start_sample": 114688,
+    "t_s": 0.114688,
+    "statistic": 1.710067995456018,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 449,
+    "start_sample": 114944,
+    "t_s": 0.11494399999999999,
+    "statistic": 1.2467280594156898,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 450,
+    "start_sample": 115200,
+    "t_s": 0.1152,
+    "statistic": 1.2210616317019687,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 451,
+    "start_sample": 115456,
+    "t_s": 0.11545599999999999,
+    "statistic": 1.5132760881256782,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 452,
+    "start_sample": 115712,
+    "t_s": 0.115712,
+    "statistic": 1.6524280593232215,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 453,
+    "start_sample": 115968,
+    "t_s": 0.115968,
+    "statistic": 1.1003460688765572,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 454,
+    "start_sample": 116224,
+    "t_s": 0.116224,
+    "statistic": 1.0870881590905368,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 455,
+    "start_sample": 116480,
+    "t_s": 0.11648,
+    "statistic": 1.5980870899988409,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 456,
+    "start_sample": 116736,
+    "t_s": 0.11673599999999999,
+    "statistic": 1.3316712618922515,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 457,
+    "start_sample": 116992,
+    "t_s": 0.116992,
+    "statistic": 1.0854579459702052,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 458,
+    "start_sample": 117248,
+    "t_s": 0.11724799999999999,
+    "statistic": 1.3757852056651585,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 459,
+    "start_sample": 117504,
+    "t_s": 0.117504,
+    "statistic": 1.2104063867849701,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 460,
+    "start_sample": 117760,
+    "t_s": 0.11775999999999999,
+    "statistic": 1.4649528597851478,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 461,
+    "start_sample": 118016,
+    "t_s": 0.118016,
+    "statistic": 1.7022908774630823,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 462,
+    "start_sample": 118272,
+    "t_s": 0.11827199999999999,
+    "statistic": 1.3179224588850744,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 463,
+    "start_sample": 118528,
+    "t_s": 0.118528,
+    "statistic": 1.1369685001993695,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 464,
+    "start_sample": 118784,
+    "t_s": 0.118784,
+    "statistic": 1.1916838549436102,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 465,
+    "start_sample": 119040,
+    "t_s": 0.11903999999999999,
+    "statistic": 1.3520606016847263,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 466,
+    "start_sample": 119296,
+    "t_s": 0.119296,
+    "statistic": 1.028411156737372,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 467,
+    "start_sample": 119552,
+    "t_s": 0.11955199999999999,
+    "statistic": 1.5081075809550768,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 468,
+    "start_sample": 119808,
+    "t_s": 0.119808,
+    "statistic": 1.044623341337803,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 469,
+    "start_sample": 120064,
+    "t_s": 0.12006399999999999,
+    "statistic": 1.6045011708653845,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 470,
+    "start_sample": 120320,
+    "t_s": 0.12032,
+    "statistic": 1.3674239218937587,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 471,
+    "start_sample": 120576,
+    "t_s": 0.12057599999999999,
+    "statistic": 1.731644709100586,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 472,
+    "start_sample": 120832,
+    "t_s": 0.120832,
+    "statistic": 1.7229619132942418,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 473,
+    "start_sample": 121088,
+    "t_s": 0.121088,
+    "statistic": 1.1417723049696522,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 474,
+    "start_sample": 121344,
+    "t_s": 0.121344,
+    "statistic": 1.04662445386322,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 475,
+    "start_sample": 121600,
+    "t_s": 0.1216,
+    "statistic": 1.156515688260251,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 476,
+    "start_sample": 121856,
+    "t_s": 0.12185599999999999,
+    "statistic": 1.5072491245847073,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 477,
+    "start_sample": 122112,
+    "t_s": 0.122112,
+    "statistic": 1.3920623455743653,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 478,
+    "start_sample": 122368,
+    "t_s": 0.12236799999999999,
+    "statistic": 1.6935028832214178,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 479,
+    "start_sample": 122624,
+    "t_s": 0.122624,
+    "statistic": 1.1164764358698245,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 480,
+    "start_sample": 122880,
+    "t_s": 0.12287999999999999,
+    "statistic": 1.740839431469476,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 481,
+    "start_sample": 123136,
+    "t_s": 0.123136,
+    "statistic": 1.6727787441116568,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 482,
+    "start_sample": 123392,
+    "t_s": 0.12339199999999999,
+    "statistic": 1.6271053062079164,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 483,
+    "start_sample": 123648,
+    "t_s": 0.123648,
+    "statistic": 1.5729483492158787,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 484,
+    "start_sample": 123904,
+    "t_s": 0.123904,
+    "statistic": 1.1785345030899732,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 485,
+    "start_sample": 124160,
+    "t_s": 0.12415999999999999,
+    "statistic": 1.4216728265061274,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 486,
+    "start_sample": 124416,
+    "t_s": 0.124416,
+    "statistic": 1.6309107297694911,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 487,
+    "start_sample": 124672,
+    "t_s": 0.12467199999999999,
+    "statistic": 1.3594636832547824,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 488,
+    "start_sample": 124928,
+    "t_s": 0.124928,
+    "statistic": 1.197855403161915,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 489,
+    "start_sample": 125184,
+    "t_s": 0.125184,
+    "statistic": 1.3103234939096464,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 490,
+    "start_sample": 125440,
+    "t_s": 0.12544,
+    "statistic": 1.1587446269174873,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 491,
+    "start_sample": 125696,
+    "t_s": 0.125696,
+    "statistic": 1.5178189360096952,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 492,
+    "start_sample": 125952,
+    "t_s": 0.12595199999999998,
+    "statistic": 1.3274280945263979,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 493,
+    "start_sample": 126208,
+    "t_s": 0.126208,
+    "statistic": 1.7905073589549234,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 494,
+    "start_sample": 126464,
+    "t_s": 0.126464,
+    "statistic": 1.6215025569034305,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 495,
+    "start_sample": 126720,
+    "t_s": 0.12672,
+    "statistic": 1.5963617117334907,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 496,
+    "start_sample": 126976,
+    "t_s": 0.126976,
+    "statistic": 1.6040908655950565,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 497,
+    "start_sample": 127232,
+    "t_s": 0.12723199999999998,
+    "statistic": 1.2528932883082795,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 498,
+    "start_sample": 127488,
+    "t_s": 0.127488,
+    "statistic": 1.3835474939076733,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 499,
+    "start_sample": 127744,
+    "t_s": 0.127744,
+    "statistic": 1.087681307637054,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 500,
+    "start_sample": 128000,
+    "t_s": 0.128,
+    "statistic": 1.5155240157814218,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 501,
+    "start_sample": 128256,
+    "t_s": 0.12825599999999998,
+    "statistic": 1.7203308615249973,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 502,
+    "start_sample": 128512,
+    "t_s": 0.128512,
+    "statistic": 1.2913649638226614,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 503,
+    "start_sample": 128768,
+    "t_s": 0.128768,
+    "statistic": 1.6799831398801364,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 504,
+    "start_sample": 129024,
+    "t_s": 0.129024,
+    "statistic": 1.368620504115224,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 505,
+    "start_sample": 129280,
+    "t_s": 0.12928,
+    "statistic": 1.0690336208694942,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 506,
+    "start_sample": 129536,
+    "t_s": 0.12953599999999998,
+    "statistic": 1.362702338566681,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 507,
+    "start_sample": 129792,
+    "t_s": 0.129792,
+    "statistic": 1.278011709467764,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 508,
+    "start_sample": 130048,
+    "t_s": 0.130048,
+    "statistic": 1.3465156556347173,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 509,
+    "start_sample": 130304,
+    "t_s": 0.130304,
+    "statistic": 1.2145088661311065,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 510,
+    "start_sample": 130560,
+    "t_s": 0.13055999999999998,
+    "statistic": 1.7363876194066954,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 511,
+    "start_sample": 130816,
+    "t_s": 0.130816,
+    "statistic": 1.6997760190627738,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 512,
+    "start_sample": 131072,
+    "t_s": 0.131072,
+    "statistic": 1.5718977199960646,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 513,
+    "start_sample": 131328,
+    "t_s": 0.131328,
+    "statistic": 1.786089639496613,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 514,
+    "start_sample": 131584,
+    "t_s": 0.131584,
+    "statistic": 1.253960273116086,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 515,
+    "start_sample": 131840,
+    "t_s": 0.13183999999999998,
+    "statistic": 1.169586740038949,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 516,
+    "start_sample": 132096,
+    "t_s": 0.132096,
+    "statistic": 1.331925878344834,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 517,
+    "start_sample": 132352,
+    "t_s": 0.132352,
+    "statistic": 1.6883551444645493,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 518,
+    "start_sample": 132608,
+    "t_s": 0.132608,
+    "statistic": 1.0290616375261017,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 519,
+    "start_sample": 132864,
+    "t_s": 0.13286399999999998,
+    "statistic": 1.261309683198979,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 520,
+    "start_sample": 133120,
+    "t_s": 0.13312,
+    "statistic": 1.4307744387265289,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 521,
+    "start_sample": 133376,
+    "t_s": 0.133376,
+    "statistic": 1.3955332023421094,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 522,
+    "start_sample": 133632,
+    "t_s": 0.133632,
+    "statistic": 1.2108733333905897,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 523,
+    "start_sample": 133888,
+    "t_s": 0.133888,
+    "statistic": 1.3204169534105412,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 524,
+    "start_sample": 134144,
+    "t_s": 0.13414399999999999,
+    "statistic": 1.1440856570897784,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 525,
+    "start_sample": 134400,
+    "t_s": 0.1344,
+    "statistic": 1.4006910521490679,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 526,
+    "start_sample": 134656,
+    "t_s": 0.134656,
+    "statistic": 1.2390875601950218,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 527,
+    "start_sample": 134912,
+    "t_s": 0.134912,
+    "statistic": 1.0537228184338447,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 528,
+    "start_sample": 135168,
+    "t_s": 0.13516799999999998,
+    "statistic": 1.7384133978643113,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 529,
+    "start_sample": 135424,
+    "t_s": 0.135424,
+    "statistic": 1.3501703946952528,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 530,
+    "start_sample": 135680,
+    "t_s": 0.13568,
+    "statistic": 1.432895454252191,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 531,
+    "start_sample": 135936,
+    "t_s": 0.135936,
+    "statistic": 1.2461040044436031,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 532,
+    "start_sample": 136192,
+    "t_s": 0.136192,
+    "statistic": 1.4071579772288991,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 533,
+    "start_sample": 136448,
+    "t_s": 0.13644799999999999,
+    "statistic": 1.2882465410653006,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 534,
+    "start_sample": 136704,
+    "t_s": 0.136704,
+    "statistic": 1.4538416592839722,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 535,
+    "start_sample": 136960,
+    "t_s": 0.13696,
+    "statistic": 1.025552568427611,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 536,
+    "start_sample": 137216,
+    "t_s": 0.137216,
+    "statistic": 1.6877027849034576,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 537,
+    "start_sample": 137472,
+    "t_s": 0.13747199999999998,
+    "statistic": 1.053770963265889,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 538,
+    "start_sample": 137728,
+    "t_s": 0.137728,
+    "statistic": 1.617809323028922,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 539,
+    "start_sample": 137984,
+    "t_s": 0.137984,
+    "statistic": 1.7649928745229593,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 540,
+    "start_sample": 138240,
+    "t_s": 0.13824,
+    "statistic": 1.2067222603222263,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 541,
+    "start_sample": 138496,
+    "t_s": 0.13849599999999998,
+    "statistic": 1.7882449509097649,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 542,
+    "start_sample": 138752,
+    "t_s": 0.138752,
+    "statistic": 1.4648427585891153,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 543,
+    "start_sample": 139008,
+    "t_s": 0.139008,
+    "statistic": 1.6408087486039562,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 544,
+    "start_sample": 139264,
+    "t_s": 0.139264,
+    "statistic": 1.0345681035584957,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 545,
+    "start_sample": 139520,
+    "t_s": 0.13952,
+    "statistic": 1.284071321061758,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 546,
+    "start_sample": 139776,
+    "t_s": 0.13977599999999998,
+    "statistic": 1.2785001105438747,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 547,
+    "start_sample": 140032,
+    "t_s": 0.140032,
+    "statistic": 0.6871099344505843,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 548,
+    "start_sample": 140288,
+    "t_s": 0.140288,
+    "statistic": 0.9008699789491943,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 549,
+    "start_sample": 140544,
+    "t_s": 0.140544,
+    "statistic": 1.1199362931681367,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 14,
+    "overload": false
+   },
+   {
+    "frame_index": 550,
+    "start_sample": 140800,
+    "t_s": 0.14079999999999998,
+    "statistic": 1.0994239928206313,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 551,
+    "start_sample": 141056,
+    "t_s": 0.141056,
+    "statistic": 0.7515254622549075,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 552,
+    "start_sample": 141312,
+    "t_s": 0.141312,
+    "statistic": 0.9667447186144826,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 553,
+    "start_sample": 141568,
+    "t_s": 0.141568,
+    "statistic": 0.6975758124036459,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 554,
+    "start_sample": 141824,
+    "t_s": 0.141824,
+    "statistic": 0.995648221896143,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 555,
+    "start_sample": 142080,
+    "t_s": 0.14207999999999998,
+    "statistic": 1.1421009719425743,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 15,
+    "overload": false
+   },
+   {
+    "frame_index": 556,
+    "start_sample": 142336,
+    "t_s": 0.142336,
+    "statistic": 1.0574305433143372,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 557,
+    "start_sample": 142592,
+    "t_s": 0.142592,
+    "statistic": 1.0821884893079234,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 558,
+    "start_sample": 142848,
+    "t_s": 0.142848,
+    "statistic": 0.9294476574023172,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 559,
+    "start_sample": 143104,
+    "t_s": 0.14310399999999998,
+    "statistic": 1.0069045090958229,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 560,
+    "start_sample": 143360,
+    "t_s": 0.14336,
+    "statistic": 0.9377801420892944,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 561,
+    "start_sample": 143616,
+    "t_s": 0.143616,
+    "statistic": 1.0380054180961853,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 562,
+    "start_sample": 143872,
+    "t_s": 0.143872,
+    "statistic": 0.8026297192367631,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 563,
+    "start_sample": 144128,
+    "t_s": 0.144128,
+    "statistic": 0.991726513252474,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 564,
+    "start_sample": 144384,
+    "t_s": 0.14438399999999998,
+    "statistic": 0.8849912965334928,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 565,
+    "start_sample": 144640,
+    "t_s": 0.14464,
+    "statistic": 1.0212400963744939,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 566,
+    "start_sample": 144896,
+    "t_s": 0.144896,
+    "statistic": 0.6513826866003081,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 567,
+    "start_sample": 145152,
+    "t_s": 0.145152,
+    "statistic": 0.6124547383755802,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 568,
+    "start_sample": 145408,
+    "t_s": 0.14540799999999998,
+    "statistic": 0.9885953665290249,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 569,
+    "start_sample": 145664,
+    "t_s": 0.145664,
+    "statistic": 0.7923917499095678,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 570,
+    "start_sample": 145920,
+    "t_s": 0.14592,
+    "statistic": 1.3085506991951272,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 571,
+    "start_sample": 146176,
+    "t_s": 0.146176,
+    "statistic": 1.6406319582912205,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 572,
+    "start_sample": 146432,
+    "t_s": 0.146432,
+    "statistic": 1.3586468554793054,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 573,
+    "start_sample": 146688,
+    "t_s": 0.14668799999999999,
+    "statistic": 1.2387519853334266,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 574,
+    "start_sample": 146944,
+    "t_s": 0.146944,
+    "statistic": 1.0900815356451137,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 575,
+    "start_sample": 147200,
+    "t_s": 0.1472,
+    "statistic": 1.304271468234998,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 576,
+    "start_sample": 147456,
+    "t_s": 0.147456,
+    "statistic": 1.5260098159361406,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 577,
+    "start_sample": 147712,
+    "t_s": 0.14771199999999998,
+    "statistic": 1.6056721082826626,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 578,
+    "start_sample": 147968,
+    "t_s": 0.147968,
+    "statistic": 1.0816706974918062,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 579,
+    "start_sample": 148224,
+    "t_s": 0.148224,
+    "statistic": 1.613032404386563,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 580,
+    "start_sample": 148480,
+    "t_s": 0.14848,
+    "statistic": 1.7905384951071852,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 581,
+    "start_sample": 148736,
+    "t_s": 0.148736,
+    "statistic": 1.2109032069792984,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 582,
+    "start_sample": 148992,
+    "t_s": 0.14899199999999999,
+    "statistic": 1.2786333854736212,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 16,
+    "overload": false
+   },
+   {
+    "frame_index": 583,
+    "start_sample": 149248,
+    "t_s": 0.149248,
+    "statistic": 1.0080613244936765,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 584,
+    "start_sample": 149504,
+    "t_s": 0.149504,
+    "statistic": 0.684782148370443,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 585,
+    "start_sample": 149760,
+    "t_s": 0.14976,
+    "statistic": 1.0277195370338204,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 586,
+    "start_sample": 150016,
+    "t_s": 0.15001599999999998,
+    "statistic": 1.0584913197528487,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 587,
+    "start_sample": 150272,
+    "t_s": 0.150272,
+    "statistic": 0.7903266721552555,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 588,
+    "start_sample": 150528,
+    "t_s": 0.150528,
+    "statistic": 0.6175849853110368,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 589,
+    "start_sample": 150784,
+    "t_s": 0.150784,
+    "statistic": 1.059456515217955,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 590,
+    "start_sample": 151040,
+    "t_s": 0.15103999999999998,
+    "statistic": 1.1044205985500273,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 17,
+    "overload": false
+   },
+   {
+    "frame_index": 591,
+    "start_sample": 151296,
+    "t_s": 0.15129599999999999,
+    "statistic": 0.7738176079617137,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 592,
+    "start_sample": 151552,
+    "t_s": 0.151552,
+    "statistic": 0.7814622123177395,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 593,
+    "start_sample": 151808,
+    "t_s": 0.151808,
+    "statistic": 0.9738907748738197,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 594,
+    "start_sample": 152064,
+    "t_s": 0.152064,
+    "statistic": 0.8659022260048952,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 595,
+    "start_sample": 152320,
+    "t_s": 0.15231999999999998,
+    "statistic": 1.0436261882974711,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 596,
+    "start_sample": 152576,
+    "t_s": 0.152576,
+    "statistic": 0.9151761441206725,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 597,
+    "start_sample": 152832,
+    "t_s": 0.152832,
+    "statistic": 1.1253550365858935,
+    "threshold": 1.1,
+    "hit": true,
+    "segment_id": 18,
+    "overload": false
+   },
+   {
+    "frame_index": 598,
+    "start_sample": 153088,
+    "t_s": 0.153088,
+    "statistic": 0.8596772632014829,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   },
+   {
+    "frame_index": 599,
+    "start_sample": 153344,
+    "t_s": 0.15334399999999998,
+    "statistic": 1.0141239350267688,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false
+   }
+  ],
+  "recognitions": [
+   {
+    "t_s": 0.008704,
+    "t_end_s": 0.009215999999999998,
+    "segment_id": 0,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.014336,
+    "t_end_s": 0.015104,
+    "segment_id": 1,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.017152,
+    "t_end_s": 0.017408,
+    "segment_id": 2,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.019968,
+    "t_end_s": 0.04992,
+    "segment_id": 3,
+    "label": "cw_beacon",
+    "result": "known"
+   },
+   {
+    "t_s": 0.053759999999999995,
+    "t_end_s": 0.054015999999999995,
+    "segment_id": 4,
+    "label": "unknown",
+    "result": "unknown"
+   },
+   {
+    "t_s": 0.055296,
+    "t_end_s": 0.055807999999999996,
+    "segment_id": 5,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.059904,
+    "t_end_s": 0.064,
+    "segment_id": 6,
+    "label": "rc_hopping",
+    "result": "ambiguous"
+   },
+   {
+    "t_s": 0.06707199999999999,
+    "t_end_s": 0.068608,
+    "segment_id": 7,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.07219199999999999,
+    "t_end_s": 0.076032,
+    "segment_id": 8,
+    "label": "telemetry_burst",
+    "result": "known"
+   },
+   {
+    "t_s": 0.08063999999999999,
+    "t_end_s": 0.080896,
+    "segment_id": 9,
+    "label": "unknown",
+    "result": "unknown"
+   },
+   {
+    "t_s": 0.081664,
+    "t_end_s": 0.082432,
+    "segment_id": 10,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.083712,
+    "t_end_s": 0.08883200000000001,
+    "segment_id": 11,
+    "label": "telemetry_burst",
+    "result": "known"
+   },
+   {
+    "t_s": 0.09267199999999999,
+    "t_end_s": 0.092928,
+    "segment_id": 12,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.095232,
+    "t_end_s": 0.100864,
+    "segment_id": 13,
+    "label": "rc_hopping",
+    "result": "ambiguous"
+   },
+   {
+    "t_s": 0.11008,
+    "t_end_s": 0.1408,
+    "segment_id": 14,
+    "label": "unknown",
+    "result": "unknown"
+   },
+   {
+    "t_s": 0.14207999999999998,
+    "t_end_s": 0.142336,
+    "segment_id": 15,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.14592,
+    "t_end_s": 0.149248,
+    "segment_id": 16,
+    "label": "noise",
+    "result": "known"
+   },
+   {
+    "t_s": 0.15103999999999998,
+    "t_end_s": 0.15129599999999999,
+    "segment_id": 17,
+    "label": "video_link",
+    "result": "known"
+   },
+   {
+    "t_s": 0.152832,
+    "t_end_s": 0.153088,
+    "segment_id": 18,
+    "label": "video_link",
+    "result": "known"
+   }
+  ],
+  "truth": [
+   {
+    "t_s": 0.02,
+    "t_end_s": 0.05,
+    "emitter_id": "e-cw",
+    "label": "cw_beacon",
+    "waveform": "tone",
+    "center_Hz": 2440548828.125,
+    "bw_Hz": 400000.0,
+    "in_band": true
+   },
+   {
+    "t_s": 0.03,
+    "t_end_s": 0.04,
+    "emitter_id": "e-oob",
+    "label": "video_link",
+    "waveform": "noise",
+    "center_Hz": 2441500000.0,
+    "bw_Hz": 1000000.0,
+    "in_band": false
+   },
+   {
+    "t_s": 0.11,
+    "t_end_s": 0.14,
+    "emitter_id": "e-video",
+    "label": "video_link",
+    "waveform": "noise",
+    "center_Hz": 2440500000.0,
+    "bw_Hz": 2000000.0,
+    "in_band": true
+   },
+   {
+    "t_s": 0.146,
+    "t_end_s": 0.1495,
+    "emitter_id": "e-noise",
+    "label": "noise",
+    "waveform": "noise",
+    "center_Hz": 2440400000.0,
+    "bw_Hz": 50000.0,
+    "in_band": true
+   },
+   {
+    "t_s": 0.06,
+    "t_end_s": 0.0641,
+    "emitter_id": "e-tele",
+    "label": "telemetry_burst",
+    "waveform": "burst",
+    "center_Hz": 2440402343.75,
+    "bw_Hz": 200000.0,
+    "in_band": true
+   },
+   {
+    "t_s": 0.072,
+    "t_end_s": 0.0761,
+    "emitter_id": "e-tele",
+    "label": "telemetry_burst",
+    "waveform": "burst",
+    "center_Hz": 2440402343.75,
+    "bw_Hz": 200000.0,
+    "in_band": true
+   },
+   {
+    "t_s": 0.08399999999999999,
+    "t_end_s": 0.0881,
+    "emitter_id": "e-tele",
+    "label": "telemetry_burst",
+    "waveform": "burst",
+    "center_Hz": 2440402343.75,
+    "bw_Hz": 200000.0,
+    "in_band": true
+   },
+   {
+    "t_s": 0.096,
+    "t_end_s": 0.10010000000000001,
+    "emitter_id": "e-tele",
+    "label": "telemetry_burst",
+    "waveform": "burst",
+    "center_Hz": 2440402343.75,
+    "bw_Hz": 200000.0,
+    "in_band": true
+   },
+   {
+    "t_s": 0.045,
+    "t_end_s": 0.048,
+    "emitter_id": "e-cw2",
+    "label": "cw_beacon",
+    "waveform": "tone",
+    "center_Hz": 2440548828.125,
+    "bw_Hz": 400000.0,
+    "in_band": true
+   }
+  ]
+ },
+ "expected": {
+  "frames": {
+   "total": 600,
+   "truth_on": 312,
+   "tp": 285,
+   "fp": 24,
+   "fn": 27,
+   "tn": 264,
+   "pd": 0.9134615384615384,
+   "pfa": 0.08333333333333333,
+   "precision": 0.9223300970873787,
+   "recall": 0.9134615384615384,
+   "f1": 0.9178743961352658
+  },
+  "segments": {
+   "truth_out_of_band": 1,
+   "detected": 19,
+   "truth": 8,
+   "matched": 8,
+   "false_segments": 12,
+   "pd_segment": 1.0,
+   "detect_delay_s": {
+    "mean": 3.399999999999931e-05,
+    "max": 0.00019199999999999773
+   }
+  },
+  "roc": {
+   "points": [
+    {
+     "threshold": 0.6004014820489302,
+     "pd": 1.0,
+     "pfa": 0.9965277777777778
+    },
+    {
+     "threshold": 0.6353074714192369,
+     "pd": 1.0,
+     "pfa": 0.9305555555555556
+    },
+    {
+     "threshold": 0.662707951936656,
+     "pd": 1.0,
+     "pfa": 0.8645833333333334
+    },
+    {
+     "threshold": 0.7000342855393686,
+     "pd": 1.0,
+     "pfa": 0.7986111111111112
+    },
+    {
+     "threshold": 0.7539947030761661,
+     "pd": 1.0,
+     "pfa": 0.7291666666666666
+    },
+    {
+     "threshold": 0.7903266721552555,
+     "pd": 1.0,
+     "pfa": 0.6631944444444444
+    },
+    {
+     "threshold": 0.8410474324470474,
+     "pd": 1.0,
+     "pfa": 0.5972222222222222
+    },
+    {
+     "threshold": 0.8994603321959538,
+     "pd": 1.0,
+     "pfa": 0.5277777777777778
+    },
+    {
+     "threshold": 0.9240922123112556,
+     "pd": 1.0,
+     "pfa": 0.4618055555555556
+    },
+    {
+     "threshold": 0.9576845090746724,
+     "pd": 1.0,
+     "pfa": 0.3958333333333333
+    },
+    {
+     "threshold": 0.991726513252474,
+     "pd": 1.0,
+     "pfa": 0.3263888888888889
+    },
+    {
+     "threshold": 1.0199986079316854,
+     "pd": 0.9839743589743589,
+     "pfa": 0.2777777777777778
+    },
+    {
+     "threshold": 1.039119662055972,
+     "pd": 0.9647435897435898,
+     "pfa": 0.2326388888888889
+    },
+    {
+     "threshold": 1.0557875970650503,
+     "pd": 0.9423076923076923,
+     "pfa": 0.1875
+    },
+    {
+     "threshold": 1.07506038402672,
+     "pd": 0.9358974358974359,
+     "pfa": 0.1284722222222222
+    },
+    {
+     "threshold": 1.097791650655148,
+     "pd": 0.9134615384615384,
+     "pfa": 0.08680555555555555
+    },
+    {
+     "threshold": 1.1199362931681367,
+     "pd": 0.8974358974358975,
+     "pfa": 0.034722222222222224
+    },
+    {
+     "threshold": 1.1440856570897784,
+     "pd": 0.8653846153846154,
+     "pfa": 0.003472222222222222
+    },
+    {
+     "threshold": 1.207225915460963,
+     "pd": 0.8076923076923077,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.2467280594156898,
+     "pd": 0.7435897435897436,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.2786333854736212,
+     "pd": 0.6826923076923077,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.3157840440551767,
+     "pd": 0.6217948717948718,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.3586468554793054,
+     "pd": 0.5576923076923077,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.4006910521490679,
+     "pd": 0.4967948717948718,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.4528687401004599,
+     "pd": 0.4358974358974359,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.5023177898762334,
+     "pd": 0.3717948717948718,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.5488340541876675,
+     "pd": 0.3108974358974359,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.6045011708653845,
+     "pd": 0.25,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.64254588698007,
+     "pd": 0.1858974358974359,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.6883551444645493,
+     "pd": 0.125,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.731644709100586,
+     "pd": 0.0641025641025641,
+     "pfa": 0.0
+    },
+    {
+     "threshold": 1.799022179119687,
+     "pd": 0.0,
+     "pfa": 0.0
+    }
+   ],
+   "working_point": {
+    "threshold": 1.1,
+    "pd": 0.9134615384615384,
+    "pfa": 0.08333333333333333
+   }
+  },
+  "recognition": {
+   "state": "valid",
+   "labels": [
+    "video_link",
+    "telemetry_burst",
+    "rc_hopping",
+    "cw_beacon",
+    "noise",
+    "unknown"
+   ],
+   "confusion": [
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     2,
+     2,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "evaluated": 7,
+   "unmatched": 12,
+   "accuracy": 0.5714285714285714,
+   "per_class": [
+    {
+     "label": "video_link",
+     "support": 1,
+     "precision": null,
+     "recall": 0.0,
+     "f1": null
+    },
+    {
+     "label": "telemetry_burst",
+     "support": 4,
+     "precision": 1.0,
+     "recall": 0.5,
+     "f1": 0.6666666666666666
+    },
+    {
+     "label": "rc_hopping",
+     "support": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null
+    },
+    {
+     "label": "cw_beacon",
+     "support": 1,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    {
+     "label": "noise",
+     "support": 1,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    }
+   ],
+   "unknown_rate": 0.14285714285714285,
+   "ambiguous_rate": 0.2857142857142857
+  },
+  "quality": {
+   "truth_rows": 9,
+   "overload_frames": 6
+  },
+  "state": "valid",
+  "reasons": []
+ }
+}
