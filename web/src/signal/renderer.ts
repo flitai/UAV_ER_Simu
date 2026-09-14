@@ -21,6 +21,8 @@ import { TraceState, peakOf } from './trace.js'
 import { TERMINAL } from '../state/reducer.js'
 import { signalHooks, viewStore } from './viewStore.js'
 import { detectionStore, visibleSegments } from '../results/detectionStore.js'
+import { recKey, recognitionStore } from '../results/recognitionStore.js'
+import { labelStyle, UNRECOGNIZED } from '../results/labels.js'
 import {
   FLOOR_DB, boxToViewport, clampViewport, colEdgeHz, envelopeGeomOf, fullWindow, groupBounds, liveWindow, panSpan,
   planSpectrumQuery, spectrumGeomOf, srcIndexForPixel, yToTime, zoomSpan, type SpectrumGeom, type Viewport,
@@ -45,6 +47,16 @@ const C = {
 const INK: Rgb = hexToRgb(C.ink)
 const PAPER: Rgb = hexToRgb(C.paper)
 const FONT = '11px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+
+/**
+ * 一个检测突发在图上的色与名（V-8，随 C-9）：按该段的识别行取；没有识别行（识别器未接、或该段没出行）
+ * 保持 C-3 的红框、不写字。识别行与检测段按「站 + 段号」对（两者是不同节点，recKey 的注释说了缘由）。
+ */
+function segmentStyle(siteId: string | null, segmentId: number) {
+  const r = recognitionStore.get().byKey[recKey(siteId, segmentId)]
+  if (!r) return UNRECOGNIZED
+  return labelStyle(r.result === 'unknown' ? 'unknown' : r.label)
+}
 
 type Which = 'spectrum' | 'waterfall'
 
@@ -525,9 +537,10 @@ export class SignalRenderer {
         const xa = Math.max(x0, xOfRel(g.f_lo_Hz - center))
         const xb = Math.min(x1, xOfRel(g.f_hi_Hz - center))
         if (xb <= xa) continue
-        ctx.fillStyle = 'rgba(163, 51, 51, 0.10)'
+        const st = segmentStyle(g.site_id, g.segment_id)
+        ctx.fillStyle = st.color + '1a'
         ctx.fillRect(xa, y0, xb - xa, ph)
-        ctx.strokeStyle = C.bad
+        ctx.strokeStyle = st.color
         ctx.setLineDash([4, 3])
         ctx.beginPath(); ctx.moveTo(Math.round(xa) + 0.5, y0); ctx.lineTo(Math.round(xa) + 0.5, y1); ctx.moveTo(Math.round(xb) + 0.5, y0); ctx.lineTo(Math.round(xb) + 0.5, y1); ctx.stroke()
         ctx.setLineDash([])
@@ -635,9 +648,9 @@ export class SignalRenderer {
       if (segs.length > 0) {
         ctx.save()
         ctx.beginPath(); ctx.rect(x0, y0, pw, ph); ctx.clip()
-        ctx.strokeStyle = C.bad
-        ctx.fillStyle = 'rgba(163, 51, 51, 0.10)'
         ctx.lineWidth = 1.5
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'top'
         for (const g of segs) {
           const ta = g.t_start - t0s
           const tb = g.t_end - t0s
@@ -647,8 +660,31 @@ export class SignalRenderer {
           const xa = xOfRel(g.f_lo_Hz - center)
           const xb = xOfRel(g.f_hi_Hz - center)
           const h = Math.max(1.5, yBot - yTop)
+          // V-8：框色随识别标签，没有识别行的段保持 C-3 的红色。
+          // 三道描边：外白 4 px、中间类别色 2 px、内墨 1 px。viridis 从深蓝到亮黄整条都有，
+          // **任何单一颜色都不可能对整条色带都够 3:1**——白与墨这一对可以（十个锚点上最低 3.33:1，
+          // display-route.md §4），边界因此在哪都看得见；中间那道色只管区分类别，不承担分离。
+          const st = segmentStyle(g.site_id, g.segment_id)
+          const rx = Math.round(xa) + 0.5, ry = Math.round(yTop) + 0.5
+          const rw = Math.round(xb - xa), rh = Math.max(1, Math.round(h))
+          ctx.fillStyle = st.color + '1a'
           ctx.fillRect(xa, yTop, xb - xa, h)
-          ctx.strokeRect(Math.round(xa) + 0.5, Math.round(yTop) + 0.5, Math.round(xb - xa), Math.max(1, Math.round(h)))
+          for (const [color, width] of [[C.white, 4], [st.color, 2], [C.ink, 1]] as Array<[string, number]>) {
+            ctx.strokeStyle = color
+            ctx.lineWidth = width
+            ctx.strokeRect(rx, ry, rw, rh)
+          }
+          ctx.lineWidth = 1.5
+          // 标签名：框够高够宽才写，写在浅色底衬上（对比度按文字的 4.5:1 量，见 results/labels.ts）
+          if (st.text && h >= 14 && xb - xa >= 30) {
+            const tw = ctx.measureText(st.text).width + 8
+            if (tw <= xb - xa) {
+              ctx.fillStyle = 'rgba(250, 248, 245, 0.92)'
+              ctx.fillRect(xa + 2, yTop + 2, tw, 13)
+              ctx.fillStyle = st.color
+              ctx.fillText(st.text, xa + 6, yTop + 3)
+            }
+          }
         }
         ctx.restore()
       }
