@@ -55,8 +55,9 @@ const JSONL_KINDS: Record<string, { file: string; key?: (r: JsonlRecord) => stri
   // 多站下每站一个 feat__<site>，段号只在站内唯一，只按 segment_id 会把两站的第 0 段当成一条曲线
   features: { file: 'features.jsonl', key: (r) => `${String(r.node_id ?? '')}:${String(r.segment_id ?? '')}` },
   recognitions: { file: 'recognitions.jsonl', key: (r) => `${String(r.node_id ?? '')}:${String(r.segment_id ?? '')}` },
-  // C-5 的产物；读取层先行，生产者随后（与 track / links 当初同法）
-  truth: { file: 'truth.jsonl' },
+  // 真值行（C-5，生产者 Evaluator）：每段真值一行，抽稀键 = 评价器节点 + 源——多站下每站一个 eval__<site>
+  // 各写自己看到的真值；manifest 模式没有源（emitter_id 为 null），键退化成节点本身
+  truth: { file: 'truth.jsonl', key: (r) => `${String(r.node_id ?? '')}:${String(r.emitter_id ?? '')}` },
   // 测向与定位报告（D-053，L-3 / L-4）。抽稀键取「一条曲线」的自然身份：
   // 测向是逐链路的一串方位，定位是逐目标逐方法的一串位置。
   bearings: { file: 'bearings.jsonl', key: (r) => String(r.link_id ?? '') },
@@ -76,6 +77,8 @@ const JSONL_FILTERS: Record<string, readonly string[]> = {
   // 特征与识别（C-4）：按站 / 节点取一站的突发；识别另可按结论与标签筛
   features: ['site_id', 'node_id', 'quality'],
   recognitions: ['site_id', 'node_id', 'result', 'label'],
+  // 真值（C-5）：按站 / 评价器节点 / 源 / 标签取
+  truth: ['site_id', 'node_id', 'emitter_id', 'label'],
 }
 
 /** 命中结果路由返回 true（含 405 与各种错误）；不是结果路由返回 false，交回主路由。 */

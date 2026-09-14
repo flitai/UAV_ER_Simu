@@ -151,12 +151,12 @@
 **规范序列化形式是 `JSON.stringify(doc, null, 2)` 加末尾换行**，与场景文件同法（D-049 ⑧），
 因此「不改内容的保存」是逐字节的空操作。请求体上限 1 MB。
 
-结果端点同批新增（读取层先行，生产者随 C-4 / C-5）：
+结果端点同批新增（读取层先行；生产者 `features` / `recognitions` 随 C-4 于 2026-09-14 到位，`truth` / `metrics` 随 C-5 于 2026-09-14 到位）：
 
 | 方法 | 路径 | 返回 |
 |---|---|---|
-| GET | `/api/v1/results/{task}/{features\|recognitions\|truth}?t0&t1&stride` | JSON 数组，与 `track` / `links` / `detections` 共用同一个时间窗读取器；`features` 与 `recognitions` 按 `segment_id` 抽稀 |
-| GET | `/api/v1/results/{task}/metrics` | `metrics.json` 整文件（`cuav-metrics/1`，10 报告附录 C）。一次运行一份摘要，不按视窗抽；就绪语义同 JSONL 端点：运行中缺文件回 409，终态缺文件回 404 |
+| GET | `/api/v1/results/{task}/{features\|recognitions\|truth}?t0&t1&stride` | JSON 数组，与 `track` / `links` / `detections` 共用同一个时间窗读取器；`features` 与 `recognitions` 按「节点 + `segment_id`」抽稀；`truth`（C-5，生产者 `Evaluator`，2026-09-14）按「评价器节点 + `emitter_id`」抽稀，可按 `site_id / node_id / emitter_id / label` 过滤，行格式见 `docs/display-products.md` §5.4 |
+| GET | `/api/v1/results/{task}/metrics` | `metrics.json` 整文件（`cuav-metrics/1`；顶层 `{schema_version, task_id, sites[], localization}`，`sites[]` 每个评价器一节即按站分节（D-053），节的内容见 `docs/display-products.md` §5.5；`localization` 预留给 L-9）。一次运行一份，不按视窗抽；就绪语义同 JSONL 端点：运行中缺文件回 409，终态缺文件回 404。服务端在引擎退出后读它填 `task.json.metrics_summary`（C-5） |
 
 ### 3.1d 实测数据清单（2026-09-09，D-056）
 
@@ -260,7 +260,7 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 
 | type | 何时 | payload |
 |---|---|---|
-| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`detection_rows`（C-3：落盘的检测行数）、`feature_rows`、`recognition_rows`（C-4：落盘的特征行数与识别行数）、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
+| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`detection_rows`（C-3：落盘的检测行数）、`feature_rows`、`recognition_rows`（C-4：落盘的特征行数与识别行数）、`truth_rows`、`evaluations`（C-5：落盘的真值行数与评价器分节数）、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
 | `progress` | 每轮调度，按墙钟节流（`--progress-interval-ms`，默认 100；0 = 每轮） | `round`、`nodes[]`（同上） |
 | `log` | 装载摘要、种子覆盖、组件日志 | `level`、`message` |
 | `product_row` | 观测点每写一行 | `op_id`、`kind ∈ {spectrum, envelope}`、`row_index`、`row_len`。**不带数据**：该行已逐行刷到 `<out>/<op_id>/<kind>.f32`，服务端按 `row_index × row_len × 4` 的偏移读出并转成二进制帧（§4） |

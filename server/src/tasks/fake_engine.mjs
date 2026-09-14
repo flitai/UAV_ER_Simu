@@ -19,7 +19,7 @@
 // 每行 product_row 事件之前先把该行写进 <out>/<op_id>/<kind>.f32（Float32 LE，值 = row_index × 1000 + 列号），
 // 与真引擎「先 fflush 再发事件」同序，B-6 的二进制帧测试据此核对载荷。
 
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeSync, writeFileSync } from 'node:fs'
 
 const argv = process.argv.slice(2)
 let mode = null
@@ -244,6 +244,22 @@ if (modes.has('hang')) {
       finish('valid')
     }
   }, 50)
+} else if (modes.has('metrics') || modes.has('metricsbad')) {
+  // C-5：终态事件之前写 metrics.json（真引擎的 write_metrics() 也在 task.state 之前），服务端据此填 metrics_summary。
+  // metricsbad 写一份坏文件：服务端要记 warning、不写键、终态不受影响
+  for (let i = 0; i < 3; i++) productRow('spectrum', i, i * 0.1)
+  const good = {
+    schema_version: 'cuav-metrics/1', task_id: taskId,
+    sites: [
+      { node_id: 'eval__site-1', site_id: 'site-1', truth_source: 'scenario', frames: { pd: 0.98, pfa: 0.001, f1: 0.97 },
+        recognition: { state: 'valid', accuracy: 1 }, state: 'valid', reasons: [] },
+      { node_id: 'eval__site-2', site_id: 'site-2', truth_source: 'scenario', frames: { pd: 0, pfa: null, f1: null },
+        recognition: { state: 'valid', accuracy: null }, state: 'valid', reasons: [] },
+    ],
+    localization: null,
+  }
+  writeFileSync(outDir + '/metrics.json', modes.has('metricsbad') ? '{"schema_version": "nope"' : JSON.stringify(good, null, 2) + '\n')
+  finish('valid')
 } else {
   for (let i = 0; i < 3; i++) productRow('spectrum', i, i * 0.1)
   for (let i = 0; i < 2; i++) productRow('envelope', i, i * 0.2)

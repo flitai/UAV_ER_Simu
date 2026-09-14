@@ -351,3 +351,29 @@ test('scenario_ref 的 scenario_id 进 task.json（D-061）：前端采用任务
     m2.shutdownSync()
   }
 })
+
+test('metrics.json 的四个数进 task.json.metrics_summary（C-5，10 报告 §4.6）：逐节一行、null 照抄；无文件不写键；坏文件不写键、记 warning、终态不受影响', async () => {
+  const r = await mgr.submit({ body: await slice1('metrics') })
+  const rec = await done(mgr, r.task.task_id)
+  assert.equal(rec.run_state, 'finished')
+  await mgr.flush()
+  const saved = await readTask(mgr.storeConfig, rec.task_id)
+  assert.ok(saved?.metrics_summary, '终态后应从 metrics.json 读到摘要')
+  assert.equal(saved!.metrics_summary!.length, 2)
+  assert.deepEqual(saved!.metrics_summary![0], { node_id: 'eval__site-1', site_id: 'site-1', truth_source: 'scenario', pd: 0.98, pfa: 0.001, f1: 0.97, accuracy: 1, state: 'valid' })
+  assert.equal(saved!.metrics_summary![1]!.pfa, null)
+  assert.equal(saved!.metrics_summary![1]!.accuracy, null)
+
+  const r0 = await mgr.submit({ body: await slice1() })
+  const rec0 = await done(mgr, r0.task.task_id)
+  await mgr.flush()
+  assert.equal((await readTask(mgr.storeConfig, rec0.task_id))?.metrics_summary, undefined)
+
+  const rb = await mgr.submit({ body: await slice1('metricsbad') })
+  const recb = await done(mgr, rb.task.task_id)
+  await mgr.flush()
+  const sb = await readTask(mgr.storeConfig, recb.task_id)
+  assert.equal(sb?.run_state, 'finished')
+  assert.equal(sb?.metrics_summary, undefined)
+  assert.ok(sb?.warnings.some((w) => /metrics\.json/.test(w)))
+})

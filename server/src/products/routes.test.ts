@@ -342,13 +342,17 @@ test('评价指标端点：没文件按运行态 404；有文件时整份回，�
   assert.equal(r0.status, 404)
   assert.equal(((await r0.json()) as Record<string, unknown>).kind, 'metrics')
 
+  // C-5 的形状：顶层 sites[] 按站分节（D-053），localization 预留给 L-9
   const metrics = {
     schema_version: 'cuav-metrics/1',
     task_id: taskId,
-    truth_source: 'scenario',
-    frames: { total: 100, tp: 40, fp: 1, fn: 2, tn: 57, pd: 0.9524, pfa: 0.0172, f1: 0.9639 },
-    state: 'valid',
-    reasons: [],
+    sites: [{
+      node_id: 'eval', site_id: 'site-1', truth_source: 'scenario',
+      frames: { total: 100, tp: 40, fp: 1, fn: 2, tn: 57, pd: 0.9524, pfa: 0.0172, f1: 0.9639 },
+      recognition: { state: 'valid', accuracy: 1 },
+      state: 'valid', reasons: [],
+    }],
+    localization: null,
   }
   await fsp.writeFile(join(dir, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n')
 
@@ -357,7 +361,7 @@ test('评价指标端点：没文件按运行态 404；有文件时整份回，�
   assert.equal(r.headers.get('content-type'), 'application/json; charset=utf-8')
   const back = (await r.json()) as typeof metrics
   assert.equal(back.schema_version, 'cuav-metrics/1')
-  assert.equal(back.frames.pd, 0.9524)
+  assert.equal(back.sites[0]!.frames.pd, 0.9524)
 
   const head = await fetch(url(`${taskId}/metrics`), { method: 'HEAD' })
   assert.equal(head.status, 200)
@@ -452,10 +456,23 @@ test('特征与识别端点按「节点 + 段号」抽稀，可按站 / 节点 /
   const lab = (await (await fetch(url(`${taskId}/recognitions?label=unknown&node_id=rec__site-1`))).json()) as Array<{ node_id: string }>
   assert.equal(lab.length, 2)
   assert.ok(lab.every((r) => r.node_id === 'rec__site-1'))
-  // truth 没有抽稀键：全局计数，stride=4 只留第 0、4 行（C-5 定真值行的身份后再给键）
-  await fsp.writeFile(join(dir, 'truth.jsonl'), rows.join('\n') + '\n')
-  const tr = (await (await fetch(url(`${taskId}/truth?stride=4`))).json()) as unknown[]
-  assert.equal(tr.length, 2)
+  // 真值行（C-5）：抽稀键 = 评价器节点 + 源，三条曲线各留第 0 行；可按站 / 源 / 标签过滤
+  const truth: string[] = []
+  for (const [node, site, em, label] of [['eval__site-1', 'site-1', 'uav-1', 'cw_beacon'], ['eval__site-1', 'site-1', 'uav-2', 'telemetry_burst'], ['eval__site-2', 'site-2', 'uav-1', 'cw_beacon']]) {
+    for (let k = 0; k < 2; k++) {
+      truth.push(JSON.stringify({ t_s: k * 0.5, t_end_s: k * 0.5 + 0.1, node_id: node, site_id: site, emitter_id: em, label,
+        waveform: label === 'cw_beacon' ? 'tone' : 'burst', center_Hz: 2.4405e9, bw_Hz: 4e5, in_band: true }))
+    }
+  }
+  await fsp.writeFile(join(dir, 'truth.jsonl'), truth.join('\n') + '\n')
+  const tr = (await (await fetch(url(`${taskId}/truth?stride=2`))).json()) as Array<{ t_s: number }>
+  assert.equal(tr.length, 3)
+  assert.ok(tr.every((r) => r.t_s === 0))
+  const s2 = (await (await fetch(url(`${taskId}/truth?site_id=site-2`))).json()) as Array<{ node_id: string }>
+  assert.equal(s2.length, 2)
+  assert.ok(s2.every((r) => r.node_id === 'eval__site-2'))
+  const tb = (await (await fetch(url(`${taskId}/truth?label=telemetry_burst&emitter_id=uav-2`))).json()) as unknown[]
+  assert.equal(tb.length, 2)
 })
 
 test('检测端点：按 node_id 抽稀，site_id / node_id / hit 可精确过滤；detections/index 三态（C-3，D-063）', async () => {

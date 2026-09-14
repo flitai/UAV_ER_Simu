@@ -37,6 +37,21 @@ export interface DataRef {
   holdout: boolean
 }
 
+/**
+ * metrics.json 每节的四个数与状态（C-5，10 报告 §4.6）：供任务列表显示。服务端在引擎终态后读文件填，
+ * 没有文件就不写键（铁律 15）；分母为零的比值在文件里是 null，这里照抄。
+ */
+export interface MetricsSummaryEntry {
+  node_id: string
+  site_id?: string
+  truth_source: string
+  pd: number | null
+  pfa: number | null
+  f1: number | null
+  accuracy: number | null
+  state: string
+}
+
 export interface TaskRecord {
   schema_version: typeof TASK_SCHEMA
   task_id: string
@@ -64,6 +79,8 @@ export interface TaskRecord {
   error?: DiagramError
   observation_points: ObservationPointSummary[]
   data_refs: DataRef[]
+  /** 评价指标摘要（C-5）：metrics.json 的每节一行；任务没有评价器或文件不合法时缺席 */
+  metrics_summary?: MetricsSummaryEntry[]
   warnings: string[]
   idempotency_key?: string
   /** 已折入本记录的最大事件序号 */

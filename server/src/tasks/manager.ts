@@ -51,6 +51,7 @@ import {
   type DataRef,
   type StoreConfig,
   type TaskRecord,
+  type MetricsSummaryEntry,
 } from './store.js'
 
 export const DIAGRAM_SCHEMA = 'cuav-diagram/1'
@@ -418,6 +419,16 @@ export class TaskManager {
       this.emitServerState(live)
     }
     if (!rec.ended_utc) rec.ended_utc = utcNow()
+    if (rec.run_state === 'finished') {
+      // 评价摘要（C-5，10 报告 §4.6）：引擎在终态事件之前写完 metrics.json，进程退出后读四个数进 task.json；
+      // 没有文件就不写键、坏文件记一条 warning（铁律 15），都不影响终态。接在写链上，persist 才写得到它
+      const metricsPath = join(taskDirAbs(this.store, rec.task_id), 'metrics.json')
+      live.writeChain = live.writeChain.then(async () => {
+        const summary = await readMetricsSummary(metricsPath)
+        if (summary) rec.metrics_summary = summary
+        else if (summary === null) rec.warnings.push('metrics.json 不是合法的 cuav-metrics/1，评价摘要未填')
+      })
+    }
     this.persist(live)
     this.pump()
   }
@@ -697,4 +708,45 @@ export async function prepareDiagram(
 function engineFailure(e: unknown): HttpError {
   if (e instanceof EngineUnavailableError) return new HttpError(503, { error: 'engine_unavailable', message: e.message })
   return new HttpError(500, { error: 'engine_error', message: String(e instanceof Error ? e.message : e) })
+}
+
+/**
+ * 读 metrics.json 的四个数（C-5）。缺文件 → undefined（不写键）；文件存在但不是 cuav-metrics/1 → null（记 warning）。
+ * 数值只认有限数，其余（null、缺键）一律 null——分母为零在文件里就是 null，照抄不编。
+ */
+async function readMetricsSummary(path: string): Promise<MetricsSummaryEntry[] | null | undefined> {
+  let text: string
+  try {
+    text = await fsp.readFile(path, 'utf8')
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    return null
+  }
+  let doc: unknown
+  try {
+    doc = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (typeof doc !== 'object' || doc === null) return null
+  const d = doc as Record<string, unknown>
+  if (d.schema_version !== 'cuav-metrics/1' || !Array.isArray(d.sites)) return null
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const str = (v: unknown, fallback: string): string => (typeof v === 'string' ? v : fallback)
+  const out: MetricsSummaryEntry[] = []
+  for (const raw of d.sites) {
+    if (typeof raw !== 'object' || raw === null) return null
+    const s = raw as Record<string, unknown>
+    const frames = (typeof s.frames === 'object' && s.frames !== null ? s.frames : {}) as Record<string, unknown>
+    const rec = (typeof s.recognition === 'object' && s.recognition !== null ? s.recognition : {}) as Record<string, unknown>
+    const entry: MetricsSummaryEntry = {
+      node_id: str(s.node_id, ''),
+      truth_source: str(s.truth_source, ''),
+      pd: num(frames.pd), pfa: num(frames.pfa), f1: num(frames.f1), accuracy: num(rec.accuracy),
+      state: str(s.state, 'invalid'),
+    }
+    if (typeof s.site_id === 'string' && s.site_id) entry.site_id = s.site_id
+    out.push(entry)
+  }
+  return out
 }
