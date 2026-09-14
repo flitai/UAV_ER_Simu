@@ -21,9 +21,16 @@ const CHROME_CANDIDATES = [
 ]
 
 export async function launchChrome({ port = 9333, userDataDir, windowSize = '1400,900' } = {}) {
-  const { existsSync } = await import('node:fs')
+  const { existsSync, mkdtempSync } = await import('node:fs')
   const bin = CHROME_CANDIDATES.find((p) => existsSync(p))
   if (!bin) throw new Error('找不到 Chrome 或 Chromium，端到端测试需要其中之一')
+  // 不给 userDataDir 时自己开一个临时目录：以前会拼成 `--user-data-dir=undefined`，
+  // Chrome 照单全收，在**当前工作目录**下建一个 307 MB 的 `undefined/` 配置目录（2026-09-15 实际踩到）
+  if (!userDataDir) {
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    userDataDir = mkdtempSync(join(tmpdir(), 'cuav-cdp-'))
+  }
   const proc = spawn(bin, [
     '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
     `--remote-debugging-port=${port}`, `--user-data-dir=${userDataDir}`,

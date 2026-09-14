@@ -317,6 +317,40 @@ try {
     && taskRec6.metrics_summary.every((m, i) => m.site_id === metrics6.sites[i].site_id && m.pd === metrics6.sites[i].frames.pd),
     JSON.stringify(taskRec6?.metrics_summary?.map((m) => [m.site_id, m.pd])))
 
+  // ---------- ⑤b 结果页的两个页签在多站下的表现（C-9）----------
+  // 三站三源持续发射 → 全是 H1 帧、tn + fp = 0 → 整列 pfa 是 null；ROC 必须照实说，不把 null 当 0（铁律 15）
+  const nullPfa = metrics6.sites.filter((m) => m.frames.pfa === null).length
+  await page.evaluate("(location.hash = '#/results/detections', true)")
+  // 焦点站来自 detections.index.json 里的站号，所以必须等检测索引也到（只等真值与指标会拿到 site = null）
+  let st6 = await page.waitFor((s) => s.app?.resultsTab === 'detections' && s.app?.results?.truth?.status === 'final'
+    && s.app?.results?.metrics?.status === 'final' && s.app?.results?.detections?.status === 'final'
+    && s.app?.results?.timeline3?.site !== null, { label: '检测识别页签', timeoutMs: 40000 })
+  const tl36 = st6.app.results.timeline3
+  const truthAtFocus = truth6.filter((r) => r.site_id === tl36?.site).length
+  check('多站下时间线只画焦点站（K 站 × 3 行一屏放不下，也读不出来），条带数 = 该站的真值行数',
+    tl36?.site === 'site-1' && tl36.truth === truthAtFocus, `${tl36?.site} 真值 ${tl36?.truth} / 该站 ${truthAtFocus}`)
+  // 换焦点站：下拉一处改，时间线与评价页签一起跟过去（一件事一个入口，D-057 / D-062）
+  await page.evaluate(setSelect('[data-field=det-site]', 'site-2'))
+  st6 = await page.waitFor((s) => s.app?.results?.timeline3?.site === 'site-2', { label: '换焦点站', timeoutMs: 15000 })
+  check('换站下拉后时间线跟着换（焦点站是一个概念，不是两处状态）',
+    st6.app.results.timeline3.site === 'site-2'
+    && st6.app.results.timeline3.truth === truth6.filter((r) => r.site_id === 'site-2').length,
+    JSON.stringify(st6.app.results.timeline3))
+  await page.evaluate("(location.hash = '#/results/evaluation', true)")
+  st6 = await page.waitFor((s) => s.app?.resultsTab === 'evaluation', { label: '评价页签', timeoutMs: 15000 })
+  const ev6 = JSON.parse(await evalJson(page, `JSON.stringify({
+    focus: document.querySelector('[data-eval-panel]')?.dataset.evalFocus ?? '',
+    rocPoints: Number(document.querySelector('[data-roc]')?.dataset.rocPoints ?? -1),
+    rocNote: document.querySelector('[data-roc-note]')?.textContent ?? '',
+    pfaCard: document.querySelector('[data-metric="Pfa"] .metric-v')?.textContent ?? '',
+    sites: Array.from(document.querySelectorAll('[data-metrics] [data-eval-site]')).map(e => e.dataset.evalSite),
+  })`))
+  check('评价页签也跟着焦点站，右栏逐站三行', ev6.focus === 'site-2' && JSON.stringify(ev6.sites) === JSON.stringify(['site-1', 'site-2', 'site-3']),
+    `${ev6.focus} / ${JSON.stringify(ev6.sites)}`)
+  check('三站都没有 H0 帧（持续发射），Pfa 与整条 ROC 都是 null：卡片写「—」、图上写出缘由，不画假曲线（铁律 15）',
+    nullPfa === 3 && ev6.pfaCard === '—' && ev6.rocPoints === 0 && ev6.rocNote.includes('tn + fp = 0'),
+    `${nullPfa} 节 pfa 为 null；卡片「${ev6.pfaCard}」，ROC ${ev6.rocPoints} 点，note「${ev6.rocNote}」`)
+
   // ---------- ⑥ 统计判据：散布必须与声称的 σ 对得上 ----------
   const truth = new Map()
   for (const l of links) truth.set(`${l.t_s.toFixed(6)}|${l.link_id}`, l.azimuth_deg)

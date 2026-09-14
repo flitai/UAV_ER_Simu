@@ -521,12 +521,18 @@ try {
     && (s.app?.results?.detections?.segments ?? 0) > 0 && s.app?.results?.recognitions?.status === 'final'
     && s.app?.results?.metrics?.status === 'final',
   { label: '检测识别页签有数据', timeoutMs: 30000 })
-  // 右栏评价卡（C-5 最小集）：一节一行，探针与端点一致；只摆数
-  const evalRows = await evalJson(page, "Array.from(document.querySelectorAll('[data-metrics] [data-eval-site]')).map(e => e.dataset.evalSite)")
-  check('右栏评价卡一行（site-1），探针的四个数与端点相同',
-    JSON.stringify(evalRows) === JSON.stringify(['site-1']) && st.app.results.metrics.sites.length === 1
-    && st.app.results.metrics.sites[0].pd === sec?.frames?.pd && st.app.results.metrics.sites[0].accuracy === sec?.recognition?.accuracy,
-    `${JSON.stringify(evalRows)} ${JSON.stringify(st.app.results.metrics.sites[0])}`)
+  // 时间线三行（C-9）：真值 / 检测 / 识别共用一根轴，只画焦点站
+  const tl3 = st.app.results.timeline3
+  check('时间线三行的条带数与三个端点的行数相同，只画焦点站（C-9）',
+    tl3?.site === 'site-1' && tl3.truth === truth.length && tl3.detect === bySeg.size && tl3.recognize === rec.length,
+    JSON.stringify(tl3))
+  check('真值那一行的起止就是 truth.jsonl 那一行的起止（不对齐、不裁剪）',
+    Math.abs((tl3?.first?.t0 ?? -1) - truth[0].t_s) < 1e-9 && Math.abs((tl3?.first?.t1 ?? -1) - truth[0].t_end_s) < 1e-9,
+    `${tl3?.first?.t0} – ${tl3?.first?.t1} 对 ${truth[0].t_s} – ${truth[0].t_end_s}`)
+  const lanes = await evalJson(page, "Array.from(document.querySelectorAll('[data-tl3-lane]')).map(l => [l.dataset.tl3Lane, l.children.length])")
+  check('三行条带画进 DOM，行序是真值 / 检测 / 识别',
+    JSON.stringify(lanes) === JSON.stringify([['truth', truth.length], ['detect', bySeg.size], ['recognize', rec.length]]),
+    JSON.stringify(lanes))
   const rowsDom = await waitDom(page, "document.querySelectorAll('[data-det-row]').length", bySeg.size)
   check('「检测识别」页签列出突发，一行一段', rowsDom === bySeg.size, `${rowsDom} 行`)
   const labelCell = await page.evaluate(`document.querySelector('[data-det-row="det|${longest.id}"] [data-det-label]')?.textContent ?? ''`)
@@ -543,6 +549,59 @@ try {
   check('点一行把时间轴与信号游标移到该突发起点（09 §7.1）',
     Math.abs(st.app.timeline.t - tStart) < 0.01 && Math.abs((st.app.signal.geom?.t0_s ?? 0) + st.app.signal.cursor_t_s - tStart) < 0.01,
     `时间轴 ${st.app.timeline.t?.toFixed?.(3)} s，游标 ${st.app.signal.cursor_t_s?.toFixed?.(3)} s`)
+  // 点时间线上的真值条带同样 seek（条带与行是同一条路径）
+  await page.evaluate("(document.querySelector('[data-tl3-lane=truth] [data-tl3-band]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })), true)")
+  st = await page.waitFor((s) => s.app?.timeline?.mode === 'replay' && Math.abs((s.app.timeline.t ?? -1) - truth[0].t_s) < 0.01,
+    { label: '点条带后游标到位', timeoutMs: 20000 })
+  check('点时间线上的条带把游标移到它的起点（C-9）', Math.abs(st.app.timeline.t - truth[0].t_s) < 0.01,
+    `时间轴 ${st.app.timeline.t?.toFixed?.(3)} s，真值起点 ${truth[0].t_s} s`)
+
+  // 识别列表（10 §5.7 的第三块）：每个突发一行，带 Top-3 与结论
+  const recRows = await evalJson(page, "Array.from(document.querySelectorAll('[data-rec-row]')).map(e => e.dataset.recRow)")
+  check('识别列表每个突发一行（t / 站 / 段 / 标签 / 后验 / Top-3 / 证据 / 结论）',
+    recRows.length === rec.length && recRows.includes(`rec|${longest.id}`), JSON.stringify(recRows))
+
+  // 粒度切换到「帧」：不带 hit 过滤取全部帧，表只画游标附近一窗，页脚写清共多少行
+  await page.evaluate("(document.querySelector('[data-action=det-grain][data-grain=frame]').click(), true)")
+  const frameRows = await waitDom(page, "document.querySelectorAll('[data-frame-row]').length > 0", true)
+  const frameNote = await page.evaluate("document.querySelector('[data-frame-note]')?.textContent ?? ''")
+  check('粒度切到「帧」后列出帧行，页脚写明共多少行（不假装列全，铁律 15）',
+    frameRows === true && frameNote.includes(`共 ${dIdx.nodes.det.frames} 行`), `${frameNote}`)
+  await page.evaluate("(document.querySelector('[data-action=det-grain][data-grain=segment]').click(), true)")
+
+  // ---------- ③e 评价页签（C-9）：指标卡四态 + 混淆矩阵 + ROC ----------
+  await page.evaluate("(document.querySelector('[data-results-tab=evaluation]').click(), true)")
+  st = await page.waitFor((s) => s.app?.resultsTab === 'evaluation', { label: '评价页签', timeoutMs: 10000 })
+  const evalDom = await evalJson(page, `JSON.stringify({
+    focus: document.querySelector('[data-eval-panel]')?.dataset.evalFocus ?? '',
+    state: document.querySelector('[data-eval-state]')?.dataset.evalState ?? '',
+    cards: Array.from(document.querySelectorAll('[data-metric]')).map(e => [e.dataset.metric, e.querySelector('.metric-v')?.textContent ?? '']),
+    cmN: Number(document.querySelector('[data-confusion]')?.dataset.confusionN ?? 0),
+    perClass: document.querySelectorAll('[data-per-class-row]').length,
+    rocPoints: Number(document.querySelector('[data-roc]')?.dataset.rocPoints ?? -1),
+    rocFamily: document.querySelector('[data-roc]')?.dataset.rocFamily ?? '',
+    rocNote: document.querySelector('[data-roc-note]')?.textContent ?? '',
+    sites: Array.from(document.querySelectorAll('[data-metrics] [data-eval-site]')).map(e => e.dataset.evalSite),
+    aside: !!document.querySelector('[data-eval-aside]'),
+  })`)
+  const ev = JSON.parse(evalDom)
+  check('评价页签在焦点站上，带四态徽标（09 §13.1 形状 + 文字 + 颜色）',
+    ev.focus === 'site-1' && ev.state === 'valid', `${ev.focus} / ${ev.state}`)
+  check('指标卡五张：Pd / Pfa / F1 / 发现时延 / 识别准确率，读数与 metrics.json 相同',
+    ev.cards.length === 5 && ev.cards[0][0] === 'Pd' && ev.cards[0][1] === sec.frames.pd.toFixed(3)
+    && ev.cards[2][1] === sec.frames.f1.toFixed(3) && ev.cards[4][1] === sec.recognition.accuracy.toFixed(3)
+    && ev.cards[3][1].endsWith(' ms'),
+    JSON.stringify(ev.cards))
+  check('混淆矩阵维度随 labels 走（不硬编码 5×5），per_class 比 labels 少一项（没有 unknown）',
+    ev.cmN === sec.recognition.labels.length && ev.perClass === sec.recognition.labels.length - 1,
+    `${ev.cmN} × ${ev.cmN}，per_class ${ev.perClass} / labels ${sec.recognition.labels.length}`)
+  check('ROC 画出可用点并标工作点；demo-01 有 H0 帧，所以不落到「Pfa —」那一支',
+    ev.rocPoints === sec.roc.points.filter((p) => typeof p.pfa === 'number' && typeof p.pd === 'number').length
+    && ev.rocPoints > 0 && ev.rocNote === '', `${ev.rocPoints} 点，note「${ev.rocNote}」`)
+  check('解析曲线族只在 `?dev=1` 出现（界面不展示内部诊断，D-039）', ev.rocFamily === '', `family「${ev.rocFamily}」`)
+  check('右栏逐站摘要与口径块都在（`quality.noise_stale_frames` 恒 null，取检测索引那一份）',
+    JSON.stringify(ev.sites) === JSON.stringify(['site-1']) && ev.aside === true, JSON.stringify(ev.sites))
+
   // 信号页脚「叠加检测」
   await page.evaluate("(document.querySelector('[data-results-tab=signal]').click(), true)")
   await waitDom(page, "document.querySelector('[data-signal-overlay]') !== null", true)
@@ -776,6 +835,26 @@ try {
   const fs = await page.evaluate("document.querySelector('[data-form=slot] [data-field=full_scale_dBm]')?.value ?? ''")
   const pend = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
   check('转一圈回来 ADC 满量程还在，不用重填（D-055）', fs === '-20' && pend === '', `满量程 ${fs || '空'}；${pend || '无待填'}`)
+  // ---------- ③f `?dev=1` 下 ROC 叠解析预测（C-9 的验收项）----------
+  // 开发者模式是一次真导航（查询参数不是 hash），放在最后做，不打扰前面的信号页步骤
+  await page.send('Page.navigate', { url: `${BASE}?dev=1#/results/evaluation` })
+  st = await page.waitFor((s) => s.app?.resultsTab === 'evaluation' && s.app?.results?.metrics?.status === 'final',
+    { label: '开发者模式的评价页签', timeoutMs: 40000 })
+  // 重新导航会重新采用「最近一个任务」，未必还是上面那一个（slice4 一路跑了好几次），所以按当前采用的任务取索引
+  const devTask = st.app.context.taskId
+  const devIdx = await page.evaluateAsync(`fetch('/api/v1/results/${devTask}/detections/index').then(r => r.json())`)
+  const devM = Object.values(devIdx?.nodes ?? {})[0]?.m_bins
+  const devRoc = await evalJson(page, `JSON.stringify({
+    family: document.querySelector('[data-roc]')?.dataset.rocFamily ?? '',
+    legend: document.querySelector('[data-roc] [data-dev]')?.textContent ?? '',
+  })`)
+  const dr = JSON.parse(devRoc)
+  check('`?dev=1` 下 ROC 叠出解析曲线族，M 取自当前任务 detections.index.json 的 m_bins（C-9；D-026 两式在 analytic.ts 里对 Python 参考逐值对拍）',
+    devM > 0 && dr.family === String(devM) && dr.legend.includes('随机型') && dr.legend.includes('D-026'),
+    `任务 ${devTask}，M ${devM}，family「${dr.family}」，图例「${dr.legend}」`)
+  check('引擎给出 m_bins，且随检测频段走（缺省链 ±225 kHz / nfft 1024 / 500 kS/s → 921；窄带那条链只有个位数）',
+    dIdx.nodes.det.m_bins === 921 && devM >= 1, `缺省链 ${dIdx.nodes.det.m_bins}，当前链 ${devM}`)
+
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 } catch (e) {
   check('端到端流程未抛异常', false, String(e).slice(0, 300))
