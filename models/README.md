@@ -42,6 +42,7 @@
 本目录保留给两类东西：
 
 - **模型卡**：`antenna/README.md`、`receiver/README.md` 已写（C-2，D-051），记依据、参数、
-  取值来源与适用范围。其余环节的模型卡随各自组件落地。
+  取值来源与适用范围；`detection/README.md`（C-3）、`recognition/README.md`（C-4）、`locate/README.md`（L 线）、
+  `channel/README.md`（R 线）、`evaluation/README.md`（C-5，2026-09-14：真值口径、两张映射表、指标定义、已知边界）随各自组件落地。
 - **Coder 产物**：`adc-ddc/coder/`、`channelizer/coder/` 等待 M-2 / M-3，那些确实是独立的
   C 源码，必须与手写代码分开存放并带来源头。

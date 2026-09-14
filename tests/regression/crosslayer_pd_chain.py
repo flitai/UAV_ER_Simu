@@ -68,15 +68,21 @@ def build_diagram(scenario_path: str, scenario: dict) -> dict:
     doc["run"]["duration_s"] = duration
     doc["run"]["seed"] = scenario["seed"]
     doc.pop("observation_points", None)        # 不要谱产品：40 s 的瀑布近 80 MB，本算例只读评价结果
-    doc["nodes"].append({"id": "eval", "type": "Evaluator",
-                         "scene_binding": {"scenario_id": sid, "site_id": scenario["sites"][0]["id"]}, "params": {}})
-    n = len(doc["edges"])
+    # 本算例的场景只有一个源，名字未必与缺省链路里的一样：所有 link:<源> 端口改写成它
     em = scenario["emitters"][0]["id"]
-    doc["edges"] += [
-        {"id": f"e{n + 1}", "from": {"node": "det", "port": "out"}, "to": {"node": "eval", "port": "det"}},
-        {"id": f"e{n + 2}", "from": {"node": "rec", "port": "out"}, "to": {"node": "eval", "port": "rec"}},
-        {"id": f"e{n + 3}", "from": {"node": "scn", "port": f"link:{em}"}, "to": {"node": "eval", "port": "scene1"}},
-    ]
+    for e in doc["edges"]:
+        if e["from"]["port"].startswith("link:"):
+            e["from"]["port"] = f"link:{em}"
+    # 评价器自 C-5 起就在缺省链路里（前端 _gen.ts 生成）：已有就不再追加一个，只有拿旧文件跑才需要补
+    if not any(n["id"] == "eval" for n in doc["nodes"]):
+        doc["nodes"].append({"id": "eval", "type": "Evaluator",
+                             "scene_binding": {"scenario_id": sid, "site_id": scenario["sites"][0]["id"]}, "params": {}})
+        n = len(doc["edges"])
+        doc["edges"] += [
+            {"id": f"e{n + 1}", "from": {"node": "det", "port": "out"}, "to": {"node": "eval", "port": "det"}},
+            {"id": f"e{n + 2}", "from": {"node": "rec", "port": "out"}, "to": {"node": "eval", "port": "rec"}},
+            {"id": f"e{n + 3}", "from": {"node": "scn", "port": f"link:{em}"}, "to": {"node": "eval", "port": "scene1"}},
+        ]
     return doc
 
 

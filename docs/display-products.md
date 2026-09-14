@@ -26,6 +26,8 @@ data/runs/<task_id>/
 ├── detections.index.json        检测摘要 cuav-detections-index/1：每个检测器一条（参数、门限、计数、四态、trace），运行结束时写
 ├── features.jsonl               突发特征，每个突发一行、行自带 trace（C-4，§5.2；生产者 FeatureExtractor，惰性建文件；多站下 feat__<site> 各写自己的行）
 ├── recognitions.jsonl           突发识别，每个突发一行、行自带 trace（C-4，§5.3；生产者 TemplateClassifier；多站下 rec__<site> 各写自己的行）
+├── truth.jsonl                  真值行，每段真值一行（C-5，§5.4；生产者 Evaluator 经 on_truth，运行器惰性建文件；多站下 eval__<site> 各写自己看到的真值；truth_source = none 或纯背景片段时没有此文件）
+├── metrics.json                 评价指标 cuav-metrics/1（C-5，§5.5）：sites[] 每个评价器一节即按站分节（D-053），运行结束时由运行器拼成一份；无时间戳，同种子逐字节复现
 ├── bearings.jsonl               单站测向报告，每行一条链路一帧（D-053，§5；生产者 DirectionFinder，惰性建文件）
 ├── positions.jsonl              多站定位报告，每行一个解（D-053，§5；生产者 MultiSiteLocator）
 └── <observation_point_id>/      每个观测点一个子目录
@@ -59,6 +61,7 @@ data/runs/<task_id>/
 | `error` | `{code, node_id, port, message}`，引擎 `error` 事件或服务端归类的 `engine` 码 |
 | `observation_points[]` | `{op_id, node, port, products, rows_seen{spectrum?, envelope?}}`。`rows_seen` 按 `product_row` 事件计数，是**下界**：引擎先刷盘再发事件，被杀时文件可能多一行、索引 `rows` 可能落后不到 64 行。**读端一律以文件长度 `floor(size / (row_len × 4))` 为准**（B-7） |
 | `data_refs[]` | `{node_id, data_id, holdout}`，回放节点引用的数据 |
+| `metrics_summary[]` | `{node_id, site_id?, truth_source, pd, pfa, f1, accuracy, state}`，`metrics.json` 每节一行的四个数（C-5，10 报告 §4.6）：服务端在引擎退出后读文件填，供任务列表显示；没有评价器的任务缺席此键，文件不合法时不写键并在 `warnings[]` 记一条；分母为零在文件里是 `null`，这里照抄 |
 | `warnings[]` | 验收集片段用于回放的提示（D-038）、重启对账说明等 |
 | `idempotency_key` | 提交时的 `Idempotency-Key`，重启后据此重建幂等表 |
 | `last_seq` | 已折入本记录的最大事件序号 |
@@ -199,13 +202,13 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 `rows_available`（文件长度定的行数）、`index_final`、`run_state`。客户端用它建频率轴与时间轴、
 读 `scale` 与 `state`，再决定视窗参数。索引里没有任何服务器路径（04 §8.6）。
 
-### 3.4 JSONL 端点（`track` / `links` / `detections` / `bearings` / `positions`）
+### 3.4 JSONL 端点（`track` / `links` / `detections` / `features` / `recognitions` / `truth` / `bearings` / `positions`）
 
-五者共用一个时间窗读取器：闭区间 `t0 ≤ t_s ≤ t1`；`stride` 按键抽稀（`track` 按 `id`、`links` 按
+八者共用一个时间窗读取器：闭区间 `t0 ≤ t_s ≤ t1`；`stride` 按键抽稀（`track` 按 `id`、`links` 按
 `link_id`、`bearings` 按 `link_id`、`positions` 按 `emitter_id:method`、`detections` 按 `node_id`——多站下每站一个检测器，
-全局计数会隔站丢行，2026-09-12 由「全局」改为按节点，D-063），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤，
+全局计数会隔站丢行，2026-09-12 由「全局」改为按节点，D-063；`features` / `recognitions` 按 `node_id:segment_id`，C-4；`truth` 按 `node_id:emitter_id`——评价器节点 + 源，manifest 模式没有源时键退化成节点，C-5），每个键保留第 0、stride、2·stride… 条；`links` 另支持 `link_id` 精确过滤，
 `bearings` 支持 `site_id` / `emitter_id`，`positions` 支持 `emitter_id` / `method`（D-053），`detections` 支持 `site_id` / `node_id` / `hit`
-（布尔按 `String(值)` 比较，`hit=true` 即只取命中帧——浏览器的突发列表只要这些，逐帧全取在多站长任务上会撞 16 MiB 上限）。
+（布尔按 `String(值)` 比较，`hit=true` 即只取命中帧——浏览器的突发列表只要这些，逐帧全取在多站长任务上会撞 16 MiB 上限），`features` 支持 `site_id` / `node_id` / `quality`，`recognitions` 支持 `site_id` / `node_id` / `result` / `label`（C-4），`truth` 支持 `site_id` / `node_id` / `emitter_id` / `label`（C-5）。
 
 写盘的两条硬契约（2026-09-06，生产者上线）：**每行必须自带 `t_s`、必须以换行结尾**——
 读取器把没有换行的末行当作正在写入的残片丢弃。文件惰性创建：没有场景绑定的任务不产生空文件，
@@ -214,7 +217,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 末尾没有换行的残片一律丢弃（生产者可能正在写），不可解析或缺 `t_s` 的行跳过并在 `X-CUAV-Skipped`
 里计数。响应是裸 JSON 数组，头带 `X-CUAV-Rows`、`X-CUAV-Skipped`、`X-CUAV-T0/T1`、`X-CUAV-State`；
 超上限 413 并建议更大的 `stride`。`track` 与 `links` 的生产者 2026-09-06 上线（G-2）；`bearings` 与 `positions` 随 D-053 的 L-3 / L-4 上线；
-`detections` 随 C-3 上线（2026-09-12，D-063）。端点先行，生产者落地后没有改过读取层，只加了抽稀键与过滤字段。
+`detections` 随 C-3 上线（2026-09-12，D-063）；`features` / `recognitions` 随 C-4、`truth` 随 C-5 上线（2026-09-14）。端点先行，生产者落地后没有改过读取层，只加了抽稀键与过滤字段。
 
 ## 4. 实时推送
 
@@ -332,6 +335,39 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `trace` | 溯源七件（`model_id = TemplateClassifier`、`EM-S-04`、`M2` / `E2` / `V2`、`parameter_version = library-<version>`） |
 
 参考实现 `algos/reference/classify.py`，黄金基准 `engine/tests/golden/recognition.json`（`classify.py --write-golden`）。
+
+### 5.4 真值行（C-5，D-067）
+
+**`truth.jsonl`**（生产者 `Evaluator` 经 `on_truth`，**每段真值一行**；不带 trace——溯源在 `metrics.json` 的分节里一次到位，与检测行同分工。只在有真值时存在：`truth_source = none` 与纯背景回放片段没有此文件）
+
+| 字段 | 说明 |
+|---|---|
+| `t_s` / `t_end_s` | 半开区间 `[t_s, t_end_s)`。scenario 模式 = 活动级 `tx_on` 连续段（`tx_center_Hz` 变即切）∩ 波形门控（`burst` 每个导通窗一行，样点域与 `SceneEmitterSource` 同式）；manifest 模式 = 全片一行 |
+| `node_id` / `site_id?` | 评价器节点名（`eval` / `eval__<site>`）；`site_id` 只在绑站时出现 |
+| `emitter_id` | 辐射源标识；manifest 模式为 `null` |
+| `label` | `signal_role` 层真值标签：按场景波形反查（`tone → cw_beacon`、`burst → telemetry_burst` / 有 `hop` 则 `rc_hopping`、`noise ≥ 1 MHz → video_link`、窄带 `noise → noise`）或按清单类别映射（`data/iq/measured/README.md`）。映射表见 `models/evaluation/README.md` §3，取值 `assumed` |
+| `waveform` | `tone / noise / burst`；manifest 模式 `manifest` |
+| `center_Hz` / `bw_Hz` | 该段的中心频率（跳频后的）与场景声明带宽；manifest 模式 `null` |
+| `in_band` | `[center ± bw/2]` 与检测频段相交才为真；为假的行只计 `truth_out_of_band`，不进任何分母（EM-S-02 §10.18 `not_observed`） |
+
+### 5.5 评价指标 `metrics.json`（`cuav-metrics/1`，C-5，D-067）
+
+顶层 `{schema_version, task_id, sites[], localization}`：`sites[]` 每个评价器一节、按 `node_id` 序（即按站分节，D-053；单站也是一节），`localization` 预留给 L-9（多站定位是全图唯一的融合节点，故在顶层），本期 `null`。文件由运行器在 `graph.run` 之后、终态事件之前拼成，**不带时间戳**，同种子逐字节复现。分节的内容（附录 C 的结构加几项）：
+
+| 键 | 内容 |
+|---|---|
+| `node_id` / `site_id` / `truth_source` | 身份；`site_id` 未绑站为 `null` |
+| `params` | `{truth_source, match_overlap, roc_points, nfft}` |
+| `detector` | `{sample_rate_Hz, f_lo_Hz, f_hi_Hz, frame_dt_s, threshold}`，评价器从检测行与块元数据取到的检测器参数——Python 参考据此重算，不另开参数 |
+| `frames` | `{total, truth_on, tp, fp, fn, tn, pd, pfa, precision, recall, f1}`；帧真值按帧中点判 |
+| `segments` | `{truth, truth_out_of_band, detected, matched, false_segments, pd_segment, detect_delay_s{mean, max}}`；匹配判据 `overlap / min(len_det, len_truth) ≥ match_overlap` |
+| `roc` | `{working_point{threshold, pd, pfa}, points[{threshold, pd, pfa}]}`；门限取排序统计量的等分位、去重，判决严格大于，不重跑 |
+| `recognition` | `{state, labels[], confusion[][], evaluated, unmatched, accuracy, per_class[{label, support, precision, recall, f1}], unknown_rate, ambiguous_rate}`；`labels` = 四个基础标签 + 其它（字典序）+ `unknown` 末位，方阵；`rec` 口未接时 `state = not_applicable` |
+| `quality` | `{overload_frames, noise_stale_frames, truth_rows}`；`noise_stale_frames` 端口上拿不到，恒为 `null`（要看它去 `detections.index.json`） |
+| `state` / `reasons[]` | 四态：`none` → `not_applicable`；没有检测行 → `invalid`；门限变化、命中帧无段号、参数帧里有场景没有的源、混合模式背景含目标、scenario 模式一帧参数帧都没收到 → `degraded` |
+| `trace` | 溯源七件（`model_id = eval-baseline`、`M2` / `E2` / `V2`、`parameter_version = eval-baseline-0.1`）加 `truth_consumed: true` |
+
+分母为零的比值一律 `null`（铁律 15）。参考实现 `algos/reference/evaluate.py <run_dir>` 从三个 JSONL 独立重算并与每节逐值比（整数逐位、浮点 rel ≤ 1e-9、null 对 null）；黄金基准 `engine/tests/golden/metrics.json`（`evaluate.py --write-golden`）。服务端据此文件填 `task.json.metrics_summary`（§1.1）。
 
 ## 6. 待写
 

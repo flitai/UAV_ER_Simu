@@ -128,6 +128,14 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 发射功率与两端天线增益由各自组件负责）。两种口径在真场景上给出同一电平，
 对拍见 `engine/tests/test_channel.cpp` 的「增益口径等价」。
 
+切片 ④b 续（2026-09-14，C-5，D-067）：
+
+| 组件 | 类别 | M / E | 实现 |
+|---|---|---|---|
+| `Evaluator` 真值与评价 | algorithm | M2 / E2 | cpp，`model_id = eval-baseline`；输入 `det: DetectionList`（必连）、`rec: RecognitionList`（可选）、`scene1..scene8: SceneParamFrame`（可选，真值来源 `scenario` 时 `check_wiring()` 要求至少一路），**无输出**；参数 `truth_source ∈ {scenario, manifest, none}`（缺省 `scenario`）/ `data_id`（选填：回放 = 真值来源，混合 = 背景片段）/ `nfft`（须等于检测器，装载器核对）/ `match_overlap` / `roc_points`，内部参数 `manifest_path / scenario_path / scenario_id / site_id`；`scene_bindable`，**绑站**（一个站的检测器看到的是 N 个源叠加后的信号，真值区间取本站全部链路的并集，D-053）；**第一个接受部分输入的节点**（`accepts_partial_inputs()`：det / rec / scene 三路不同拍，任一路有数据就收，上游全结束才算）；不写文件，真值行与指标经 `on_truth / on_evaluation` 上报，运行器落 `truth.jsonl` 并拼 `metrics.json`（`docs/display-products.md` §5.4 / §5.5）；模型卡 `models/evaluation/README.md`，参考实现 `algos/reference/evaluate.py`，黄金基准 `engine/tests/golden/metrics.json` |
+
+同批装载器的一处收紧：组件构造失败的错误码由「目录声明了 `data_id` 即 `data_id`」改为「`data_id` 必填或报文点名清单才归 `data_id`，否则 `param`」——评价器的 `data_id` 是选填，缺场景路径不是数据问题。
+
 **动态端口**：`ScenarioSource` 是 `dynamic_ports` 的第一个使用者。`describe()` 在**未 configure**
 的实例上调用，那时端口还不知道，所以目录里只有 `dynamic_ports` 的声明；`Graph::connect` 在
 `configure()` 之后调用，那时 `outputs()` 已按场景的辐射源给出具体端口。画布据此生成端口列表。
@@ -142,7 +150,8 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 - [x] D-051 的天线与接收机（C-2，2026-09-07）：新增 `AntennaGain` / `ReceiverFrontEnd` / `AdcQuantizer`，`SceneEmitterSource.emit_at_tx_power` 与 `SceneBoundChannel.gain_mode` 加参；组件 12 → 15，黄金基准更新一次
 - [x] D-051 / D-063 的检测升级（C-3，2026-09-12）：`EnergyDetector` 加 `noise_mode / noise_window_frames / merge_gap_frames / band_power_dBm` 与三个内部参数、`scene_bindable = true`（缺省保旧行为，`energy_detector.json` 黄金基准逐字节不变）。黄金基准据此更新一次，差异经脚本逐项核对只有这一条
 - [x] D-051 的特征提取与模板识别（C-4，2026-09-13）：新增 `FeatureExtractor` / `TemplateClassifier`，组件 19 → 21；黄金基准据此更新一次，差异经脚本逐项核对只有这两条新增，端口表与既有组件的 `ports` / `params` 逐字未变
-- [ ] D-051 的其余组件（C-5 / C-10 分批）：`Evaluator` / `DDC` / `Channelizer`
+- [x] D-051 的评价器（C-5，2026-09-14）：新增 `Evaluator`，组件 21 → 22；黄金基准据此更新一次，差异经脚本逐项核对只有这一条新增，端口表与既有组件的 `ports` / `params` 逐字未变
+- [ ] D-051 的其余组件（C-10）：`DDC` / `Channelizer`
 - [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
 
 ## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）
