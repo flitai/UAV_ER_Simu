@@ -293,6 +293,30 @@ try {
     && idxNodes.every((k) => dIdx6.nodes[k].site_id === k.slice(5) && dIdx6.nodes[k].trace?.model_id === 'EnergyDetector'),
     idxNodes.map((k) => `${k}:${dIdx6.nodes[k].hits}/${dIdx6.nodes[k].frames}`).join(' '))
 
+  // ---------- ⑤b 真值与评价（C-5）：每站一个评价器，只验结构——demo-03 两站从 t=0 起的持续发射被滑动删截的环吸收，Pd 不是本切片的判据 ----------
+  const truth6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/truth').then(r => r.json())`)
+  const tNodes = [...new Set((truth6 ?? []).map((r) => r.node_id))].sort()
+  // 本套任务只跑 20 s（上面把时长改成了 20）：uav-2 在 30 s 关机之前任务就结束，每站一段 [0, 20)；uav-3 周期 0.5 s → 40 个导通窗
+  const dur6 = 20
+  check('truth.jsonl 每行带评价器节点 eval__<site>，三站都有；uav-2 每站一段 [0, 时长)（30 s 的关机在任务结束之后）',
+    tNodes.join() === 'eval__site-1,eval__site-2,eval__site-3' && (truth6 ?? []).every((r) => r.node_id === `eval__${r.site_id}`)
+    && ['site-1', 'site-2', 'site-3'].every((s) => {
+      const u2 = truth6.filter((r) => r.site_id === s && r.emitter_id === 'uav-2').sort((a, b) => a.t_s - b.t_s)
+      return u2.length === 1 && u2[0].t_s === 0 && u2[0].t_end_s === Math.min(30, dur6) && u2[0].label === 'cw_beacon'
+    }), `节点 ${tNodes.join(' ')}；行 ${truth6?.length}`)
+  check('uav-3 的突发真值按导通窗切行（周期 0.5 s、占空 0.2 → 每站 2 行 / s、每行 0.1 s），类别 telemetry_burst',
+    (() => { const u3 = (truth6 ?? []).filter((r) => r.site_id === 'site-1' && r.emitter_id === 'uav-3'); return u3.length === dur6 * 2 && u3.every((r) => r.label === 'telemetry_burst' && r.waveform === 'burst' && Math.abs((r.t_end_s - r.t_s) - 0.1) < 1e-6) })(),
+    `${(truth6 ?? []).filter((r) => r.site_id === 'site-1' && r.emitter_id === 'uav-3').length} 行`)
+  const metrics6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/metrics').then(r => r.json())`)
+  const mSites = (metrics6?.sites ?? []).map((s) => s.site_id)
+  check('metrics.json 三节按站分节（D-053），每节真值来源 scenario、带 truth_consumed；顶层 localization 预留',
+    mSites.join() === 'site-1,site-2,site-3' && metrics6.sites.every((s) => s.truth_source === 'scenario' && s.trace?.truth_consumed === true && s.node_id === `eval__${s.site_id}`)
+    && metrics6.localization === null, mSites.join(' '))
+  const taskRec6 = await page.evaluateAsync(`fetch('/api/v1/tasks/${taskId}').then(r => r.json())`)
+  check('task.json.metrics_summary 三行，与分节的 Pd 逐位相同', Array.isArray(taskRec6?.metrics_summary) && taskRec6.metrics_summary.length === 3
+    && taskRec6.metrics_summary.every((m, i) => m.site_id === metrics6.sites[i].site_id && m.pd === metrics6.sites[i].frames.pd),
+    JSON.stringify(taskRec6?.metrics_summary?.map((m) => [m.site_id, m.pd])))
+
   // ---------- ⑥ 统计判据：散布必须与声称的 σ 对得上 ----------
   const truth = new Map()
   for (const l of links) truth.set(`${l.t_s.toFixed(6)}|${l.link_id}`, l.azimuth_deg)

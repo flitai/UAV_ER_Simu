@@ -397,6 +397,7 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
       // 特征提取的 iq 口接检测器的同一上游（S4 尾），det 口接检测器输出；识别接特征输出。
       // nfft 与 merge_gap_frames 从检测器**派生**（10 §4.3「必须等于检测器的」，装载器再核对一遍）：
       // 先把本槽位状态里可能残留的旧值剔掉，再按检测器写——写了不一样的值引擎会拒整次运行。
+      let recId: string | null = null
       if (active('feat')) {
         const fv = variantOf(chain, 'feat')
         const fid = nodeId(fv.node, { id: site, many: manySites })
@@ -414,7 +415,35 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
           push(rid, rv.type, slotParams('rec', emsSel[0]!, site), 'rec', bindOf(rv.bind, emsSel[0]!, site))
           link(fid, 'out', rid, 'in')
           markActive('rec')
+          recId = rid
         }
+      }
+
+      // 真值与评价（C-5，10 报告 §4.5）：卡片里的第三个子环节，一站一份，吃本站检测行 + 识别行（有才接）+ 全部链路帧。
+      // 三个派生参数都是「显示什么就写什么」：真值来源随信号源模式（全合成 / 混合 → scenario，回放 → manifest）、
+      // nfft 随检测器（装载器再核对一遍）、data_id 随信号源（回放）或背景片段（混合，评价器据此核对背景是否含目标）。
+      if (active('eval')) {
+        const ev = variantOf(chain, 'eval')
+        const eid = nodeId(ev.node, { id: site, many: manySites })
+        const own = slotParams('eval', emsSel[0]!, site)
+        for (const k of DERIVED_PARAMS.eval ?? []) delete own[k]
+        const derived: Record<string, ParamValue> = { truth_source: chain.mode === 'replay' ? 'manifest' : 'scenario' }
+        if (detParams.nfft !== undefined) derived.nfft = detParams.nfft!
+        if (chain.mode === 'replay') {
+          const txp = slotParams('tx', emsSel[0]!, site)
+          if (typeof txp.data_id === 'string' && txp.data_id) derived.data_id = txp.data_id
+        } else if (chain.mode === 'mixed' && chain.backgroundDataId) {
+          derived.data_id = chain.backgroundDataId
+        }
+        push(eid, ev.type, { ...own, ...derived }, 'eval', bindOf(ev.bind, emsSel[0]!, site))
+        link(nid, 'out', eid, 'det')
+        if (recId) link(recId, 'out', eid, 'rec')
+        if (hasScene) {
+          emsSel.forEach((em, i) => {
+            link(nodeId(SCN, { id: site, many: manySites }), `link:${em}`, eid, `scene${i + 1}`)
+          })
+        }
+        markActive('eval')
       }
     }
 

@@ -14,6 +14,7 @@ import { ChainView } from '../chain/ChainView.js'
 import { ResultsView } from '../results/ResultsView.js'
 import { detectionStore, probeDetections } from '../results/detectionStore.js'
 import { probeRecognitions, recognitionStore } from '../results/recognitionStore.js'
+import { metricsStore, probeMetrics } from '../results/metricsStore.js'
 import { DataCenter } from '../data/DataCenter.js'
 import { peakBinOf, signalBuffer } from '../signal/buffer.js'
 import { signalHooks, viewStore } from '../signal/viewStore.js'
@@ -109,6 +110,7 @@ export function AppShell() {
       timeline: { ...timeStore.get(), markers: timelineMarkers(st).length, source: currentSituation(st.scene.scenario.doc).source },
       detections: probeDetections(detectionStore.get()),
       recognitions: probeRecognitions(recognitionStore.get()),
+      metrics: probeMetrics(metricsStore.get()),
     })
   }), [store])
 

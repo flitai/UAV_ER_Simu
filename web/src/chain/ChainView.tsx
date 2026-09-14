@@ -538,6 +538,17 @@ function EntityPick(p: {
 
 // ------------------------------------------------------------------ 右栏
 
+/** 派生参数从哪里来（只读显示的那一行说明）。评价器的三项各有来处（C-5），其余槽位由频率计划派生。 */
+function derivedNote(slot: SlotId, param: string): string {
+  if (slot === 'feat') return '与检测器相同'
+  if (slot === 'eval') {
+    if (param === 'nfft') return '与检测器相同'
+    if (param === 'truth_source') return '由信号源模式决定'
+    if (param === 'data_id') return '随信号源（回放）或背景片段（混合）带出'
+  }
+  return '由频率计划派生'
+}
+
 function SlotPanel(p: {
   chain: ChainState
   id: SlotId
@@ -642,7 +653,7 @@ function SlotPanel(p: {
           if (derivedNames.has(ps.name)) {
             return (
               <PRow key={ps.name} label={paramLabel(ps)} title={title} attrs={{ 'data-param-derived': ps.name }}>
-                <span className="pp-note">{p.id === 'feat' ? '与检测器相同' : '由频率计划派生'}</span>
+                <span className="pp-note">{derivedNote(p.id, ps.name)}</span>
               </PRow>
             )
           }

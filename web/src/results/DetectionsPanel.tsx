@@ -7,6 +7,7 @@ import { seekTo } from '../shell/timelineOps.js'
 import { useAppState, useStore } from '../state/store.js'
 import { detectionStore, visibleSegments, type DetectionState } from './detectionStore.js'
 import { recKey, recognitionStore, type RecognitionState } from './recognitionStore.js'
+import { metricsStore, type MetricsState } from './metricsStore.js'
 
 function useDetectionState(): DetectionState {
   return useSyncExternalStore(detectionStore.subscribe, detectionStore.get, detectionStore.get)
@@ -125,6 +126,35 @@ export function DetectionSummary() {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function useMetricsState(): MetricsState {
+  return useSyncExternalStore(metricsStore.subscribe, metricsStore.get, metricsStore.get)
+}
+
+/** 比值写成小数，缺的写「—」（分母为零在文件里就是 null，照实摆） */
+function fmtRatio(v: number | null | undefined, digits = 3): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : '—'
+}
+
+/** 右栏：评价摘要（C-5 最小集）——每个评价器一行：站 · Pd · Pfa · F1 · 识别准确率 · 状态。只摆数（D-039）；混淆矩阵与 ROC 随 C-9 */
+export function EvaluationSummary() {
+  const st = useMetricsState()
+  const sites = st.doc?.sites ?? []
+  return (
+    <div className="group" data-metrics data-metrics-status={st.status}>
+      <h2>评价</h2>
+      {sites.length === 0 && <div className="muted">{st.status === 'polling' ? '运行结束后给出' : st.status === 'none' ? '无' : '—'}</div>}
+      {sites.map((m) => (
+        <div key={m.node_id} className="det-node" data-eval-site={m.site_id ?? m.node_id}>
+          <div><b>{m.site_id ?? m.node_id}</b> <span className="muted">{m.truth_source === 'scenario' ? '真值：场景' : m.truth_source === 'manifest' ? '真值：清单' : '无真值'}</span></div>
+          <div className="muted">Pd {fmtRatio(m.frames.pd)} · Pfa {fmtRatio(m.frames.pfa, 4)} · F1 {fmtRatio(m.frames.f1)}</div>
+          <div className="muted">突发 {m.segments.matched} / {m.segments.truth} · 虚警段 {m.segments.false_segments} · 识别准确率 {fmtRatio(m.recognition.accuracy)}</div>
+          {m.state !== 'valid' && <div className="bad">{m.state}{m.reasons.length ? `：${m.reasons[0]}` : ''}</div>}
+        </div>
+      ))}
     </div>
   )
 }

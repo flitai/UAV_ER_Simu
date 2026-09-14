@@ -77,5 +77,5 @@ test('探针 app.chain：不是典型链路时只报 template=null；是的时�
   assert.equal(a.chain.plan.fs_rf, 500000)
   assert.equal(a.chain.plan.decim, 1, 'DDC 未实现，S4 与宽带同采样率')
   // 十三个槽位都在（D-053 尾部加了测向与多站定位，C-4 加了挂在检测识别评价卡片里的特征提取与模板识别）；没有目录时不判断可用性
-  assert.equal(Object.keys(a.chain.slots as Record<string, string>).length, 13)
+  assert.equal(Object.keys(a.chain.slots as Record<string, string>).length, 14)
 })

@@ -25,6 +25,8 @@ export type SlotId =
   // C-4：挂在「检测识别评价」卡片里的两个槽位（10 报告 §2.1「固定三节点」）。它们不单独成卡，
   // 编译与反解照常按槽位走——这样 parse / compile / 参数归属 / 待填一件不用改，只有画法不同
   | 'feat' | 'rec'
+  // C-5：卡片里的第三个子环节——真值与评价（10 报告 §4.5）
+  | 'eval'
 
 /** 观测点，钉在链上的固定位置（04 §5.4 的 S0–S5；S6 不是 IQ，是检测识别产品）。 */
 export type TapId = 's0' | 's1' | 's2' | 's3' | 's4' | 's5'
@@ -228,6 +230,16 @@ export const SLOTS: readonly SlotDef[] = [
     variants: [
       { type: 'TemplateClassifier', node: 'rec', label: '模板匹配识别', bind: 'site',
         summary: ['library_version', 'accept_threshold', 'min_quality'] },
+    ],
+  },
+  {
+    // 真值与评价（C-5，10 报告 §4.5）：挂在检测识别评价卡片里的第三个子环节，一站一份，吃本站检测行 + 识别行 + 全部链路帧。
+    // 真值来源由信号源模式派生（全合成 / 混合 → 场景参数帧，回放 → 清单类别），nfft 随检测器，
+    // data_id 随信号源（回放）或背景片段（混合）——都不让用户再填一遍（DERIVED_PARAMS）。
+    id: 'eval', label: '评价', hint: '真值与评价：帧级 / 突发级检出、ROC、混淆矩阵', group: 'det',
+    variants: [
+      { type: 'Evaluator', node: 'eval', label: '真值与评价', bind: 'site',
+        summary: ['truth_source', 'match_overlap', 'roc_points'] },
     ],
   },
   {
@@ -459,7 +471,6 @@ export function writeParam(
 export const UNAVAILABLE_REASON: Readonly<Record<string, string>> = {
   DDC: '本期旁路，S4 直接取 ADC 输出',
   Channelizer: '本期旁路',
-  Evaluator: '本期不启用',
 }
 
 /** 某个组件不在目录里时该说什么。 */
@@ -529,6 +540,8 @@ export const DERIVED_PARAMS: Partial<Record<SlotId, string[]>> = {
   ch: ['frequency_Hz'],
   // 特征提取的分帧必须与检测器相同（10 §4.3）：从检测器派生，不在这里另填一份
   feat: ['nfft', 'merge_gap_frames'],
+  // 评价器（C-5）：真值来源随信号源模式、nfft 随检测器、录音标识随信号源（回放）或背景（混合）
+  eval: ['truth_source', 'nfft', 'data_id'],
 }
 
 /**

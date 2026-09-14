@@ -80,6 +80,9 @@ export interface TaskRecord {
   last_seq: number
   /** 任务绑定的场景标识（D-061）；旧记录没有 */
   scenario_id?: string
+  /** 评价摘要（C-5）：服务端终态后从 metrics.json 读的四个数，每节一行；没有评价器的任务没有 */
+  metrics_summary?: Array<{ node_id: string; site_id?: string; truth_source: string
+    pd: number | null; pfa: number | null; f1: number | null; accuracy: number | null; state: string }>
 }
 
 /** WebSocket 文本帧与引擎 stdout 事件同构（docs/api-versions.md §4） */

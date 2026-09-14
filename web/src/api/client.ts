@@ -290,11 +290,44 @@ export async function deleteDiagram(id: string, base = ''): Promise<boolean> {
   return r.ok
 }
 
-/** 评价指标（C-5 的产物，C-6 的端点）。未就绪或没有即 null。 */
-export async function getMetrics(task: string, base = ''): Promise<Record<string, unknown> | null> {
+/** metrics.json 的一节（C-5，cuav-metrics/1；docs/display-products.md §5.5）。只列前端用到的键。 */
+export interface MetricsSection {
+  node_id: string
+  site_id: string | null
+  truth_source: string
+  frames: { total: number; truth_on: number; tp: number; fp: number; fn: number; tn: number
+    pd: number | null; pfa: number | null; precision: number | null; recall: number | null; f1: number | null }
+  segments: { truth: number; truth_out_of_band: number; detected: number; matched: number; false_segments: number
+    pd_segment: number | null; detect_delay_s: { mean: number | null; max: number | null } }
+  roc: { working_point: { threshold: number | null; pd: number | null; pfa: number | null }; points: Array<{ threshold: number; pd: number | null; pfa: number | null }> }
+  recognition: { state: string; labels: string[]; confusion: number[][]; evaluated: number; unmatched: number
+    accuracy: number | null; unknown_rate: number | null; ambiguous_rate: number | null
+    per_class: Array<{ label: string; support: number; precision: number | null; recall: number | null; f1: number | null }> }
+  quality: { overload_frames: number; noise_stale_frames: number | null; truth_rows: number }
+  state: string
+  reasons: string[]
+}
+
+export interface MetricsDoc {
+  schema_version: string
+  task_id: string
+  sites: MetricsSection[]
+  localization: unknown
+}
+
+export type MetricsResult =
+  | { status: 'ok'; doc: MetricsDoc }
+  | { status: 'not_ready'; retryAfterMs: number }
+  | { status: 'none' }
+  | { status: 'error'; message: string }
+
+/** 评价指标整文件（C-5 的产物）：运行结束时才有；运行中 409、本次任务没有评价器 404。 */
+export async function getMetrics(task: string, base = ''): Promise<MetricsResult> {
   const r = await fetch(`${base}/api/v1/results/${encodeURIComponent(task)}/metrics`)
-  if (!r.ok) return null
-  return (await r.json()) as Record<string, unknown>
+  if (r.status === 200) return { status: 'ok', doc: await json<MetricsDoc>(r) }
+  if (r.status === 409) return { status: 'not_ready', retryAfterMs: parseRetryAfterMs(r.headers.get('retry-after')) }
+  if (r.status === 404) return { status: 'none' }
+  return { status: 'error', message: `metrics HTTP ${r.status}` }
 }
 
 /** 航迹与链路读数（B-7 的 JSONL 端点，生产者是 G-2）。终态任务没有这类记录时返回空数组。 */

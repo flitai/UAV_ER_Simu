@@ -70,8 +70,15 @@ MATLAB 黄金向量（06 备忘录 §9D M-2、M-3）；第 11 项同时检查场
 
 | 文件 | 形状 | 覆盖的东西 |
 |---|---|---|
-| `chain-3x3-aoa.json` | 3 源 × 3 站 + 测向 + 交叉定位，55 节点 93 连线 | 实例后缀 `__`、`Superposition` 八可选口、双绑定的场景绑定信道、`DirectionFinder` 的 `scene1..3`、`MultiSiteLocator` 的 `b1..3`、按站实例化的观测点、按站绑定且模板固定 `noise_mode = sliding` 的检测器 `det__<site>`（C-3，D-063）、挂在检测识别评价卡片里按站各一份的特征提取器 `feat__<site>` 与识别器 `rec__<site>`（C-4） |
-| `chain-3x3-tdoa.json` | 同上但方法为 `tdoa`，58 节点 105 连线 | 另加隐含的 `toa__<site>` 节点与 `t1..3` 连线 |
+| `chain-3x3-aoa.json` | 3 源 × 3 站 + 测向 + 交叉定位，58 节点 108 连线 | 实例后缀 `__`、`Superposition` 八可选口、双绑定的场景绑定信道、`DirectionFinder` 的 `scene1..3`、`MultiSiteLocator` 的 `b1..3`、按站实例化的观测点、按站绑定且模板固定 `noise_mode = sliding` 的检测器 `det__<site>`（C-3，D-063）、挂在检测识别评价卡片里按站各一份的特征提取器 `feat__<site>`、识别器 `rec__<site>`（C-4）与评价器 `eval__<site>`（C-5：吃本站检测行 + 识别行 + 三路链路帧 `scene1..3`） |
+| `chain-3x3-tdoa.json` | 同上但方法为 `tdoa`，61 节点 120 连线 | 另加隐含的 `toa__<site>` 节点与 `t1..3` 连线 |
+
+再生成（改了槽位表或编译规则之后；经真实的 parseChain → compile 路径，参数一件不丢，2026-09-14 起 `_gen.ts` 带模式参数）：
+
+```
+cd web && npx tsx src/chain/examples/_gen.ts 3x3-aoa  > ../tests/regression/diagrams/chain-3x3-aoa.json
+cd web && npx tsx src/chain/examples/_gen.ts 3x3-tdoa > ../tests/regression/diagrams/chain-3x3-tdoa.json
+```
 
 跑法（场景必须一并给，框图里只写 `scenario_id`，路径是内部参数，D-037）：
 

@@ -47,6 +47,8 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   // C-4：特征提取与模板识别
   bandwidth_method: '带宽口径', min_frames: '最少帧数', window_frames: '占空比窗', noise_gate: '噪声闸',
   library_version: '模板库版本', accept_threshold: '接受门限', ambiguity_margin: '歧义间隔', unknown_distance: '未知距离', min_quality: '最低质量',
+  // 评价（C-5）
+  truth_source: '真值来源', match_overlap: '匹配重叠比', roc_points: 'ROC 点数',
   // 测向
   method: '体制', min_snr_dB: '最低信噪比', bias_deg: '系统偏差',
   sigma_method_deg: 'σ 体制', sigma_snr_ref_deg: 'σ 信噪比项', snr_ref_dB: '参考信噪比',

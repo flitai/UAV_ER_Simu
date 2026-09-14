@@ -96,8 +96,8 @@ try {
     JSON.stringify(states))
   // 检测识别评价一张卡、三个环节（C-4，10 报告 §2.1）：特征提取与模板识别挂在卡片里，不单独成卡
   const subs = await evalJson(page, "Array.from(document.querySelectorAll('[data-slot=det] [data-slot-sub]')).map(e => [e.dataset.slotSub, e.dataset.slotSubState])")
-  check('检测识别评价卡片里挂着特征提取与模板识别两个子环节，都是启用态（C-4）',
-    JSON.stringify(subs) === JSON.stringify([['feat', 'active'], ['rec', 'active']]), JSON.stringify(subs))
+  check('检测识别评价卡片里挂着特征提取、模板识别与评价三个子环节，都是启用态（C-4 / C-5）',
+    JSON.stringify(subs) === JSON.stringify([['feat', 'active'], ['rec', 'active'], ['eval', 'active']]), JSON.stringify(subs))
   await page.evaluate("(document.querySelector('[data-slot=det] [data-slot-sub=rec]').click(), true)")
   const recPanel = await page.evaluate("document.querySelector('[data-form=slot] .pp-title')?.textContent ?? ''")
   check('点子环节选中的是它自己：右栏给模板识别的参数面板', /模板/.test(recPanel), recPanel)
@@ -106,6 +106,12 @@ try {
   const featDerived = await page.evaluate("Array.from(document.querySelectorAll('[data-form=slot] [data-param-derived]')).map(e => e.dataset.paramDerived).join()")
   check('特征提取的 nfft 与突发合并空隙从检测器派生、只读（10 §4.3），识别器没有派生项',
     featDerived === 'nfft,merge_gap_frames' && recDerived === '', `feat ${featDerived} / rec ${recDerived}`)
+  // 评价器（C-5）：真值来源随模式、nfft 随检测器、data_id 随信号源 / 背景——三项都是只读派生行（全合成模式下 data_id 空着，说明写在行上）
+  await page.evaluate("(document.querySelector('[data-slot=det] [data-slot-sub=eval]').click(), true)")
+  const evalDerived = await page.evaluate("Array.from(document.querySelectorAll('[data-form=slot] [data-param-derived]')).map(e => e.dataset.paramDerived).join()")
+  const evalPanel = await page.evaluate("document.querySelector('[data-form=slot] .pp-title')?.textContent ?? ''")
+  check('评价器的真值来源、data_id 与 nfft 是派生只读项，面板标题写的是评价（C-5）',
+    evalDerived === 'truth_source,data_id,nfft' && /评价/.test(evalPanel), `eval ${evalDerived} / ${evalPanel}`)
   const note = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-note]')?.textContent ?? ''")
   check('旁路的环节写明信号从哪里取，且不出现 MATLAB 字样', /旁路/.test(note) && !/MATLAB/.test(note), note.slice(0, 40))
 
@@ -480,11 +486,47 @@ try {
     rL && rL.result === 'known' && rL.label === 'cw_beacon',
     rL ? `${rL.result} ${rL.label} p=${rL.posterior?.toFixed?.(2)} D=${rL.distance}` : '无')
 
+  // ---------- ③d 真值与评价（C-5）：truth.jsonl 一行、metrics.json 一节、task.json 的摘要与之相等 ----------
+  const truth = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/truth').then(r => r.json())`)
+  check('truth.jsonl 一行：demo-01 的 uav-1 自 3 s 起发单音，频段内，类别 cw_beacon，带评价器节点与站点',
+    Array.isArray(truth) && truth.length === 1 && truth[0].node_id === 'eval' && truth[0].site_id === 'site-1'
+    && truth[0].emitter_id === 'uav-1' && truth[0].label === 'cw_beacon' && truth[0].in_band === true && near(truth[0].t_s, 3, 1e-9),
+    JSON.stringify(truth?.[0] ?? truth).slice(0, 160))
+  const metrics = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/metrics').then(r => r.json())`)
+  const sec = metrics?.sites?.[0]
+  check('metrics.json：cuav-metrics/1，一节绑 site-1，真值来源 scenario，状态 valid',
+    metrics?.schema_version === 'cuav-metrics/1' && metrics?.sites?.length === 1 && sec?.site_id === 'site-1'
+    && sec?.truth_source === 'scenario' && sec?.state === 'valid', JSON.stringify({ schema: metrics?.schema_version, n: metrics?.sites?.length, state: sec?.state, reasons: sec?.reasons }))
+  check('帧级：Pd ≥ 0.98、Pfa ≤ 0.01，漏检只在开机边沿（源按块起点门控 tx_on，≤ 10 帧）',
+    sec?.frames?.pd >= 0.98 && sec?.frames?.pfa <= 0.01 && sec?.frames?.fn <= 10,
+    `pd ${sec?.frames?.pd} pfa ${sec?.frames?.pfa} fn ${sec?.frames?.fn} / ${sec?.frames?.total}`)
+  check('突发级：唯一一段真值匹配上，发现时延不超过一块（131 ms）；识别评价一段、准确率 1；ROC 32 点，工作点与帧级相同',
+    sec?.segments?.truth === 1 && sec?.segments?.matched === 1 && sec?.segments?.detect_delay_s?.max <= 0.14
+    && sec?.recognition?.evaluated === 1 && sec?.recognition?.accuracy === 1
+    && sec?.roc?.points?.length === 32 && sec?.roc?.working_point?.pd === sec?.frames?.pd,
+    `seg ${sec?.segments?.matched}/${sec?.segments?.truth} delay ${sec?.segments?.detect_delay_s?.max} acc ${sec?.recognition?.accuracy} roc ${sec?.roc?.points?.length}`)
+  check('分节带溯源与 truth_consumed，noise_stale_frames 写 null（端口上拿不到，不编）',
+    sec?.trace?.model_id === 'eval-baseline' && sec?.trace?.truth_consumed === true && sec?.quality?.noise_stale_frames === null,
+    JSON.stringify(sec?.trace))
+  const taskRec = await page.evaluateAsync(`fetch('/api/v1/tasks/${taskId}').then(r => r.json())`)
+  const ms = taskRec?.metrics_summary
+  check('task.json.metrics_summary 与 metrics.json 的四个数逐位相同（服务端终态后读文件填）',
+    Array.isArray(ms) && ms.length === 1 && ms[0].node_id === 'eval' && ms[0].site_id === 'site-1'
+    && ms[0].pd === sec?.frames?.pd && ms[0].pfa === sec?.frames?.pfa && ms[0].f1 === sec?.frames?.f1 && ms[0].accuracy === sec?.recognition?.accuracy && ms[0].state === 'valid',
+    JSON.stringify(ms))
+
   // 「检测识别」页签：突发列表一行一段；点最长段 → 时间轴与信号游标到该时刻
   await page.evaluate("(document.querySelector('[data-results-tab=detections]').click(), true)")
   st = await page.waitFor((s) => s.app?.resultsTab === 'detections' && s.app?.results?.detections?.status === 'final'
-    && (s.app?.results?.detections?.segments ?? 0) > 0 && s.app?.results?.recognitions?.status === 'final',
+    && (s.app?.results?.detections?.segments ?? 0) > 0 && s.app?.results?.recognitions?.status === 'final'
+    && s.app?.results?.metrics?.status === 'final',
   { label: '检测识别页签有数据', timeoutMs: 30000 })
+  // 右栏评价卡（C-5 最小集）：一节一行，探针与端点一致；只摆数
+  const evalRows = await evalJson(page, "Array.from(document.querySelectorAll('[data-metrics] [data-eval-site]')).map(e => e.dataset.evalSite)")
+  check('右栏评价卡一行（site-1），探针的四个数与端点相同',
+    JSON.stringify(evalRows) === JSON.stringify(['site-1']) && st.app.results.metrics.sites.length === 1
+    && st.app.results.metrics.sites[0].pd === sec?.frames?.pd && st.app.results.metrics.sites[0].accuracy === sec?.recognition?.accuracy,
+    `${JSON.stringify(evalRows)} ${JSON.stringify(st.app.results.metrics.sites[0])}`)
   const rowsDom = await waitDom(page, "document.querySelectorAll('[data-det-row]').length", bySeg.size)
   check('「检测识别」页签列出突发，一行一段', rowsDom === bySeg.size, `${rowsDom} 行`)
   const labelCell = await page.evaluate(`document.querySelector('[data-det-row="det|${longest.id}"] [data-det-label]')?.textContent ?? ''`)
@@ -711,6 +753,12 @@ try {
     { label: '回放任务结束', timeoutMs: 180000 })
   check('回放任务跑完', rpDone.app.task.runState === 'finished',
     `${rpDone.app.task.runState} / ${rpDone.app.task.result}`)
+  // 回放模式的评价（C-5）：真值来源 manifest，全片为真 → 没有负样本，Pfa 为 null 照实写
+  const rpMetrics = await page.evaluateAsync(`fetch('/api/v1/results/${rpTask.app.context.taskId}/metrics').then(r => r.status === 200 ? r.json() : { status: r.status })`)
+  const rpSec = rpMetrics?.sites?.[0]
+  check('回放模式：评价器真值来源 manifest、不绑站、清单类别非背景即全片为真（Pfa null）',
+    rpSec?.truth_source === 'manifest' && rpSec?.site_id === null && rpSec?.frames?.pfa === null && rpSec?.frames?.truth_on === rpSec?.frames?.total,
+    JSON.stringify({ src: rpSec?.truth_source, site: rpSec?.site_id, pfa: rpSec?.frames?.pfa, on: rpSec?.frames?.truth_on, total: rpSec?.frames?.total, status: rpMetrics?.status }))
 
   // 切回全合成：场景与目标自动认回来
   await page.evaluate(`(() => { const el = document.querySelector('[data-form=chain-setup] [data-field=mode]');
