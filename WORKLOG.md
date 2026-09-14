@@ -5126,3 +5126,11 @@ scene 14、slice1 39、slice2 29、slice4 108（新增子环节、派生只读�
 提交：415fe5f（步骤 0）、b932cff（步骤 1–2）、9204bfe（步骤 3）、本步一个提交；回填 CLAUDE.md D-066 与里程碑 C 行、06 §0.3 / §9G。
 **下一步 C-5 真值与评价**（④b 收口）：`Evaluator` 绑站、吃 det + rec 双输入，靠「消费即产出」的约定才不会被跳过；`truth.jsonl` / `metrics.json` / `task.json.metrics_summary`；`evaluate.py` 逐值对拍；跨层算例 ① 典型链路实例差 ≤ 0.05。
 
+
+### 2026-09-14 · C-5 第零步：调度器接受部分输入（`IComponent::accepts_partial_inputs()`，D-067）
+
+**起因**。C-5 的 `Evaluator` 吃 det + rec（+ scene）多路输入。追踪 `graph.cpp:206-250` 的尾段：多输入节点在「上游全结束且自己的输入没齐」时直接 flush 并标结束，缓冲里已到的那一半被丢；而且**已连的可选口在调度器眼里同样必须有数据**（`:214` 只跳过没连线的可选口）。`FeatureExtractor::flush` 才把仍开着的最后一段吐出去 → `TemplateClassifier` 出该段的识别行 → 到不了双输入的评价器。demo-01 的单音**唯一一段**恰好持续到结束（识别行 `t_s 3.014656 → t_end_s 5.998592`），不修调度器就没有识别准确率可算；C-4 靴带出来的「消费即产出」约定也只治得了中段、治不了尾段。
+
+**做了什么**。`IComponent` 加虚函数 `accepts_partial_inputs()`，缺省 false。为真的节点：任一已连输入有数据即运行 `process()`，缺席的口以 `has_data = false` 的空 `PortData` 给入；消费本身计作本轮进展（它不产出，否则「本轮没有任何节点产出」的停滞判据会误报）；上游全结束且所有已连输入缓冲为空时才走既有的收尾路径。非 partial 节点的判据 `run_now == inputs_ready`，代码路径一字不动。
+
+**验证（macOS）**。新增两条单测（`test_types_graph.cpp`）：A 三块 + 尾块直连、B 一块 + 尾块经压一轮的中继——缺省的双输入汇聚器只收到 `a1+b0 / a2+b1`，**a0 被 a1 覆盖、A 的尾块 a3 在收尾时丢**（把既有行为写成断言）；开启后 `a0 | a1+b0 | a2+b1 | a3` 四次调用一块不丢、每块只消费一次、flush 一次。引擎 236 项 doctest + 11 项 ctest 全绿。**既有产品逐字节不变**：`slice1`、`slice2`（demo-01 场景）与 6 s 的缺省典型链路三份运行、20 个产品文件（`.f32`、索引、`detections / features / recognitions / track / links`）改前改后 sha256 逐一相同。

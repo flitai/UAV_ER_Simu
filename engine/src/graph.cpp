@@ -208,7 +208,11 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
         for (NodeId id : order_) {
             if (finished[id]) continue;
             PortMap in, out;
+            // 接受部分输入的节点（C-5 评价器）：任一已连输入有数据就跑，缺席的口给空数据；
+            // 其余节点仍要求全部已连输入到齐，这条路径一字不动（铁律 10：既有产品逐位不变）。
+            const bool partial = nodes_[id].comp->accepts_partial_inputs();
             bool inputs_ready = true;
+            bool any_ready = false;
             std::size_t wired_count = 0;
             for (const auto& p : nodes_[id].comp->inputs()) {
                 if (p.optional && !wired_in[id].count(p.name)) continue;
@@ -216,12 +220,18 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
                 auto it = buffers.find(key(id, p.name));
                 if (it == buffers.end() || !it->second.has_data) {
                     inputs_ready = false;
-                    break;
+                    if (!partial) break;
+                    PortData empty;
+                    empty.type = p.type;
+                    in[p.name] = empty;
+                    continue;
                 }
+                any_ready = true;
                 in[p.name] = it->second;
             }
             const bool has_inputs = wired_count > 0;
-            if (has_inputs && !inputs_ready) {
+            const bool run_now = !has_inputs || (partial ? any_ready : inputs_ready);
+            if (has_inputs && !run_now) {
                 // 上游全部结束、且本节点所有输入缓冲都空 → 本节点也该收尾了
                 bool upstream_done = true;
                 for (NodeId u : preds[id]) {
@@ -280,6 +290,8 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
                 }
             }
             if (st == Step::Produced) any_progress = true;
+            // 部分输入节点消费了数据也算前进：它不产出，否则「本轮没有任何节点产出」的停滞判据会误报
+            if (partial && any_ready) any_progress = true;
         }
         if (observer) {
             ProgressInfo info;

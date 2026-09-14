@@ -350,6 +350,14 @@ public:
         return true;
     }
 
+    // 接受部分输入（C-5，D-067）。调度器缺省只在**所有**已连输入都有数据时才运行一个节点，
+    // 并在「上游全结束且输入没齐」时直接收尾——已到的那一半被丢。双输入节点因此收不到
+    // 上游 flush 出的尾块（检测器最后一段的识别行到不了评价器），也依赖「消费即产出」的约定
+    // 才不被跳过。返回 true 的节点改为：任一已连输入有数据就运行（缺席的口以 has_data=false
+    // 的空数据给入），上游全结束且所有已连输入缓冲为空时才收尾。只有不产出、按时间对齐消费的
+    // 汇聚类节点（评价器）该开它；有输出且要求各口同拍的节点（特征提取）不开。
+    virtual bool accepts_partial_inputs() const { return false; }
+
     // 参数配置。失败必须写 err 并返回 false，不得吞掉。
     virtual bool configure(const std::map<std::string, double>& params,
                            const std::map<std::string, std::string>& text_params,

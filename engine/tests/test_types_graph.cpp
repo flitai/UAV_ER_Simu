@@ -221,3 +221,136 @@ TEST_CASE("块元数据：削顶计数缺省为零，是标记不是降级（D-0
     CHECK(m.clip_count == 0u);
     CHECK(m.state == State::Valid);
 }
+
+// --------------------------------------------------------------- 接受部分输入（C-5，D-067）
+
+namespace {
+
+// 产出 n 块后 Finished，收尾时再吐一块「尾块」——模拟检测器 / 特征提取器在 flush() 里才出的行。
+struct TailSource : IComponent {
+    std::uint64_t n, produced = 0;
+    explicit TailSource(std::uint64_t n_) : n(n_) {}
+    std::string type_name() const override { return "TailSource"; }
+    std::vector<PortSpec> inputs() const override { return {}; }
+    std::vector<PortSpec> outputs() const override { return {PortSpec{"out", PortType::IQStream}}; }
+    bool configure(const std::map<std::string, double>&, const std::map<std::string, std::string>&,
+                   std::string&) override { return true; }
+    bool init(IRandom&, std::string&) override { return true; }
+    static PortData block(std::uint64_t k) {
+        PortData d;
+        d.type = PortType::IQStream;
+        d.has_data = true;
+        d.iq.meta.start_sample = k;
+        return d;
+    }
+    Step process(PortMap&, PortMap& out, std::string&) override {
+        if (produced >= n) return Step::Finished;
+        out["out"] = block(produced++);
+        return Step::Produced;
+    }
+    Step flush(PortMap& out, std::string&) override {
+        out["out"] = block(produced++);   // 尾块编号紧接其后
+        return Step::Finished;
+    }
+    void reset() override {}
+    ComponentStatus status() const override { return ComponentStatus(); }
+};
+
+// 单输入中继：把收到的块压一轮再放出去，最后一块只在 flush() 里出——让尾块到得比上游结束晚。
+struct DelayRelay : IComponent {
+    bool holding = false;
+    PortData held;
+    std::string type_name() const override { return "DelayRelay"; }
+    std::vector<PortSpec> inputs() const override { return {PortSpec{"in", PortType::IQStream}}; }
+    std::vector<PortSpec> outputs() const override { return {PortSpec{"out", PortType::IQStream}}; }
+    bool configure(const std::map<std::string, double>&, const std::map<std::string, std::string>&,
+                   std::string&) override { return true; }
+    bool init(IRandom&, std::string&) override { return true; }
+    Step process(PortMap& in, PortMap& out, std::string&) override {
+        if (holding) out["out"] = held;
+        held = in.at("in");
+        holding = true;
+        return Step::Produced;
+    }
+    Step flush(PortMap& out, std::string&) override {
+        if (holding) out["out"] = held;
+        holding = false;
+        return Step::Finished;
+    }
+    void reset() override {}
+    ComponentStatus status() const override { return ComponentStatus(); }
+};
+
+// 双输入汇聚器：记录每次调用哪些口有数据、收到的块编号；partial 为真即声明接受部分输入。
+struct TwoInSink : IComponent {
+    bool partial;
+    std::vector<std::uint64_t> got_a, got_b;
+    int calls = 0, flushes = 0, calls_with_both = 0;
+    explicit TwoInSink(bool p) : partial(p) {}
+    std::string type_name() const override { return "TwoInSink"; }
+    std::vector<PortSpec> inputs() const override {
+        return {PortSpec{"a", PortType::IQStream}, PortSpec{"b", PortType::IQStream}};
+    }
+    std::vector<PortSpec> outputs() const override { return {}; }
+    bool accepts_partial_inputs() const override { return partial; }
+    bool configure(const std::map<std::string, double>&, const std::map<std::string, std::string>&,
+                   std::string&) override { return true; }
+    bool init(IRandom&, std::string&) override { return true; }
+    Step process(PortMap& in, PortMap&, std::string&) override {
+        calls++;
+        const bool ha = in.count("a") && in.at("a").has_data;
+        const bool hb = in.count("b") && in.at("b").has_data;
+        if (ha) got_a.push_back(in.at("a").iq.meta.start_sample);
+        if (hb) got_b.push_back(in.at("b").iq.meta.start_sample);
+        if (ha && hb) calls_with_both++;
+        return Step::Idle;
+    }
+    Step flush(PortMap&, std::string&) override { flushes++; return Step::Finished; }
+    void reset() override {}
+    ComponentStatus status() const override { return ComponentStatus(); }
+};
+
+// A 三块 + 尾块直连；B 一块 + 尾块经中继压一轮。返回汇聚器供断言。
+TwoInSink* build_two_in(Graph& g, bool partial) {
+    std::string err;
+    NodeId a = g.add(std::unique_ptr<IComponent>(new TailSource(3)), "A");
+    NodeId b = g.add(std::unique_ptr<IComponent>(new TailSource(1)), "B");
+    NodeId r = g.add(std::unique_ptr<IComponent>(new DelayRelay()), "relay");
+    std::unique_ptr<TwoInSink> sp(new TwoInSink(partial));
+    TwoInSink* sink = sp.get();
+    NodeId k = g.add(std::move(sp), "sink");
+    REQUIRE(g.connect(a, "out", k, "a", err));
+    REQUIRE(g.connect(b, "out", r, "in", err));
+    REQUIRE(g.connect(r, "out", k, "b", err));
+    REQUIRE(g.validate(err));
+    return sink;
+}
+
+}  // namespace
+
+TEST_CASE("调度器：缺省的双输入节点只在两口都到齐时运行，尾块与错拍的块被丢（既有行为，写成断言）") {
+    Graph g;
+    TwoInSink* sink = build_two_in(g, false);
+    Xoshiro256pp rng(1);
+    RunReport rep = g.run(rng);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+    // A 的 a0 在第 0 轮到而 b 还空 → 第 1 轮被 a1 覆盖；A 的尾块 a3 到时 b 已空且上游全结束 → 收尾时丢
+    CHECK(sink->got_a == std::vector<std::uint64_t>{1, 2});
+    CHECK(sink->got_b == std::vector<std::uint64_t>{0, 1});
+    CHECK(sink->calls == 2);
+    CHECK(sink->calls_with_both == 2);
+    CHECK(sink->flushes == 1);
+}
+
+TEST_CASE("调度器：接受部分输入的节点任一口有数据即运行，尾块与错拍的块一块不丢，上游全结束且缓冲空才收尾（C-5）") {
+    Graph g;
+    TwoInSink* sink = build_two_in(g, true);
+    Xoshiro256pp rng(1);
+    RunReport rep = g.run(rng);
+    REQUIRE_MESSAGE(rep.ok, rep.error);        // 只有一口有数据时返回 Idle 也不触发「调度停滞」
+    CHECK(sink->got_a == std::vector<std::uint64_t>{0, 1, 2, 3});   // 含 A 的尾块
+    CHECK(sink->got_b == std::vector<std::uint64_t>{0, 1});         // 含经中继晚到的 B 尾块
+    CHECK(sink->calls == 4);                    // 每块只消费一次：a0 | a1+b0 | a2+b1 | a3
+    CHECK(sink->calls_with_both == 2);
+    CHECK(sink->flushes == 1);
+}
