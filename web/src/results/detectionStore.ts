@@ -55,6 +55,20 @@ export function visibleSegments(st: DetectionState): DetectionSegment[] {
   return st.siteFilter ? st.segments.filter((g) => g.site_id === st.siteFilter) : st.segments
 }
 
+/** 本次任务里出现过的站号（索引优先，运行中索引还没写出来就从段里取）。检测页签的下拉与时间线、评价页签共用。 */
+export function siteIdsOf(st: DetectionState): string[] {
+  const ids = new Set<string>()
+  if (st.index) for (const n of Object.values(st.index.nodes)) if (n.site_id) ids.add(n.site_id)
+  for (const g of st.segments) if (g.site_id) ids.add(g.site_id)
+  return [...ids].sort()
+}
+
+/** 焦点站：下拉选了就是它，没选取第一个站；一个站都没有（未绑站的单站任务）时为 null。 */
+export function focusSite(st: DetectionState): string | null {
+  if (st.siteFilter) return st.siteFilter
+  return siteIdsOf(st)[0] ?? null
+}
+
 /** 探针用的摘要（逐项列，不整包展开——漏字段就看不见，切片 ⑥b 踩过） */
 export function probeDetections(st: DetectionState) {
   return {

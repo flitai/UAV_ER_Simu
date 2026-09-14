@@ -23,6 +23,14 @@ const BY_RESULT: Record<ResultState, Omit<ResultBadge, 'hollow' | 'suffix'>> = {
   not_applicable: { glyph: '—', text: '不适用', tone: 'na' },
 }
 
+/**
+ * 单独一个四态的字形与色（不掺运行态）。产物自己的四态用它：观测点产品、检测器摘要、评价分节……
+ * 与 resultBadge 共用同一张表，所以形状与文字在全系统一致（09 §13.1：形状 + 文字 + 颜色，不只靠颜色）。
+ */
+export function stateBadge(state: string | null | undefined): Omit<ResultBadge, 'hollow' | 'suffix'> {
+  return BY_RESULT[(state ?? 'not_applicable') as ResultState] ?? BY_RESULT.not_applicable
+}
+
 export function resultBadge(rs: RunState | null, result: ResultState | null): ResultBadge {
   let r: ResultState | null = result
   if (rs === 'failed') r = 'invalid'

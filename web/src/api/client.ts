@@ -295,6 +295,10 @@ export interface MetricsSection {
   node_id: string
   site_id: string | null
   truth_source: string
+  /** 评价口径快照：真值来源、突发匹配重叠阈值、ROC 取点数、帧长（须等于检测器） */
+  params: { truth_source: string; match_overlap: number; roc_points: number; nfft: number }
+  /** 评价器从检测行与块元数据反推的检测器参数（不另开参数）；没有 center_Hz，M 要看 detections.index.json */
+  detector: { sample_rate_Hz: number; f_lo_Hz: number; f_hi_Hz: number; frame_dt_s: number; threshold: number | null }
   frames: { total: number; truth_on: number; tp: number; fp: number; fn: number; tn: number
     pd: number | null; pfa: number | null; precision: number | null; recall: number | null; f1: number | null }
   segments: { truth: number; truth_out_of_band: number; detected: number; matched: number; false_segments: number
@@ -303,9 +307,11 @@ export interface MetricsSection {
   recognition: { state: string; labels: string[]; confusion: number[][]; evaluated: number; unmatched: number
     accuracy: number | null; unknown_rate: number | null; ambiguous_rate: number | null
     per_class: Array<{ label: string; support: number; precision: number | null; recall: number | null; f1: number | null }> }
+  /** `noise_stale_frames` 在 metrics.json 里恒 null（端口上拿不到），真值在 detections.index.json */
   quality: { overload_frames: number; noise_stale_frames: number | null; truth_rows: number }
   state: string
   reasons: string[]
+  trace: Record<string, unknown>
 }
 
 export interface MetricsDoc {
@@ -396,6 +402,8 @@ export interface DetectionNodeSummary {
   center_Hz: number
   f_lo_Hz: number
   f_hi_Hz: number
+  /** 频段内 bin 数 M（C-9 起由引擎给；旧任务的索引里没有这个键） */
+  m_bins?: number
   pfa: number
   threshold: number
   noise_mode: string
@@ -523,6 +531,42 @@ export function getRecognitions(task: string, q: RecognitionsQuery = {}, base = 
     sp.set('stride', String(stride))
     for (const k of ['site_id', 'node_id', 'result', 'label'] as const) if (q[k]) sp.set(k, q[k]!)
     return `${base}/api/v1/results/${encodeURIComponent(task)}/recognitions?${sp.toString()}`
+  }, q.stride ?? 1)
+}
+
+/** `truth.jsonl` 的一行（docs/display-products.md §5.4）。每段真值一行；回放清单模式全片一行、无源无频率。 */
+export interface TruthRow {
+  t_s: number
+  t_end_s: number
+  node_id: string
+  site_id?: string
+  emitter_id: string | null
+  label: string
+  waveform: string
+  center_Hz: number | null
+  bw_Hz: number | null
+  in_band: boolean
+}
+
+export interface TruthQuery {
+  t0?: number
+  t1?: number
+  stride?: number
+  site_id?: string
+  node_id?: string
+  emitter_id?: string
+  label?: string
+}
+
+/** 真值段（C-5 的产物，生产者 Evaluator）。抽稀键是「评价器节点 + emitter_id」。 */
+export function getTruth(task: string, q: TruthQuery = {}, base = ''): Promise<RowsResult<TruthRow>> {
+  return getRows<TruthRow>('truth', (stride) => {
+    const sp = new URLSearchParams()
+    sp.set('t0', String(q.t0 ?? 0))
+    sp.set('t1', String(q.t1 ?? 1e9))
+    sp.set('stride', String(stride))
+    for (const k of ['site_id', 'node_id', 'emitter_id', 'label'] as const) if (q[k]) sp.set(k, q[k]!)
+    return `${base}/api/v1/results/${encodeURIComponent(task)}/truth?${sp.toString()}`
   }, q.stride ?? 1)
 }
 

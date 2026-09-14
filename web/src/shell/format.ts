@@ -51,6 +51,18 @@ export function fmtDeg(d: number | null | undefined): string {
 }
 
 /** 时延：秒太小，一律用微秒。 */
+/**
+ * 时长按量级选单位（µs / ms / s）。`fmtDelay` 恒用 µs 是给到达时间差用的（那是 ns–µs 量级），
+ * 发现时延是 ms 量级，写成 14656.0 µs 读不出来。
+ */
+export function fmtDuration(s: number | null | undefined): string {
+  if (s === null || s === undefined || !Number.isFinite(s)) return '—'
+  const a = Math.abs(s)
+  if (a >= 1) return `${s.toFixed(3)} s`
+  if (a >= 1e-3) return `${(s * 1e3).toFixed(1)} ms`
+  return `${(s * 1e6).toFixed(1)} µs`
+}
+
 export function fmtDelay(s: number | null | undefined): string {
   if (s === null || s === undefined || !Number.isFinite(s)) return '—'
   return `${(s * 1e6).toFixed(1)} µs`
