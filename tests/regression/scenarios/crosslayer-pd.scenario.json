@@ -1,0 +1,72 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "crosslayer-pd",
+  "name": "跨层一致性算例 ①：定点突发源对滑动能量检测的帧级检出率（C-5）",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 40
+  },
+  "seed": 20260914,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "亚运村侦察站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 500000,
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "uav-1",
+      "name": "定点突发源（跨层算例 ①）",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.439,
+        "lat": 39.99,
+        "alt_m": 50
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "tx_power_dBm": -16,
+        "antenna_gain_dBi": 2,
+        "waveform": {
+          "type": "burst",
+          "offset_Hz": 48828.125,
+          "period_s": 0.512,
+          "duty": 0.2
+        }
+      }
+    }
+  ],
+  "routes": [],
+  "trace": {
+    "created_by": "实施方（C-5 步骤 3）",
+    "created_at": "2026-09-14T00:00:00Z",
+    "notes": "参数在跑之前按解析预测冻结，看到结果后不回头调（铁律 10）。站点即 demo-01 的 site-1（116.405, 39.99, 30 m；fs 500 kS/s、nf 6 dB、增益 3 dBi）；源定点在正东约 2.9 km、高 50 m，无航线、无开关事件，自由空间路损约 109.5 dB。突发周期 0.512 s = 256000 样点 = 250 帧（nfft 1024）、导通 0.2 = 51200 样点 = 50 帧——边沿恰在帧边界，且样点域门控自样点 0 起与源同式。检测频段 ±225 kHz 约 921 bin，pfa 1e-3 的门限 η ≈ 1.10；发射功率 −16 dBm 使带内信噪比约 −9 dB、解析检出率约 0.75（曲线最陡处）；40 s 约 3900 个导通帧，二项 σ ≈ 0.007。用突发而不用连续单音：连续信号从 t=0 起会被滑动删截的环吸收，Pd≈0.7 时 30% 的漏检帧持续进环、估计上漂，与「噪声已知」的解析式不可比；突发的 80% 关断期让环保持干净。"
+  }
+}

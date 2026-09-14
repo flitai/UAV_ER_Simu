@@ -24,6 +24,14 @@ for proj in engine geo; do
   ctest --test-dir "$proj/build" --output-on-failure
 done
 
+printf '=== 跨层一致性算例 ①：典型链路实例（C-5，D-067）===\n'
+# 解析检出率（EM-S-02，D-026）对典型链路跑出的帧级检出率，差 ≤ 0.05；超差是发现不是失败——脚本退出码 1 会让本脚本停下。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet --with numpy python tests/regression/crosslayer_pd_chain.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
+fi
+
 echo "=== 常数策略守卫（D-009）==="
 # `geo::legacy::` 里是自 emcore 移植时保留的旧常数（111320 投影、10 MHz 标称带宽等），
 # 它们存在的唯一理由是守住那几份黄金基准。新写代码一律用严格 ENU 与精确光速，
