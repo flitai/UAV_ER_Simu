@@ -68,6 +68,7 @@ struct DetectionSummary {
     double sample_rate_Hz = 0.0;
     double center_Hz = 0.0;
     double band_lo_Hz = 0.0, band_hi_Hz = 0.0;   // 绝对频率
+    std::size_t m_bins = 0;                       // 频段内 bin 数 M：门限 Q(M, M·η) = pfa 与解析检出率的参数
     double pfa = 0.0;
     double threshold = 0.0;
     std::string noise_mode;                       // probe / sliding

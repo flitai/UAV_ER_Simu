@@ -572,6 +572,7 @@ void EnergyDetector::emit_summary() {
     s.center_Hz = center_frequency_Hz_;
     s.band_lo_Hz = center_frequency_Hz_ + band_lo_Hz_;
     s.band_hi_Hz = center_frequency_Hz_ + band_hi_Hz_;
+    s.m_bins = static_cast<std::size_t>(m_bins_);
     s.pfa = pfa_;
     s.threshold = eta_;
     s.noise_mode = noise_mode_;

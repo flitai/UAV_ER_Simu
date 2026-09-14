@@ -134,6 +134,7 @@ json detection_summary_json(const DetectionSummary& s) {
     for (const auto& n : s.notes) notes.push_back(n);
     json j{{"node_id", s.node_id}, {"nfft", s.nfft}, {"sample_rate_Hz", s.sample_rate_Hz},
            {"center_Hz", s.center_Hz}, {"f_lo_Hz", s.band_lo_Hz}, {"f_hi_Hz", s.band_hi_Hz},
+           {"m_bins", s.m_bins},
            {"pfa", s.pfa}, {"threshold", s.threshold}, {"noise_mode", s.noise_mode},
            {"noise_window_frames", s.noise_window_frames}, {"merge_gap_frames", s.merge_gap_frames},
            {"dt_s", s.dt_s}, {"frames", s.frames}, {"hits", s.hits}, {"segments", s.segments},

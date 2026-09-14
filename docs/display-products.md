@@ -289,6 +289,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `schema` / `final` / `rows` | `cuav-detections-index/1`；`final` 恒 `true`（只在运行结束时写）；总行数 |
 | `nodes.<node_id>.{node_id, site_id?}` | 身份同行 |
 | `…{nfft, sample_rate_Hz, center_Hz, f_lo_Hz, f_hi_Hz, pfa, threshold, dt_s}` | 参数快照与一帧时长 |
+| `…m_bins` | 检测频段内的 bin 数 M（fftshift 后 `(k − nfft/2)·fs/nfft ∈ [f_lo, f_hi)` 的个数）。它是 `Q(M, M·η) = pfa` 与 EM-S-02 解析检出率（D-026 两式）唯一缺不得的参数，读端按 `f_lo / f_hi / nfft / fs` 自己复算会在边界上差一个 bin，所以由引擎给（C-9） |
 | `…{noise_mode, noise_window_frames, merge_gap_frames}` | `probe` / `sliding`；`sliding` 时是环长 W，`probe` 时是实际用的探针帧数 |
 | `…{frames, hits, segments, noise_stale_frames, overload_frames}` | 计数；`noise_stale_frames` = 环连续超过 W 帧未更新时判决的帧数（信号持续占满时的正常状态，记 note 不降级） |
 | `…{calibrated, state, notes}` | 输入是否标定、检测器的四态与 notes（环从未填满 → `degraded`） |
