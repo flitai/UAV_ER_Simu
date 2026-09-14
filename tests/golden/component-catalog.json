@@ -726,6 +726,157 @@
     },
     {
       "category": "algorithm",
+      "description": "把检测行与识别行对照真值，出帧级 Pd / Pfa / F1、突发级检出与发现时延、ROC（门限扫描不重跑）与识别混淆矩阵（10 报告 §4.5；04 §7.9、§11.4）。真值三种来源：场景参数帧的 tx_on 与波形门控（scenario）、回放清单的类别（manifest）、无（none）。真值只进这里、不向被测算法泄漏（04 §5.2）。绑站：吃本站全部链路帧，多源的真值区间取并集。结果经运行器落 truth.jsonl 与 metrics.json。",
+      "display_name": "真值与评价",
+      "implementation": "cpp",
+      "model_id": "eval-baseline",
+      "model_layer": "M2",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": "scenario",
+          "description": "真值来源：scenario = 场景参数帧的 tx_on 与波形门控（须接 scene 口）；manifest = 回放清单的类别（须给 data_id）；none = 无真值，只出计数",
+          "enum": [
+            "scenario",
+            "manifest",
+            "none"
+          ],
+          "name": "truth_source",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "description": "回放清单的标识：manifest 模式下是真值来源；scenario 模式下若给出，视为混合增强的背景片段，用来核对它是否含目标（含则 degraded）",
+          "name": "data_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "constraint": "= EnergyDetector.nfft",
+          "default": 1024.0,
+          "description": "检测器的帧长，须与上游检测器相等（装载器核对）；帧时长 = nfft / fs",
+          "min": 1.0,
+          "name": "nfft",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 0.5,
+          "description": "突发匹配的时间重叠比：overlap / min(检测段长, 真值段长) 不小于它记匹配",
+          "max": 1.0,
+          "min": 0.0,
+          "min_exclusive": true,
+          "name": "match_overlap",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 32.0,
+          "description": "ROC 门限点数：按排序统计量等分取，去重后可能少于此数",
+          "min": 2.0,
+          "name": "roc_points",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "description": "回放清单路径，由装载器按 data_id 解析注入（D-037）",
+          "internal": true,
+          "name": "manifest_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景文件路径，由装载器按 scene_binding 注入；取各源的带宽与波形",
+          "internal": true,
+          "name": "scenario_path",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "场景标识，由装载器注入",
+          "internal": true,
+          "name": "scenario_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        },
+        {
+          "description": "本评价器所属站点，由装载器按 scene_binding 注入；只收本站的参数帧",
+          "internal": true,
+          "name": "site_id",
+          "required": false,
+          "type": "string",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "det",
+            "type": "DetectionList"
+          },
+          {
+            "name": "rec",
+            "optional": true,
+            "type": "RecognitionList"
+          },
+          {
+            "name": "scene1",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene2",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene3",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene4",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene5",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene6",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene7",
+            "optional": true,
+            "type": "SceneParamFrame"
+          },
+          {
+            "name": "scene8",
+            "optional": true,
+            "type": "SceneParamFrame"
+          }
+        ],
+        "out": []
+      },
+      "scene_bindable": true,
+      "stateful": true,
+      "type": "Evaluator",
+      "version": "0.1.0"
+    },
+    {
+      "category": "algorithm",
       "description": "按检测器并好的突发出一行特征（EM-S-03 §10.5–§10.10，10 报告 §4.3）：与检测器同律切帧（同 nfft、不加窗不重叠、按 frame_index 对齐），段内命中帧的平均功率谱减去由 Λ 反推的带内噪声估计并过闸后，给出功率质心、99% 占用带宽（或 −20 dB 边）、带内功率与峰值、信噪比、谱平坦度、峰均比、占空比、与上一段的间隔与频差、质量标记；口径与 algos/reference/features.py 一致，黄金基准逐段对拍。IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补",
       "display_name": "特征提取",
       "implementation": "cpp",

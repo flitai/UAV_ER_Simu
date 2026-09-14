@@ -34,6 +34,10 @@ std::string detect_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/dia
 std::string feature_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_feature.json"; }
 std::string recognize_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_recognize.json"; }
 std::string library_root() { return std::string(CUAV_SOURCE_DIR) + "/../models/recognition"; }
+std::string evaluate_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_evaluate.json"; }
+std::string evaluate_scene_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_evaluate_scene.json"; }
+std::string demo01_scenario() { return std::string(CUAV_SOURCE_DIR) + "/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"; }
+std::string scene_root() { return std::string(CUAV_SOURCE_DIR) + "/../data/scene"; }
 
 struct Result {
     int code = -1;
@@ -172,7 +176,7 @@ TEST_CASE("cuav_run --catalog：输出与 catalog_json() 逐字节相同，且�
     CHECK(r.out == catalog_json(builtin_registry()).dump(2) + "\n");
     json j = json::parse(r.out);
     CHECK(j["schema_version"] == "cuav-catalog/1");
-    CHECK(j["components"].size() == 21);
+    CHECK(j["components"].size() == 22);
 }
 
 TEST_CASE("cuav_run --validate：合法框图一条 validate 事件；非法框图一条 error 事件并退出 2") {
@@ -519,3 +523,86 @@ TEST_CASE("cuav_run：--library-root 只与 --validate / --run 搭配") {
     CHECK(err.find("--library-root") != std::string::npos);
 }
 
+
+TEST_CASE("cuav_run --run：带评价器的场景框图落 truth.jsonl 一行与 metrics.json 一节；识别行到得了评价器；task.state 带 truth_rows / evaluations（C-5）") {
+    const std::string out = temp_root() + "/run_evaluate_scene";
+    Result r = run_cli({"--run", evaluate_scene_fixture(), "--out", out, "--scenario", demo01_scenario(),
+                        "--scene-root", scene_root(), "--library-root", library_root()});
+    REQUIRE_MESSAGE(r.code == ExitOk, r.diag);
+
+    // truth.jsonl：demo-01 的 uav-1 自 3 s 起发单音直到 6 s 结束，一行、频段内、cw_beacon
+    const std::string text = read_file(out + "/truth.jsonl");
+    REQUIRE(!text.empty());
+    CHECK(text[text.size() - 1] == '\n');
+    std::vector<json> rows;
+    {
+        std::istringstream is(text);
+        std::string line;
+        while (std::getline(is, line)) if (!line.empty()) rows.push_back(json::parse(line));
+    }
+    REQUIRE(rows.size() == 1);
+    CHECK(rows[0]["node_id"] == "eval");
+    CHECK(rows[0]["site_id"] == "site-1");
+    CHECK(rows[0]["emitter_id"] == "uav-1");
+    CHECK(rows[0]["label"] == "cw_beacon");
+    CHECK(rows[0]["waveform"] == "tone");
+    CHECK(rows[0]["in_band"] == true);
+    CHECK(rows[0]["t_s"].get<double>() == 3.0);
+    CHECK(rows[0]["t_end_s"].get<double>() == 6.0);
+    CHECK(rows[0]["bw_Hz"].get<double>() == 400000.0);
+
+    // metrics.json：一节、绑 site-1；帧级 Pd 高（块门控只吃掉开机边沿的几帧）、Pfa 低；唯一一段匹配上且识别对
+    json m = json::parse(read_file(out + "/metrics.json"));
+    CHECK(m["schema_version"] == "cuav-metrics/1");
+    CHECK(m["task_id"] == "run_evaluate_scene");
+    CHECK(m["localization"].is_null());
+    REQUIRE(m["sites"].size() == 1);
+    const json& s = m["sites"][0];
+    CHECK(s["node_id"] == "eval");
+    CHECK(s["site_id"] == "site-1");
+    CHECK(s["truth_source"] == "scenario");
+    CHECK(s["state"] == "valid");
+    CHECK(s["frames"]["total"].get<int>() == 2929);
+    CHECK(s["frames"]["pd"].get<double>() >= 0.98);
+    CHECK(s["frames"]["pfa"].get<double>() <= 0.01);
+    CHECK(s["frames"]["fn"].get<int>() <= 10);                 // 源按块起点门控 tx_on：3.0 → 3.0147 s 的 7 帧是漏检
+    CHECK(s["segments"]["truth"].get<int>() == 1);
+    CHECK(s["segments"]["matched"].get<int>() == 1);
+    CHECK(s["segments"]["detect_delay_s"]["max"].get<double>() <= 0.14);
+    CHECK(s["recognition"]["state"] == "valid");
+    CHECK(s["recognition"]["evaluated"].get<int>() == 1);       // 识别器在 flush 里才出的那一行到了（步骤 0）
+    CHECK(s["recognition"]["accuracy"].get<double>() == 1.0);
+    CHECK(s["roc"]["points"].size() == 32);
+    CHECK(s["roc"]["working_point"]["pd"] == s["frames"]["pd"]);
+    CHECK(s["detector"]["frame_dt_s"].get<double>() == 1024.0 / 500000.0);
+    CHECK(s["quality"]["noise_stale_frames"].is_null());
+    CHECK(s["trace"]["model_id"] == "eval-baseline");
+    CHECK(s["trace"]["truth_consumed"] == true);
+
+    // 结束事件带 truth_rows 与 evaluations；不发 truth / evaluation 事件
+    const json* last_state = nullptr;
+    for (const auto& e : r.events) if (e["type"] == "task.state") last_state = &e;
+    REQUIRE(last_state);
+    CHECK((*last_state)["payload"]["truth_rows"] == 1);
+    CHECK((*last_state)["payload"]["evaluations"] == 1);
+    CHECK(count_type(r, "truth") == 0);
+}
+
+TEST_CASE("cuav_run --run：truth_source = none 的评价器——没有 truth.jsonl，metrics.json 一节 not_applicable 但计数照给（C-5）") {
+    const std::string out = temp_root() + "/run_evaluate_none";
+    Result r = run_cli({"--run", evaluate_fixture(), "--out", out, "--library-root", library_root()});
+    REQUIRE_MESSAGE(r.code == ExitOk, r.diag);
+    CHECK(read_file(out + "/truth.jsonl").empty());
+    json m = json::parse(read_file(out + "/metrics.json"));
+    REQUIRE(m["sites"].size() == 1);
+    const json& s = m["sites"][0];
+    CHECK(s["site_id"].is_null());
+    CHECK(s["state"] == "not_applicable");
+    CHECK(s["frames"]["truth_on"].get<int>() == 0);
+    CHECK(s["frames"]["pd"].is_null());
+    CHECK(s["frames"]["total"].get<int>() > 0);
+    CHECK(s["frames"]["fp"].get<int>() > 0);                  // 单音段的命中都算虚警：没有真值就是这样
+    CHECK(s["recognition"]["state"] == "valid");
+    CHECK(s["recognition"]["evaluated"].get<int>() == 0);
+    CHECK(s["recognition"]["unmatched"].get<int>() > 0);
+}

@@ -36,6 +36,7 @@ add_library(cuav_engine STATIC
   src/processing.cpp
   src/recognition.cpp
   src/evaluation.cpp
+  src/evaluator.cpp
   src/locate.cpp
   src/spectrum.cpp
   src/platform.cpp
@@ -99,6 +100,7 @@ add_executable(cuav_engine_tests
   tests/test_receiver_chain.cpp
   tests/test_recognition_chain.cpp
   tests/test_evaluation.cpp
+  tests/test_evaluator.cpp
 )
 target_link_libraries(cuav_engine_tests PRIVATE cuav_runner)
 # 黄金基准放源码树里，测试要按源码目录找它，不能依赖运行时工作目录
@@ -125,6 +127,16 @@ add_test(NAME cuav_run_validate_slice4_feature
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_feature.json")
 add_test(NAME cuav_run_validate_slice4_recognize
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_recognize.json"
+          --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
+add_test(NAME cuav_run_validate_slice4_evaluate
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_evaluate.json"
+          --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
+# C-5：缺省典型链路（demo-01）加绑站的评价器，跑 6 s，产品目录里应有 truth.jsonl 与 metrics.json
+add_test(NAME cuav_run_run_slice4_evaluate_scene
+  COMMAND cuav_run --run "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_evaluate_scene.json"
+          --out "${CMAKE_CURRENT_BINARY_DIR}/runs/slice4-evaluate-scene"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"

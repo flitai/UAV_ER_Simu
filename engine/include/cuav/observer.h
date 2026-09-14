@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "cuav/component.h"
+#include "cuav/evaluation.h"
 
 namespace cuav {
 
@@ -98,6 +99,30 @@ struct RecognitionReport {
     ModelTrace trace;
 };
 
+// 真值行与评价指标（C-5，D-067）。评价器不写文件：真值行逐行、指标在 flush() 时一次经这里上报，
+// 运行器落 truth.jsonl 并把 K 个站的分节拼成一份 metrics.json（与 detections.index.json 同法）。
+struct TruthReport {
+    std::string node_id;
+    std::string site_id;     // 未绑站时为空
+    TruthRow row;
+};
+
+// detector{} 一段：评价器从检测行与块元数据里取到的检测器参数，metrics.json 的分节带它，Python 参考据此重算
+struct EvaluatorDetectorInfo {
+    std::size_t nfft = 0;
+    double sample_rate_Hz = 0.0;
+    double f_lo_Hz = 0.0, f_hi_Hz = 0.0;
+};
+
+struct EvaluationReport {
+    std::string node_id;
+    std::string site_id;
+    EvaluationMetrics metrics;
+    EvalParams params;
+    EvaluatorDetectorInfo detector;
+    ModelTrace trace;
+};
+
 class IRunObserver {
 public:
     virtual ~IRunObserver() {}
@@ -117,6 +142,9 @@ public:
     // 突发特征（C-4）：端口上照旧交 FeatureVector 给下游，这条路由运行器落 features.jsonl 并发 feature 事件
     virtual void on_feature(const FeatureReport&) {}
     virtual void on_recognition(const RecognitionReport&) {}
+    // 真值行与评价指标（C-5）：评价器 flush() 时上报，运行器落 truth.jsonl 与 metrics.json
+    virtual void on_truth(const TruthReport&) {}
+    virtual void on_evaluation(const EvaluationReport&) {}
     // 一行显示产品：kind ∈ {spectrum, envelope}；row 为 float32，len 个元素；t_s 为该行首样点的逻辑时间。
     virtual void on_product_row(const std::string& op_id, const std::string& kind, std::uint64_t row_index,
                                 const float* row, std::size_t len, double t_s) {

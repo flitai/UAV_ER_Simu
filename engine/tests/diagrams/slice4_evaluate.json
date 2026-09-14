@@ -1,0 +1,188 @@
+{
+  "schema_version": "cuav-diagram/1",
+  "diagram_id": "slice4-evaluate",
+  "name": "单音突发加噪声到检测、识别与评价（C-5，truth_source = none）",
+  "nodes": [
+    {
+      "id": "tone",
+      "type": "ToneSource",
+      "params": {
+        "sample_rate_Hz": 1000000.0,
+        "center_frequency_Hz": 2440000000.0,
+        "offset_Hz": 50000.0,
+        "level_dBm": -100,
+        "start_sample": 512000
+      }
+    },
+    {
+      "id": "noise",
+      "type": "NoiseSource",
+      "params": {
+        "sample_rate_Hz": 1000000.0,
+        "center_frequency_Hz": 2440000000.0,
+        "power_dBm": -104
+      }
+    },
+    {
+      "id": "mix",
+      "type": "AddMixer",
+      "params": {}
+    },
+    {
+      "id": "det",
+      "type": "EnergyDetector",
+      "params": {
+        "nfft": 256,
+        "band_lo_Hz": -100000.0,
+        "band_hi_Hz": 100000.0,
+        "pfa": 0.001,
+        "noise_mode": "sliding",
+        "noise_window_frames": 256
+      }
+    },
+    {
+      "id": "sink",
+      "type": "DetectionSink",
+      "params": {}
+    },
+    {
+      "id": "feat",
+      "type": "FeatureExtractor",
+      "params": {
+        "nfft": 256
+      }
+    },
+    {
+      "id": "rec",
+      "type": "TemplateClassifier",
+      "params": {
+        "library_version": "v1"
+      }
+    },
+    {
+      "id": "eval",
+      "type": "Evaluator",
+      "params": {
+        "truth_source": "none",
+        "nfft": 256
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "tone",
+        "port": "out"
+      },
+      "to": {
+        "node": "mix",
+        "port": "a"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "noise",
+        "port": "out"
+      },
+      "to": {
+        "node": "mix",
+        "port": "b"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "mix",
+        "port": "out"
+      },
+      "to": {
+        "node": "det",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "sink",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "mix",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "iq"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "feat",
+        "port": "out"
+      },
+      "to": {
+        "node": "rec",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "rec",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "rec"
+      }
+    }
+  ],
+  "observation_points": [
+    {
+      "id": "s4",
+      "node": "mix",
+      "port": "out",
+      "products": [
+        "envelope"
+      ],
+      "label": "S4 观测点"
+    }
+  ],
+  "run": {
+    "seed": 20260912,
+    "duration_s": 2.0,
+    "time_basis": "LogicalSim"
+  }
+}

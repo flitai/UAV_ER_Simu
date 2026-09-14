@@ -815,3 +815,42 @@ TEST_CASE("装载器：library_version 换成内部参数 library_path 注入（
     }
 }
 
+
+TEST_CASE("装载器：评价器与上游检测器同帧（nfft 相等）；none 模式不要场景；scenario 模式没绑场景即拒（C-5）") {
+    json base = read_json(std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_detect.json");
+    base["nodes"].push_back(node("eval", "Evaluator", json{{"nfft", 256}, {"truth_source", "none"}}));
+    base["edges"].push_back(json{{"id", "e5"}, {"from", {{"node", "det"}, {"port", "out"}}}, {"to", {{"node", "eval"}, {"port", "det"}}}});
+    {
+        LoadedDiagram d;
+        DiagramError e;
+        CHECK_MESSAGE(try_load(base, d, e), e.message);
+    }
+    // nfft 不同：错误落在评价器的 det 口上，点名两边的值
+    {
+        json bad = base;
+        bad["nodes"][5]["params"]["nfft"] = 512;
+        DiagramError e = expect_fail(bad, "param");
+        CHECK(e.node_id == "eval");
+        CHECK(e.port == "det");
+        CHECK(e.message.find("nfft") != std::string::npos);
+        CHECK(e.message.find("512") != std::string::npos);
+        CHECK(e.message.find("256") != std::string::npos);
+    }
+    // scenario 模式但没有 scene_binding：装载器不注入 scenario_path，组件构造失败——归 param，不是 data_id
+    // （评价器的 data_id 是选填，缺场景不是数据问题）
+    {
+        json bad = base;
+        bad["nodes"][5]["params"]["truth_source"] = "scenario";
+        DiagramError e = expect_fail(bad, "param");
+        CHECK(e.node_id == "eval");
+        CHECK(e.message.find("scenario_path") != std::string::npos);
+    }
+    // manifest 模式缺 data_id
+    {
+        json bad = base;
+        bad["nodes"][5]["params"]["truth_source"] = "manifest";
+        DiagramError e = expect_fail(bad, "param");
+        CHECK(e.node_id == "eval");
+        CHECK(e.message.find("data_id") != std::string::npos);
+    }
+}

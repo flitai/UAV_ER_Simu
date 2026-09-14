@@ -306,15 +306,20 @@ bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const
     auto t = snaps.find(tn);
     auto f = snaps.find(fn);
     if (t == snaps.end() || f == snaps.end()) return true;
-    if (t->second.type != "FeatureExtractor" || tp != "det" || f->second.type != "EnergyDetector") return true;
+    const bool to_feat = t->second.type == "FeatureExtractor";
+    const bool to_eval = t->second.type == "Evaluator";     // C-5：评价器按帧时长 nfft / fs 判帧真值，也要与检测器同帧
+    if ((!to_feat && !to_eval) || tp != "det" || f->second.type != "EnergyDetector") return true;
+    const std::string kind = to_feat ? "特征提取器 " : "评价器 ";
     const double nf_det = effective_number(f->second.info, f->second.num, "nfft", 1024.0);
     const double nf_feat = effective_number(t->second.info, t->second.num, "nfft", 1024.0);
     if (nf_det != nf_feat) {
-        err = fail("param", tn, tp, who + "：特征提取器 " + tn + " 的 nfft = " + num_text(nf_feat) +
+        err = fail("param", tn, tp, who + "：" + kind + tn + " 的 nfft = " + num_text(nf_feat) +
                    " 与上游检测器 " + fn + " 的 nfft = " + num_text(nf_det) +
-                   " 不同——特征按检测器的分帧对齐，两者必须相等（10 报告 §4.3）");
+                   (to_feat ? " 不同——特征按检测器的分帧对齐，两者必须相等（10 报告 §4.3）"
+                            : " 不同——帧真值按检测器的分帧判，两者必须相等（10 报告 §4.5）"));
         return false;
     }
+    if (to_eval) return true;
     const double gap_det = effective_number(f->second.info, f->second.num, "merge_gap_frames", 2.0);
     const double gap_feat = effective_number(t->second.info, t->second.num, "merge_gap_frames", 2.0);
     if (gap_det != gap_feat) {
@@ -922,7 +927,10 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
         if (!comp) {
             // 引用数据的组件，构造失败多半出在数据上（清单打不开、格式不对），归到 data_id 便于定位；
             // 互斥参数同时给出（registry 校验的「只能给一个」）单独归 param_conflict，画布能据此高亮两个字段
-            const char* code = find_spec(info, "data_id") ? "data_id" : "param";
+            // Evaluator 的 data_id 是选填、构造失败多半出在场景或参数上：只有必填 data_id 的组件（回放源）
+            // 或报文点名清单时才归 data_id（C-5）
+            const ParamSpec* dspec = find_spec(info, "data_id");
+            const char* code = (dspec && (dspec->required || e.find("清单") != std::string::npos)) ? "data_id" : "param";
             if (e.find("只能给一个") != std::string::npos) code = "param_conflict";
             err = fail(code, id, "", who + "：" + e);
             return false;

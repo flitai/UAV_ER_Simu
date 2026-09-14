@@ -10,6 +10,7 @@
 
 #include "cuav/catalog.h"
 #include "cuav/diagram_json.h"
+#include "cuav/evaluation_json.h"
 #include "cuav/observer.h"
 #include "cuav/platform.h"
 #include "cuav/random.h"
@@ -176,6 +177,21 @@ json recognition_json(const RecognitionReport& r) {
            {"unknown_kind", x.unknown_kind.empty() ? json(nullptr) : json(x.unknown_kind)},
            {"evidence_quality", x.evidence_quality}, {"library_version", x.library_version},
            {"trace", trace_json(r.trace)}};
+    if (!r.site_id.empty()) j["site_id"] = r.site_id;
+    return j;
+}
+
+// ---- 真值行的落盘形状（C-5，10 报告 §4.5 + D-053）----
+// 每段真值一行：manifest 模式没有源与频率——emitter_id 写 null、center_Hz / bw_Hz 写 null，缺的就是缺的；
+// in_band 为假的行照样落（EM-S-02 §10.18 的 not_observed），指标里只计数不进分母。
+json truth_json(const TruthReport& r) {
+    const TruthRow& t = r.row;
+    json j{{"t_s", t.t_s}, {"t_end_s", t.t_end_s}, {"node_id", r.node_id},
+           {"emitter_id", t.emitter_id.empty() ? json(nullptr) : json(t.emitter_id)},
+           {"label", t.label}, {"waveform", t.waveform},
+           {"center_Hz", std::isnan(t.center_Hz) ? json(nullptr) : json(t.center_Hz)},
+           {"bw_Hz", std::isnan(t.bw_Hz) ? json(nullptr) : json(t.bw_Hz)},
+           {"in_band", t.in_band}};
     if (!r.site_id.empty()) j["site_id"] = r.site_id;
     return j;
 }
@@ -350,6 +366,33 @@ public:
         ++recognitions_written_;
     }
 
+    // 真值行（C-5）：每段一行落 truth.jsonl，不发事件（真值是评价的输入，浏览器结束后从文件取）
+    void on_truth(const TruthReport& r) override {
+        write_jsonl(truth_, "truth.jsonl", truth_json(r));
+        ++truth_written_;
+    }
+
+    // 评价分节（C-5）：每个评价器 flush() 时一条，运行结束后拼成 metrics.json
+    void on_evaluation(const EvaluationReport& r) override {
+        DetectorInfo di;
+        di.nfft = r.detector.nfft;
+        di.sample_rate_Hz = r.detector.sample_rate_Hz;
+        di.f_lo_Hz = r.detector.f_lo_Hz;
+        di.f_hi_Hz = r.detector.f_hi_Hz;
+        eval_sections_[r.node_id] = metrics_section_json(r.metrics, r.params, di, r.node_id, r.site_id, r.trace);
+    }
+
+    // 运行结束后写 metrics.json（cuav-metrics/1）：K 个评价器的分节按 node_id 序拼成 sites[]，有评价器才写；
+    // 不带时间戳——同种子的两次运行要逐字节相同。localization 预留给 L-9（多站定位是全图唯一的融合节点，故在顶层）。
+    void write_metrics(const std::string& task_id) {
+        if (out_dir_.empty() || eval_sections_.empty()) return;
+        json sites = json::array();
+        for (const auto& kv : eval_sections_) sites.push_back(kv.second);
+        json doc{{"schema_version", "cuav-metrics/1"}, {"task_id", task_id}, {"sites", sites}, {"localization", nullptr}};
+        std::ofstream f(platform::join(out_dir_, "metrics.json").c_str(), std::ios::binary | std::ios::trunc);
+        f << doc.dump(2) << '\n';
+    }
+
     // 运行结束后写 detections.index.json：每个检测器一条摘要（含 trace），有检测器才写。
     // 与观测点产品的索引同一分工：行文件是数据，索引是元数据。
     void write_detections_index() {
@@ -372,6 +415,8 @@ public:
     std::uint64_t detections_written() const { return detections_written_; }
     std::uint64_t features_written() const { return features_written_; }
     std::uint64_t recognitions_written() const { return recognitions_written_; }
+    std::uint64_t truth_written() const { return truth_written_; }
+    std::uint64_t evaluations() const { return eval_sections_.size(); }
     std::uint64_t detection_events() const { return detection_events_; }
     std::uint64_t progress_events() const { return progress_events_; }
     std::uint64_t rounds_seen() const { return rounds_seen_; }
@@ -393,7 +438,9 @@ private:
     std::chrono::milliseconds interval_;
     bool throttle_;
     std::string out_dir_;
-    std::ofstream track_, links_, bearings_, positions_, detections_, features_, recognitions_;
+    std::ofstream track_, links_, bearings_, positions_, detections_, features_, recognitions_, truth_;
+    std::uint64_t truth_written_ = 0;
+    std::map<std::string, json> eval_sections_;   // node_id → metrics.json 的一节
     std::uint64_t entities_ = 0;
     std::uint64_t links_written_ = 0;
     std::uint64_t bearings_written_ = 0, positions_written_ = 0;
@@ -621,6 +668,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
     const double wall_s = std::chrono::duration<double>(Clock::now() - t0).count();
     const std::string ended = platform::utc_now_iso8601();
     obs.write_detections_index();   // 摘要在各检测器 flush() 时到齐，此刻才能写
+    obs.write_metrics(sink.task_id());   // 评价分节同样在各评价器 flush() 时到齐（C-5）
 
     json nodes = json::array();
     for (std::size_t i = 0; i < rep.node_status.size(); ++i) {
@@ -630,6 +678,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
                 {"wall_s", wall_s}, {"realtime_factor", wall_s > 0.0 ? d.run.duration_s / wall_s : 0.0},
                 {"product_rows", obs.rows()}, {"detection_rows", obs.detections_written()},
                 {"feature_rows", obs.features_written()}, {"recognition_rows", obs.recognitions_written()},
+                {"truth_rows", obs.truth_written()}, {"evaluations", obs.evaluations()},
                 {"nodes", nodes},
                 {"started_utc", started}, {"ended_utc", ended}, {"engine_version", engine_version()}};
 

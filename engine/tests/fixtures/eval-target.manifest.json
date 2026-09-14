@@ -1,0 +1,7 @@
+{
+  "note": "C-5 评价器测试夹具：只带真值类别，非背景类",
+  "truth": {
+    "class_code": "D1",
+    "class_name": "DJI Mini 4 Pro"
+  }
+}

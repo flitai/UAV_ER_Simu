@@ -1,0 +1,136 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "eval-chain",
+  "name": "评价器组件测试用：单音 + 突发两源、一站（C-5）",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 10
+  },
+  "seed": 20260906,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "亚运村侦察站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 500000,
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "uav-1",
+      "name": "多旋翼图传下行",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.4035,
+        "lat": 39.9885,
+        "alt_m": 50
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "tx_power_dBm": 27,
+        "antenna_gain_dBi": 2,
+        "waveform": {
+          "type": "tone",
+          "offset_Hz": 48828.125
+        }
+      }
+    },
+    {
+      "id": "uav-3",
+      "name": "悬停遥控突发",
+      "platform_type": "racing",
+      "position": {
+        "lon": 116.415552,
+        "lat": 39.984601,
+        "alt_m": 60
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 200000,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "burst",
+          "offset_Hz": -97656.25,
+          "period_s": 0.5,
+          "duty": 0.2
+        }
+      }
+    }
+  ],
+  "routes": [
+    {
+      "emitter_id": "uav-1",
+      "loop": false,
+      "waypoints": [
+        {
+          "position": {
+            "lon": 116.4035,
+            "lat": 39.9885,
+            "alt_m": 50
+          },
+          "speed_mps": 18
+        },
+        {
+          "position": {
+            "lon": 116.411,
+            "lat": 39.9955,
+            "alt_m": 110
+          },
+          "speed_mps": 20,
+          "loiter_s": 12
+        },
+        {
+          "position": {
+            "lon": 116.43,
+            "lat": 40.011,
+            "alt_m": 160
+          },
+          "speed_mps": 20
+        }
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0,
+      "event": "takeoff"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 3,
+      "event": "tx_on"
+    }
+  ],
+  "trace": {
+    "created_by": "实施方（C-5 测试夹具）",
+    "created_at": "2026-09-14T00:00:00Z",
+    "notes": "只供 test_evaluator.cpp 取各源的带宽与波形；uav-1 单音自 3 s 起（与 demo-01 同），uav-3 突发无开关事件。"
+  }
+}
