@@ -65,6 +65,14 @@
 5. **回放模式**突发级与识别指标对公开数据集意义有限（§3）。
 6. **连续发射从 t = 0 起会被滑动删截的环吸收**（检测模型卡 §4）——这是检测器的行为，评价器如实记成漏检；demo-03 两站因此 Pd 接近 0。要比对解析式，用突发源（§6 第三条）。
 
+## 5b. 界面上怎么读（C-9，D-068）
+
+结果页「评价」页签摆的就是 `metrics.json` 这一节，不另算任何数。三条与本口径直接相关的：
+
+- **`pfa` 整列是 `null` 时不画 ROC**，只画轴与一行「Pfa —（tn + fp = 0）」。真值覆盖全程（demo-03 三站持续发射、回放清单的整片真值）就是这种情形；把 `null` 当 0 画出来的是编的曲线（铁律 15）。
+- **`?dev=1` 叠的是解析 ROC 曲线族**，不是一条：一条曲线要先有带内信噪比，那要把链路预算在浏览器里再算一遍；曲线族按检测器自己的 M 与门限扫描，画一组常数信噪比下的 D-026 **随机型**式（`Pd = Q(M, M·η/(1+s))`），实测曲线落在哪两档之间就读出等效信噪比——与跨层算例 ① 是同一件事的图形版。档位随 M 走（中心 `−5·log10(M)` 加 −2…+8 dB），因为能不能检出看 `s·√M` 不看 `s`。M 取 `detections.index.json` 的 `m_bins`（引擎给，C-9 起）。
+- **「与参考实现逐值一致」不在界面上做**：那要在浏览器里跑 `evaluate.py`。它由 `algos/reference/evaluate.py <任务目录>` 与 `scripts/build-all.sh` 兑现；浏览器侧新写的 `web/src/results/analytic.ts` 自己对 Python 参考守黄金基准 `tests/golden/analytic-pd.json`（135 点 rel ≤ 1e-9，铁律 10）。
+
 ## 6. 验证（macOS，原型阶段验证值，D-028）
 
 - **黄金基准** `engine/tests/golden/metrics.json`：`evaluate.py --write-golden` 用 64 位 LCG 造 600 帧——含漏检、虚警、一段频段外真值、额外标签 `noise`、unknown 与 ambiguous、四个不与帧边界对齐的突发窗、两段重叠的同类真值；C++ 侧 `evaluate()` 经 `metrics_section_json()` 与 `expected` 逐值比（整数逐位、浮点 rel ≤ 1e-9、null 对 null），222 条断言全过（`engine/tests/test_evaluation.cpp`）。
