@@ -1,5 +1,6 @@
-// 结果视图（09 §7.1）：信号 / 检测识别 / 任务三页签。切片 ① 有信号页签（U-3 频谱、瀑布、包络）；
-// 检测识别页签自 C-3 起有突发列表（D-063），识别与时间线条带留 C-9；任务页签留 U-4。
+// 结果视图（09 §7.1，10 报告 §5.7）：信号 / 检测识别 / 评价 / 任务四页签。
+// 信号页是 U-3（频谱、瀑布、包络）；检测识别页自 C-9 起是时间线三行 + 检测列表（突发 / 帧）+ 识别列表；
+// 评价页是 C-9 新增的指标卡、混淆矩阵与 ROC；任务页留 U-4。
 
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { fmtFactor } from '../shell/format.js'
@@ -8,12 +9,18 @@ import { SignalView } from '../signal/SignalView.js'
 import { useAppState, useDispatch } from '../state/store.js'
 import { tapLabel } from '../chain/model.js'
 import type { ResultsTab } from '../state/types.js'
-import { DetectionSummary, DetectionsPanel, EvaluationSummary } from './DetectionsPanel.js'
+import { DetectionSummary } from './DetectionsPanel.js'
+import { DetectionView } from './DetectionView.js'
+import { EvaluationAside, EvaluationSummary, EvaluationView } from './EvaluationView.js'
 import { useDetections } from './detectionStore.js'
 import { useRecognitions } from './recognitionStore.js'
 import { useMetrics } from './metricsStore.js'
+import { useTruth } from './truthStore.js'
 
-const TABS: Array<{ id: ResultsTab; label: string }> = [{ id: 'signal', label: '信号' }, { id: 'detections', label: '检测识别' }, { id: 'tasks', label: '任务' }]
+const TABS: Array<{ id: ResultsTab; label: string }> = [
+  { id: 'signal', label: '信号' }, { id: 'detections', label: '检测识别' },
+  { id: 'evaluation', label: '评价' }, { id: 'tasks', label: '任务' },
+]
 
 export function ResultsView() {
   const s = useAppState()
@@ -24,6 +31,8 @@ export function ResultsView() {
   useRecognitions(s.task.id, s.task.runState, s.ui.view === 'results')
   // 评价指标整文件（C-5）：运行结束才有，运行中 409 等下一轮
   useMetrics(s.task.id, s.task.runState, s.ui.view === 'results')
+  // 真值段（C-5 的产物）：检测识别页签时间线的第一行（C-9）
+  useTruth(s.task.id, s.task.runState, s.ui.view === 'results')
   return (
     <ColumnLayout
       left={<>
@@ -74,11 +83,17 @@ export function ResultsView() {
             </div>
           )}
           {s.ui.resultsTab === 'signal' && <SignalView />}
-          {s.ui.resultsTab === 'detections' && <DetectionsPanel />}
+          {s.ui.resultsTab === 'detections' && <DetectionView />}
+          {s.ui.resultsTab === 'evaluation' && <EvaluationView />}
           {s.ui.resultsTab === 'tasks' && <div className="placeholder">任务列表（U-4 启用）</div>}
         </div>
       }
-      right={s.ui.resultsTab === 'signal' ? <InstrumentPanel /> : s.ui.resultsTab === 'detections' ? <><DetectionSummary /><EvaluationSummary /></> : <div className="group placeholder">（U-4 启用）</div>}
+      right={
+        s.ui.resultsTab === 'signal' ? <InstrumentPanel />
+          : s.ui.resultsTab === 'detections' ? <DetectionSummary />
+          : s.ui.resultsTab === 'evaluation' ? <><EvaluationSummary /><EvaluationAside /></>
+          : <div className="group placeholder">（U-4 启用）</div>
+      }
     />
   )
 }

@@ -452,7 +452,7 @@ button.mini { font-size: 11px; padding: 0 5px; }
 
 /* 结果页「检测识别」（C-3）：摘要行 + 突发表，行可点 */
 .det-panel { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
-.det-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink); padding: 2px 0; }
+.det-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: var(--fs-label); color: var(--ink); padding: 2px 0; }
 .det-head .field { display: flex; align-items: center; gap: 6px; }
 .det-head .field .k { color: var(--dim); }
 .det-head select { border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; background: var(--white); }
@@ -462,8 +462,52 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .det-table tbody tr { cursor: pointer; }
 .det-table tbody tr:hover td { background: var(--earth); }
 .det-empty { padding: 12px; text-align: center; }
-.det-node { padding: 4px 0; border-bottom: 1px solid var(--earth); font-size: 12px; line-height: 1.5; }
+.frame-note { font-size: var(--fs-label); padding: 0 2px 2px; }
+.det-node { padding: 4px 0; border-bottom: 1px solid var(--earth); font-size: var(--fs-label); line-height: 1.5; }
 .det-node:last-child { border-bottom: none; }
+.det-node.on { background: var(--earth); border-radius: 4px; }
+.det-panel .det-node { cursor: pointer; }
+.det-table tbody tr.on td { font-weight: 600; }
+/* 粒度切换（突发 / 帧），与顶栏倍速那组同形 */
+.seg-toggle { display: inline-flex; gap: 2px; }
+.seg-toggle button { font-size: var(--fs-label); padding: 1px 8px; border-radius: 4px; color: var(--dim); }
+.seg-toggle button.on { background: var(--earth); border-color: var(--bound); color: var(--ink); font-weight: 600; }
+
+/* 检测识别页签顶部的三行时间线（C-9）：真值 / 检测 / 识别共用一根轴 */
+.tl3 { border: 1px solid var(--border); border-radius: 6px; background: var(--white); padding: 6px 8px; flex: 0 0 auto; }
+.tl3-head { display: flex; align-items: center; gap: 10px; font-size: var(--fs-label); color: var(--ink); padding-bottom: 4px; }
+.tl3-body { display: flex; gap: 6px; }
+.tl3-keys { display: flex; flex-direction: column; width: 34px; flex: 0 0 34px; color: var(--dim); font-size: var(--fs-label); }
+.tl3-keys span { height: 18px; line-height: 18px; }
+.tl3-track { position: relative; flex: 1; cursor: pointer; min-width: 0; }
+.tl3-lane { position: relative; height: 18px; background: var(--earth); border-radius: 3px; margin-bottom: 0; }
+.tl3-lane + .tl3-lane { margin-top: 0; }
+.tl3-band { position: absolute; top: 2px; bottom: 2px; border: 1px solid; border-radius: 2px; overflow: hidden; }
+.tl3-band i { font-style: normal; font-size: 10px; line-height: 14px; padding-left: 3px; white-space: nowrap; }
+.tl3-cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--bad); pointer-events: none; }
+.tl3-axis { display: flex; justify-content: space-between; font-size: var(--fs-label); color: var(--dim); padding-top: 2px; padding-left: 40px; }
+
+/* 评价页签（C-9）：指标卡一排 + 突发级与 ROC + 混淆矩阵 */
+.eval-panel { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; overflow: auto; }
+.metric-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.metric-card { border: 1px solid var(--border); border-radius: 6px; background: var(--white); padding: 6px 10px; min-width: 104px; }
+.metric-k { font-size: var(--fs-label); color: var(--dim); }
+.metric-v { font-size: 18px; line-height: 1.3; color: var(--ink); }
+.metric-sub { font-size: var(--fs-label); }
+.eval-blocks { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+.eval-block { border: 1px solid var(--border); border-radius: 6px; background: var(--white); padding: 8px 10px; flex: 1 1 380px; min-width: 0; }
+.eval-block h3 { margin: 6px 0 4px; font-size: var(--fs-read); font-weight: 600; color: var(--ink); }
+.eval-block h3:first-child { margin-top: 0; }
+.roc { display: flex; flex-direction: column; gap: 4px; }
+.roc canvas { border-radius: 4px; }
+.roc-legend { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-label); }
+.cm-wrap { overflow-x: auto; }
+.cm th, .cm td { white-space: nowrap; }
+.cm .cm-corner { color: var(--dim); font-weight: 400; }
+.cm .cm-cell { text-align: right; }
+.cm .cm-diag { font-weight: 600; }
+.cm .cm-diag.cm-hit { box-shadow: inset 0 0 0 1px var(--bound); }
+.cm-per-class { margin-top: 6px; }
 .op-tabs button { font-size: 11px; padding: 2px 8px; border-radius: 10px; color: var(--dim); }
 .op-tabs button.on { background: var(--earth); border-color: var(--bound); color: var(--ink); font-weight: 600; }
 

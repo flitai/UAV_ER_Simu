@@ -13,6 +13,8 @@ import type { probeCards, probeSiteCards } from '../scene/cards/derive.js'
 import type { probeDetections } from '../results/detectionStore.js'
 import type { probeRecognitions } from '../results/recognitionStore.js'
 import type { probeMetrics } from '../results/metricsStore.js'
+import { probeTruth } from '../results/truthStore.js'
+import { probeTimeline3 } from '../results/timeline3.js'
 import { zones } from '../scene/editor/scenarioOps.js'
 import { focusTargetId } from '../scene/focus.js'
 
@@ -78,6 +80,10 @@ export interface ProbeExtras {
   recognitions?: ReturnType<typeof probeRecognitions>
   /** 评价指标的摘要（C-5），由 results/metricsStore.ts 的 probeMetrics 算 */
   metrics?: ReturnType<typeof probeMetrics>
+  /** 真值段的摘要（C-9），由 results/truthStore.ts 的 probeTruth 算 */
+  truth?: ReturnType<typeof probeTruth>
+  /** 检测识别页签的时间线三行（C-9），由 results/timeline3.ts 的 probeTimeline3 算 */
+  timeline3?: ReturnType<typeof probeTimeline3>
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -239,7 +245,10 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       overlayDetections: s.signal.display.overlayDetections,
     },
     // 检测结果（C-3）：命中行数、段数、最长段——e2e 据此断言「3 s 开机后检出」
-    results: { detections: x.detections ?? null, recognitions: x.recognitions ?? null, metrics: x.metrics ?? null },
+    results: {
+      detections: x.detections ?? null, recognitions: x.recognitions ?? null, metrics: x.metrics ?? null,
+      truth: x.truth ?? null, timeline3: x.timeline3 ?? null,
+    },
     perf: s.ui.devMode ? { longTasks: x.longTasks ?? null } : null,
     badges: { noScene: !s.scene.summary },
     mapInstanceId: x.mapInstanceId,

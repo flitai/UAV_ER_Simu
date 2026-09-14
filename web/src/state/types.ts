@@ -4,7 +4,7 @@
 // store 只存视窗、仪表设置与元信息。
 
 export type View = 'scene' | 'diagram' | 'results' | 'data'
-export type ResultsTab = 'signal' | 'detections' | 'tasks'
+export type ResultsTab = 'signal' | 'detections' | 'evaluation' | 'tasks'
 export type DrawerTab = 'log' | 'alerts' | 'flow' | 'resources'
 export type RunState = 'queued' | 'running' | 'finished' | 'failed' | 'cancelled'
 export type ResultState = 'valid' | 'degraded' | 'invalid' | 'not_applicable'

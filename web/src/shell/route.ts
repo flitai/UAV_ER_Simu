@@ -11,7 +11,7 @@ import type { ResultsTab, View } from '../state/types.js'
 
 export interface Route { view: View; resultsTab: ResultsTab }
 
-const TABS: ResultsTab[] = ['signal', 'detections', 'tasks']
+const TABS: ResultsTab[] = ['signal', 'detections', 'evaluation', 'tasks']
 
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)

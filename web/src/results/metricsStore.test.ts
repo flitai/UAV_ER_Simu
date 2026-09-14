@@ -9,6 +9,9 @@ test('评价 store：探针摘要逐节给四个数与状态，null 照抄；换
     schema_version: 'cuav-metrics/1', task_id: 't1', localization: null,
     sites: [{
       node_id: 'eval__site-1', site_id: 'site-1', truth_source: 'scenario',
+      params: { truth_source: 'scenario', match_overlap: 0.5, roc_points: 32, nfft: 1024 },
+      detector: { sample_rate_Hz: 5e5, f_lo_Hz: 2.44e9, f_hi_Hz: 2.441e9, frame_dt_s: 0.002048, threshold: 1.1 },
+      trace: { model_id: 'eval-baseline' },
       frames: { total: 10, truth_on: 5, tp: 4, fp: 0, fn: 1, tn: 5, pd: 0.8, pfa: 0, precision: 1, recall: 0.8, f1: 0.888 },
       segments: { truth: 1, truth_out_of_band: 0, detected: 1, matched: 1, false_segments: 0, pd_segment: 1, detect_delay_s: { mean: 0.01, max: 0.01 } },
       roc: { working_point: { threshold: 1.1, pd: 0.8, pfa: 0 }, points: [] },
@@ -17,6 +20,9 @@ test('评价 store：探针摘要逐节给四个数与状态，null 照抄；换
       state: 'valid', reasons: [],
     }, {
       node_id: 'eval__site-2', site_id: 'site-2', truth_source: 'scenario',
+      params: { truth_source: 'scenario', match_overlap: 0.5, roc_points: 32, nfft: 1024 },
+      detector: { sample_rate_Hz: 5e5, f_lo_Hz: 2.44e9, f_hi_Hz: 2.441e9, frame_dt_s: 0.002048, threshold: 1.1 },
+      trace: { model_id: 'eval-baseline' },
       frames: { total: 10, truth_on: 10, tp: 0, fp: 0, fn: 10, tn: 0, pd: 0, pfa: null, precision: null, recall: 0, f1: null },
       segments: { truth: 1, truth_out_of_band: 0, detected: 0, matched: 0, false_segments: 0, pd_segment: 0, detect_delay_s: { mean: null, max: null } },
       roc: { working_point: { threshold: 1.1, pd: 0, pfa: null }, points: [] },

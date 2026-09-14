@@ -11,6 +11,7 @@ test('hash 解析', () => {
   assert.deepEqual(parseHash('#/diagram/bogus'), { view: 'diagram', resultsTab: 'signal' })
   assert.deepEqual(parseHash('#/results'), { view: 'results', resultsTab: 'signal' })
   assert.deepEqual(parseHash('#/results/detections'), { view: 'results', resultsTab: 'detections' })
+  assert.deepEqual(parseHash('#/results/evaluation'), { view: 'results', resultsTab: 'evaluation' })
   assert.deepEqual(parseHash('#/results/tasks'), { view: 'results', resultsTab: 'tasks' })
   assert.deepEqual(parseHash('#/results/bogus'), { view: 'results', resultsTab: 'signal' })
   assert.deepEqual(parseHash('#/data'), { view: 'data', resultsTab: 'signal' })
@@ -21,7 +22,7 @@ test('格式化与往返', () => {
   assert.equal(formatHash({ view: 'results', resultsTab: 'signal' }), '#/results')
   assert.equal(formatHash({ view: 'results', resultsTab: 'tasks' }), '#/results/tasks')
   assert.equal(formatHash({ view: 'diagram', resultsTab: 'signal' }), '#/diagram')
-  for (const h of ['#/scene', '#/diagram', '#/results', '#/results/detections', '#/data']) assert.equal(formatHash(parseHash(h)), h)
+  for (const h of ['#/scene', '#/diagram', '#/results', '#/results/detections', '#/results/evaluation', '#/data']) assert.equal(formatHash(parseHash(h)), h)
   // 旧地址不往返（它已经不是一个合法去处），但解得开且落在框图页
   assert.equal(formatHash(parseHash('#/diagram/canvas')), '#/diagram')
 })

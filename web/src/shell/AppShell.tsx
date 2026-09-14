@@ -15,6 +15,9 @@ import { ResultsView } from '../results/ResultsView.js'
 import { detectionStore, probeDetections } from '../results/detectionStore.js'
 import { probeRecognitions, recognitionStore } from '../results/recognitionStore.js'
 import { metricsStore, probeMetrics } from '../results/metricsStore.js'
+import { probeTruth, truthStore, visibleTruth } from '../results/truthStore.js'
+import { probeTimeline3, timeline3 } from '../results/timeline3.js'
+import { focusSite, visibleSegments } from '../results/detectionStore.js'
 import { DataCenter } from '../data/DataCenter.js'
 import { peakBinOf, signalBuffer } from '../signal/buffer.js'
 import { signalHooks, viewStore } from '../signal/viewStore.js'
@@ -111,6 +114,13 @@ export function AppShell() {
       detections: probeDetections(detectionStore.get()),
       recognitions: probeRecognitions(recognitionStore.get()),
       metrics: probeMetrics(metricsStore.get()),
+      truth: probeTruth(truthStore.get()),
+      // 时间线三行算的是焦点站那一份，与画面上看到的完全同一条路径（results/timeline3.ts）
+      timeline3: (() => {
+        const d = detectionStore.get()
+        const site = focusSite(d)
+        return probeTimeline3(timeline3(site, visibleTruth(truthStore.get(), site), visibleSegments(d), recognitionStore.get().rows))
+      })(),
     })
   }), [store])
 
