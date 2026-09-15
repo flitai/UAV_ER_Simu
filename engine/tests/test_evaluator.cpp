@@ -20,6 +20,8 @@ using namespace cuav;
 namespace {
 
 const char* kScenario = CUAV_SOURCE_DIR "/tests/fixtures/eval-chain.scenario.json";
+// 带开关与跳频的活动时间线（G-6，D-069）；只有下面那一条用例用它
+const char* kScenarioGated = CUAV_SOURCE_DIR "/tests/fixtures/eval-chain-gated.scenario.json";
 
 // 逐轮产出检测行的桩：frames 帧，命中按给定区间 [on_from, on_to)，segment 按 merge_gap 2 分段；
 // 最后 tail 帧只在 flush() 里出——模拟检测器 / 识别器把最后一段压到收尾。
@@ -250,17 +252,23 @@ TEST_CASE("评价器：tx_on 的连续段成区间、tx_off 断开、中心频�
     std::unique_ptr<DetStub> ds(new DetStub(500, 50, 0, fs, 1024));      // ~1.02 s
     std::unique_ptr<FrameStub> fsb(new FrameStub());
     fsb->duration = 1.0;
-    FrameStub::Spec a;    // uav-1：0–0.3 开，0.3–0.5 关，0.5–1.0 开且 0.75 起跳到频段外的中心
+    // uav-1 的开关与跳频都写在场景的活动时间线里（eval-chain-gated）：
+    //   0–0.3 开、0.3–0.5 关、0.5 起再开、0.75 跳到 +235 kHz（检测频段 ±225 kHz 之外）。
+    // 帧这里**故意给错的中心频率变化时刻（0.6）**：G-6（D-069）之后真值的边界与频点一律
+    // 取自样点域的 ActivitySchedule，帧只负责「这条链路在哪些时段看得见」。
+    // 于是这一条同时验两件事：帧域切出的 0.6 这个假边界被并回去，真正的边界落在 0.75。
+    FrameStub::Spec a;
     a.emitter = "uav-1";
     a.on = [](double t) { return t < 0.3 || t >= 0.5; };
-    a.center = [](double t) { return t >= 0.75 ? 2.4415e9 : 2.4405e9; };
+    a.center = [](double t) { return t >= 0.6 ? 2.4415e9 : 2.4405e9; };
     fsb->specs.push_back(a);
     FrameStub::Spec b;    // uav-2：不在场景文件里
     b.emitter = "ghost";
     b.on = [](double) { return true; };
     b.center = [](double) { return 2.4405e9; };
     fsb->specs.push_back(b);
-    std::unique_ptr<Evaluator> ev = make_eval({{"truth_source", "scenario"}});
+    std::unique_ptr<Evaluator> ev = make_eval({{"truth_source", "scenario"},
+                                               {"scenario_path", kScenarioGated}});
     Evaluator* evp = ev.get();
 
     Graph g;
@@ -277,7 +285,8 @@ TEST_CASE("评价器：tx_on 的连续段成区间、tx_off 断开、中心频�
     RunReport rep = g.run(rng, obs);
     REQUIRE_MESSAGE(rep.ok, rep.error);
 
-    // uav-1 三段：[0, 0.3) 频段内、[0.5, 0.75) 频段内、[0.75, 1.0) 频段外（中心 +1 MHz、带宽 400 kHz）；ghost 一段
+    // uav-1 三段：[0, 0.3) 频段内、[0.5, 0.75) 频段内、[0.75, 1.0) 频段外（中心 +235 kHz、带宽 20 kHz）；ghost 一段。
+    // 边界 0.3 / 0.5 / 0.75 在 500 kS/s 下都是整样点，因此期望值与 G-6 之前逐位相同。
     std::vector<TruthRow> u1;
     for (const auto& t : obs.truth) if (t.row.emitter_id == "uav-1") u1.push_back(t.row);
     REQUIRE(u1.size() == 3);
@@ -293,6 +302,53 @@ TEST_CASE("评价器：tx_on 的连续段成区间、tx_off 断开、中心频�
     for (const auto& r : m.reasons) if (r.find("ghost") != std::string::npos) noted = true;
     CHECK(noted);
     CHECK(m.recognition.state == State::NotApplicable);   // rec 口没接
+}
+
+TEST_CASE("评价器：跳频源的真值按跳频点切段，每段各自判频段内（G-6，D-069）") {
+    // uav-4：全程发射的突发源，自 0.8 s 起每 0.02 s 一跳，停留与突发周期相等 → 一跳一个突发。
+    // 跳频序列 [2440.450, 2440.550] MHz，带宽 20 kHz；检测频段 ±225 kHz，两个频点都在带内。
+    // 帧（20 Hz = 0.05 s）根本看不见 0.02 s 的跳频：真值的边界与频点只能来自样点域的时间表。
+    const double fs = 500000.0;
+    std::unique_ptr<DetStub> ds(new DetStub(500, 50, 0, fs, 1024));      // ~1.02 s
+    std::unique_ptr<FrameStub> fsb(new FrameStub());
+    fsb->duration = 1.0;
+    FrameStub::Spec a;
+    a.emitter = "uav-4";
+    a.on = [](double) { return true; };
+    a.center = [](double) { return 2.4405e9; };     // 帧只给基频，跳频它看不见
+    fsb->specs.push_back(a);
+    std::unique_ptr<Evaluator> ev = make_eval({{"truth_source", "scenario"},
+                                               {"scenario_path", kScenarioGated}});
+
+    Graph g;
+    std::string err;
+    NodeId d = g.add(std::move(ds), "det");
+    NodeId f = g.add(std::move(fsb), "scn");
+    NodeId e = g.add(std::move(ev), "eval");
+    REQUIRE(g.connect(d, "out", e, "det", err));
+    REQUIRE(g.connect(f, "link:uav-4", e, "scene1", err));
+    REQUIRE_MESSAGE(g.validate(err), err);
+    Collect obs;
+    Xoshiro256pp rng(3);
+    RunReport rep = g.run(rng, obs);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+
+    std::vector<TruthRow> rows;
+    for (const auto& t : obs.truth) if (t.row.emitter_id == "uav-4") rows.push_back(t.row);
+    // 0–1 s、周期 0.02 s、占空比 0.5 → 50 个导通窗，每窗 0.01 s
+    REQUIRE(rows.size() == 50);
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        CHECK(std::fabs(rows[i].t_s - 0.02 * static_cast<double>(i)) < 1e-9);
+        CHECK(std::fabs(rows[i].t_end_s - (0.02 * static_cast<double>(i) + 0.01)) < 1e-9);
+        CHECK(rows[i].in_band);
+        CHECK(rows[i].label == "rc_hopping");        // 源级 has_hop → 全程标遥控跳频
+    }
+    // 0.8 s 之前用基频；之后逐窗在序列两项之间交替（停留 0.02 s = 一个突发周期）
+    CHECK(rows[0].center_Hz == doctest::Approx(2.4405e9));
+    CHECK(rows[39].center_Hz == doctest::Approx(2.4405e9));   // 0.78 s 那一窗还没跳
+    CHECK(rows[40].center_Hz == doctest::Approx(2440450000.0));
+    CHECK(rows[41].center_Hz == doctest::Approx(2440550000.0));
+    CHECK(rows[42].center_Hz == doctest::Approx(2440450000.0));
 }
 
 TEST_CASE("评价器：burst 波形按样点域门控切成导通窗，每窗一行真值；manifest 模式全片一行或（背景）没有行") {

@@ -171,6 +171,8 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
             err = "场景 " + ls.scenario.scenario_id + " 里没有站点 " + site_id_;
             return false;
         }
+        scene_ = ls.scenario;          // 真值要按样点精确切段（G-6），场景留着不丢
+        has_scene_ = true;
         for (std::size_t i = 0; i < ls.scenario.emitters.size(); ++i) {
             const geo::Emitter& e = ls.scenario.emitters[i];
             EmitterInfo info;
@@ -225,6 +227,7 @@ void Evaluator::clear_state() {
     has_expected_ = false;
     expected_frame_ = 0;
     have_det_meta_ = false;
+    truth_frame_grained_ = false;
     fs_ = f_lo_Hz_ = f_hi_Hz_ = threshold_ = 0.0;
     rec_.clear();
     runs_.clear();
@@ -357,27 +360,75 @@ void Evaluator::build_truth_rows() {
             period_n = static_cast<std::uint64_t>(info.period_s * fs_ + 0.5);
             on_n = static_cast<std::uint64_t>(info.duty * static_cast<double>(period_n) + 0.5);
         }
+
+        // G-6（D-069）：帧只管「这条链路在哪些时段看得见」，开关与跳频的**边界与频点**
+        // 交给样点域的 ActivitySchedule —— 与波形源同一个类、同一套取整，于是真值与 IQ 逐位同源。
+        // 取不到采样率（没有检测行）或该源不在场景里时退回帧粒度，并如实标降级（铁律 15）。
+        geo::ActivitySchedule sched;
+        bool precise = false;
+        if (has_scene_ && ei != emitters_.end()) {
+            if (fs_ > 0.0) {
+                std::string e;
+                precise = sched.build(scene_, em, fs_, e);
+                if (!precise) status_.notes.push_back("辐射源 " + em + " 的活动时间线折不成样点：" + e);
+            }
+            if (!precise) truth_frame_grained_ = true;
+        }
+
+        // 帧域按 tx_center_Hz 切开的相邻段先并回去：跳频快于帧率时那些边界是混叠抽样，不是真的
+        std::vector<Run> windows;
         for (std::size_t k = 0; k < it->second.size(); ++k) {
             const Run& run = it->second[k];
-            const bool ib = in_band(run.center_Hz, info.bw_Hz);
-            if (!burst || period_n == 0 || on_n == 0) {
-                TruthRow r;
-                r.t_s = run.start; r.t_end_s = run.end; r.emitter_id = em; r.label = info.label;
-                r.waveform = info.waveform; r.center_Hz = run.center_Hz; r.bw_Hz = info.bw_Hz; r.in_band = ib;
-                truth_rows_.push_back(r);
-                continue;
+            if (precise && !windows.empty() && windows.back().end == run.start) windows.back().end = run.end;
+            else windows.push_back(run);
+        }
+
+        for (std::size_t k = 0; k < windows.size(); ++k) {
+            const Run& run = windows[k];
+            // 把窗口切成若干「同频同开关」的子区间；不精确时整窗一段、频点取帧里的值
+            std::vector<Run> parts;
+            if (precise) {
+                const std::uint64_t n0 = geo::sample_at(run.start, fs_);
+                const std::uint64_t n1 = geo::sample_at(run.end, fs_);
+                for (std::uint64_t n = n0; n < n1;) {
+                    const geo::ActivitySchedule::Segment seg = sched.segment_at(n);
+                    const std::uint64_t stop = std::min<std::uint64_t>(seg.end, n1);
+                    if (stop <= n) break;
+                    if (seg.tx_on) {
+                        Run p;
+                        p.start = static_cast<double>(n) / fs_;
+                        p.end = static_cast<double>(stop) / fs_;
+                        p.center_Hz = seg.center_Hz;
+                        parts.push_back(p);
+                    }
+                    n = stop;
+                }
+            } else {
+                parts.push_back(run);
             }
-            const std::uint64_t k0 = static_cast<std::uint64_t>(std::floor(run.start * fs_ / static_cast<double>(period_n)));
-            for (std::uint64_t p = k0;; ++p) {
-                const double w0 = static_cast<double>(p * period_n) / fs_;
-                if (w0 >= run.end) break;
-                const double w1 = static_cast<double>(p * period_n + on_n) / fs_;
-                const double a = std::max(w0, run.start), b = std::min(w1, run.end);
-                if (b <= a) continue;
-                TruthRow r;
-                r.t_s = a; r.t_end_s = b; r.emitter_id = em; r.label = info.label;
-                r.waveform = info.waveform; r.center_Hz = run.center_Hz; r.bw_Hz = info.bw_Hz; r.in_band = ib;
-                truth_rows_.push_back(r);
+
+            for (std::size_t q = 0; q < parts.size(); ++q) {
+                const Run& part = parts[q];
+                const bool ib = in_band(part.center_Hz, info.bw_Hz);
+                if (!burst || period_n == 0 || on_n == 0) {
+                    TruthRow r;
+                    r.t_s = part.start; r.t_end_s = part.end; r.emitter_id = em; r.label = info.label;
+                    r.waveform = info.waveform; r.center_Hz = part.center_Hz; r.bw_Hz = info.bw_Hz; r.in_band = ib;
+                    truth_rows_.push_back(r);
+                    continue;
+                }
+                const std::uint64_t k0 = static_cast<std::uint64_t>(std::floor(part.start * fs_ / static_cast<double>(period_n)));
+                for (std::uint64_t p = k0;; ++p) {
+                    const double w0 = static_cast<double>(p * period_n) / fs_;
+                    if (w0 >= part.end) break;
+                    const double w1 = static_cast<double>(p * period_n + on_n) / fs_;
+                    const double a = std::max(w0, part.start), b = std::min(w1, part.end);
+                    if (b <= a) continue;
+                    TruthRow r;
+                    r.t_s = a; r.t_end_s = b; r.emitter_id = em; r.label = info.label;
+                    r.waveform = info.waveform; r.center_Hz = part.center_Hz; r.bw_Hz = info.bw_Hz; r.in_band = ib;
+                    truth_rows_.push_back(r);
+                }
             }
         }
     }
@@ -421,6 +472,11 @@ Step Evaluator::flush(PortMap& out, std::string& err) {
     if (truth_source_ == "scenario" && frames_seen_ == 0) {
         metrics_.state = worst(metrics_.state, State::Degraded);
         metrics_.reasons.push_back("没有收到任何场景参数帧，真值为空：所有命中都被计为虚警");
+    }
+    if (truth_frame_grained_) {
+        metrics_.state = worst(metrics_.state, State::Degraded);
+        metrics_.reasons.push_back("真值退回帧粒度（参数帧的 1/update_rate）：取不到检测行给的采样率，"
+                                   "发射开关的边界与跳频点只能按帧取，突发门控与跳频切段都不精确");
     }
     if (!unknown_emitters_.empty()) {
         metrics_.state = worst(metrics_.state, State::Degraded);

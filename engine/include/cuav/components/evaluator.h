@@ -26,6 +26,8 @@
 
 #include "cuav/component.h"
 #include "cuav/evaluation.h"
+#include "cuav_geo/activity.h"
+#include "cuav_geo/scenario.h"
 
 namespace cuav {
 
@@ -67,7 +69,10 @@ private:
         bool has_hop = false;
         std::string label;
     };
-    // 一段活动级的发射区间（tx_on 连续、中心频率不变）
+    // 一段活动级的发射区间（tx_on 连续、中心频率不变）。
+    // G-6（D-069）之后它的角色是「**链路可见窗口**」：跳频快于帧率时帧里的 tx_center_Hz
+    // 只是混叠抽样，按它切段会切出一堆假边界，所以 build_truth_rows 会先把帧域切开的
+    // 相邻段并回去，再用样点域的 ActivitySchedule 重新细分。
     struct Run {
         double start = 0.0, end = 0.0, center_Hz = 0.0;
     };
@@ -81,6 +86,11 @@ private:
     mutable bool rec_wired_ = false;        // check_wiring 里得知；validate 在 run 之前必跑
 
     std::map<std::string, EmitterInfo> emitters_;
+    // 真值要按样点精确切段（G-6，D-069），因此把场景留在成员里而不是 configure 里用完就丢
+    geo::Scenario scene_;
+    bool has_scene_ = false;
+    // 真值退回帧粒度了（取不到采样率或活动时间线折不成样点）：如实标降级，不静默（铁律 15）
+    bool truth_frame_grained_ = false;
     bool manifest_is_background_ = false;
     std::string manifest_label_;
     bool background_has_target_ = false;    // scenario 模式给了 data_id：背景片段本身含目标 → degraded

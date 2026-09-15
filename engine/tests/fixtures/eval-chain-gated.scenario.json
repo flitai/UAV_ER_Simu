@@ -1,0 +1,183 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "eval-chain-gated",
+  "name": "评价器测试用：带开关与跳频的活动时间线（G-6）",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 10
+  },
+  "seed": 20260906,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "亚运村侦察站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 500000,
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "uav-1",
+      "name": "多旋翼图传下行",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.4035,
+        "lat": 39.9885,
+        "alt_m": 50
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 20000,
+        "tx_power_dBm": 27,
+        "antenna_gain_dBi": 2,
+        "waveform": {
+          "type": "tone",
+          "offset_Hz": 0
+        }
+      }
+    },
+    {
+      "id": "uav-3",
+      "name": "悬停遥控突发",
+      "platform_type": "racing",
+      "position": {
+        "lon": 116.415552,
+        "lat": 39.984601,
+        "alt_m": 60
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 200000,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "burst",
+          "offset_Hz": -97656.25,
+          "period_s": 0.5,
+          "duty": 0.2
+        }
+      }
+    },
+    {
+      "id": "uav-4",
+      "name": "遥控跳频（真值切段用）",
+      "platform_type": "racing",
+      "position": {
+        "lon": 116.4035,
+        "lat": 39.9885,
+        "alt_m": 60
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 20000,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "burst",
+          "offset_Hz": 0,
+          "period_s": 0.02,
+          "duty": 0.5
+        }
+      }
+    }
+  ],
+  "routes": [
+    {
+      "emitter_id": "uav-1",
+      "loop": false,
+      "waypoints": [
+        {
+          "position": {
+            "lon": 116.4035,
+            "lat": 39.9885,
+            "alt_m": 50
+          },
+          "speed_mps": 18
+        },
+        {
+          "position": {
+            "lon": 116.411,
+            "lat": 39.9955,
+            "alt_m": 110
+          },
+          "speed_mps": 20,
+          "loiter_s": 12
+        },
+        {
+          "position": {
+            "lon": 116.43,
+            "lat": 40.011,
+            "alt_m": 160
+          },
+          "speed_mps": 20
+        }
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0.3,
+      "event": "tx_off"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0.5,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0.75,
+      "event": "hop",
+      "args": {
+        "center_Hz": 2440735000
+      }
+    },
+    {
+      "emitter_id": "uav-4",
+      "t_s": 0.8,
+      "event": "hop",
+      "args": {
+        "sequence": [
+          2440450000,
+          2440550000
+        ],
+        "dwell_s": 0.02
+      }
+    }
+  ],
+  "trace": {
+    "created_by": "实施方（C-8 / G-6 测试夹具）",
+    "created_at": "2026-09-15T00:00:00Z",
+    "notes": "uav-1 带 tx_on/tx_off/hop 三类活动：0–0.3 开、0.3–0.5 关、0.5 起再开、0.75 跳到 +235 kHz（检测频段 ±225 kHz 之外、仍在奈奎斯特内）。带宽收到 20 kHz 才能同时满足这两条。 uav-4 是跳频突发源：无开关活动（全程发射），自 0.8 s 起每 0.02 s 一跳，与突发周期相等，故一跳一个突发。"
+  }
+}
