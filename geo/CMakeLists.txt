@@ -24,6 +24,7 @@ add_library(cuav_geo STATIC
   src/link_budget.cpp
   src/propagation.cpp
   src/scenario.cpp
+  src/activity.cpp
   src/df_error.cpp
   src/fix_geometry.cpp
   src/locate_aoa.cpp

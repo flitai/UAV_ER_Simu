@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "cuav_geo/activity.h"
 #include "cuav/scenario_json.h"
 #include "cuav/sha256.h"
 #include "doctest/doctest.h"
@@ -607,4 +608,170 @@ TEST_CASE("场景：圆形告警区可缺省，给出时收下不解释；坏值
     bad([](nlohmann::json& c) { c["zones"][0]["radius_m"] = 0.0; }, "半径为零");
     bad([](nlohmann::json& c) { c["zones"][0]["color"] = "#f00"; }, "未知键");
     bad([](nlohmann::json& c) { c["zones"][1]["id"] = "z-1"; }, "重复标识");
+}
+
+// --- 样点域活动时间线（G-6，D-069）--------------------------------------------
+
+TEST_CASE("活动时间线（样点域）：停留序列按整数循环，子段边界落在整样点上") {
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo(kDemo), s, err));
+
+    geo::Scenario sc = s.scenario;
+    geo::Activity h;
+    h.emitter_id = "uav-1";
+    h.t_s = 1.0;
+    h.event = geo::ActivityEvent::Hop;
+    h.sequence.push_back(2.4400e9);
+    h.sequence.push_back(2.4420e9);
+    h.sequence.push_back(2.4410e9);
+    h.dwell_s = 0.01;
+    sc.activities.push_back(h);
+
+    const double fs = 1.0e7;                       // 停留 0.01 s = 100000 样点
+    geo::ActivitySchedule sch;
+    REQUIRE(sch.build(sc, "uav-1", fs, err));
+    CHECK(sch.has_hop());
+    CHECK(sch.notes().empty());                    // 0.01 s 在 10 MS/s 下整除，没有取整落差
+
+    const std::uint64_t n0 = geo::sample_at(1.0, fs);
+    CHECK(n0 == 10000000u);
+    CHECK(sch.center_Hz_at_sample(n0 - 1) == doctest::Approx(2.4405e9));   // 跳频之前取基频
+    CHECK(sch.center_Hz_at_sample(n0) == doctest::Approx(2.4400e9));
+    CHECK(sch.center_Hz_at_sample(n0 + 99999) == doctest::Approx(2.4400e9));
+    CHECK(sch.center_Hz_at_sample(n0 + 100000) == doctest::Approx(2.4420e9));
+    CHECK(sch.center_Hz_at_sample(n0 + 200000) == doctest::Approx(2.4410e9));
+    CHECK(sch.center_Hz_at_sample(n0 + 300000) == doctest::Approx(2.4400e9));   // 循环回第一项
+
+    // 边界查询：段末最后一个样点问出来的下一次变化就是段末
+    CHECK(sch.next_change_sample(n0) == n0 + 100000);
+    CHECK(sch.next_change_sample(n0 + 99999) == n0 + 100000);
+    CHECK(sch.next_change_sample(n0 + 100000) == n0 + 200000);
+
+    const geo::ActivitySchedule::Segment seg = sch.segment_at(n0 + 50000);
+    CHECK(seg.begin == n0 + 50000);
+    CHECK(seg.end == n0 + 100000);
+    CHECK_FALSE(seg.tx_on);                        // demo-01 的 tx_on 在 t = 3 s，此刻（约 1.005 s）还没开
+    CHECK(seg.center_Hz == doctest::Approx(2.4400e9));
+}
+
+TEST_CASE("活动时间线（样点域）：与 EmitterRuntime 的双精度版稠密对拍，例外只在事件边界") {
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo(kDemo), s, err));
+
+    geo::Scenario sc = s.scenario;                 // demo-01 自带 tx_on@3 s
+    geo::Activity h;
+    h.emitter_id = "uav-1";
+    h.t_s = 2.0;
+    h.event = geo::ActivityEvent::Hop;
+    h.sequence.push_back(2.4400e9);
+    h.sequence.push_back(2.4420e9);
+    h.dwell_s = 0.5;
+    sc.activities.push_back(h);
+    geo::Activity off;
+    off.emitter_id = "uav-1";
+    off.t_s = 4.0;
+    off.event = geo::ActivityEvent::TxOff;
+    sc.activities.push_back(off);
+
+    const double fs = 100000.0;                    // 对拍跑 5 s = 500000 个样点，够密也跑得动
+    geo::ActivitySchedule sch;
+    REQUIRE(sch.build(sc, "uav-1", fs, err));
+    geo::EmitterRuntime rt;
+    REQUIRE(rt.build(sc, "uav-1", err));
+
+    // 事件折出的样点：tx_on@3、tx_off@4，以及 hop 序列自 t=2 起每 0.5 s 一次直到 5 s
+    std::size_t diffs = 0;
+    for (std::uint64_t n = 0; n < 500000; ++n) {
+        const double t = static_cast<double>(n) / fs;
+        const bool same_tx = sch.tx_on_at_sample(n) == rt.tx_on_at(t);
+        const bool same_f = sch.center_Hz_at_sample(n) == rt.center_Hz_at(t);
+        if (!same_tx || !same_f) ++diffs;
+    }
+    // 两域的取整方向不同（样点域四舍五入、时间域直接比大小），差异只可能落在事件边界上，
+    // 每个边界至多一个样点。本夹具的边界数 = 2 个开关 + 6 次跳频 = 8。
+    CHECK(diffs <= 8u);
+}
+
+TEST_CASE("活动时间线（样点域）：三条铁律 15 的闸——亚样点停留、开关同样点、跳频同样点") {
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo(kDemo), s, err));
+
+    {   // ① 停留折出 0 个样点
+        geo::Scenario sc = s.scenario;
+        geo::Activity h;
+        h.emitter_id = "uav-1";
+        h.t_s = 1.0;
+        h.event = geo::ActivityEvent::Hop;
+        h.sequence.push_back(2.44e9);
+        h.sequence.push_back(2.45e9);
+        h.dwell_s = 1e-7;                          // 500 kS/s 下是 0.05 个样点
+        sc.activities.push_back(h);
+        geo::ActivitySchedule sch;
+        std::string e;
+        CHECK_FALSE(sch.build(sc, "uav-1", 500000.0, e));
+        CHECK(e.find("折出 0 个样点") != std::string::npos);
+        CHECK(e.find("铁律 15") != std::string::npos);
+    }
+    {   // ② 两个状态相反的开关活动折到同一样点
+        geo::Scenario sc = s.scenario;
+        geo::Activity off;
+        off.emitter_id = "uav-1";
+        off.t_s = 3.0000001;                       // 与自带的 tx_on@3 在 500 kS/s 下同一个样点
+        off.event = geo::ActivityEvent::TxOff;
+        sc.activities.push_back(off);
+        geo::ActivitySchedule sch;
+        std::string e;
+        CHECK_FALSE(sch.build(sc, "uav-1", 500000.0, e));
+        CHECK(e.find("都折到样点") != std::string::npos);
+    }
+    {   // ③ 两条跳频活动折到同一样点
+        geo::Scenario sc = s.scenario;
+        for (int k = 0; k < 2; ++k) {
+            geo::Activity h;
+            h.emitter_id = "uav-1";
+            h.t_s = 5.0 + k * 1e-7;
+            h.event = geo::ActivityEvent::Hop;
+            h.has_center_Hz = true;
+            h.center_Hz = 2.44e9 + k * 1e6;
+            sc.activities.push_back(h);
+        }
+        geo::ActivitySchedule sch;
+        std::string e;
+        CHECK_FALSE(sch.build(sc, "uav-1", 500000.0, e));
+        CHECK(e.find("前一个跳频点一个样点都用不上") != std::string::npos);
+    }
+}
+
+TEST_CASE("活动时间线（样点域）：全部中心频点集合供铁律 4 的闸用，升序去重并带出处") {
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo(kDemo), s, err));
+
+    // 无 hop 时只有基频
+    std::vector<geo::CenterPoint> one = geo::emitter_center_set(s.scenario, "uav-1");
+    REQUIRE(one.size() == 1u);
+    CHECK(one[0].Hz == doctest::Approx(2.4405e9));
+    CHECK(one[0].where == "emission.center_Hz");
+
+    geo::Scenario sc = s.scenario;
+    geo::Activity h;
+    h.emitter_id = "uav-1";
+    h.t_s = 1.0;
+    h.event = geo::ActivityEvent::Hop;
+    h.sequence.push_back(2.4430e9);
+    h.sequence.push_back(2.4390e9);
+    h.sequence.push_back(2.4405e9);                // 与基频同频，应当被去重
+    h.dwell_s = 0.01;
+    sc.activities.push_back(h);
+
+    std::vector<geo::CenterPoint> all = geo::emitter_center_set(sc, "uav-1");
+    REQUIRE(all.size() == 3u);
+    CHECK(all[0].Hz == doctest::Approx(2.4390e9));
+    CHECK(all[1].Hz == doctest::Approx(2.4405e9));
+    CHECK(all[2].Hz == doctest::Approx(2.4430e9));
+    CHECK(all[0].where.find("sequence[1]") != std::string::npos);
+    CHECK(all[1].where == "emission.center_Hz");   // 同频保留第一个出处（基频在前）
 }
