@@ -536,7 +536,7 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
     // 于是「2 MHz 图传落在 10 MS/s 的观测带里」在谱上根本不成立，且连 offset_Hz 都不起作用。
     // 截止取 bw_Hz/2（复基带占 [−fc, +fc]，总占用带宽正好 bw_Hz）；bw ≥ fs 时不滤波（见 process 的降级注记）。
     band_limit_ = false;
-    nyq_att_dB_ = 0.0;
+    alias_frac_ = 0.0;
     if (waveform_.type == geo::WaveformType::Noise && bw_Hz_ > 0.0 && bw_Hz_ < sample_rate_Hz_) {
         const double fc = bw_Hz_ / 2.0;
         if (!dsp::butterworth_lp4(fc, sample_rate_Hz_, lp_, err)) {
@@ -551,14 +551,26 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
         }
         lp_gain_norm_ = 1.0 / std::sqrt(gain);
         band_limit_ = true;
-        // 奈奎斯特处的抑制量：|H|² = 1/(1 + (tan(πf/fs)/K)^8)，取 f 到 Fs/2 的距离
-        const double edge = sample_rate_Hz_ / 2.0 - std::fabs(emitter_center_Hz_ + waveform_.offset_Hz -
-                                                              center_frequency_Hz_);
+        // 绕折功率占比。搬移在离散域里是循环旋转：离中心比 Fs/2 更远的那半边裙边会绕到
+        // 带的另一头去。量的是**积分**占比 —— 只看带边那一点的衰减会把物理上没问题的配置
+        // 误判成降级（实测带边 39 dB 抑制对应的绕折功率只有 2.4e-5）。
+        // |H(f)|² = 1/(1 + (tan(πf/fs)/K)^8)，中点法 4096 格，确定性、与平台无关。
+        const double edge = sample_rate_Hz_ / 2.0 -
+            std::fabs(emitter_center_Hz_ + waveform_.offset_Hz - center_frequency_Hz_);
         const double K = std::tan(kPi * fc / sample_rate_Hz_);
-        const double r = std::tan(kPi * std::max(edge, 0.0) / sample_rate_Hz_) / K;
-        double r8 = 1.0;
-        for (int k = 0; k < 8; ++k) r8 *= r;
-        nyq_att_dB_ = 10.0 * std::log10(1.0 + r8);
+        const std::size_t kGrid = 4096;
+        double total = 0.0, tail = 0.0;
+        for (std::size_t k = 0; k < kGrid; ++k) {
+            const double f = -sample_rate_Hz_ / 2.0 +
+                (static_cast<double>(k) + 0.5) * sample_rate_Hz_ / static_cast<double>(kGrid);
+            const double r = std::tan(kPi * std::fabs(f) / sample_rate_Hz_) / K;
+            double r8 = 1.0;
+            for (int q = 0; q < 8; ++q) r8 *= r;
+            const double h2 = 1.0 / (1.0 + r8);
+            total += h2;
+            if (std::fabs(f) > std::max(edge, 0.0)) tail += h2;
+        }
+        alias_frac_ = total > 0.0 ? tail / total : 1.0;
     }
 
     if (waveform_.type == geo::WaveformType::Burst) {
@@ -685,12 +697,12 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
                 status_.notes.push_back("噪声波形未带限：bw_Hz 不小于采样带宽，占用带宽按采样带宽计");
                 band_note_done_ = true;
             }
-        } else if (nyq_att_dB_ < 40.0) {
-            // 带限了，但信号离带边太近、阻带抑制不够：混叠功率不可忽略，如实降级
-            d.iq.meta.degrade("噪声波形的带限滤波器在奈奎斯特处只有 " + std::to_string(nyq_att_dB_) +
-                              " dB 抑制（中心频偏加带宽相对 Fs/2 太靠边），混叠功率不可忽略");
+        } else if (alias_frac_ > 1e-3) {
+            // 带限了，但信号离带边太近：裙边绕折过去的功率不可忽略，如实降级
+            d.iq.meta.degrade("噪声波形搬移后有 " + std::to_string(alias_frac_ * 100.0) +
+                              "% 的功率绕折到带的另一头（中心频偏加带宽相对 Fs/2 太靠边）");
             if (!band_note_done_) {
-                status_.notes.push_back("噪声带限在奈奎斯特处抑制不足 40 dB，混叠功率不可忽略");
+                status_.notes.push_back("噪声带限：绕折功率占比超过千分之一，频偏相对采样带宽太靠边");
                 band_note_done_ = true;
             }
         } else if (!band_note_done_) {

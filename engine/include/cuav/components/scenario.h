@@ -120,7 +120,10 @@ private:
     std::complex<double> lp_state_[4];
     double lp_gain_norm_ = 1.0;           // 1/sqrt(Σ|h|²)，把带限后的功率归回单位功率
     std::size_t lp_settle_ = 0;           // 冲激响应稳定所需样点数，init() 里先推这么多丢掉
-    double nyq_att_dB_ = 0.0;             // 奈奎斯特处的抑制量（闭式），< 40 dB 即标降级
+    // 绕折功率占比：把中心搬到 ±Δf 之后，离中心比 Fs/2 更远的那半边裙边会绕到带的另一头。
+    // 量的是**积分功率占比**而不是带边那一点的衰减 —— 后者会把物理上没问题的配置误判成降级
+    // （实测：带边 39 dB 抑制对应的绕折功率只有 2.4e-5）。超过 1e-3 才标降级。
+    double alias_frac_ = 0.0;
 
     Xoshiro256pp sub_rng_{0};             // 私有随机子流，见 .cpp 里的理由
     bool sub_ready_ = false;

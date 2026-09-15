@@ -1,6 +1,7 @@
 // 一次性生成器：产出内置缺省链路的规范文本，以及两份 3×3 回归夹具（经真实的 parse → compile 路径再生成）。
 // 跑法（web/ 目录）：
 //   npx tsx src/chain/examples/_gen.ts            > src/chain/examples/default.ts   （缺省链路；写成 TS 常量）
+//   npx tsx src/chain/examples/_gen.ts demo-02    > ../tests/regression/diagrams/chain-demo-02.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-aoa    > ../tests/regression/diagrams/chain-3x3-aoa.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-tdoa   > ../tests/regression/diagrams/chain-3x3-tdoa.json
 // 夹具模式读现有夹具文件、parseChain 解回链路状态、按当前目录与槽位表重新 compile：参数一件不丢，
@@ -41,6 +42,21 @@ if (mode === 'default') {
   process.stdout.write(
     '// 内置的缺省典型链路（全合成，demo-01）。由 _gen.ts 生成，不要手改：npx tsx src/chain/examples/_gen.ts > src/chain/examples/default.ts\n' +
     `export const DEFAULT_CHAIN_TEXT = ${JSON.stringify(text)}\n`)
+} else if (mode === 'demo-02') {
+  // 宽带回归夹具（C-8）：10 MS/s、两个源。接收机增益与 ADC 满量程要照顾**高斯型图传**——
+  // 它的峰均比远高于单音，同样的平均电平下削顶比例高得多，所以留出 12 dB 余量而不是像
+  // 缺省链那样贴着满量程（D-066 ⑨：不靠改缺省参数遮掉真实的过载判断）。
+  const { doc: scenario, sha } = loadScenario('demo-02')
+  const c: ChainState = emptyChain('synthetic', 'chain-demo-02')
+  c.name = '典型链路 · 全合成 · demo-02 宽带'
+  c.scenario = { scenario_id: 'demo-02', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1', 'uav-2']
+  c.run = { duration_s: 6, seed: 20260915 }
+  c.slots.rx_fe.params = { gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024 }
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === '3x3-aoa' || mode === '3x3-tdoa') {
   const { doc: scenario } = loadScenario('demo-03')
   const file = join(ROOT, `tests/regression/diagrams/chain-${mode}.json`)
@@ -50,5 +66,5 @@ if (mode === 'default') {
   if (!chain) throw new Error('夹具解不成典型链路：先查槽位表与 parseChain')
   process.stdout.write(serialize(compile(chain, cat, scenario).doc, cat))
 } else {
-  throw new Error(`未知模式 ${mode}：default | 3x3-aoa | 3x3-tdoa`)
+  throw new Error(`未知模式 ${mode}：default | demo-02 | 3x3-aoa | 3x3-tdoa`)
 }
