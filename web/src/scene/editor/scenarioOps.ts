@@ -327,13 +327,48 @@ export function setPath(doc: ScenarioDoc, path: string, value: unknown): Scenari
   return d
 }
 
-export function addActivity(doc: ScenarioDoc, emitterId: string, t_s: number, event: string): ScenarioDoc {
+export function addActivity(doc: ScenarioDoc, emitterId: string, t_s: number, event: string,
+                            args?: Obj): ScenarioDoc {
   const d = clone(doc)
   const list = ((d.activities ??= []) as Obj[])
-  list.push({ emitter_id: emitterId, t_s, event })
+  // 只有 hop 带 args（G-6，D-069）。其余事件不写这个键，既有场景文件的形状因此不变。
+  list.push(args === undefined ? { emitter_id: emitterId, t_s, event }
+                               : { emitter_id: emitterId, t_s, event, args })
   // 活动必须按时刻非降（docs/scenario-format.md §6），这里排好，免得交给引擎才发现
   list.sort((a, b) => Number(a.t_s) - Number(b.t_s))
   return d
+}
+
+/**
+ * 改跳频活动的序列与停留时长（G-6，D-069）。序列用逗号分隔的 MHz 文本，空串即不改。
+ * 写回的是 Hz 整数：场景文件里的频点一律是 Hz（docs/scenario-format.md §6）。
+ */
+export function setHopArgs(doc: ScenarioDoc, index: number,
+                           seqMHz: string | undefined, dwell_s: number | undefined): ScenarioDoc {
+  const d = clone(doc)
+  const list = activities(d)
+  const a = list[index]
+  if (!a || String(a.event) !== 'hop') return doc
+  const args = { ...((a.args ?? {}) as Obj) }
+  if (seqMHz !== undefined) {
+    const seq = seqMHz.split(/[,，\s]+/).map((t) => Number(t)).filter((v) => Number.isFinite(v) && v > 0)
+    if (seq.length) {
+      args.sequence = seq.map((mhz) => Math.round(mhz * 1e6))
+      delete args.center_Hz          // 序列与单值互斥（geo::Scenario::cross_check 会拒同时给）
+    }
+  }
+  if (dwell_s !== undefined && Number.isFinite(dwell_s) && dwell_s > 0) args.dwell_s = dwell_s
+  a.args = args
+  d.activities = list
+  return d
+}
+
+/** 跳频序列的显示形式：MHz、逗号分隔。非 hop 或没有序列时给空串。 */
+export function hopSequenceMHz(a: Obj | undefined): string {
+  const args = (a?.args ?? {}) as Obj
+  const seq = Array.isArray(args.sequence) ? (args.sequence as number[]) : []
+  if (!seq.length && typeof args.center_Hz === 'number') return String(args.center_Hz / 1e6)
+  return seq.map((f) => String(f / 1e6)).join(', ')
 }
 
 export function removeActivity(doc: ScenarioDoc, index: number): ScenarioDoc {

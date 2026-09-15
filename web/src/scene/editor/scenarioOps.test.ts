@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import type { ScenarioDoc } from '../../state/types.js'
-import { addEmitter, addSite, addZone, emitters, moveEmitter, moveZone, posOf, removeEmitter, removeZone, routeOf, setPath, sites, splitLinkId, zoneOf, zones } from './scenarioOps.js'
+import { activities, addActivity, addEmitter, addSite, addZone, emitters, hopSequenceMHz, moveEmitter, moveZone, posOf, removeEmitter, removeZone, routeOf, setHopArgs, setPath, sites, splitLinkId, zoneOf, zones } from './scenarioOps.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 function demo(): ScenarioDoc {
@@ -134,4 +134,36 @@ test('告警区：布区 / 移动 / 删除是纯函数，删空后键一起消�
   const gone = removeZone(r.doc, 'z-1')
   assert.equal('zones' in gone, false)
   assert.equal(zoneOf(null, 116.41, 39.99, 0), null)
+})
+
+test('跳频活动：新建带 args、序列按 MHz 文本改写、与单值互斥（G-6，D-069）', () => {
+  const doc = demo()
+  const withHop = addActivity(doc, 'uav-1', 5, 'hop', { sequence: [2440e6, 2441e6], dwell_s: 0.01 })
+  const idx = activities(withHop).findIndex((a) => a.event === 'hop')
+  assert.ok(idx >= 0)
+  assert.deepEqual((activities(withHop)[idx]!.args as Record<string, unknown>).sequence, [2440e6, 2441e6])
+  // 其余事件不写 args，既有场景文件的形状因此不变
+  const plain = addActivity(doc, 'uav-1', 5, 'tx_off')
+  const pi = activities(plain).findIndex((a) => a.event === 'tx_off')
+  assert.equal('args' in activities(plain)[pi]!, false)
+
+  // 文本 → Hz 整数；MHz 小数也对
+  const edited = setHopArgs(withHop, idx, '2439.5, 2442.25 2441', 0.02)
+  const args = activities(edited)[idx]!.args as Record<string, unknown>
+  assert.deepEqual(args.sequence, [2439500000, 2442250000, 2441000000])
+  assert.equal(args.dwell_s, 0.02)
+
+  // 序列与单值互斥：写序列时把 center_Hz 删掉（cross_check 拒同时给两种）
+  const single = addActivity(doc, 'uav-1', 6, 'hop', { center_Hz: 2450e6 })
+  const si = activities(single).findIndex((a) => a.event === 'hop')
+  assert.equal(hopSequenceMHz(activities(single)[si]), '2450')
+  const swapped = setHopArgs(single, si, '2445, 2446', undefined)
+  const sa = activities(swapped)[si]!.args as Record<string, unknown>
+  assert.deepEqual(sa.sequence, [2445000000, 2446000000])
+  assert.equal('center_Hz' in sa, false)
+
+  // 空串与非法值不动原值（不静默清空用户已填的东西，铁律 15）
+  const kept = setHopArgs(edited, idx, '', undefined)
+  assert.deepEqual((activities(kept)[idx]!.args as Record<string, unknown>).sequence,
+                   [2439500000, 2442250000, 2441000000])
 })

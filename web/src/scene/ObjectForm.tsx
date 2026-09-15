@@ -8,8 +8,8 @@
 import { useAppState, useStore } from '../state/store.js'
 import { fmtDeg, fmtMeters, parseSi } from '../shell/format.js'
 import {
-  activities, addActivity, emitters, insertWaypoint, removeActivity, removeEmitter,
-  removeWaypoint, removeZone, routeOf, setPath, sites, waypointsOf, zones, type Obj,
+  activities, addActivity, emitters, hopSequenceMHz, insertWaypoint, removeActivity, removeEmitter,
+  removeWaypoint, removeZone, routeOf, setHopArgs, setPath, sites, waypointsOf, zones, type Obj,
 } from './editor/scenarioOps.js'
 import { lookAngles, RoutePreview, type Waypoint } from './editor/preview.js'
 import {
@@ -242,6 +242,25 @@ export function ObjectPanel() {
         <Row label="事件">{String(a.event)}</Row>
         <Row label="辐射源">{String(a.emitter_id)}</Row>
         <NumField label="时刻" value={Number(a.t_s)} unit="s" path={`activities.${sel.index}.t_s`} onCommit={commit} />
+        {String(a.event) === 'hop' && (
+          <>
+            <Row label="跳频点">
+              <input
+                className="form-input"
+                defaultValue={hopSequenceMHz(a)}
+                data-field="hop-sequence"
+                placeholder="MHz，逗号分隔"
+                onBlur={(e) => edit(setHopArgs(doc, sel.index, e.currentTarget.value, undefined))}
+              />
+            </Row>
+            <NumField label="停留" value={Number((a.args as Obj | undefined)?.dwell_s ?? 0)} unit="s"
+                      path={`activities.${sel.index}.args.dwell_s`} onCommit={commit} />
+            <div className="form-note">
+              跳频点按停留时长循环。停留要能折出至少一个样点，且跳频点连同带宽都得落在
+              站点的奈奎斯特带内（铁律 4）——越界时运行前的频率计划检查会报出是哪一个点。
+            </div>
+          </>
+        )}
         <div className="form-actions">
           <button data-act="back-emitter" onClick={() => store.dispatch({ type: 'scene/select', selection: { kind: 'emitter', id: String(a.emitter_id) } })}>返回辐射源</button>
           <button data-act="remove-activity" onClick={() => {
@@ -337,6 +356,18 @@ function ActivitySection({ doc, emitterId }: { doc: ScenarioDoc; emitterId: stri
             + {ev}
           </button>
         ))}
+        {/* hop 必须带参数才立得住（cross_check 要求 center_Hz 与 sequence 二选一、序列须带正的
+            dwell_s），所以新建时就给一组以该源自己的中心频率为基准的缺省值，用户再改 */}
+        <button className="mini" data-act="add-hop"
+                onClick={() => {
+                  const f0 = Number(((emitters(doc).find((e) => String(e.id) === emitterId)?.emission ?? {}) as Obj).center_Hz)
+                  const base = Number.isFinite(f0) ? f0 : 2.44e9
+                  store.dispatch({ type: 'scene/edit',
+                    doc: addActivity(doc, emitterId, 0, 'hop',
+                      { sequence: [Math.round(base - 3e5), Math.round(base + 3e5)], dwell_s: 0.01 }) })
+                }}>
+          + hop
+        </button>
       </div>
     </details>
   )
