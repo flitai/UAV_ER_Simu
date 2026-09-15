@@ -497,3 +497,77 @@ TEST_CASE("黄金基准：引擎的模板匹配识别器逐行复现 Python 参�
     CHECK(bad == 0);
 }
 
+
+TEST_CASE("黄金基准：noise 波形的带限与频率搬移逐值复现 Python 参考（C-8 / G-6，D-069）") {
+    std::ifstream f((std::string(CUAV_SOURCE_DIR) + "/tests/golden/scene_noise_bandlimit.json").c_str());
+    REQUIRE_MESSAGE(f.good(), "黄金基准缺失：uv run --quiet --with numpy python "
+                              "algos/reference/gen_engine_golden.py --mode scene_noise "
+                              "-o engine/tests/golden/scene_noise_bandlimit.json");
+    nlohmann::json g;
+    f >> g;
+
+    const double fs = g["params"]["fs_Hz"].get<double>();
+    const double bw = g["params"]["bw_Hz"].get<double>();
+    const double off = g["params"]["offset_Hz"].get<double>();
+    const std::uint64_t seed = g["params"]["seed"].get<std::uint64_t>();
+    const double coeff_rel = g["tolerance"]["coeff_rel"].get<double>();
+    const double gain_rel = g["tolerance"]["gain_rel"].get<double>();
+    const double samp_rel = g["tolerance"]["sample_rel"].get<double>();
+
+    // ① 系数：两侧都是 float64 同一闭式同一书写次序
+    dsp::Biquad bq[2];
+    std::string err;
+    REQUIRE_MESSAGE(dsp::butterworth_lp4(bw / 2.0, fs, bq, err), err);
+    for (int i = 0; i < 2; ++i) {
+        const nlohmann::json& s = g["filter"]["sections"][i];
+        const double got[5] = {bq[i].b0, bq[i].b1, bq[i].b2, bq[i].a1, bq[i].a2};
+        const char* name[5] = {"b0", "b1", "b2", "a1", "a2"};
+        for (int k = 0; k < 5; ++k) {
+            const double want = s[name[k]].get<double>();
+            CHECK_MESSAGE(std::fabs(got[k] - want) <= coeff_rel * std::fabs(want),
+                          "节 " << i << " 的 " << name[k] << "：" << got[k] << " 对 " << want);
+        }
+    }
+
+    // ② 功率增益与稳定样点数
+    double gain = 0.0;
+    std::size_t settle = 0;
+    REQUIRE(dsp::impulse_power_gain(bq, gain, settle, err));
+    const double want_gain = g["filter"]["power_gain"].get<double>();
+    CHECK(std::fabs(gain - want_gain) <= gain_rel * std::fabs(want_gain));
+    CHECK(settle == g["filter"]["n_settle"].get<std::size_t>());
+
+    // ③ 逐样点：带限 + 单位功率归一 + 相位搬移，与 SceneEmitterSource::process 同序
+    const double norm = 1.0 / std::sqrt(gain);
+    Xoshiro256pp rng(seed);
+    std::complex<double> st[4];
+    for (int i = 0; i < 4; ++i) st[i] = std::complex<double>(0.0, 0.0);
+    const std::size_t warm = std::min<std::size_t>(settle, 1u << 16);
+    for (std::size_t k = 0; k < warm; ++k) {
+        float re = 0.0f, im = 0.0f;
+        rng.complex_normal(re, im);
+        dsp::biquad2_step(bq, st, std::complex<double>(re, im));
+    }
+    const double two_pi = 2.0 * 3.14159265358979323846;
+    const double dphi = two_pi * off / fs;
+    double phase = 0.0;
+    const nlohmann::json& xs = g["samples"];
+    std::size_t bad = 0;
+    for (std::size_t i = 0; i < xs.size(); ++i) {
+        float re = 0.0f, im = 0.0f;
+        rng.complex_normal(re, im);
+        const std::complex<double> y = dsp::biquad2_step(bq, st, std::complex<double>(re, im));
+        const double zr = y.real() * norm, zi = y.imag() * norm;
+        const double c = std::cos(phase), sp = std::sin(phase);
+        const float gr = static_cast<float>(zr * c - zi * sp);
+        const float gi = static_cast<float>(zr * sp + zi * c);
+        phase += dphi;
+        if (phase >= two_pi) phase -= two_pi;
+        else if (phase < 0.0) phase += two_pi;
+        const double wr = xs[i][0].get<double>(), wi = xs[i][1].get<double>();
+        const double scale = std::max(1e-12, std::sqrt(wr * wr + wi * wi));
+        if (std::fabs(gr - wr) > samp_rel * scale || std::fabs(gi - wi) > samp_rel * scale) ++bad;
+    }
+    CHECK_MESSAGE(bad == 0u, xs.size() << " 个样点里有 " << bad << " 个超出 " << samp_rel);
+    MESSAGE("带限对拍：" << xs.size() << " 个样点，功率增益 " << gain << "，稳定 " << settle << " 个样点");
+}

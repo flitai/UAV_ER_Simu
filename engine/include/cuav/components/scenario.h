@@ -23,6 +23,7 @@
 #include "cuav/component.h"
 #include "cuav/observer.h"
 #include "cuav/random.h"
+#include "cuav/dsp.h"
 #include "cuav_geo/activity.h"
 #include "cuav_geo/scenario.h"
 
@@ -111,6 +112,15 @@ private:
     double emitter_center_Hz_ = 0.0;
     double bw_Hz_ = 0.0;
     std::uint64_t burst_period_n_ = 0, burst_on_n_ = 0;
+
+    // noise 波形的带限（C-8 / G-6，D-069）：4 阶巴特沃斯低通，截止 emission.bw_Hz / 2，
+    // 状态跨块保持（于是与块长无关）。不带任何用户参数，一切从场景的 bw_Hz 派生。
+    bool band_limit_ = false;
+    dsp::Biquad lp_[2];
+    std::complex<double> lp_state_[4];
+    double lp_gain_norm_ = 1.0;           // 1/sqrt(Σ|h|²)，把带限后的功率归回单位功率
+    std::size_t lp_settle_ = 0;           // 冲激响应稳定所需样点数，init() 里先推这么多丢掉
+    double nyq_att_dB_ = 0.0;             // 奈奎斯特处的抑制量（闭式），< 40 dB 即标降级
 
     Xoshiro256pp sub_rng_{0};             // 私有随机子流，见 .cpp 里的理由
     bool sub_ready_ = false;

@@ -304,6 +304,103 @@ def write_features(args, noise: np.ndarray, mask: np.ndarray, m_bins: int, eta: 
     return 0
 
 
+# --- 带限噪声（C-8 / G-6，D-069）--------------------------------------------
+#
+# 与 engine/src/dsp.cpp 的 butterworth_lp4 / biquad2_step / impulse_power_gain 逐字同序。
+# 递推那三行是契约，改一个加号就是基准变化（铁律 10）。
+
+def butterworth_lp4(fc_Hz: float, fs_Hz: float):
+    """4 阶巴特沃斯低通的两节双二阶系数（双线性 + 频率预畸变）。"""
+    q = (0.76536686473017956, 1.8477590650225735)   # 2·sin((2i+1)·π/8)
+    K = math.tan(math.pi * fc_Hz / fs_Hz)
+    K2 = K * K
+    out = []
+    for i in range(2):
+        D = 1.0 + q[i] * K + K2
+        out.append({"b0": K2 / D, "b1": 2.0 * K2 / D, "b2": K2 / D,
+                    "a1": 2.0 * (K2 - 1.0) / D, "a2": (1.0 - q[i] * K + K2) / D})
+    return out
+
+
+def biquad2_step(f, state, x):
+    """转置直接 II 型。三行的次序与 C++ 逐字相同。state 是 4 个复数，原地更新。"""
+    for i in range(2):
+        y = f[i]["b0"] * x + state[2 * i]
+        state[2 * i] = f[i]["b1"] * x - f[i]["a1"] * y + state[2 * i + 1]
+        state[2 * i + 1] = f[i]["b2"] * x - f[i]["a2"] * y
+        x = y
+    return x
+
+
+def impulse_power_gain(f):
+    """Σ|h[n]|² 与稳定所需样点数；判据「连续 16 个样点 h² ≤ 1e-20·acc」，上限 2^22。"""
+    state = [0j] * 4
+    acc = 0.0
+    quiet = 0
+    for n in range(1 << 22):
+        x = 1.0 + 0j if n == 0 else 0j
+        y = biquad2_step(f, state, x)
+        p = y.real * y.real
+        acc += p
+        if n >= 16 and p <= 1e-20 * acc:
+            quiet += 1
+            if quiet >= 16:
+                return acc, n + 1
+        else:
+            quiet = 0
+    raise SystemExit("带限滤波器的冲激响应没有收敛")
+
+
+def write_scene_noise(args) -> int:
+    """SceneEmitterSource 的 noise 分支：带限 + 单位功率归一 + 频率搬移。"""
+    fs, fc = args.sn_fs, args.sn_bw / 2.0
+    f = butterworth_lp4(fc, fs)
+    gain, settle = impulse_power_gain(f)
+    g = 1.0 / math.sqrt(gain)
+
+    rng = Xoshiro256pp(args.sn_seed)
+    state = [0j] * 4
+    warm = min(settle, 1 << 16)          # init() 里丢掉的冷启动瞬态，与 C++ 同法
+    for _ in range(warm):
+        z = rng.complex_normal()
+        biquad2_step(f, state, complex(z.real, z.imag))
+
+    n = args.sn_samples
+    two_pi = 2.0 * math.pi
+    dphi = two_pi * args.sn_offset / fs
+    phase = 0.0
+    out = np.empty(n, dtype=np.complex64)
+    for i in range(n):
+        z = rng.complex_normal()
+        y = biquad2_step(f, state, complex(z.real, z.imag))
+        zr, zi = y.real * g, y.imag * g
+        c, sp = math.cos(phase), math.sin(phase)
+        out[i] = np.complex64(complex(np.float32(zr * c - zi * sp), np.float32(zr * sp + zi * c)))
+        phase += dphi
+        if phase >= two_pi:
+            phase -= two_pi
+        elif phase < 0.0:
+            phase += two_pi
+
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧 SceneEmitterSource 的 noise 带限与频率搬移对拍基准（C-8 / G-6，D-069）",
+        "generator": "algos/reference/gen_engine_golden.py --mode scene_noise",
+        "params": {"fs_Hz": fs, "bw_Hz": args.sn_bw, "offset_Hz": args.sn_offset,
+                   "seed": args.sn_seed, "samples": n},
+        "tolerance": {"coeff_rel": 1e-9, "gain_rel": 1e-9, "sample_rel": 1e-6,
+                      "note": "系数与功率增益两侧都是 float64 同算法同序；逐样点因引擎存 complex64 放到 1e-6"},
+        "filter": {"sections": f, "power_gain": gain, "n_settle": settle,
+                   "gain_norm": g},
+        "samples": [[float(v.real), float(v.imag)] for v in out],
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print(f"写出 {args.out}：{n} 个样点，功率增益 {gain:.12g}，稳定 {settle} 个样点")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -315,7 +412,7 @@ def main(argv=None) -> int:
     ap.add_argument("--band-lo", type=float, default=-1e5)
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
-    ap.add_argument("--mode", choices=("probe", "sliding", "features"), default="probe")
+    ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise"), default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -323,7 +420,15 @@ def main(argv=None) -> int:
     ap.add_argument("--tone-amplitude", type=float, default=0.75, help="sliding：单音幅度（线性）")
     ap.add_argument("--tone-start-frame", type=int, default=1500)
     ap.add_argument("--tone-stop-frame", type=int, default=2500)
+    ap.add_argument("--sn-fs", type=float, default=1e6, help="scene_noise：采样率")
+    ap.add_argument("--sn-bw", type=float, default=2e5, help="scene_noise：emission.bw_Hz")
+    ap.add_argument("--sn-offset", type=float, default=1e5, help="scene_noise：基带频偏 Hz")
+    ap.add_argument("--sn-seed", type=int, default=20260915, help="scene_noise：私有子流种子")
+    ap.add_argument("--sn-samples", type=int, default=4096, help="scene_noise：存多少个样点")
     args = ap.parse_args(argv)
+
+    if args.mode == "scene_noise":
+        return write_scene_noise(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

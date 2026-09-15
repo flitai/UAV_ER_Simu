@@ -437,8 +437,9 @@ ComponentInfo SceneEmitterSource::describe() const {
                     "单位功率（0 dBm）；绝对电平由施加类信道按链路预算给出（D-045）。"
                     "因此本组件输出的全程平均功率对 burst 是 duty × 1 mW，"
                     "瀑布上的时间平均电平比链路预算低 10·log10(1/duty)，突发峰值才等于链路预算。"
-                    "活动时间线的图传开关与跳频在这里生效。noise 首期不做带限，"
-                    "emission.bw_Hz 小于采样带宽时输出全带白噪声并标降级。";
+                    "活动时间线的图传开关与跳频在这里生效，粒度是样点不是块（G-6）。"
+                    "noise 按 emission.bw_Hz 做 4 阶巴特沃斯带限（阻带非砖墙）并搬移到 "
+                    "emission.center_Hz；bw_Hz 不小于采样带宽时不带限、输出全带白噪声并标降级。";
     i.model_layer = "M3";
     i.model_level = "E2";
     i.model_id = "EM-B-09";
@@ -505,7 +506,7 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
     // 铁律 4：|Δf| + B/2 + 保护带 < Fs/2。这里的 Δf 是基带频偏，B 是占用带宽。
     // **跳频点逐个查**（G-6，D-069）：基频过闸不代表序列里每一跳都过得了，跳出奈奎斯特
     // 不会有任何征兆、只会静默混叠（铁律 15）。
-    const double offset = (waveform_.type == geo::WaveformType::Noise) ? 0.0 : waveform_.offset_Hz;
+    const double offset = waveform_.offset_Hz;
     {
         const std::vector<geo::CenterPoint> centers = geo::emitter_center_set(scene_, entity_id_);
         for (std::size_t ci = 0; ci < centers.size(); ++ci) {
@@ -529,6 +530,35 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
             }
             return false;
         }
+    }
+
+    // noise 波形的带限（C-8 / G-6，D-069）。此前 noise 直接出全带白高斯，
+    // 于是「2 MHz 图传落在 10 MS/s 的观测带里」在谱上根本不成立，且连 offset_Hz 都不起作用。
+    // 截止取 bw_Hz/2（复基带占 [−fc, +fc]，总占用带宽正好 bw_Hz）；bw ≥ fs 时不滤波（见 process 的降级注记）。
+    band_limit_ = false;
+    nyq_att_dB_ = 0.0;
+    if (waveform_.type == geo::WaveformType::Noise && bw_Hz_ > 0.0 && bw_Hz_ < sample_rate_Hz_) {
+        const double fc = bw_Hz_ / 2.0;
+        if (!dsp::butterworth_lp4(fc, sample_rate_Hz_, lp_, err)) {
+            err = "辐射源 " + entity_id_ + " 的噪声带限：" + err;
+            return false;
+        }
+        double gain = 0.0;
+        if (!dsp::impulse_power_gain(lp_, gain, lp_settle_, err)) {
+            err = "辐射源 " + entity_id_ + " 的噪声带限（截止 " + std::to_string(fc) + " Hz / 采样率 " +
+                  std::to_string(sample_rate_Hz_) + " Hz）：" + err;
+            return false;
+        }
+        lp_gain_norm_ = 1.0 / std::sqrt(gain);
+        band_limit_ = true;
+        // 奈奎斯特处的抑制量：|H|² = 1/(1 + (tan(πf/fs)/K)^8)，取 f 到 Fs/2 的距离
+        const double edge = sample_rate_Hz_ / 2.0 - std::fabs(emitter_center_Hz_ + waveform_.offset_Hz -
+                                                              center_frequency_Hz_);
+        const double K = std::tan(kPi * fc / sample_rate_Hz_);
+        const double r = std::tan(kPi * std::max(edge, 0.0) / sample_rate_Hz_) / K;
+        double r8 = 1.0;
+        for (int k = 0; k < 8; ++k) r8 *= r;
+        nyq_att_dB_ = 10.0 * std::log10(1.0 + r8);
     }
 
     if (waveform_.type == geo::WaveformType::Burst) {
@@ -556,6 +586,18 @@ bool SceneEmitterSource::init(IRandom& rng, std::string& err) {
     produced_ = 0;
     phase_ = 0.0;
     band_note_done_ = false;
+    for (int k = 0; k < 4; ++k) lp_state_[k] = std::complex<double>(0.0, 0.0);
+    if (band_limit_) {
+        // 冷启动瞬态推掉：组件对外的合同是「发射期间平均功率恰为 1 mW」，
+        // 不丢暖机段的话这句话在开头几百个样点上不成立。消耗的随机数在私有子流内，
+        // 不影响任何别的组件（铁律 9）。Python 参考照做同样的丢弃。
+        const std::size_t warm = std::min<std::size_t>(lp_settle_, 1u << 16);
+        for (std::size_t k = 0; k < warm; ++k) {
+            float re = 0.0f, im = 0.0f;
+            sub_rng_.complex_normal(re, im);
+            dsp::biquad2_step(lp_, lp_state_, std::complex<double>(re, im));
+        }
+    }
     return true;
 }
 
@@ -583,9 +625,8 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
             err = "活动时间线给出的子段长度为零（样点 " + std::to_string(s0 + i) + "）";
             return Step::Error;
         }
-        const double offset =
-            seg.center_Hz + ((waveform_.type == geo::WaveformType::Noise) ? 0.0 : waveform_.offset_Hz) -
-            center_frequency_Hz_;
+        // 带限之后 noise 也走同一条相位搬移路径，offset_Hz 对三种波形一视同仁（C-8）
+        const double offset = seg.center_Hz + waveform_.offset_Hz - center_frequency_Hz_;
         // 相位用累加器而不是绝对样点号的闭式：跳频后频率会变，闭式重算会在跳频处造出相位跳变。
         // 逐样点累加与逐样点回卷都只是绝对样点号的函数，因此结果与块长无关。
         // 子段之间**不重置相位**——这是 DDS 型的相位连续跳频；非相干跳频（每跳随机相位）
@@ -602,7 +643,20 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
             if (waveform_.type == geo::WaveformType::Noise) {
                 float re = 0.0f, im = 0.0f;
                 sub_rng_.complex_normal(re, im);      // E|z|^2 = 1，即单位功率
-                d.iq.samples[i] = on ? Complex(re * a, im * a) : Complex(0.0f, 0.0f);
+                double zr = re, zi = im;
+                if (band_limit_) {
+                    // 带限：状态跨块跨子段保持，于是只是绝对样点号的函数（铁律 9）
+                    const std::complex<double> y =
+                        dsp::biquad2_step(lp_, lp_state_, std::complex<double>(re, im));
+                    zr = y.real() * lp_gain_norm_;
+                    zi = y.imag() * lp_gain_norm_;
+                }
+                // 频率搬移：与 tone / burst 共用同一个相位累加器。带限之前 noise 不乘相位，
+                // 于是 emission.center_Hz 与 offset_Hz 对它完全不起作用（C-8 修）。
+                const double c = std::cos(phase_), sp = std::sin(phase_);
+                d.iq.samples[i] = on ? Complex(static_cast<float>((zr * c - zi * sp)) * a,
+                                               static_cast<float>((zr * sp + zi * c)) * a)
+                                     : Complex(0.0f, 0.0f);
             } else {
                 d.iq.samples[i] = on ? Complex(static_cast<float>(std::cos(phase_)) * a,
                                                static_cast<float>(std::sin(phase_)) * a)
@@ -622,11 +676,27 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
     d.iq.meta.calibration = model_calibration();
     d.iq.meta.trace = make_trace("SceneEmitterSource", scene_.scenario_id + ":" + entity_id_);
 
-    // 已知的模型简化摆到台面上：首期没有带限滤波器（铁律 15，不静默）。
-    if (waveform_.type == geo::WaveformType::Noise && bw_Hz_ < sample_rate_Hz_) {
-        d.iq.meta.degrade("噪声波形未做带限：emission.bw_Hz 小于采样带宽，本版本输出全带白噪声，占用带宽偏大");
-        if (!band_note_done_) {
-            status_.notes.push_back("噪声波形未做带限，占用带宽按采样带宽计");
+    // 带限的三种处境摆到台面上（铁律 15，不静默）。C-8 之前只有第一支，且是无条件降级。
+    if (waveform_.type == geo::WaveformType::Noise) {
+        if (!band_limit_) {
+            d.iq.meta.degrade("噪声波形的 emission.bw_Hz 不小于采样带宽，不作带限，"
+                              "输出全带白噪声，占用带宽按采样带宽计");
+            if (!band_note_done_) {
+                status_.notes.push_back("噪声波形未带限：bw_Hz 不小于采样带宽，占用带宽按采样带宽计");
+                band_note_done_ = true;
+            }
+        } else if (nyq_att_dB_ < 40.0) {
+            // 带限了，但信号离带边太近、阻带抑制不够：混叠功率不可忽略，如实降级
+            d.iq.meta.degrade("噪声波形的带限滤波器在奈奎斯特处只有 " + std::to_string(nyq_att_dB_) +
+                              " dB 抑制（中心频偏加带宽相对 Fs/2 太靠边），混叠功率不可忽略");
+            if (!band_note_done_) {
+                status_.notes.push_back("噪声带限在奈奎斯特处抑制不足 40 dB，混叠功率不可忽略");
+                band_note_done_ = true;
+            }
+        } else if (!band_note_done_) {
+            // 正路：不降级，只记一行说明滤波器是什么形状（阻带不是砖墙）
+            status_.notes.push_back("噪声波形按 4 阶巴特沃斯带限，−3 dB 截止 " +
+                                    std::to_string(bw_Hz_ / 2.0) + " Hz，阻带非砖墙");
             band_note_done_ = true;
         }
     }

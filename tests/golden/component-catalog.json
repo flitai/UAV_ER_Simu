@@ -1993,7 +1993,7 @@
     },
     {
       "category": "source",
-      "description": "按场景 emission.waveform 生成 tone / noise / burst，归一化到**发射期间**的单位功率（0 dBm）；绝对电平由施加类信道按链路预算给出（D-045）。因此本组件输出的全程平均功率对 burst 是 duty × 1 mW，瀑布上的时间平均电平比链路预算低 10·log10(1/duty)，突发峰值才等于链路预算。活动时间线的图传开关与跳频在这里生效。noise 首期不做带限，emission.bw_Hz 小于采样带宽时输出全带白噪声并标降级。",
+      "description": "按场景 emission.waveform 生成 tone / noise / burst，归一化到**发射期间**的单位功率（0 dBm）；绝对电平由施加类信道按链路预算给出（D-045）。因此本组件输出的全程平均功率对 burst 是 duty × 1 mW，瀑布上的时间平均电平比链路预算低 10·log10(1/duty)，突发峰值才等于链路预算。活动时间线的图传开关与跳频在这里生效，粒度是样点不是块（G-6）。noise 按 emission.bw_Hz 做 4 阶巴特沃斯带限（阻带非砖墙）并搬移到 emission.center_Hz；bw_Hz 不小于采样带宽时不带限、输出全带白噪声并标降级。",
       "display_name": "场景辐射源",
       "implementation": "cpp",
       "model_id": "EM-B-09",

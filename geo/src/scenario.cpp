@@ -136,7 +136,8 @@ bool Scenario::cross_check(std::string& err) const {
         for (std::size_t ei = 0; ei < emitters.size(); ++ei) {
             const Emission& em = emitters[ei].emission;
             const Waveform& w = em.waveform;
-            const double offset = (w.type == WaveformType::Noise) ? 0.0 : w.offset_Hz;
+            // C-8 起 noise 也带限并搬移频率，offset_Hz 对三种波形一视同仁
+            const double offset = w.offset_Hz;
             const std::vector<CenterPoint> centers = emitter_center_set(*this, emitters[ei].id);
             for (std::size_t ci = 0; ci < centers.size(); ++ci) {
                 const double df = std::fabs(centers[ci].Hz + offset - r.center_Hz);

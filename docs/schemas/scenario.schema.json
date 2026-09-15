@@ -112,7 +112,7 @@
       "required": ["type"],
       "oneOf": [
         { "additionalProperties": false, "properties": { "type": { "const": "tone" }, "offset_Hz": { "type": "number" } }, "required": ["type", "offset_Hz"] },
-        { "additionalProperties": false, "properties": { "type": { "const": "noise" } }, "required": ["type"] },
+        { "additionalProperties": false, "properties": { "type": { "const": "noise" }, "offset_Hz": { "type": "number" } }, "required": ["type"] },
         { "additionalProperties": false, "properties": { "type": { "const": "burst" }, "period_s": { "type": "number", "exclusiveMinimum": 0 }, "duty": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "offset_Hz": { "type": "number" } }, "required": ["type", "period_s", "duty", "offset_Hz"] }
       ]
     },

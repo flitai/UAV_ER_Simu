@@ -131,5 +131,68 @@ double threshold_for_pfa(int m_bins, double pfa) {
     return 0.5 * (lo + hi);
 }
 
+
+// --- 带限用的双二阶节（C-8 / G-6，D-069）------------------------------------
+
+namespace {
+// 巴特沃斯 4 阶的两对共轭极点：2·sin((2i+1)·π/8)，i = 0, 1
+const double kButterQ[2] = {0.76536686473017956, 1.8477590650225735};
+const double kPiD = 3.14159265358979323846;
+}  // namespace
+
+bool butterworth_lp4(double fc_Hz, double fs_Hz, Biquad out[2], std::string& err) {
+    if (!(fs_Hz > 0.0)) { err = "带限滤波器需要正的采样率"; return false; }
+    if (!(fc_Hz > 0.0) || !(fc_Hz < fs_Hz / 2.0)) {
+        err = "带限滤波器的截止频率必须落在 (0, Fs/2) 内";
+        return false;
+    }
+    const double K = std::tan(kPiD * fc_Hz / fs_Hz);        // 双线性变换的频率预畸变
+    const double K2 = K * K;
+    for (int i = 0; i < 2; ++i) {
+        const double D = 1.0 + kButterQ[i] * K + K2;
+        out[i].b0 = K2 / D;
+        out[i].b1 = 2.0 * K2 / D;
+        out[i].b2 = K2 / D;
+        out[i].a1 = 2.0 * (K2 - 1.0) / D;
+        out[i].a2 = (1.0 - kButterQ[i] * K + K2) / D;
+    }
+    return true;
+}
+
+std::complex<double> biquad2_step(const Biquad f[2], std::complex<double> state[4],
+                                  std::complex<double> x) {
+    for (int i = 0; i < 2; ++i) {
+        // 转置直接 II 型。三行的次序是契约，Python 参考逐字同序（铁律 10）。
+        const std::complex<double> y = f[i].b0 * x + state[2 * i];
+        state[2 * i] = f[i].b1 * x - f[i].a1 * y + state[2 * i + 1];
+        state[2 * i + 1] = f[i].b2 * x - f[i].a2 * y;
+        x = y;
+    }
+    return x;
+}
+
+bool impulse_power_gain(const Biquad f[2], double& gain, std::size_t& n_settle, std::string& err) {
+    const std::size_t kMax = 1u << 22;
+    std::complex<double> st[4];
+    for (int i = 0; i < 4; ++i) st[i] = std::complex<double>(0.0, 0.0);
+    double acc = 0.0;
+    std::size_t quiet = 0;
+    for (std::size_t n = 0; n < kMax; ++n) {
+        const std::complex<double> x = (n == 0) ? std::complex<double>(1.0, 0.0)
+                                                : std::complex<double>(0.0, 0.0);
+        const std::complex<double> y = biquad2_step(f, st, x);
+        const double p = y.real() * y.real();      // 实系数滤波器：冲激响应是实的
+        acc += p;
+        if (n >= 16 && p <= 1e-20 * acc) {
+            if (++quiet >= 16) { gain = acc; n_settle = n + 1; return true; }
+        } else {
+            quiet = 0;
+        }
+    }
+    err = "带限滤波器的冲激响应在 4194304 个样点内没有收敛：截止频率相对采样率太小，"
+          "请提高 emission.bw_Hz 或降低站点 fs_Hz（铁律 15）";
+    return false;
+}
+
 }  // namespace dsp
 }  // namespace cuav

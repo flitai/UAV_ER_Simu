@@ -77,7 +77,7 @@
 | `position` | object | 是 | 初始位置 `{lon, lat, alt_m}`；有航线时以航线第一个航点为准 |
 | `emission` | object | 是 | `{center_Hz, bw_Hz, tx_power_dBm, antenna_gain_dBi, polarization?, waveform}` |
 | `emission.polarization` | enum | 否 | `vertical`（缺省）/ `horizontal` / `slant45` / `rhcp` / `lhcp`（2026-09-07，D-051）。极化失配损耗只在接收端算一次：由接收天线组件按自身 `polarization` 与这里注入的发射极化查五档表（10 报告 §3.2）。既有场景文件不写它仍然合法 |
-| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst", ...}`：`tone` 带 `offset_Hz`；`noise` 无附加字段；`burst` 带 `period_s, duty, offset_Hz`。P3 再扩 `ofdm` / `fhss`；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
+| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst", ...}`：`tone` 带 `offset_Hz`；`burst` 带 `period_s, duty, offset_Hz`；`noise` 的 `offset_Hz` 可选（缺省 0）。**`offset_Hz` 自 2026-09-15（C-8，D-069）起对三种波形通用**——此前 noise 既不带限也不搬移频率，写了 `center_Hz` 与 `offset_Hz` 都不起作用；现在 noise 按 `bw_Hz` 做 4 阶巴特沃斯带限（阻带非砖墙，裙边比 `bw_Hz` 宽）并搬移到 `center_Hz + offset_Hz`。P3 再扩 `ofdm` / `fhss`；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
 
 ## 5. 航线 `routes[]`
 

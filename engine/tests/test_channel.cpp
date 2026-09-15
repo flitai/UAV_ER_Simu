@@ -989,3 +989,61 @@ TEST_CASE("场景辐射源：跳频序列逐段改基带频偏，一跳一个突
         CHECK_MESSAGE(std::fabs(f - want) < 50.0, "第 " << b << " 个突发频偏 " << f << " 期望 " << want);
     }
 }
+
+TEST_CASE("场景辐射源：noise 波形带限到 emission.bw_Hz 并搬移到 emission.center_Hz（C-8）") {
+    // 1 MS/s 采样、带宽 200 kHz、中心比观测中心高 100 kHz。
+    // 带限之前这个组件输出的是**全带**白噪声，且 center_Hz 与 offset_Hz 对它完全不起作用。
+    std::unique_ptr<SceneEmitterSource> s(new SceneEmitterSource());
+    std::map<std::string, double> num;
+    num["sample_rate_Hz"] = 1000000.0;
+    num["total_samples"] = 1048576.0;
+    num["block_samples"] = 65536.0;
+    num["center_frequency_Hz"] = 2.4405e9;
+    std::map<std::string, std::string> txt;
+    txt["scenario_path"] = repo("engine/tests/fixtures/noise-band.scenario.json");
+    txt["scenario_id"] = "noise-band";
+    txt["entity_id"] = "uav-1";
+    std::string err;
+    REQUIRE_MESSAGE(s->configure(num, txt, err), err);
+    Xoshiro256pp rng(11);
+    REQUIRE(s->init(rng, err));
+    const std::vector<Complex> x = run_all(*s, 1048576);
+    REQUIRE(x.size() == 1048576u);
+
+    // 单位功率：带限归一之后发射期间平均功率仍是 1 mW（0 dBm）
+    CHECK(std::fabs(mean_power_dBm(x)) < 0.05);
+
+    // 平均周期图：1024 点、1024 段
+    const std::size_t nfft = 1024;
+    std::vector<double> psd(nfft, 0.0);
+    const std::size_t segs = x.size() / nfft;
+    for (std::size_t g = 0; g < segs; ++g) {
+        std::vector<std::complex<double>> buf(nfft);
+        for (std::size_t k = 0; k < nfft; ++k)
+            buf[k] = std::complex<double>(x[g * nfft + k].real(), x[g * nfft + k].imag());
+        dsp::fft_inplace(buf);
+        dsp::fftshift(buf);
+        for (std::size_t k = 0; k < nfft; ++k) psd[k] += std::norm(buf[k]);
+    }
+    double total = 0.0;
+    for (std::size_t k = 0; k < nfft; ++k) total += psd[k];
+
+    // 占用带宽（累积功率 0.5%–99.5%）应当接近 200 kHz；中心（质心）落在 +100 kHz
+    const double bin = 1000000.0 / static_cast<double>(nfft);
+    double cum = 0.0;
+    std::size_t lo = 0, hi = nfft - 1;
+    for (std::size_t k = 0; k < nfft; ++k) { cum += psd[k]; if (cum >= 0.005 * total) { lo = k; break; } }
+    cum = 0.0;
+    for (std::size_t k = nfft; k-- > 0;) { cum += psd[k]; if (cum >= 0.005 * total) { hi = k; break; } }
+    const double occupied = static_cast<double>(hi - lo) * bin;
+    double num_c = 0.0;
+    for (std::size_t k = 0; k < nfft; ++k)
+        num_c += psd[k] * (static_cast<double>(k) - static_cast<double>(nfft / 2)) * bin;
+    const double centroid = num_c / total;
+
+    MESSAGE("占用带宽 " << occupied << " Hz（设定 200000），质心 " << centroid << " Hz（设定 100000）");
+    // 4 阶巴特沃斯不是砖墙，99% 占用带宽会比 −3 dB 带宽宽一些，但必须是同一量级、远小于采样带宽
+    CHECK(occupied > 150000.0);
+    CHECK(occupied < 400000.0);
+    CHECK(std::fabs(centroid - 100000.0) < 5000.0);
+}

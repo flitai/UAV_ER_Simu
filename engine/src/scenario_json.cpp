@@ -99,9 +99,13 @@ bool parse_waveform(const json& w, const std::string& where, geo::Waveform& out,
         return get_num(w, "offset_Hz", where, out.offset_Hz, err);
     }
     if (type == "noise") {
-        static const std::set<std::string> k = {"type"};
+        // offset_Hz 自 C-8 起对三种波形通用（此前 noise 不搬移频率，给了也不起作用）；
+        // 可选，缺省 0，于是既有场景文件不写它仍然合法
+        static const std::set<std::string> k = {"type", "offset_Hz"};
         if (!check_keys(w, k, where, err)) return false;
         out.type = geo::WaveformType::Noise;
+        if (w.contains("offset_Hz")) return get_num(w, "offset_Hz", where, out.offset_Hz, err);
+        out.offset_Hz = 0.0;
         return true;
     }
     if (type == "burst") {

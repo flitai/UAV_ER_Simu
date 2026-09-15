@@ -99,7 +99,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 | 组件 | 类别 | M / E | 实现 |
 |---|---|---|---|
 | `ScenarioSource` 场景参数源 | data | M2 / E2 | cpp，`scene_bindable`，绑站点；**动态输出口** `link:<emitter_id>`，每条链路一路 `SceneParamFrame`；内部参数 `scenario_path` / `scenario_id` / `site_id`；实体与链路读数经观察者上报；**传播效应的十五个参数在这里声明**（D-058，见 §8） |
-| `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | cpp，`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst，**归一化到发射期间单位功率（0 dBm）**；守铁律 4 |
+| `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | cpp，`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst，**归一化到发射期间单位功率（0 dBm）**；守铁律 4（**跳频序列里每个频点逐个过闸**，C-8）。**活动时间线按样点施加**（G-6，D-069）：`tx_on` / `tx_off` / `hop` 的边界折到绝对样点号上，与块长无关；相位累加器跨跳频点不重置（DDS 型相位连续跳频，非相干跳频本期不做）。**noise 按 `emission.bw_Hz` 做 4 阶巴特沃斯带限并搬移到 `emission.center_Hz`**（C-8）：截止 `bw_Hz/2`、状态跨块保持、按冲激响应的 Σ\|h\|² 归回单位功率；无任何新用户参数，一切从场景派生；`bw_Hz` 不小于采样带宽时不带限并标降级，奈奎斯特处抑制不足 40 dB 时同样标降级。参考实现 `algos/reference/gen_engine_golden.py --mode scene_noise`，黄金基准 `engine/tests/golden/scene_noise_bandlimit.json` |
 | `SceneBoundChannel` 场景绑定信道 | channel | M3 / E2 | cpp，`scene_bindable`；施加增益、整数样点时延、多普勒相位斜坡；帧内零阶保持；拒回放数据（防线二、三） |
 | `FreeSpaceChannel` 自由空间信道 | channel | M3 / E2 | cpp，定参 FSPL，原 P1-3 欠项，供解析锚点与标准算例用 |
 

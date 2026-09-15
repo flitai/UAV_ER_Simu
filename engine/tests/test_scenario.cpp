@@ -154,9 +154,18 @@ TEST_CASE("场景：波形三分支按 oneOf 查字段") {
         nlohmann::json{{"type", "burst"}, {"period_s", 0.05}, {"offset_Hz", 0.0}};  // 缺 duty
     CHECK_FALSE(parse_scenario(b, s, err));
 
+    // noise 的 offset_Hz 自 C-8 起可选且**真的起作用**（此前 noise 不搬移频率，给了也白给）
     nlohmann::json c = demo_json();
-    c["emitters"][0]["emission"]["waveform"] = nlohmann::json{{"type", "noise"}, {"offset_Hz", 0.0}};
-    CHECK_FALSE(parse_scenario(c, s, err));   // noise 不带 offset_Hz
+    c["emitters"][0]["emission"]["waveform"] = nlohmann::json{{"type", "noise"}, {"offset_Hz", 12345.0}};
+    CHECK(parse_scenario(c, s, err));
+    CHECK(s.emitters[0].emission.waveform.offset_Hz == doctest::Approx(12345.0));
+    nlohmann::json c2 = demo_json();
+    c2["emitters"][0]["emission"]["waveform"] = nlohmann::json{{"type", "noise"}};   // 不写即 0
+    CHECK(parse_scenario(c2, s, err));
+    CHECK(s.emitters[0].emission.waveform.offset_Hz == doctest::Approx(0.0));
+    nlohmann::json c3 = demo_json();
+    c3["emitters"][0]["emission"]["waveform"] = nlohmann::json{{"type", "noise"}, {"bw_Hz", 1.0}};
+    CHECK_FALSE(parse_scenario(c3, s, err));   // 未知键仍然拒
 
     nlohmann::json d = demo_json();
     d["emitters"][0]["emission"]["waveform"] =
