@@ -492,7 +492,10 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
         err = "场景 " + scene_.scenario_id + " 里没有辐射源 " + entity_id_ + "；可用的是：" + avail;
         return false;
     }
-    if (!emitter_.build(scene_, entity_id_, err)) return false;
+    // 样点域的活动时间线（G-6，D-069）：开关与跳频的边界折到绝对样点号上，与块长无关。
+    if (!sched_.build(scene_, entity_id_, sample_rate_Hz_, err)) return false;
+    for (std::size_t i = 0; i < sched_.notes().size(); ++i)
+        status_.notes.push_back(sched_.notes()[i]);
     waveform_ = em->emission.waveform;
     emitter_center_Hz_ = em->emission.center_Hz;
     bw_Hz_ = em->emission.bw_Hz;
@@ -567,38 +570,49 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
     d.has_data = true;
     d.iq.samples.resize(n);
 
-    // 跳频与图传开关按块起点取值（活动时间线是秒级事件，块长在毫秒量级）。
-    const double t0 = static_cast<double>(produced_) / sample_rate_Hz_;
-    const double center_now = emitter_.center_Hz_at(t0);
-    const bool tx = emitter_.tx_on_at(t0);
-    const double offset =
-        center_now + ((waveform_.type == geo::WaveformType::Noise) ? 0.0 : waveform_.offset_Hz) -
-        center_frequency_Hz_;
-    // 相位用累加器而不是绝对样点号的闭式：跳频后频率会变，闭式重算会在跳频处造出相位跳变。
-    // 逐样点累加与逐样点回卷都只是绝对样点号的函数，因此结果与块长无关。
-    const double dphi = kTwoPi * offset / sample_rate_Hz_;
-
-    for (std::size_t i = 0; i < n; ++i) {
-        const std::uint64_t idx = produced_ + i;
-        bool on = tx;
-        if (on && waveform_.type == geo::WaveformType::Burst)
-            on = (idx % burst_period_n_) < burst_on_n_;
-
-        // a = 1 时逐样点乘法被优化掉，既有框图的结果逐位不变（emit_at_tx_power 缺省为假）
-        const float a = static_cast<float>(tx_power_amp_);
-        if (waveform_.type == geo::WaveformType::Noise) {
-            float re = 0.0f, im = 0.0f;
-            sub_rng_.complex_normal(re, im);      // E|z|^2 = 1，即单位功率
-            d.iq.samples[i] = on ? Complex(re * a, im * a) : Complex(0.0f, 0.0f);
-        } else {
-            d.iq.samples[i] = on ? Complex(static_cast<float>(std::cos(phase_)) * a,
-                                           static_cast<float>(std::sin(phase_)) * a)
-                                 : Complex(0.0f, 0.0f);
+    // 跳频与图传开关按**样点**推进（G-6，D-069）：把本块切成若干「同频同开关」的子段，
+    // 子段边界来自活动时间线而不是块边界，于是结果与块长无关（铁律 9）。
+    // 改动前是按块起点取值，10 MS/s 下块长 65536 = 6.55 ms，1–20 ms 的跳频停留会被糊掉。
+    const std::uint64_t s0 = produced_;
+    std::size_t i = 0;
+    while (i < n) {
+        const geo::ActivitySchedule::Segment seg = sched_.segment_at(s0 + i);
+        const std::uint64_t stop = std::min<std::uint64_t>(seg.end, s0 + n);
+        // 段长必须为正，否则死循环。ActivitySchedule 保证 end > 查询点，这里显式兜一道。
+        if (stop <= s0 + i) {
+            err = "活动时间线给出的子段长度为零（样点 " + std::to_string(s0 + i) + "）";
+            return Step::Error;
         }
-        // 载波相位始终推进：不发射时只是关门，不是把振荡器停掉。
-        phase_ += dphi;
-        if (phase_ >= kTwoPi) phase_ -= kTwoPi;
-        else if (phase_ < 0.0) phase_ += kTwoPi;
+        const double offset =
+            seg.center_Hz + ((waveform_.type == geo::WaveformType::Noise) ? 0.0 : waveform_.offset_Hz) -
+            center_frequency_Hz_;
+        // 相位用累加器而不是绝对样点号的闭式：跳频后频率会变，闭式重算会在跳频处造出相位跳变。
+        // 逐样点累加与逐样点回卷都只是绝对样点号的函数，因此结果与块长无关。
+        // 子段之间**不重置相位**——这是 DDS 型的相位连续跳频；非相干跳频（每跳随机相位）
+        // 是另一种建模，本期不做（模型卡里写明，别让它成为隐含假设）。
+        const double dphi = kTwoPi * offset / sample_rate_Hz_;
+
+        for (std::uint64_t idx = s0 + i; idx < stop; ++idx, ++i) {
+            bool on = seg.tx_on;
+            if (on && waveform_.type == geo::WaveformType::Burst)
+                on = (idx % burst_period_n_) < burst_on_n_;
+
+            // a = 1 时逐样点乘法被优化掉，既有框图的结果逐位不变（emit_at_tx_power 缺省为假）
+            const float a = static_cast<float>(tx_power_amp_);
+            if (waveform_.type == geo::WaveformType::Noise) {
+                float re = 0.0f, im = 0.0f;
+                sub_rng_.complex_normal(re, im);      // E|z|^2 = 1，即单位功率
+                d.iq.samples[i] = on ? Complex(re * a, im * a) : Complex(0.0f, 0.0f);
+            } else {
+                d.iq.samples[i] = on ? Complex(static_cast<float>(std::cos(phase_)) * a,
+                                               static_cast<float>(std::sin(phase_)) * a)
+                                     : Complex(0.0f, 0.0f);
+            }
+            // 载波相位始终推进：不发射时只是关门，不是把振荡器停掉。
+            phase_ += dphi;
+            if (phase_ >= kTwoPi) phase_ -= kTwoPi;
+            else if (phase_ < 0.0) phase_ += kTwoPi;
+        }
     }
 
     d.iq.meta.sample_rate_Hz = sample_rate_Hz_;

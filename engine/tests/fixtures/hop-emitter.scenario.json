@@ -1,0 +1,118 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "hop-emitter",
+  "name": "波形源测试用：跳频序列 + 图传开关（G-6）",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 10
+  },
+  "seed": 20260915,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "测试站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 500000,
+        "center_Hz": 2440500000,
+        "bw_Hz": 400000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "uav-1",
+      "name": "跳频数传",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.4035,
+        "lat": 39.9885,
+        "alt_m": 50
+      },
+      "emission": {
+        "center_Hz": 2440500000,
+        "bw_Hz": 100000,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "burst",
+          "offset_Hz": 0,
+          "period_s": 0.02,
+          "duty": 0.3
+        }
+      }
+    }
+  ],
+  "routes": [
+    {
+      "emitter_id": "uav-1",
+      "loop": false,
+      "waypoints": [
+        {
+          "position": {
+            "lon": 116.4035,
+            "lat": 39.9885,
+            "alt_m": 50
+          },
+          "speed_mps": 5,
+          "loiter_s": 20
+        }
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0,
+      "event": "hop",
+      "args": {
+        "sequence": [
+          2440400000,
+          2440600000,
+          2440450000
+        ],
+        "dwell_s": 0.02
+      }
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 1,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 3,
+      "event": "tx_off"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 4,
+      "event": "tx_on"
+    }
+  ],
+  "trace": {
+    "created_by": "实施方（C-8 / G-6 测试夹具）",
+    "created_at": "2026-09-15T00:00:00Z",
+    "notes": "只供 test_channel.cpp 验波形源的样点级门控与跳频：停留 0.02 s 在 500 kS/s 下是 10000 个样点，与突发周期相等，因此一跳一个突发。"
+  }
+}

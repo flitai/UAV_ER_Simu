@@ -23,6 +23,7 @@
 #include "cuav/component.h"
 #include "cuav/observer.h"
 #include "cuav/random.h"
+#include "cuav_geo/activity.h"
 #include "cuav_geo/scenario.h"
 
 namespace cuav {
@@ -103,7 +104,9 @@ private:
     double tx_power_amp_ = 1.0;
 
     geo::Scenario scene_;
-    geo::EmitterRuntime emitter_;
+    // 样点域的活动时间线（G-6，D-069）：波形按它逐子段推进，粒度是样点不是块。
+    // 评价器用同一个类算真值，于是「源怎么发的」与「真值怎么记的」逐位同源。
+    geo::ActivitySchedule sched_;
     geo::Waveform waveform_;
     double emitter_center_Hz_ = 0.0;
     double bw_Hz_ = 0.0;

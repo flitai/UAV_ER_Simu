@@ -892,3 +892,100 @@ TEST_CASE("增益口径等价：辐射源 + 两个天线 + 纯路损信道，与
     // 电平本身也要对：t ≈ 5 s 时链路预算给出的接收功率
     CHECK(a == doctest::Approx(b).epsilon(1e-6));
 }
+
+// --- G-6：样点级门控与跳频（D-069）-------------------------------------------
+
+namespace {
+std::unique_ptr<SceneEmitterSource> make_hop_emitter(std::uint64_t total, std::size_t block) {
+    std::unique_ptr<SceneEmitterSource> s(new SceneEmitterSource());
+    std::map<std::string, double> num;
+    num["sample_rate_Hz"] = 500000.0;
+    num["total_samples"] = static_cast<double>(total);
+    num["block_samples"] = static_cast<double>(block);
+    num["center_frequency_Hz"] = 2.4405e9;
+    std::map<std::string, std::string> txt;
+    txt["scenario_path"] = repo("engine/tests/fixtures/hop-emitter.scenario.json");
+    txt["scenario_id"] = "hop-emitter";
+    txt["entity_id"] = "uav-1";
+    std::string err;
+    REQUIRE_MESSAGE(s->configure(num, txt, err), err);
+    Xoshiro256pp rng(7);
+    REQUIRE(s->init(rng, err));
+    return s;
+}
+
+std::vector<Complex> run_all(SceneEmitterSource& s, std::uint64_t total) {
+    std::vector<Complex> all;
+    all.reserve(static_cast<std::size_t>(total));
+    std::string err;
+    for (;;) {
+        PortMap in, out;
+        if (s.process(in, out, err) != Step::Produced) break;
+        const std::vector<Complex>& x = out["out"].iq.samples;
+        all.insert(all.end(), x.begin(), x.end());
+    }
+    return all;
+}
+}  // namespace
+
+TEST_CASE("场景辐射源：跳频与开关按样点施加，结果与块长逐位无关（G-6，铁律 9）") {
+    const std::uint64_t total = 500000 * 2;          // 2 秒，跨 tx_on@1 s 与 100 次跳频
+    std::unique_ptr<SceneEmitterSource> a = make_hop_emitter(total, 65536);
+    const std::vector<Complex> ref = run_all(*a, total);
+    REQUIRE(ref.size() == total);
+
+    const std::size_t blocks[] = {4096, 1000, 4096 * 10 + 123, 250000};
+    for (std::size_t k = 0; k < sizeof(blocks) / sizeof(blocks[0]); ++k) {
+        std::unique_ptr<SceneEmitterSource> b = make_hop_emitter(total, blocks[k]);
+        const std::vector<Complex> got = run_all(*b, total);
+        REQUIRE(got.size() == ref.size());
+        std::size_t diffs = 0;
+        for (std::size_t i = 0; i < ref.size(); ++i)
+            if (!(got[i].real() == ref[i].real() && got[i].imag() == ref[i].imag())) ++diffs;
+        CHECK_MESSAGE(diffs == 0u, "块长 " << blocks[k] << " 与 65536 有 " << diffs << " 个样点不同");
+    }
+}
+
+TEST_CASE("场景辐射源：开关边沿落在精确样点上，不再被块长量化（G-6）") {
+    // tx_on 在 t = 1 s = 样点 500000。块长 65536 时，改动前要等到第 8 块（524288）才开。
+    const std::uint64_t total = 500000 + 20000;
+    std::unique_ptr<SceneEmitterSource> s = make_hop_emitter(total, 65536);
+    const std::vector<Complex> x = run_all(*s, total);
+    REQUIRE(x.size() == total);
+
+    // 样点 499999 仍是零；500000 起的那个突发周期里应当有非零样点。
+    CHECK(x[499999].real() == 0.0f);
+    CHECK(x[499999].imag() == 0.0f);
+    std::size_t nz = 0;
+    for (std::size_t i = 500000; i < 503000; ++i)     // 突发周期 10000 样点、导通 3000
+        if (x[i].real() != 0.0f || x[i].imag() != 0.0f) ++nz;
+    CHECK(nz == 3000u);                               // 精确整段导通，没有被块边界切掉
+}
+
+TEST_CASE("场景辐射源：跳频序列逐段改基带频偏，一跳一个突发（G-6）") {
+    // 停留 0.02 s = 10000 样点，与突发周期相等 → 每个突发整段落在同一个频点上。
+    // 序列 [2440.40, 2440.60, 2440.45] MHz 相对观测中心 2440.5 MHz 是 −100 / +100 / −50 kHz。
+    const std::uint64_t total = 500000 * 2;
+    std::unique_ptr<SceneEmitterSource> s = make_hop_emitter(total, 65536);
+    const std::vector<Complex> x = run_all(*s, total);
+
+    // 取 tx_on 之后的三个连续突发，各自估一次频偏（相邻样点的相位差）
+    const double fs = 500000.0;
+    const double expect[3] = {-100000.0, 100000.0, -50000.0};
+    for (int b = 0; b < 3; ++b) {
+        // t = 1 s 起第 b 个突发的导通段中部（周期 10000、导通 3000）
+        const std::size_t base = 500000 + static_cast<std::size_t>(b) * 10000 + 1000;
+        double sr = 0.0, si = 0.0;
+        for (std::size_t i = base; i < base + 1000; ++i) {
+            // conj(x[i]) * x[i+1] 的辐角就是每样点的相位增量
+            sr += static_cast<double>(x[i].real()) * x[i + 1].real() +
+                  static_cast<double>(x[i].imag()) * x[i + 1].imag();
+            si += static_cast<double>(x[i].real()) * x[i + 1].imag() -
+                  static_cast<double>(x[i].imag()) * x[i + 1].real();
+        }
+        const double f = std::atan2(si, sr) * fs / (2.0 * 3.14159265358979323846);
+        // 跳频序列自 t = 0 起循环，t = 1 s = 样点 500000 = 第 50 个停留窗，50 % 3 = 2 → 从第三项起
+        const double want = expect[(b + 2) % 3];
+        CHECK_MESSAGE(std::fabs(f - want) < 50.0, "第 " << b << " 个突发频偏 " << f << " 期望 " << want);
+    }
+}
