@@ -453,8 +453,8 @@ try {
   let longest = null
   for (const [id, g] of bySeg) if (!longest || g.length > longest.rows.length) longest = { id, rows: g }
   const tStart = longest ? Math.min(...longest.rows.map((r) => r.t_s)) : NaN
-  check('最长的突发从 3 s 开机起（tx_on 3 s，发射开关按块起点取值、块粒度 ≤ 0.13 s）',
-    tStart >= 2.95 && tStart <= 3.3, `起点 ${tStart.toFixed(3)} s，${longest?.rows.length ?? 0} 帧，共 ${bySeg.size} 段`)
+  check('最长的突发从 3 s 开机起（tx_on 3 s；G-6 之后开关边沿落在精确样点上，块粒度不再糊边）',
+    tStart >= 2.95 && tStart <= 3.05, `起点 ${tStart.toFixed(3)} s，${longest?.rows.length ?? 0} 帧，共 ${bySeg.size} 段`)
   const early = det.filter((r) => r.t_s < 2.9).length
   check('开机前只有零星虚警（pfa 1e-3 × 1465 帧 ≈ 1.5 次，暖机期略高；不能断言为零）', early <= 10, `${early} 帧`)
   const d0 = longest ? longest.rows[0] : det[0]
@@ -497,11 +497,11 @@ try {
   check('metrics.json：cuav-metrics/1，一节绑 site-1，真值来源 scenario，状态 valid',
     metrics?.schema_version === 'cuav-metrics/1' && metrics?.sites?.length === 1 && sec?.site_id === 'site-1'
     && sec?.truth_source === 'scenario' && sec?.state === 'valid', JSON.stringify({ schema: metrics?.schema_version, n: metrics?.sites?.length, state: sec?.state, reasons: sec?.reasons }))
-  check('帧级：Pd ≥ 0.98、Pfa ≤ 0.01，漏检只在开机边沿（源按块起点门控 tx_on，≤ 10 帧）',
-    sec?.frames?.pd >= 0.98 && sec?.frames?.pfa <= 0.01 && sec?.frames?.fn <= 10,
+  check('帧级：Pd = 1、Pfa ≤ 0.01、零漏检（G-6 之前开机边沿有 7 帧漏检，是块门控造成的）',
+    sec?.frames?.pd === 1 && sec?.frames?.pfa <= 0.01 && sec?.frames?.fn === 0,
     `pd ${sec?.frames?.pd} pfa ${sec?.frames?.pfa} fn ${sec?.frames?.fn} / ${sec?.frames?.total}`)
-  check('突发级：唯一一段真值匹配上，发现时延不超过一块（131 ms）；识别评价一段、准确率 1；ROC 32 点，工作点与帧级相同',
-    sec?.segments?.truth === 1 && sec?.segments?.matched === 1 && sec?.segments?.detect_delay_s?.max <= 0.14
+  check('突发级：唯一一段真值匹配上，发现时延为零（G-6 之前是一块 ≤ 131 ms）；识别评价一段、准确率 1；ROC 32 点，工作点与帧级相同',
+    sec?.segments?.truth === 1 && sec?.segments?.matched === 1 && sec?.segments?.detect_delay_s?.max === 0
     && sec?.recognition?.evaluated === 1 && sec?.recognition?.accuracy === 1
     && sec?.roc?.points?.length === 32 && sec?.roc?.working_point?.pd === sec?.frames?.pd,
     `seg ${sec?.segments?.matched}/${sec?.segments?.truth} delay ${sec?.segments?.detect_delay_s?.max} acc ${sec?.recognition?.accuracy} roc ${sec?.roc?.points?.length}`)
@@ -590,7 +590,8 @@ try {
   check('指标卡五张：Pd / Pfa / F1 / 发现时延 / 识别准确率，读数与 metrics.json 相同',
     ev.cards.length === 5 && ev.cards[0][0] === 'Pd' && ev.cards[0][1] === sec.frames.pd.toFixed(3)
     && ev.cards[2][1] === sec.frames.f1.toFixed(3) && ev.cards[4][1] === sec.recognition.accuracy.toFixed(3)
-    && ev.cards[3][1].endsWith(' ms'),
+    // 发现时延按量级选单位（D-068 ⑧）：G-6 之后缺省链的时延是 0，落在 µs 档
+    && ev.cards[3][1] === '0.0 µs',
     JSON.stringify(ev.cards))
   check('混淆矩阵维度随 labels 走（不硬编码 5×5），per_class 比 labels 少一项（没有 unknown）',
     ev.cmN === sec.recognition.labels.length && ev.perClass === sec.recognition.labels.length - 1,

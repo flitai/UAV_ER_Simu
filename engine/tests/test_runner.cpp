@@ -551,7 +551,8 @@ TEST_CASE("cuav_run --run：带评价器的场景框图落 truth.jsonl 一行与
     CHECK(rows[0]["t_end_s"].get<double>() == 6.0);
     CHECK(rows[0]["bw_Hz"].get<double>() == 400000.0);
 
-    // metrics.json：一节、绑 site-1；帧级 Pd 高（块门控只吃掉开机边沿的几帧）、Pfa 低；唯一一段匹配上且识别对
+    // metrics.json：一节、绑 site-1；帧级 Pd 高、Pfa 低；唯一一段匹配上且识别对。
+    // G-6（D-069）之后开关边沿落在精确样点上，开机那几帧不再漏检，故 fn 与发现时延都收到 0。
     json m = json::parse(read_file(out + "/metrics.json"));
     CHECK(m["schema_version"] == "cuav-metrics/1");
     CHECK(m["task_id"] == "run_evaluate_scene");
@@ -565,10 +566,10 @@ TEST_CASE("cuav_run --run：带评价器的场景框图落 truth.jsonl 一行与
     CHECK(s["frames"]["total"].get<int>() == 2929);
     CHECK(s["frames"]["pd"].get<double>() >= 0.98);
     CHECK(s["frames"]["pfa"].get<double>() <= 0.01);
-    CHECK(s["frames"]["fn"].get<int>() <= 10);                 // 源按块起点门控 tx_on：3.0 → 3.0147 s 的 7 帧是漏检
+    CHECK(s["frames"]["fn"].get<int>() == 0);                  // G-6 之前是 7：源按块起点门控，3.0 → 3.0147 s
     CHECK(s["segments"]["truth"].get<int>() == 1);
     CHECK(s["segments"]["matched"].get<int>() == 1);
-    CHECK(s["segments"]["detect_delay_s"]["max"].get<double>() <= 0.14);
+    CHECK(s["segments"]["detect_delay_s"]["max"].get<double>() == 0.0);   // G-6 之前是一块（≤ 0.14 s）
     CHECK(s["recognition"]["state"] == "valid");
     CHECK(s["recognition"]["evaluated"].get<int>() == 1);       // 识别器在 flush 里才出的那一行到了（步骤 0）
     CHECK(s["recognition"]["accuracy"].get<double>() == 1.0);
