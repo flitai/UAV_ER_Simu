@@ -815,3 +815,70 @@ TEST_CASE("场景：铁律 4 的闸覆盖跳频点——序列里有一跳出界
     CHECK(e2 == "辐射源 uav-1 相对站点 site-1 的频偏加半带宽不小于采样率的一半，"
                 "违反 |Δf| + B/2 < Fs/2（铁律 4）");
 }
+
+TEST_CASE("航迹黄金基准：demo-02 宽带双源与 tests/golden/scenario-track-demo-02.json 相符（C-8）") {
+    std::ifstream gf(repo("tests/golden/scenario-track-demo-02.json").c_str(), std::ios::binary);
+    REQUIRE(gf.good());
+    std::stringstream ss;
+    ss << gf.rdbuf();
+    nlohmann::json g = nlohmann::json::parse(ss.str());
+
+    const char* kDemo02 = "data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json";
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo(kDemo02), s, err));
+    CHECK(s.sha256 == g["scenario_sha256"].get<std::string>());
+
+    // 宽带配置：10 MS/s、8 MHz 接收带宽、两个源在频率上不重叠
+    REQUIRE(s.scenario.sites.size() == 1u);
+    CHECK(s.scenario.sites[0].receiver.fs_Hz == doctest::Approx(1.0e7));
+    CHECK(s.scenario.sites[0].receiver.bw_Hz == doctest::Approx(8.0e6));
+    const geo::Emitter* video = s.scenario.find_emitter("uav-1");
+    const geo::Emitter* rc = s.scenario.find_emitter("uav-2");
+    REQUIRE(video != nullptr);
+    REQUIRE(rc != nullptr);
+    CHECK(video->emission.waveform.type == geo::WaveformType::Noise);
+    CHECK(video->emission.bw_Hz == doctest::Approx(2.0e6));
+    CHECK(rc->emission.waveform.type == geo::WaveformType::Burst);
+
+    // 跳频序列：五个频点、相邻差都不小于模板库要求的 200 kHz，且全部在观测带内
+    const std::vector<geo::CenterPoint> centers = geo::emitter_center_set(s.scenario, "uav-2");
+    REQUIRE(centers.size() == 6u);        // 基频 + 五个跳频点
+    for (std::size_t i = 0; i < centers.size(); ++i) {
+        const double df = std::fabs(centers[i].Hz - s.scenario.sites[0].receiver.center_Hz);
+        CHECK(df + rc->emission.bw_Hz / 2.0 < s.scenario.sites[0].receiver.fs_Hz / 2.0);
+    }
+    // 序列里相邻两跳（含绕回）的频差
+    geo::ActivitySchedule sch;
+    REQUIRE(sch.build(s.scenario, "uav-2", 1.0e7, err));
+    CHECK(sch.has_hop());
+    const std::uint64_t dwell_n = 100000;              // 0.01 s × 10 MS/s
+    double prev = sch.center_Hz_at_sample(0);
+    for (int k = 1; k <= 5; ++k) {
+        const double now = sch.center_Hz_at_sample(static_cast<std::uint64_t>(k) * dwell_n);
+        CHECK_MESSAGE(std::fabs(now - prev) >= 200e3,
+                      "第 " << k << " 跳只差 " << std::fabs(now - prev) << " Hz，模板库要求 ≥ 200 kHz");
+        prev = now;
+    }
+    // 停留与突发周期相等 → 一跳一个突发，跳不到突发中间
+    CHECK(dwell_n == static_cast<std::uint64_t>(rc->emission.waveform.period_s * 1.0e7 + 0.5));
+
+    const double tol_deg = g["tolerance"]["position_deg"].get<double>();
+    const double tol_alt = g["tolerance"]["alt_m"].get<double>();
+    std::size_t checked = 0;
+    for (const std::string id : {"uav-1", "uav-2"}) {
+        geo::EmitterRuntime rt;
+        REQUIRE_MESSAGE(rt.build(s.scenario, id, err), err);
+        for (const auto& smp : g["samples"]) {
+            if (smp["id"].get<std::string>() != id) continue;
+            const double t = smp["t_s"].get<double>();
+            const geo::MotionState m = rt.motion_at(t);
+            CHECK(std::fabs(m.position.lon_deg - smp["lon"].get<double>()) < tol_deg);
+            CHECK(std::fabs(m.position.lat_deg - smp["lat"].get<double>()) < tol_deg);
+            CHECK(std::fabs(m.position.alt_m - smp["alt_m"].get<double>()) < tol_alt);
+            CHECK(rt.tx_on_at(t) == smp["tx_on"].get<bool>());
+            ++checked;
+        }
+    }
+    CHECK(checked == g["sample_count"].get<std::size_t>());
+}

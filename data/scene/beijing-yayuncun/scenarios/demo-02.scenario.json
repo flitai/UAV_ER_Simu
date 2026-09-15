@@ -1,0 +1,216 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "demo-02",
+  "name": "亚运村宽带观测：图传与跳频遥控",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 30
+  },
+  "seed": 20260915,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "亚运村宽带侦察站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 10000000,
+        "center_Hz": 2441000000,
+        "bw_Hz": 8000000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "uav-1",
+      "name": "多旋翼图传下行",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.3975,
+        "lat": 39.9825,
+        "alt_m": 90
+      },
+      "emission": {
+        "center_Hz": 2438500000,
+        "bw_Hz": 2000000,
+        "tx_power_dBm": 27,
+        "antenna_gain_dBi": 2,
+        "polarization": "vertical",
+        "waveform": {
+          "type": "noise",
+          "offset_Hz": 0
+        }
+      }
+    },
+    {
+      "id": "uav-2",
+      "name": "遥控跳频数传",
+      "platform_type": "racing",
+      "position": {
+        "lon": 116.4135,
+        "lat": 39.9965,
+        "alt_m": 60
+      },
+      "emission": {
+        "center_Hz": 2441000000,
+        "bw_Hz": 500000,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "polarization": "vertical",
+        "waveform": {
+          "type": "burst",
+          "offset_Hz": 0,
+          "period_s": 0.01,
+          "duty": 0.3
+        }
+      }
+    }
+  ],
+  "routes": [
+    {
+      "emitter_id": "uav-1",
+      "loop": false,
+      "waypoints": [
+        {
+          "position": {
+            "lon": 116.3975,
+            "lat": 39.9825,
+            "alt_m": 90
+          },
+          "speed_mps": 14
+        },
+        {
+          "position": {
+            "lon": 116.4025,
+            "lat": 39.9895,
+            "alt_m": 120
+          },
+          "speed_mps": 14,
+          "loiter_s": 8
+        },
+        {
+          "position": {
+            "lon": 116.4135,
+            "lat": 39.9985,
+            "alt_m": 140
+          },
+          "speed_mps": 16,
+          "loiter_s": 10
+        }
+      ]
+    },
+    {
+      "emitter_id": "uav-2",
+      "loop": false,
+      "waypoints": [
+        {
+          "position": {
+            "lon": 116.4135,
+            "lat": 39.9965,
+            "alt_m": 60
+          },
+          "speed_mps": 9
+        },
+        {
+          "position": {
+            "lon": 116.4075,
+            "lat": 39.9925,
+            "alt_m": 80
+          },
+          "speed_mps": 9,
+          "loiter_s": 12
+        },
+        {
+          "position": {
+            "lon": 116.3995,
+            "lat": 39.9865,
+            "alt_m": 70
+          },
+          "speed_mps": 11,
+          "loiter_s": 10
+        }
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0,
+      "event": "cruise"
+    },
+    {
+      "emitter_id": "uav-2",
+      "t_s": 0,
+      "event": "cruise"
+    },
+    {
+      "emitter_id": "uav-2",
+      "t_s": 0,
+      "event": "hop",
+      "args": {
+        "sequence": [
+          2440687500,
+          2442562500,
+          2440375000,
+          2443187500,
+          2441625000
+        ],
+        "dwell_s": 0.01
+      }
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 0.5,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 2.5,
+      "event": "tx_off"
+    },
+    {
+      "emitter_id": "uav-2",
+      "t_s": 3,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "uav-2",
+      "t_s": 4.5,
+      "event": "tx_off"
+    },
+    {
+      "emitter_id": "uav-1",
+      "t_s": 5,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "uav-2",
+      "t_s": 5,
+      "event": "tx_on"
+    }
+  ],
+  "trace": {
+    "created_by": "实施方（C-8 / G-6）",
+    "created_at": "2026-09-15T00:00:00Z",
+    "notes": "宽带观测场景：10 MS/s 采样、8 MHz 接收带宽，检测频段派生为 ±4.5 MHz。两个辐射源在频率上不重叠——图传占 2437.5–2439.5 MHz（带限噪声，−3 dB 带宽 2 MHz），遥控跳频占 2440.125–2443.4375 MHz（五个频点，停留 10 ms 与突发周期相等，故一跳一个突发）。全部频点取在 nfft 1024 的 bin 中心上（bin 9765.625 Hz，步进 32 bin = 312.5 kHz）。时间上先错开再叠一段：0.5–2.5 s 只有图传、3–4.5 s 只有跳频遥控、5 s 起两者同时发。最后那一段是有意的已知边界展示——每站只有一个单频段能量检测器，同时存在的两个源会被并成一个突发、一个标签，这一条写在 models/radiator/README.md 里。发射功率、天线增益与噪声系数是 2.4 GHz 图传与遥控的通用取值，非甲方清单，属原型阶段取值（D-028）。"
+  }
+}
