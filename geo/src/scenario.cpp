@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <sstream>
+
+#include "cuav_geo/activity.h"
 
 namespace cuav {
 namespace geo {
@@ -126,16 +129,29 @@ bool Scenario::cross_check(std::string& err) const {
 
     // 铁律 4：辐射源必须落在站点的观测带内，否则生成出来的样点会混叠。
     // 首期单站，逐站逐源都查一遍，多站时任一站不满足即拒。
+    // **跳频点同样要过这道闸**（G-6，D-069）：跳出奈奎斯特不会有任何征兆，只会静默混叠，
+    // 而基频过闸不代表序列里的每一跳都过得了（铁律 15）。
     for (std::size_t si = 0; si < sites.size(); ++si) {
         const Receiver& r = sites[si].receiver;
         for (std::size_t ei = 0; ei < emitters.size(); ++ei) {
             const Emission& em = emitters[ei].emission;
             const Waveform& w = em.waveform;
             const double offset = (w.type == WaveformType::Noise) ? 0.0 : w.offset_Hz;
-            const double df = std::fabs(em.center_Hz + offset - r.center_Hz);
-            if (df + em.bw_Hz / 2.0 >= r.fs_Hz / 2.0) {
-                err = "辐射源 " + emitters[ei].id + " 相对站点 " + sites[si].id +
-                      " 的频偏加半带宽不小于采样率的一半，违反 |Δf| + B/2 < Fs/2（铁律 4）";
+            const std::vector<CenterPoint> centers = emitter_center_set(*this, emitters[ei].id);
+            for (std::size_t ci = 0; ci < centers.size(); ++ci) {
+                const double df = std::fabs(centers[ci].Hz + offset - r.center_Hz);
+                if (df + em.bw_Hz / 2.0 < r.fs_Hz / 2.0) continue;
+                if (centers[ci].where == "emission.center_Hz") {
+                    err = "辐射源 " + emitters[ei].id + " 相对站点 " + sites[si].id +
+                          " 的频偏加半带宽不小于采样率的一半，违反 |Δf| + B/2 < Fs/2（铁律 4）";
+                } else {
+                    std::ostringstream os;
+                    os.precision(9);
+                    os << "辐射源 " << emitters[ei].id << " 的跳频点 " << centers[ci].Hz
+                       << " Hz（" << centers[ci].where << "）相对站点 " << sites[si].id
+                       << " 的频偏加半带宽不小于采样率的一半，违反 |Δf| + B/2 < Fs/2（铁律 4）";
+                    err = os.str();
+                }
                 return false;
             }
         }

@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "cuav/scenario_json.h"
+#include "cuav_geo/activity.h"
 
 namespace cuav {
 namespace {
@@ -499,12 +500,32 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
     tx_power_amp_ = emit_at_tx_power_ ? std::pow(10.0, em->emission.tx_power_dBm / 20.0) : 1.0;
 
     // 铁律 4：|Δf| + B/2 + 保护带 < Fs/2。这里的 Δf 是基带频偏，B 是占用带宽。
+    // **跳频点逐个查**（G-6，D-069）：基频过闸不代表序列里每一跳都过得了，跳出奈奎斯特
+    // 不会有任何征兆、只会静默混叠（铁律 15）。
     const double offset = (waveform_.type == geo::WaveformType::Noise) ? 0.0 : waveform_.offset_Hz;
-    const double df = emitter_center_Hz_ + offset - center_frequency_Hz_;
-    if (std::fabs(df) + bw_Hz_ / 2.0 >= sample_rate_Hz_ / 2.0) {
-        err = "辐射源 " + entity_id_ + " 的基带频偏 " + std::to_string(df) + " Hz 加半带宽超出奈奎斯特"
-              "（|Δf| + B/2 < Fs/2，铁律 4）";
-        return false;
+    {
+        const std::vector<geo::CenterPoint> centers = geo::emitter_center_set(scene_, entity_id_);
+        for (std::size_t ci = 0; ci < centers.size(); ++ci) {
+            const double df = centers[ci].Hz + offset - center_frequency_Hz_;
+            if (std::fabs(df) + bw_Hz_ / 2.0 < sample_rate_Hz_ / 2.0) continue;
+            if (centers[ci].where == "emission.center_Hz") {
+                err = "辐射源 " + entity_id_ + " 的基带频偏 " + std::to_string(df) +
+                      " Hz 加半带宽超出奈奎斯特（|Δf| + B/2 < Fs/2，铁律 4）";
+            } else {
+                // 需要多大的采样率才装得下最坏的那个频点——算得出来就别让用户猜
+                double worst = 0.0;
+                for (std::size_t k = 0; k < centers.size(); ++k)
+                    worst = std::max(worst, std::fabs(centers[k].Hz + offset - center_frequency_Hz_));
+                const double need = 2.0 * (worst + bw_Hz_ / 2.0);
+                err = "辐射源 " + entity_id_ + " 的跳频点 " + std::to_string(centers[ci].Hz) +
+                      " Hz（" + centers[ci].where + "）折成基带频偏 " + std::to_string(df) +
+                      " Hz，加半带宽 " + std::to_string(bw_Hz_ / 2.0) + " Hz 不小于 Fs/2 = " +
+                      std::to_string(sample_rate_Hz_ / 2.0) +
+                      " Hz（|Δf| + B/2 < Fs/2，铁律 4）；请收窄跳频序列的跨度、调小 emission.bw_Hz，"
+                      "或把站点 fs_Hz 提到大于 " + std::to_string(need) + " Hz";
+            }
+            return false;
+        }
     }
 
     if (waveform_.type == geo::WaveformType::Burst) {

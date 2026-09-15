@@ -775,3 +775,34 @@ TEST_CASE("活动时间线（样点域）：全部中心频点集合供铁律 4 
     CHECK(all[0].where.find("sequence[1]") != std::string::npos);
     CHECK(all[1].where == "emission.center_Hz");   // 同频保留第一个出处（基频在前）
 }
+
+TEST_CASE("场景：铁律 4 的闸覆盖跳频点——序列里有一跳出界即拒，报文带出处（G-6，D-069）") {
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo(kDemo), s, err));
+    // demo-01：站点 fs 500 kHz、center 2440.5 MHz，辐射源 bw 400 kHz、频偏 48828.125 Hz。
+    // 基频过得了闸（48828 + 200000 < 250000），把一个跳频点推到 100 kHz 外就过不了。
+    geo::Scenario sc = s.scenario;
+    geo::Activity h;
+    h.emitter_id = "uav-1";
+    h.t_s = 70.0;                                  // 排在 demo-01 最后一条活动（t = 68）之后
+    h.event = geo::ActivityEvent::Hop;
+    h.sequence.push_back(2.4405e9);                // 这一跳没问题
+    h.sequence.push_back(2.4406e9);                // 这一跳把 |Δf| 推到 148828 Hz，加半带宽越界
+    h.dwell_s = 0.01;
+    sc.activities.push_back(h);
+
+    std::string e;
+    CHECK_FALSE(sc.cross_check(e));
+    CHECK(e.find("跳频点") != std::string::npos);
+    CHECK(e.find("sequence[1]") != std::string::npos);
+    CHECK(e.find("铁律 4") != std::string::npos);
+
+    // 基频自己越界时报文与改动前逐字相同（既有夹具靠它）
+    geo::Scenario bad = s.scenario;
+    bad.emitters[0].emission.center_Hz = 2.4408e9;
+    std::string e2;
+    CHECK_FALSE(bad.cross_check(e2));
+    CHECK(e2 == "辐射源 uav-1 相对站点 site-1 的频偏加半带宽不小于采样率的一半，"
+                "违反 |Δf| + B/2 < Fs/2（铁律 4）");
+}
