@@ -9,7 +9,7 @@
 // 避免出现前端放行、引擎拒绝的情况。
 
 import type { ScenarioDoc } from '../state/types.js'
-import { emitters, sites, type Obj } from '../scene/editor/scenarioOps.js'
+import { emitterCenters, emitters, sites, type Obj } from '../scene/editor/scenarioOps.js'
 import type { ChainState } from './model.js'
 import { propConflict, propView } from './effects.js'
 
@@ -22,6 +22,14 @@ export interface FreqPlan {
   f_tx: number
   /** 辐射源占用带宽 */
   bw_tx: number
+  /**
+   * 最坏中心频点相对站点的频偏 |Δf|（G-6，D-069）：跳频源要看序列里每一个频点，
+   * 只看 `f_tx` 会放过跳出奈奎斯特的那几跳。无 hop 时它恒等于 |f_tx − f_rx|，
+   * 于是既有框图的检查文案逐字不变。
+   */
+  df_max: number
+  /** df_max 取自哪个频点（等于 f_tx 时为空串），只用在报错文案里 */
+  df_max_where: string
   /** DDC 抽取比与频移；DDC 旁路时 decim = 1、f_shift = 0 */
   decim: number
   f_shift: number
@@ -58,18 +66,32 @@ function num(v: unknown, fallback = 0): number {
 /**
  * 多源时挑出「最难放进接收带」的那个源：按 |Δf| + B/2 排序取最大者。
  * 频率计划的带宽与边缘两项检查因此对全部选中的源都成立（D-053 §4 的 `plan.ts` 一条）。
+ * **跳频源按序列里最远的那个频点算**（G-6，D-069）：基频过闸不代表每一跳都过得了。
  */
-function worstEmitter(list: readonly Obj[], site: Obj | undefined): Obj | undefined {
+function worstEmitter(list: readonly Obj[], site: Obj | undefined,
+                      doc: ScenarioDoc | null): Obj | undefined {
   if (list.length <= 1) return list[0]
   const fRx = num(((site?.receiver ?? {}) as Record<string, unknown>).center_Hz)
   let best = list[0]
   let bestCost = -Infinity
   for (const e of list) {
     const em = (e.emission ?? {}) as Record<string, unknown>
-    const cost = Math.abs(num(em.center_Hz, fRx) - fRx) + num(em.bw_Hz) / 2
+    const cost = worstOffset(doc, String(e.id), num(em.center_Hz, fRx), fRx).df + num(em.bw_Hz) / 2
     if (cost > bestCost) { bestCost = cost; best = e }
   }
   return best
+}
+
+/** 该源相对站点最远的中心频点（含全部跳频点）与它的出处。 */
+function worstOffset(doc: ScenarioDoc | null, emitterId: string, fTx: number, fRx: number):
+    { df: number; where: string } {
+  let df = Math.abs(fTx - fRx)
+  let where = ''
+  for (const f of emitterCenters(doc, emitterId)) {
+    const d = Math.abs(f - fRx)
+    if (d > df) { df = d; where = `${(f / 1e6).toFixed(3)} MHz` }
+  }
+  return { df, where }
 }
 
 /**
@@ -85,7 +107,7 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null): FreqP
   const selSites = sites(doc).filter((x) => chain.siteIds.includes(String(x.id)))
   const selEms = emitters(doc).filter((x) => chain.emitterIds.includes(String(x.id)))
   const site = selSites[0] ?? sites(doc)[0]
-  const emitter = worstEmitter(selEms.length ? selEms : emitters(doc).slice(0, 1), site)
+  const emitter = worstEmitter(selEms.length ? selEms : emitters(doc).slice(0, 1), site, doc)
   const rx = (site?.receiver ?? {}) as Record<string, unknown>
   const em = (emitter?.emission ?? {}) as Record<string, unknown>
 
@@ -93,6 +115,9 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null): FreqP
   const f_rx = num(rx.center_Hz, num(chain.slots.tx.params.center_frequency_Hz))
   const f_tx = num(em.center_Hz, f_rx)
   const bw_tx = num(em.bw_Hz)
+  // f_tx 保持为 emission.center_Hz 不变（DDC 的缺省 f_shift 与显示都在用它）；
+  // 跳频只影响「最坏频偏」这一个派生量
+  const worst = worstOffset(doc, String(emitter?.id ?? ''), f_tx, f_rx)
 
   const ddcOn = !chain.slots.ddc.bypass
   const decim = ddcOn ? Math.max(1, Math.round(num(chain.slots.ddc.params.decim, 1))) : 1
@@ -106,6 +131,7 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null): FreqP
 
   return {
     fs_rf, f_rx, f_tx, bw_tx,
+    df_max: worst.df, df_max_where: worst.where,
     decim, f_shift,
     fs_s4, f_s4: f_rx + f_shift,
     channels, fs_s5: channels > 0 ? fs_s4 / channels : 0,
@@ -144,13 +170,14 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         : '站点接收机没有采样率，先选场景与站点',
     })
 
-    const df = plan.f_tx - plan.f_rx
-    const need = Math.abs(df) + plan.bw_tx / 2 + plan.guard
+    const need = plan.df_max + plan.bw_tx / 2 + plan.guard
     out.push({
       id: 'edge',
       label: '目标不跨频带边缘',
       ok: plan.fs_rf > 0 && need < plan.fs_rf / 2,
-      detail: `|Δf| + B/2 + 保护带 = ${fmt(need)}，须小于 Fs/2 = ${fmt(plan.fs_rf / 2)}`,
+      detail: plan.df_max_where
+        ? `最坏跳频点 ${plan.df_max_where}：|Δf| + B/2 + 保护带 = ${fmt(need)}，须小于 Fs/2 = ${fmt(plan.fs_rf / 2)}`
+        : `|Δf| + B/2 + 保护带 = ${fmt(need)}，须小于 Fs/2 = ${fmt(plan.fs_rf / 2)}`,
     })
 
     const decimOk = plan.decim >= 1 && plan.fs_rf > 0 && Math.abs(plan.fs_rf % plan.decim) < 1e-9
@@ -163,8 +190,10 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         : `抽取 ${plan.decim} 倍后 S4 = ${fmt(plan.fs_s4)}${decimOk ? '' : '；采样率须能被抽取比整除'}`,
     })
 
-    // 过渡带：|Δf − f_shift| + B/2 ≤ 0.4·fs_s4，与 fir_version 的通带边缘一致（08 §8）
-    const inband = Math.abs(plan.f_tx - plan.f_rx - plan.f_shift) + plan.bw_tx / 2
+    // 过渡带：|Δf − f_shift| + B/2 ≤ 0.4·fs_s4，与 fir_version 的通带边缘一致（08 §8）。
+    // 跳频时抽取后的通带必须装得下**全部**跳频点，否则跳到带外的那几跳会被抗混叠滤波器吃掉。
+    const inband = Math.max(Math.abs(plan.f_tx - plan.f_rx - plan.f_shift),
+                            plan.df_max - Math.abs(plan.f_shift)) + plan.bw_tx / 2
     out.push({
       id: 'transition',
       label: '滤波器过渡带足够',

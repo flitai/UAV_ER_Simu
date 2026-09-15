@@ -31,6 +31,26 @@ export function activities(doc: ScenarioDoc | null): Obj[] {
   return Array.isArray(doc?.activities) ? (doc!.activities as Obj[]) : []
 }
 
+/**
+ * 某辐射源可能用到的全部中心频点：基频 + 每条 hop 活动的 `center_Hz` 或 `sequence[]`。
+ * 与 C++ 的 `geo::emitter_center_set`（geo/src/activity.cpp）同一口径，
+ * 铁律 4 的闸要对每个频点都成立——基频过闸不代表序列里每一跳都过得了（G-6，D-069）。
+ */
+export function emitterCenters(doc: ScenarioDoc | null, emitterId: string): number[] {
+  const em = emitters(doc).find((e) => String(e.id) === emitterId)
+  const base = Number((((em?.emission ?? {}) as Record<string, unknown>).center_Hz) ?? NaN)
+  const out: number[] = Number.isFinite(base) ? [base] : []
+  for (const a of activities(doc)) {
+    if (String(a.emitter_id) !== emitterId || String(a.event) !== 'hop') continue
+    const args = (a.args ?? {}) as Record<string, unknown>
+    if (typeof args.center_Hz === 'number' && Number.isFinite(args.center_Hz)) out.push(args.center_Hz)
+    if (Array.isArray(args.sequence)) {
+      for (const f of args.sequence) if (typeof f === 'number' && Number.isFinite(f)) out.push(f)
+    }
+  }
+  return out
+}
+
 export function routeOf(doc: ScenarioDoc | null, emitterId: string): Obj | null {
   return routes(doc).find((r) => r.emitter_id === emitterId) ?? null
 }

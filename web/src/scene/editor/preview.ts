@@ -184,6 +184,10 @@ export class RoutePreview {
 /**
  * 活动时间线：发射开关与跳频（与 geo::EmitterRuntime 同语义，docs/scenario-format.md §6）。
  * 无 tx_on / tx_off 活动时自 t = 0 起恒发射；一旦有这类活动，首个 tx_on 之前视为不发射。
+ *
+ * **对应的是帧域与航迹域**（按时刻取值）。波形域与真值域自 G-6（D-069）起走样点域的
+ * `geo::ActivitySchedule`：跳频停留在毫秒量级时帧根本看不见它，只有绝对样点号够细。
+ * 浏览器不复现那一套 —— 它拿不到样点流，预览也只需要「这一刻在发什么」。
  */
 export class ActivityPreview {
   private txT: number[] = []

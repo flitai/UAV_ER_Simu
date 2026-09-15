@@ -853,3 +853,26 @@ test('频率计划第 11 项：E3 与「自由空间定参 + 高档位」都被�
   rp.slots.ch.params = { prop_level: 'E3' }
   assert.equal(planChecks(rp, freqPlan(rp, null), null).some((k) => k.id === 'propagation'), false)
 })
+
+test('频率计划：跳频点也要过铁律 4 的闸（G-6，D-069）', () => {
+  const c = synthetic()
+  // 无 hop：df_max 就是 |f_tx − f_rx|，出处为空 → 文案与改动前逐字相同
+  const p0 = freqPlan(c, scenario)
+  assert.equal(p0.df_max, 0)
+  assert.equal(p0.df_max_where, '')
+  const d0 = planChecks(c, p0, scenario).find((x) => x.id === 'edge')!
+  assert.ok(d0.detail.startsWith('|Δf| + B/2 + 保护带 ='), d0.detail)
+
+  // 加一条跳频活动，序列里有一点把 |Δf| 推到 150 kHz：150 + 200 + 25 = 375 ≥ 250 → 不通过
+  const hop = JSON.parse(JSON.stringify(scenario)) as ScenarioDoc
+  ;(hop.activities as Array<Record<string, unknown>>).push({
+    emitter_id: 'uav-1', t_s: 70, event: 'hop',
+    args: { sequence: [2440500000, 2440650000], dwell_s: 0.01 },
+  })
+  const p1 = freqPlan(c, hop)
+  assert.equal(p1.f_tx, 2440500000, 'f_tx 仍是 emission.center_Hz（DDC 的缺省频移在用它）')
+  assert.equal(p1.df_max, 150000)
+  const e1 = planChecks(c, p1, hop).find((x) => x.id === 'edge')!
+  assert.equal(e1.ok, false)
+  assert.ok(e1.detail.includes('最坏跳频点 2440.650 MHz'), e1.detail)
+})
