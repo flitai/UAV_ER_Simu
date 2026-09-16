@@ -1,6 +1,7 @@
 #include "cuav/dsp.h"
 
 #include <cmath>
+#include <cstdio>
 #include <stdexcept>
 
 namespace cuav {
@@ -192,6 +193,96 @@ bool impulse_power_gain(const Biquad f[2], double& gain, std::size_t& n_settle, 
     err = "带限滤波器的冲激响应在 4194304 个样点内没有收敛：截止频率相对采样率太小，"
           "请提高 emission.bw_Hz 或降低站点 fs_Hz（铁律 15）";
     return false;
+}
+
+
+// --- DDC：数控振荡混频 + 抗混叠低通 + 抽取（M-2，D-070）----------------------
+//
+// 系数表在 engine/src/ddc_taps.cpp（生成物）。这里只有三件事：相位增量、建状态、逐块推进。
+// 与 algos/reference/ddc.py 逐字同序（铁律 10）。
+
+double ddc_phase_step(double f_shift_Hz, double fs_Hz) {
+    if (!(fs_Hz > 0.0)) return 0.0;
+    const double r = f_shift_Hz / fs_Hz;
+    // 归到 [0,1)：exp(-j2πk) = 1，去掉整数圈不改变结果，却让相位累加器永远待在
+    // 减一次 1.0 就能回卷的区间里（那一步是精确的，见 dsp.h 的契约 ①）。
+    return r - std::floor(r);
+}
+
+bool ddc_init(DdcState& st, int decim, std::string& err) {
+    const FirTable* t = ddc_fir_lp_v1(decim);
+    if (t == 0) {
+        std::string list;
+        for (std::size_t i = 0; i < ddc_fir_lp_v1_count(); ++i) {
+            if (i) list += " / ";
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "%d", ddc_fir_lp_v1_at(i).decim);
+            list += buf;
+        }
+        err = "抽取比不在冻结抽头表内，支持的取值是 " + list;
+        return false;
+    }
+    if ((t->ntaps % 2) == 0 || t->group_delay * 2 != t->ntaps - 1) {
+        // 08 报告 §8 口径二：群时延不是整数样点就拒绝该抽头组合，不做半样点插值。
+        err = "抽头表内部不一致：抽头数必须是奇数且群时延等于 (N-1)/2";
+        return false;
+    }
+    st.decim = t->decim;
+    st.ntaps = t->ntaps;
+    st.group_delay = t->group_delay;
+    ddc_fir_expand(*t, st.h);
+    st.hist.assign(static_cast<std::size_t>(t->ntaps - 1), std::complex<double>(0.0, 0.0));
+    st.work.clear();
+    st.phase = 0.0;
+    // next 的初值 = 群时延：于是第一个输出取在绝对输入样点 gd，其对称窗口覆盖输入
+    // [-gd, +gd]，即「在输入时刻 0 处施加的零相位滤波」，输出样点 m ↔ 输入样点 m·D。
+    st.next = static_cast<std::size_t>(t->group_delay);
+    return true;
+}
+
+void ddc_block(DdcState& st, const Complex* x, std::size_t n, std::vector<Complex>& out) {
+    const std::size_t nt = static_cast<std::size_t>(st.ntaps);
+    const std::size_t hn = nt - 1;                 // 历史长度
+    const std::size_t D = static_cast<std::size_t>(st.decim);
+    const double two_pi = 6.28318530717958647692;
+
+    // ① 历史 + 本块线性拼接。work[j] 对应的绝对输入样点号是「本块首样点 + j - hn」。
+    st.work.resize(hn + n);
+    for (std::size_t j = 0; j < hn; ++j) st.work[j] = st.hist[j];
+
+    // ② 混频：乘 exp(-j2π·f_shift·t)，把 center_in + f_shift 搬到零频（04 §7.7 步骤 1-2）
+    double ph = st.phase;
+    for (std::size_t i = 0; i < n; ++i) {
+        const double th = -two_pi * ph;
+        const double c = std::cos(th);
+        const double sn = std::sin(th);
+        const double xr = static_cast<double>(x[i].real());
+        const double xi = static_cast<double>(x[i].imag());
+        st.work[hn + i] = std::complex<double>(xr * c - xi * sn, xr * sn + xi * c);
+        ph += st.dphi;
+        if (ph >= 1.0) ph -= 1.0;                  // [1,2) 减 1.0 精确，无舍入（契约 ①）
+    }
+    st.phase = ph;
+
+    // ③ 低通 + 抽取（步骤 3-4）。窗口最新一点是 work[hn + p]，最旧是 work[p]；
+    //    抽头升序累加是契约 ②。
+    std::size_t p = st.next;
+    while (p < n) {
+        const std::size_t top = hn + p;
+        double ar = 0.0;
+        double ai = 0.0;
+        for (std::size_t k = 0; k < nt; ++k) {
+            const std::complex<double>& v = st.work[top - k];
+            ar += st.h[k] * v.real();
+            ai += st.h[k] * v.imag();
+        }
+        out.push_back(Complex(static_cast<float>(ar), static_cast<float>(ai)));
+        p += D;
+    }
+    st.next = p - n;                               // 抽取相位跨块递延
+
+    // ④ 留史：work 的末 hn 项。n < hn 时这一式同样正确（老历史自然被保留）。
+    for (std::size_t j = 0; j < hn; ++j) st.hist[j] = st.work[n + j];
 }
 
 }  // namespace dsp

@@ -40,8 +40,8 @@ double threshold_for_pfa(int m_bins, double pfa);
 // --- 带限用的双二阶节（C-8 / G-6，D-069）------------------------------------
 //
 // 用途只有一个：给 SceneEmitterSource 的 noise 波形做带限，让「2 MHz 图传落在 10 MS/s 的
-// 观测带里」这件事在谱上成立。这是**波形生成**，不是 D-036 所指的被测 DSP 滤波件
-// （接收滤波 / DDC / 信道化仍走 MATLAB Coder，M-2 / M-3）。
+// 观测带里」这件事在谱上成立。这是**波形生成**，不是被测的 DSP 滤波件——后者是下面的
+// DDC 抗混叠低通（M-2）与将来的信道化 / 接收滤波（M-3）。
 //
 // 形式：4 阶巴特沃斯低通 = 两个双二阶节级联，双线性变换加频率预畸变，转置直接 II 型递推。
 // 五行递推当作契约，C++ 与 Python 参考必须逐字同序（铁律 10）：
@@ -63,6 +63,62 @@ bool impulse_power_gain(const Biquad f[2], double& gain, std::size_t& n_settle, 
 // 单个复样点过两节级联；state 是 4 个复状态（每节 2 个），由调用方跨块持有。
 std::complex<double> biquad2_step(const Biquad f[2], std::complex<double> state[4],
                                   std::complex<double> x);
+
+// --- DDC：数控振荡混频 + 抗混叠低通 + 抽取（M-2，D-070）----------------------
+//
+// 手写 C++ 而不是 MATLAB Coder 产物：开发机的 MATLAB 是学术许可，其生成的 C 每个文件都盖着
+// 「不得用于政府 / 商业 / 组织用途」，而 08 报告 §13 要求产物入库并进交付包（D-070 修订 D-036）。
+// 系数表仍由等波纹设计冻结在 models/adc-ddc/fir_lp_v1.json，编成 engine/src/ddc_taps.cpp。
+//
+// 两条写法当作契约，Python 参考 algos/reference/ddc.py 逐字同序（铁律 10）：
+//   ① NCO 相位以**圈**计，不以弧度计。2π 不是精确可表示的二进制数，每次回卷注入一次舍入；
+//      而 [1,2) 区间减 1.0 指数不变、尾数对齐，结果精确。于是相位序列只是「已处理输入样点数」
+//      的函数：与块长无关、逐位复现、跨语言逐位相同（唯一分歧在 cos/sin 的末位）。
+//   ② FIR 点积按抽头**升序**累加。
+
+// 冻结系数表的一档。half 长度 (ntaps+1)/2，含中心抽头；全表由 ddc_fir_expand 镜像得出。
+struct FirTable {
+    int decim;
+    int ntaps;
+    int group_delay;   // (ntaps-1)/2，单位是输入样点
+    const double* half;
+};
+
+// 按抽取比查表；不在表里返回 0（调用方报错并列出支持的取值，不静默顶替，铁律 15）。
+const FirTable* ddc_fir_lp_v1(int decim);
+std::size_t ddc_fir_lp_v1_count();
+const FirTable& ddc_fir_lp_v1_at(std::size_t i);
+// 生成这份 C++ 表时所用 JSON 的 sha256，供单测核对两者没有脱节。
+const char* ddc_fir_lp_v1_sha256();
+// 半表镜像成全表。与 scripts/design_ddc_fir.py 的 expand() 逐字同法。
+void ddc_fir_expand(const FirTable& t, std::vector<double>& h);
+
+// 频移量归一成每样点的相位增量（单位「圈」，落在 [0,1)）。
+double ddc_phase_step(double f_shift_Hz, double fs_Hz);
+
+// 分块带状态的 DDC 核。状态由调用方持有，跨块保持。
+//
+// hist 是上一块末尾 ntaps-1 个**已混频**样点；每轮把 [hist | 本块混频结果] 线性拼成工作区，
+// 于是内层点积是连续访存、无取模、无分支（环形缓冲要在内层取模，生成的机器码差得多）。
+// next 是「本块内下一个输出对应的输入偏移」，跨块递延；把它的初值置为群时延 gd，
+// 就得到「输出样点 m ↔ 输入样点 m·D」这条时间锚（08 报告 §8 口径一、二）。
+struct DdcState {
+    std::vector<double> h;                  // 展开后的全表
+    std::vector<std::complex<double> > hist;  // 长度 ntaps-1
+    std::vector<std::complex<double> > work;  // 工作区，避免每块重新分配
+    double phase;                           // 圈，恒在 [0,1)
+    double dphi;                            // 圈/样点
+    std::size_t next;                       // 下一个输出在本块内的输入偏移
+    int decim;
+    int ntaps;
+    int group_delay;
+    DdcState() : phase(0.0), dphi(0.0), next(0), decim(1), ntaps(1), group_delay(0) {}
+};
+
+// 按抽取比建状态（查表 + 镜像展开 + 清零 + next = 群时延）。decim 不在表里返回 false。
+bool ddc_init(DdcState& st, int decim, std::string& err);
+// 处理一块：x 是 n 个输入样点，输出追加到 out（可能一个都不出，攒不满一个输出样点时就是这样）。
+void ddc_block(DdcState& st, const Complex* x, std::size_t n, std::vector<Complex>& out);
 
 
 }  // namespace dsp
