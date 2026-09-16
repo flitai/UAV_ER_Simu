@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
 
 #include "nlohmann/json.hpp"
@@ -468,6 +469,23 @@ Step Evaluator::flush(PortMap& out, std::string& err) {
     eval_params_.threshold = have_det_meta_ ? threshold_ : eval_nan();
     eval_params_.has_rec = rec_wired_;
     metrics_ = evaluate(det_, rec_, truth_rows_, eval_params_);
+
+    // 多速率下的真值边界落差（M-2，D-070）：源端按站点的宽带 fs 建活动时间线，
+    // 这里按检测行带来的 fs 重建；DDC 启用后那是抽取之后的窄带 fs，两边四舍五入的落点会差一点。
+    // 每个边界至多差 (D+1)/(2·fs_w)，跳频的边界还会随跳数累积。写成 notes 不写成 reasons：
+    // 它是多速率下「源与真值逐位同源」退化成「亚样点同源」的真实边界，不是降级（铁律 15 照实说）。
+    if (truth_source_ == "scenario" && fs_ > 0.0 && !site_id_.empty()) {
+        const geo::Site* st = scene_.find_site(site_id_);
+        if (st != 0 && st->receiver.fs_Hz > 0.0 && std::fabs(st->receiver.fs_Hz - fs_) > 1e-6) {
+            char buf[256];
+            std::snprintf(buf, sizeof(buf),
+                          "真值按 %.10g Hz 重建，源端按站点的 %.10g Hz 生成（中间有抽取）："
+                          "每个真值边界至多差 %.1f ns，跳频边界随跳数累积",
+                          fs_, st->receiver.fs_Hz,
+                          1e9 * (st->receiver.fs_Hz / fs_ + 1.0) / (2.0 * st->receiver.fs_Hz));
+            status_.notes.push_back(buf);
+        }
+    }
 
     if (truth_source_ == "scenario" && frames_seen_ == 0) {
         metrics_.state = worst(metrics_.state, State::Degraded);

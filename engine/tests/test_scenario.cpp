@@ -882,3 +882,133 @@ TEST_CASE("航迹黄金基准：demo-02 宽带双源与 tests/golden/scenario-tr
     }
     CHECK(checked == g["sample_count"].get<std::size_t>());
 }
+
+// --- 多速率下真值边界的取整落差（M-2，D-070）----------------------------------
+
+TEST_CASE("多速率：评价器在窄带 fs 下重建的活动时间线，与源端宽带 fs 的边界差有界") {
+    // 起因：SceneEmitterSource 在**宽带** fs 下建时间表（engine/src/scenario.cpp），
+    // 而 Evaluator 用检测行带来的采样率重建（engine/src/evaluator.cpp）——DDC 启用后那是
+    // **窄带** fs。两边都走 geo::sample_at（四舍五入），于是同一个时刻折出的样点号可能差一点。
+    //
+    // 上界是闭式的：|t_n − t_w| ≤ 0.5/fs_n + 0.5/fs_w = (D+1)/(2·fs_w) 秒，
+    // 即至多 (D+1)/2 个宽带样点、也就是不到 1 个窄带样点。本用例把它钉住。
+    // 这不是缺陷，是多速率下「源与真值逐位同源」退化成「亚样点同源」的真实边界（写进模型卡）。
+    LoadedScenario s;
+    std::string err;
+    REQUIRE(load_scenario_file(repo(kDemo), s, err));
+
+    const double fs_w = 1.0e7;
+    const int ds[3] = {2, 4, 20};
+
+    SUBCASE("demo 场景的整数时刻：落差恰好为零") {
+        geo::Scenario sc = s.scenario;
+        geo::Activity a;
+        a.emitter_id = "uav-1";
+        a.t_s = 0.5;                       // 0.5 s 在 10 / 5 / 2.5 / 0.5 MS/s 下都是整样点
+        a.event = geo::ActivityEvent::TxOn;
+        sc.activities.push_back(a);
+        for (int k = 0; k < 3; ++k) {
+            const double fs_n = fs_w / ds[k];
+            const std::uint64_t nw = geo::sample_at(a.t_s, fs_w);
+            const std::uint64_t nn = geo::sample_at(a.t_s, fs_n);
+            const double tw = static_cast<double>(nw) / fs_w;
+            const double tn = static_cast<double>(nn) / fs_n;
+            CHECK_MESSAGE(std::fabs(tn - tw) == 0.0,
+                          "D = " << ds[k] << " 时 0.5 s 应当在两个速率下都落在整样点上");
+        }
+    }
+
+    SUBCASE("刻意取非整的时刻：落差走满上界但不超") {
+        const double ts[4] = {0.1234567, 1.0000001, 2.7182818, 3.1415926};
+        for (int k = 0; k < 3; ++k) {
+            const double fs_n = fs_w / ds[k];
+            double worst = 0.0;
+            for (int i = 0; i < 4; ++i) {
+                const double tw = static_cast<double>(geo::sample_at(ts[i], fs_w)) / fs_w;
+                const double tn = static_cast<double>(geo::sample_at(ts[i], fs_n)) / fs_n;
+                worst = std::max(worst, std::fabs(tn - tw));
+            }
+            const double bound = (ds[k] + 1.0) / (2.0 * fs_w);
+            CHECK_MESSAGE(worst <= bound * (1.0 + 1e-9),
+                          "D = " << ds[k] << " 落差 " << worst << " s 超过上界 " << bound << " s");
+            // 与一个检测帧比：nfft = 1024 个窄带样点。落差必须远小于它，否则真值会整帧错位。
+            const double frame = 1024.0 / fs_n;
+            CHECK_MESSAGE(bound < 0.01 * frame,
+                          "D = " << ds[k] << " 的上界 " << bound << " s 不该接近一帧 " << frame << " s");
+            MESSAGE("D = " << ds[k] << "：最坏落差 " << worst * 1e9 << " ns，上界 " << bound * 1e9
+                           << " ns，一帧 " << frame * 1e6 << " µs");
+        }
+    }
+
+    SUBCASE("demo-02 实际用的 10 ms 停留：在本期夹具的 D = 2 下落差恒为零") {
+        // 本期 chain-demo-02-ddc 的参数正好落在没有落差的那一档：dwell 0.01 s 在 5 MS/s 下
+        // 是 50000 整样点。所以上面那条累积落差对本期的演示夹具是零影响——但不能因此不管它，
+        // 换个非整的 dwell 就会踩到（这一条与上一条一起写进模型卡）。
+        geo::Scenario sc = s.scenario;
+        geo::Activity h;
+        h.emitter_id = "uav-1";
+        h.t_s = 5.0;
+        h.event = geo::ActivityEvent::Hop;
+        h.sequence.push_back(2.4400e9);
+        h.sequence.push_back(2.4420e9);
+        h.dwell_s = 0.01;
+        sc.activities.push_back(h);
+        const double fs_n = fs_w / 2.0;
+        geo::ActivitySchedule sw, sn;
+        REQUIRE_MESSAGE(sw.build(sc, "uav-1", fs_w, err), err);
+        REQUIRE_MESSAGE(sn.build(sc, "uav-1", fs_n, err), err);
+        std::uint64_t nw = geo::sample_at(h.t_s, fs_w);
+        std::uint64_t nn = geo::sample_at(h.t_s, fs_n);
+        for (int step = 0; step < 20; ++step) {
+            nw = sw.next_change_sample(nw);
+            nn = sn.next_change_sample(nn);
+            if (nw == geo::ActivitySchedule::kNoChange || nn == geo::ActivitySchedule::kNoChange) break;
+            CHECK(static_cast<double>(nn) / fs_n == static_cast<double>(nw) / fs_w);
+        }
+    }
+
+    SUBCASE("时间表本身：跳频边界的落差随跳数累积，按闭式上界卡住") {
+        geo::Scenario sc = s.scenario;
+        geo::Activity h;
+        h.emitter_id = "uav-1";
+        h.t_s = 0.1234567;                 // 刻意不整
+        h.event = geo::ActivityEvent::Hop;
+        h.sequence.push_back(2.4400e9);
+        h.sequence.push_back(2.4420e9);
+        h.dwell_s = 0.0123456;             // 刻意不整
+        sc.activities.push_back(h);
+
+        geo::ActivitySchedule sw;
+        REQUIRE_MESSAGE(sw.build(sc, "uav-1", fs_w, err), err);
+        for (int k = 0; k < 3; ++k) {
+            const double fs_n = fs_w / ds[k];
+            geo::ActivitySchedule sn;
+            REQUIRE_MESSAGE(sn.build(sc, "uav-1", fs_n, err), err);
+            // 逐次跳变：把两边的下一次变化点都换回秒再比
+            std::uint64_t nw = geo::sample_at(h.t_s, fs_w);
+            std::uint64_t nn = geo::sample_at(h.t_s, fs_n);
+            double worst = 0.0;
+            for (int step = 0; step < 8; ++step) {
+                nw = sw.next_change_sample(nw);
+                nn = sn.next_change_sample(nn);
+                if (nw == geo::ActivitySchedule::kNoChange || nn == geo::ActivitySchedule::kNoChange) break;
+                worst = std::max(worst, std::fabs(static_cast<double>(nn) / fs_n -
+                                                  static_cast<double>(nw) / fs_w));
+            }
+            // **落差是累积的，不是常数**：跳频边界是 start_n + k·dwell_n，dwell_n 的取整误差
+            // 每跳乘一次 k。实测 D = 20、dwell 0.0123456 s 时每跳差 400 ns，8 跳后 2500 ns，
+            // 已经超过一个窄带样点（2000 ns）。所以上界要写成随 k 线性增长的那一个：
+            //     |t_n(k) − t_w(k)| ≤ (k+1)·(0.5/fs_n + 0.5/fs_w) = (k+1)·(D+1)/(2·fs_w)
+            const int steps = 8;
+            const double bound = (steps + 1.0) * (ds[k] + 1.0) / (2.0 * fs_w);
+            CHECK_MESSAGE(worst <= bound * (1.0 + 1e-9),
+                          "D = " << ds[k] << " 子段边界落差 " << worst << " s 超过累积上界 "
+                                 << bound << " s");
+            // 要错满一个检测帧（nfft = 1024 个窄带样点），得跳这么多次：
+            const double per_hop = (ds[k] + 1.0) / (2.0 * fs_w);
+            MESSAGE("D = " << ds[k] << "：8 跳后最坏落差 " << worst * 1e9 << " ns（一个窄带样点 "
+                           << 1e9 / fs_n << " ns）；按每跳上界 " << per_hop * 1e9
+                           << " ns 算，要累积满一帧需 " << (1024.0 / fs_n) / per_hop << " 跳");
+        }
+    }
+}
