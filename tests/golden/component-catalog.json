@@ -317,6 +317,64 @@
       "version": "0.1.0"
     },
     {
+      "category": "receiver",
+      "description": "数字下变频（04 §7.7）：数控振荡产生复本振、复混频把目标频段搬到零频附近、抗混叠低通保留目标带宽、按整数比抽取，并更新中心频率、采样率与时间元数据。**本组件改变采样率**，输出 fs = 输入 fs / decim、中心频率 = 输入中心 + f_shift_Hz。时间锚按 08 报告 §8 口径一与口径二：滤波器群时延在这一层扣除，输出样点 m 对应输入样点 m·decim，首样点序号自 0 起且严格连续。抗混叠低通是等波纹设计的冻结系数表（通带 0.4·fs_out、阻带 0.5·fs_out ≥ 60 dB、奇数抽头使群时延为整数样点），decim 的取值必须在表内。",
+      "display_name": "数字下变频",
+      "implementation": "cpp",
+      "model_id": "EM-B-11",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "default": 0.0,
+          "description": "复混频频移；输出中心频率 = 输入中心频率 + 本值。缺省由频率计划填 f_tx − f_rx，即把目标搬到 S4 零频附近",
+          "name": "f_shift_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "constraint": "取值须在冻结抽头表内（1 / 2 / 4 / 5 / 8 / 10 / 16 / 20），且输入采样率须能被它整除（08 报告 §8 口径一）",
+          "default": 1.0,
+          "description": "整数抽取比；输出采样率 = 输入采样率 / 本值",
+          "min": 1.0,
+          "name": "decim",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "lp_v1",
+          "description": "抗混叠低通的抽头版本：通带 0.4·fs_out、阻带 0.5·fs_out ≥ 60 dB、奇数抽头",
+          "enum": [
+            "lp_v1"
+          ],
+          "name": "fir_version",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "stateful": true,
+      "type": "DDC",
+      "version": "0.1.0"
+    },
+    {
       "category": "algorithm",
       "description": "检测结果的计数与极值摘要",
       "display_name": "检测汇聚",
