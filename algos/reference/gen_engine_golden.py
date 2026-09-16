@@ -507,6 +507,284 @@ def write_ddc(args) -> int:
     return 0
 
 
+def _m3_input(seed: int, n: int, fs: float, tones) -> "np.ndarray":
+    """M-3 两个模式共用的输入配方：噪声 + 若干单音，按次序相加、每步 float32。
+
+    **输入不由两侧各自算闭式，而是由复刻的整数随机源生成、再存一份 sha256 对账**
+    （同 probe / sliding / ddc 的做法）。理由在 M-3 第 5 步踩实过一次：让两边各自算
+    `sin(0.00021·n² − 0.07·n + 0.9)` 这样的闭式，clang 在 -O2 下会把多项式收缩成 FMA，
+    相位差 4.5e-13；而这两个值恰好骑在一个 float32 舍入边界的两侧，存成 float32 后差
+    一整个 ulp（1.5e-8），再经滤波器数千倍的相消放大成 1.5e-9，看着就像算法不一致。
+    共享输入必须共享**比特**，不能共享**公式**。
+    """
+    rng = Xoshiro256pp(seed)
+    x = np.empty(n, dtype=np.complex64)
+    for i in range(n):
+        x[i] = rng.complex_normal()
+    for f, amp, g0, g1 in tones:
+        x = (x + tone_burst(n, fs, f, amp, g0, g1)).astype(np.complex64)
+    return x
+
+
+def _m3_head_tail(y, keep: int):
+    return ([[float(v.real), float(v.imag)] for v in y[:keep]],
+            [[float(v.real), float(v.imag)] for v in y[-16:]])
+
+
+def write_channelizer(args) -> int:
+    """多相 FFT 信道化（04 §7.7、§15.2 算例 8；M-3，D-071）。
+
+    两个尺度、两份期望，刻意分开（这是 M-3 规划期核出来的一条）：
+
+      * `expected.python` 是**组件**尺度：输出按 docs/iq-format.md 存 complex64，
+        判据 1e-6 —— 引擎的 cuav::Complex 就是 float32，eps 1.2e-7，这是存储精度的下限。
+      * `kernel_check` 是**算法核**尺度：给出若干条显式窗口（double），MATLAB 与 Coder 产物
+        对同一批窗口各算一遍，判据才是 06 §9D 写的 1e-9。拿组件输出去套 1e-9 是套不上的，
+        那不是算法不准，是 float32 存不下。
+
+    窗口作为**显式数据**写进黄金文件，三方谁也不再各自算一遍公式。
+    """
+    import hashlib
+    import struct
+    import channelizer as ch_ref
+
+    fs = args.chan_fs
+    n = args.chan_samples
+    tab = ch_ref.load_table()
+
+    # 三个单音：分别落在低、中、高三个不同的子信道中心附近，且都不在同一路上
+    tones = [(args.chan_tone1, args.chan_tone_amp, 0, 0),
+             (args.chan_tone2, args.chan_tone_amp, 0, 0),
+             (args.chan_tone3, args.chan_tone_amp, args.chan_gate_start, args.chan_gate_stop)]
+    x = _m3_input(args.chan_seed, n, fs, tones)
+    raw = b"".join(struct.pack("<ff", float(v.real), float(v.imag)) for v in x)
+    in_sha = hashlib.sha256(raw).hexdigest()
+
+    with open(os.path.join(ch_ref._ROOT, ch_ref.TABLE_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+
+    # (子信道数, 界面编号)。取到带边那一路（j = 0）与零频那一路（j = M/2），两端都盖到
+    cases = [("m4_j1", 4, 1), ("m4_j2", 4, 2), ("m8_j0", 8, 0), ("m8_j5", 8, 5), ("m16_j8", 16, 8)]
+    keep = args.chan_keep
+    expected = {}
+    for cid, m, j in cases:
+        y = ch_ref.run(x, m, j, block=4096, table=tab)
+        e = tab[m]
+        gd = e["group_delay"]
+        want = (n - 1 - gd) // m + 1 if n > gd else 0
+        assert y.size == want, (cid, y.size, want)
+        head, tail = _m3_head_tail(y, keep)
+        expected[cid] = {
+            "channels": m,
+            "select_channel": j,
+            "raw_bin": ch_ref.raw_bin(j, m),
+            "sample_rate_out_Hz": fs / m,
+            "center_offset_Hz": ch_ref.center_offset_Hz(j, m, fs),
+            "group_delay_in": gd,
+            "ntaps": e["ntaps"],
+            "pad_to": e["pad_to"],
+            "n_out": int(y.size),
+            "n_out_formula": f"({n} - 1 - {gd}) // {m} + 1",
+            "tail_dropped_in": int(n - ((y.size - 1) * m + gd + 1)) if y.size else n,
+            "energy_out": float(np.sum(np.abs(y.astype(np.complex128)) ** 2)),
+            "head": head,
+            "tail": tail,
+        }
+
+    # 算法核尺度：显式窗口 + 全部 M 路的 double 输出
+    kc = []
+    for m in args.chan_kernel_channels:
+        e = tab[m]
+        P = e["pad_to"]
+        hr = [float(v) for v in e["h"][::-1]]
+        for w_idx, m_out in enumerate(args.chan_kernel_outputs):
+            p = m_out * m + e["group_delay"]
+            win = []
+            for t in range(P):
+                k = p - P + 1 + t
+                v = x[k] if 0 <= k < n else np.complex64(0)
+                win.append([float(v.real), float(v.imag)])
+            # 直接式逐路算一遍（double），不走多相
+            wv = np.array([complex(a, b) for a, b in win], dtype=np.complex128)
+            hh = e["h"]
+            out = []
+            for kbin in range(m):
+                acc = 0.0 + 0.0j
+                nn = np.arange(P, dtype=np.float64)
+                acc = np.sum(hh * wv[::-1] * np.exp(2j * math.pi * kbin * nn / m))
+                acc *= np.exp(-2j * math.pi * kbin * p / m)
+                out.append([float(acc.real), float(acc.imag)])
+            kc.append({
+                "channels": m,
+                "m_out": m_out,
+                "p_in": p,
+                "pad_to": P,
+                "taps_reversed": hr,
+                "window_forward": win,
+                "expected_bins": out,
+            })
+
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧 Channelizer 与 algos/reference/channelizer.py 的对拍基准（M-3，D-071）；"
+                   "三方互证的第二实现一方，MATLAB 一方在 channelizer.matlab.json",
+        "generator": "algos/reference/gen_engine_golden.py --mode channelizer",
+        "fir": {
+            "version": "pfb_v1",
+            "table_source": ch_ref.TABLE_REL.replace(os.sep, "/"),
+            "table_sha256": table_sha,
+        },
+        "params": {
+            "sample_rate_Hz": fs,
+            "seed": args.chan_seed,
+            "samples": n,
+            "tones_Hz": [args.chan_tone1, args.chan_tone2, args.chan_tone3],
+            "tone_amplitude": args.chan_tone_amp,
+            "gate_start": args.chan_gate_start,
+            "gate_stop": args.chan_gate_stop,
+            "keep_head": keep,
+            "recipe": "x[i] = complex_normal() + tone1 + tone2 + tone3（第三个门控），"
+                      "按此次序相加、每步 float32；tone 与引擎 ToneSource 同式",
+        },
+        "input": {
+            "sha256_f32_interleaved": in_sha,
+            "head": [[float(v.real), float(v.imag)] for v in x[:64]],
+        },
+        "expected": {"python": expected},
+        "kernel_check": kc,
+        "tolerance": {
+            "coeff_rel": 0.0,
+            "sample_rel": 1e-6,
+            "energy_rel": 1e-9,
+            "kernel_rel": 1e-9,
+            "scalar_exact": ["n_out", "group_delay_in", "ntaps", "pad_to", "raw_bin",
+                             "tail_dropped_in", "sample_rate_out_Hz"],
+            "note": "两个尺度分开：expected.python 是组件尺度，输出存 complex64，"
+                    "float32 的 eps 就是 1.2e-7，所以 sample_rel = 1e-6（存储精度的下限，"
+                    "不是放宽铁律 10）；kernel_check 是算法核尺度，double 进 double 出，"
+                    "判据才是 06 §9D 的 1e-9。拿组件输出去套 1e-9 套不上，那不是算法不准。",
+        },
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print(f"写出 {args.out}：{n} 个输入样点，{len(cases)} 个算例，{len(kc)} 条核对窗口，"
+          f"表 sha256 {table_sha[:16]}…，输入 sha256 {in_sha[:16]}…")
+    return 0
+
+
+def write_rx_filter(args) -> int:
+    """接收滤波（04 §7.5、§15.2 算例 5；M-3，D-071）。
+
+    组件尺度的输出（群时延已扣除）+ 算法核尺度的显式块（因果输出，群时延未扣）。
+    两者差的正好是封装层要扣掉的那 gd 个样点，黄金文件把两边都记下来，
+    「扣没扣」于是成为可核对的事实而不是约定。
+    """
+    import hashlib
+    import struct
+    import rx_filter as rx_ref
+
+    fs = args.rx_fs
+    n = args.rx_samples
+    tab = rx_ref.load_table()
+
+    tones = [(args.rx_tone_pass, args.rx_tone_amp, 0, 0),
+             (args.rx_tone_stop, args.rx_tone_amp, args.rx_gate_start, args.rx_gate_stop)]
+    x = _m3_input(args.rx_seed, n, fs, tones)
+    raw = b"".join(struct.pack("<ff", float(v.real), float(v.imag)) for v in x)
+    in_sha = hashlib.sha256(raw).hexdigest()
+
+    with open(os.path.join(rx_ref._ROOT, rx_ref.TABLE_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+
+    keep = args.rx_keep
+    expected = {}
+    for r in args.rx_bw_rels:
+        e = rx_ref.lookup(tab, r)
+        assert e is not None, r
+        y = rx_ref.run(x, r, block=4096, table=tab)
+        gd = e["group_delay"]
+        assert y.size == n - gd, (r, y.size, n - gd)
+        head, tail = _m3_head_tail(y, keep)
+        expected[f"bw{int(round(r * 100))}"] = {
+            "bw_rel": r,
+            "ntaps": e["ntaps"],
+            "group_delay_in": gd,
+            "n_out": int(y.size),
+            "n_out_formula": f"{n} - {gd}",
+            "energy_out": float(np.sum(np.abs(y.astype(np.complex128)) ** 2)),
+            "head": head,
+            "tail": tail,
+        }
+
+    # 算法核尺度：一整块因果输出，群时延**未**扣除；抽头零填充到表内最大抽头数
+    nmax = max(e["ntaps"] for e in tab.values())
+    kc = []
+    for r in args.rx_kernel_bw_rels:
+        e = rx_ref.lookup(tab, r)
+        L = args.rx_kernel_block
+        h_pad = [float(v) for v in e["h"]] + [0.0] * (nmax - e["ntaps"])
+        blk = x[:L].astype(np.complex128)
+        hh = np.asarray(h_pad, dtype=np.float64)
+        caus = np.convolve(blk, hh)[:L]           # zi = 0 的因果输出
+        kc.append({
+            "bw_rel": r,
+            "ntaps": e["ntaps"],
+            "ntaps_padded": nmax,
+            "group_delay_in": e["group_delay"],
+            "block": L,
+            "taps_padded": h_pad,
+            "expected_causal": [[float(v.real), float(v.imag)] for v in caus],
+            "note": "因果输出，群时延未扣；峰值在 n0 + gd。封装层丢掉最前面 gd 个，"
+                    "于是输出样点 m 对应输入样点 m（08 §8 口径二）。",
+        })
+
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧 RxFilter 与 algos/reference/rx_filter.py 的对拍基准（M-3，D-071）；"
+                   "三方互证的第二实现一方，MATLAB 一方在 rx_filter.matlab.json",
+        "generator": "algos/reference/gen_engine_golden.py --mode rx_filter",
+        "fir": {
+            "version": "rx_v1",
+            "table_source": rx_ref.TABLE_REL.replace(os.sep, "/"),
+            "table_sha256": table_sha,
+        },
+        "params": {
+            "sample_rate_Hz": fs,
+            "seed": args.rx_seed,
+            "samples": n,
+            "tone_passband_Hz": args.rx_tone_pass,
+            "tone_stopband_Hz": args.rx_tone_stop,
+            "tone_amplitude": args.rx_tone_amp,
+            "gate_start": args.rx_gate_start,
+            "gate_stop": args.rx_gate_stop,
+            "keep_head": keep,
+            "recipe": "x[i] = complex_normal() + tone(f_pass) + tone(f_stop, 门控)，"
+                      "按此次序相加、每步 float32；tone 与引擎 ToneSource 同式",
+        },
+        "input": {
+            "sha256_f32_interleaved": in_sha,
+            "head": [[float(v.real), float(v.imag)] for v in x[:64]],
+        },
+        "expected": {"python": expected},
+        "kernel_check": kc,
+        "tolerance": {
+            "coeff_rel": 0.0,
+            "sample_rel": 1e-6,
+            "energy_rel": 1e-9,
+            "kernel_rel": 1e-9,
+            "scalar_exact": ["n_out", "group_delay_in", "ntaps"],
+            "note": "同 channelizer：组件尺度 1e-6（complex64 的存储下限），算法核尺度 1e-9。",
+        },
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print(f"写出 {args.out}：{n} 个输入样点，{len(expected)} 个算例，{len(kc)} 条核对块，"
+          f"表 sha256 {table_sha[:16]}…，输入 sha256 {in_sha[:16]}…")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -518,7 +796,8 @@ def main(argv=None) -> int:
     ap.add_argument("--band-lo", type=float, default=-1e5)
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
-    ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc"), default="probe")
+    ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
+                                      "channelizer", "rx_filter"), default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -541,12 +820,44 @@ def main(argv=None) -> int:
     ap.add_argument("--ddc-gate-start", type=int, default=8192, help="ddc：阻带单音门控起点")
     ap.add_argument("--ddc-gate-stop", type=int, default=24576, help="ddc：阻带单音门控终点")
     ap.add_argument("--ddc-keep", type=int, default=1024, help="ddc：每个算例存多少个输出样点")
+    # channelizer（M-3）：单音落在 10 MS/s 下 M=8 的三个不同子信道里
+    ap.add_argument("--chan-fs", type=float, default=1e7, help="channelizer：输入采样率")
+    ap.add_argument("--chan-samples", type=int, default=32768, help="channelizer：输入样点数")
+    ap.add_argument("--chan-seed", type=int, default=20260917, help="channelizer：噪声种子")
+    ap.add_argument("--chan-tone1", type=float, default=-3.75e6, help="channelizer：单音一")
+    ap.add_argument("--chan-tone2", type=float, default=-1.25e6, help="channelizer：单音二")
+    ap.add_argument("--chan-tone3", type=float, default=1.25e6, help="channelizer：单音三（门控）")
+    ap.add_argument("--chan-tone-amp", type=float, default=0.5, help="channelizer：单音幅度")
+    ap.add_argument("--chan-gate-start", type=int, default=8192)
+    ap.add_argument("--chan-gate-stop", type=int, default=24576)
+    ap.add_argument("--chan-keep", type=int, default=1024, help="channelizer：每个算例存多少输出样点")
+    ap.add_argument("--chan-kernel-channels", type=int, nargs="+", default=[4, 8],
+                    help="channelizer：算法核尺度核对哪些子信道数")
+    ap.add_argument("--chan-kernel-outputs", type=int, nargs="+", default=[0, 137],
+                    help="channelizer：算法核尺度核对哪几个输出样点")
+    # rx_filter（M-3）
+    ap.add_argument("--rx-fs", type=float, default=1e7, help="rx_filter：输入采样率")
+    ap.add_argument("--rx-samples", type=int, default=32768, help="rx_filter：输入样点数")
+    ap.add_argument("--rx-seed", type=int, default=20260918, help="rx_filter：噪声种子")
+    ap.add_argument("--rx-tone-pass", type=float, default=1.0e6, help="rx_filter：通带单音")
+    ap.add_argument("--rx-tone-stop", type=float, default=4.7e6, help="rx_filter：阻带单音")
+    ap.add_argument("--rx-tone-amp", type=float, default=0.5)
+    ap.add_argument("--rx-gate-start", type=int, default=8192)
+    ap.add_argument("--rx-gate-stop", type=int, default=24576)
+    ap.add_argument("--rx-keep", type=int, default=1024)
+    ap.add_argument("--rx-bw-rels", type=float, nargs="+", default=[0.3, 0.5, 0.8])
+    ap.add_argument("--rx-kernel-bw-rels", type=float, nargs="+", default=[0.8])
+    ap.add_argument("--rx-kernel-block", type=int, default=1024)
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
         return write_scene_noise(args)
     if args.mode == "ddc":
         return write_ddc(args)
+    if args.mode == "channelizer":
+        return write_channelizer(args)
+    if args.mode == "rx_filter":
+        return write_rx_filter(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)
