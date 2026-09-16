@@ -2,11 +2,11 @@
 //
 // 分四组，与 test_ddc.cpp 同构：
 //   ① 系数表：编译进来的表与 models/channelizer/fir_pfb_v1.json 逐位相同；
-//   ② 黄金基准：与 algos/reference/channelizer.py 及 MATLAB 一方逐样点对拍；
+//   ② 黄金基准：与 algos/reference/channelizer.py 及 MATLAB 一方对拍（两个尺度：
+//      组件 1e-6、算法核 1e-9，理由见 channelizer.json 的 tolerance.note）；
 //   ③ 标准算例第 8 项（宽带 IQ 到信道化 IQ，04 §15.2）的解析锚点；
 //   ④ 引擎口径：块长无关、reset 复现、元数据与四态、错误路径。
 //
-// 本文件随实施分步长出来，当前是 ① 组。
 
 #include <cmath>
 #include <fstream>
@@ -16,6 +16,7 @@
 #include "cuav/components/channelizer.h"
 #include "cuav/dsp.h"
 #include "cuav/random.h"
+#include "cuav/sha256.h"
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
 
@@ -616,4 +617,112 @@ TEST_CASE("Channelizer 的错误路径：每一条都说得出缘由，不静默
         CHECK(c.process(in2, o2, err) == Step::Error);
         CHECK(err.find("不连续") != std::string::npos);
     }
+}
+
+// --- MATLAB 一方（三方互证的第三家，M-3 第 9 步）-------------------------------
+
+namespace {
+
+// 防陈旧：黄金文件里记着它生成那一刻读到的 .m 与冻结表的 sha256。改了其中任何一份却没重跑
+// MATLAB，这里当场红（铁律 10）。文件是**入库的**，所以这条守卫在没有 MATLAB 的机器上照样成立 ——
+// CI 与 scripts/build-all.sh 都不调用 MATLAB（D-036）。
+void check_matlab_guards(const nlohmann::json& m, const char* table_rel) {
+    const nlohmann::json& srcs = m.at("guards").at("source_m_sha256");
+    REQUIRE_MESSAGE(srcs.size() > 0u, "MATLAB 一方没记来源 .m 的哈希");
+    for (nlohmann::json::const_iterator it = srcs.begin(); it != srcs.end(); ++it) {
+        const std::string rel = it->at("path").get<std::string>();
+        std::string hex, err;
+        REQUIRE_MESSAGE(sha256_file(repo_path(rel), hex, err), "读不到 " << rel << "：" << err);
+        CHECK_MESSAGE(hex == it->at("sha256").get<std::string>(),
+                      rel << " 改过而 MATLAB 一方没重生成："
+                             "MATLAB_ROOT=<安装目录> sh matlab/run_matlab.sh");
+    }
+    std::string hex, err;
+    REQUIRE_MESSAGE(sha256_file(repo_path(table_rel), hex, err), err);
+    CHECK_MESSAGE(hex == m.at("guards").at("table_sha256").get<std::string>(),
+                  std::string(table_rel) << " 改过而 MATLAB 一方没重生成");
+}
+
+void run_pfb(int m, const std::vector<creal_T>& w, const std::vector<double>& hr,
+             std::vector<creal_T>& y) {
+    y.assign(static_cast<std::size_t>(m), creal_T());
+    cuav_pfb_m2_initialize();
+    switch (m) {
+        case 2:  cuav_pfb_m2(&w[0], &hr[0], &y[0]); break;
+        case 4:  cuav_pfb_m4(&w[0], &hr[0], &y[0]); break;
+        case 8:  cuav_pfb_m8(&w[0], &hr[0], &y[0]); break;
+        case 16: cuav_pfb_m16(&w[0], &hr[0], &y[0]); break;
+        default: FAIL("没有 channels = " << m << " 的内核");
+    }
+}
+
+}  // namespace
+
+TEST_CASE("MATLAB 一方：Coder 内核与 channelizer.matlab.json 一致到 1e-9（06 §9D 的验收判据）") {
+    const nlohmann::json g = load_json(
+        std::string(CUAV_SOURCE_DIR) + "/tests/golden/channelizer.json", "黄金基准缺失");
+    // 与 M-1 的 spectrum_welch.matlab.json 不同，这一份是**必需**的：P1-8 的验收判据
+    // （06 §9D「Coder 组件与 MATLAB 黄金向量 rel ≤ 1e-9」）只有它能兑现，缺了就不是三方互证。
+    const nlohmann::json m = load_json(
+        std::string(CUAV_SOURCE_DIR) + "/tests/golden/channelizer.matlab.json",
+        "MATLAB 一方的黄金向量缺失：MATLAB_ROOT=<MATLAB 安装目录> sh matlab/run_matlab.sh");
+    check_matlab_guards(m, "models/channelizer/fir_pfb_v1.json");
+
+    const double tol = m.at("tolerance").at("kernel_rel").get<double>();
+    CHECK_MESSAGE(tol <= 1e-9, "判据被放宽了：06 §9D 写的是 1e-9");
+    // MATLAB 侧在生成时已把入口对直接式、对 Python 参考各核过一遍，数值记在文件里
+    CHECK(m.at("entry_vs_direct_max_rel").get<double>() <= tol);
+    CHECK(m.at("matlab_vs_python_max_rel").get<double>() <= tol);
+
+    double worst = 0.0;
+    std::size_t n = 0;
+    for (nlohmann::json::const_iterator mb = m.at("kernel_check").begin();
+         mb != m.at("kernel_check").end(); ++mb) {
+        // 窗口与抽头只有一份，在 channelizer.json 里；MATLAB 与 Coder 都读它。
+        // 按 (M, m_out, p_in, pad_to) 认领，认不到就是两边脱节了。
+        const nlohmann::json* src = 0;
+        for (nlohmann::json::const_iterator kc = g.at("kernel_check").begin();
+             kc != g.at("kernel_check").end(); ++kc) {
+            if (kc->at("channels") == mb->at("channels") && kc->at("m_out") == mb->at("m_out") &&
+                kc->at("p_in") == mb->at("p_in") && kc->at("pad_to") == mb->at("pad_to")) {
+                src = &(*kc);
+                break;
+            }
+        }
+        const int mm = mb->at("channels").get<int>();
+        REQUIRE_MESSAGE(src != 0, "MATLAB 一方有 channelizer.json 里没有的窗口（M = "
+                                      << mm << "）：两边要一起重生成");
+
+        const std::size_t P = src->at("pad_to").get<std::size_t>();
+        const std::vector<double> hr = src->at("taps_reversed").get<std::vector<double> >();
+        REQUIRE(hr.size() == P);
+        std::vector<creal_T> w(P);
+        const nlohmann::json& wj = src->at("window_forward");
+        REQUIRE(wj.size() == P);
+        for (std::size_t i = 0; i < P; ++i) {
+            w[i].re = wj[i][0].get<double>();
+            w[i].im = wj[i][1].get<double>();
+        }
+        std::vector<creal_T> y;
+        run_pfb(mm, w, hr, y);
+
+        const nlohmann::json& exp = mb->at("expected_bins");
+        REQUIRE(exp.size() == static_cast<std::size_t>(mm));
+        double scale = 0.0, d = 0.0;
+        for (int k = 0; k < mm; ++k) {
+            const double er = exp[k][0].get<double>(), ei = exp[k][1].get<double>();
+            scale = std::max(scale, std::sqrt(er * er + ei * ei));
+            const double dr = y[k].re - er, di = y[k].im - ei;
+            d = std::max(d, std::sqrt(dr * dr + di * di));
+        }
+        CHECK_MESSAGE(d <= tol * scale, "M = " << mm << " 的窗口对 MATLAB 相对差 "
+                                               << (d / scale) << " 超过 " << tol);
+        worst = std::max(worst, d / scale);
+        ++n;
+    }
+    // 每条窗口都要有 MATLAB 一方，否则三方互证只盖到一部分
+    CHECK_MESSAGE(n == g.at("kernel_check").size(),
+                  "MATLAB 一方只盖到 " << n << " / " << g.at("kernel_check").size() << " 条窗口");
+    MESSAGE(n << " 条窗口，Coder 内核对 MATLAB 最大相对差 " << worst << "（判据 " << tol
+              << "）；MATLAB 对 Python 参考 " << m.at("matlab_vs_python_max_rel").get<double>());
 }

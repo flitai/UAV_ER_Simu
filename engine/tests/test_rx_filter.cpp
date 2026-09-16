@@ -2,11 +2,11 @@
 //
 // 分四组，与 test_ddc.cpp 同构：
 //   ① 系数表：编译进来的表与 models/receiver/fir_rx_v1.json 逐位相同；
-//   ② 黄金基准：与 algos/reference/rx_filter.py 及 MATLAB 一方逐样点对拍；
+//   ② 黄金基准：与 algos/reference/rx_filter.py 及 MATLAB 一方对拍（两个尺度：
+//      组件 1e-6、算法核 1e-9，理由见 rx_filter.json 的 tolerance.note）；
 //   ③ 标准算例第 5 项（接收滤波和群时延，04 §15.2）的解析锚点；
 //   ④ 引擎口径：块长无关、reset 复现、元数据与四态、错误路径。
 //
-// 本文件随实施分步长出来，当前是 ① 组。
 
 #include <cmath>
 #include <fstream>
@@ -16,6 +16,7 @@
 #include "cuav/components/rx_filter.h"
 #include "cuav/dsp.h"
 #include "cuav/random.h"
+#include "cuav/sha256.h"
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
 
@@ -454,4 +455,134 @@ TEST_CASE("RxFilter 的错误路径：每一条都说得出缘由，不静默顶
         CHECK(c.process(in2, o2, err) == Step::Error);
         CHECK(err.find("采样率") != std::string::npos);
     }
+}
+
+// --- 算法核尺度与 MATLAB 一方（三方互证，M-3 第 9 步）--------------------------
+
+namespace {
+
+// 与 test_channelizer.cpp 同一条守卫：黄金文件记着它生成那一刻读到的 .m 与冻结表的 sha256，
+// 改了其中任何一份却没重跑 MATLAB 就当场红（铁律 10）。文件入库，故没有 MATLAB 的机器照样守得住。
+void check_matlab_guards_rx(const nlohmann::json& m, const char* table_rel) {
+    const nlohmann::json& srcs = m.at("guards").at("source_m_sha256");
+    REQUIRE_MESSAGE(srcs.size() > 0u, "MATLAB 一方没记来源 .m 的哈希");
+    for (nlohmann::json::const_iterator it = srcs.begin(); it != srcs.end(); ++it) {
+        const std::string rel = it->at("path").get<std::string>();
+        std::string hex, err;
+        REQUIRE_MESSAGE(sha256_file(repo_path_rx(rel), hex, err), "读不到 " << rel << "：" << err);
+        CHECK_MESSAGE(hex == it->at("sha256").get<std::string>(),
+                      rel << " 改过而 MATLAB 一方没重生成："
+                             "MATLAB_ROOT=<安装目录> sh matlab/run_matlab.sh");
+    }
+    std::string hex, err;
+    REQUIRE_MESSAGE(sha256_file(repo_path_rx(table_rel), hex, err), err);
+    CHECK_MESSAGE(hex == m.at("guards").at("table_sha256").get<std::string>(),
+                  std::string(table_rel) << " 改过而 MATLAB 一方没重生成");
+}
+
+// 一条核对块：抽头与输入都是显式数据，跑一次定长接口，收因果输出与末态。
+void run_rx_kernel(const nlohmann::json& kc, std::vector<creal_T>& y, std::vector<creal_T>& zf) {
+    const std::size_t L = kc.at("block").get<std::size_t>();
+    const std::size_t N = kc.at("ntaps_padded").get<std::size_t>();
+    const std::vector<double> h = kc.at("taps_padded").get<std::vector<double> >();
+    REQUIRE(h.size() == N);
+    const nlohmann::json& xj = kc.at("input_block");
+    REQUIRE(xj.size() == L);
+    std::vector<creal_T> x(L), zi(N - 1);
+    for (std::size_t i = 0; i < L; ++i) {
+        x[i].re = xj[i][0].get<double>();
+        x[i].im = xj[i][1].get<double>();
+    }
+    for (std::size_t i = 0; i + 1 < N; ++i) { zi[i].re = 0.0; zi[i].im = 0.0; }
+    y.assign(L, creal_T());
+    zf.assign(N - 1, creal_T());
+    cuav_rx_fir_initialize();
+    cuav_rx_fir(&x[0], &h[0], &zi[0], &y[0], &zf[0]);
+}
+
+// 逐点比一组复数，返回最大绝对差与量程
+double worst_rel(const std::vector<creal_T>& y, const nlohmann::json& exp) {
+    double scale = 0.0, d = 0.0;
+    for (std::size_t i = 0; i < exp.size() && i < y.size(); ++i) {
+        const double er = exp[i][0].get<double>(), ei = exp[i][1].get<double>();
+        scale = std::max(scale, std::sqrt(er * er + ei * ei));
+        const double dr = y[i].re - er, di = y[i].im - ei;
+        d = std::max(d, std::sqrt(dr * dr + di * di));
+    }
+    return scale > 0.0 ? d / scale : d;
+}
+
+}  // namespace
+
+TEST_CASE("算法核尺度：Coder 内核对显式输入块与 Python 参考一致到 1e-9（06 §9D 的验收判据）") {
+    const nlohmann::json g = load_json_rx(
+        std::string(CUAV_SOURCE_DIR) + "/tests/golden/rx_filter.json", "黄金基准缺失");
+    const double tol = g.at("tolerance").at("kernel_rel").get<double>();
+    double worst = 0.0;
+    std::size_t n = 0;
+    for (nlohmann::json::const_iterator kc = g.at("kernel_check").begin();
+         kc != g.at("kernel_check").end(); ++kc) {
+        // 抽头与输入都是黄金文件里的**显式数据**，三方谁也不再各自跑一遍随机源
+        std::vector<creal_T> y, zf;
+        run_rx_kernel(*kc, y, zf);
+        const double r = worst_rel(y, kc->at("expected_causal"));
+        CHECK_MESSAGE(r <= tol, "bw_rel = " << kc->at("bw_rel").get<double>() << " 的相对差 "
+                                            << r << " 超过 " << tol);
+        worst = std::max(worst, r);
+        ++n;
+    }
+    CHECK(n >= 2u);
+    MESSAGE(n << " 条核对块，算法核尺度对 Python 参考最大相对差 " << worst << "（判据 " << tol << "）");
+}
+
+TEST_CASE("MATLAB 一方：Coder 内核与 rx_filter.matlab.json 一致到 1e-9（06 §9D 的验收判据）") {
+    const nlohmann::json g = load_json_rx(
+        std::string(CUAV_SOURCE_DIR) + "/tests/golden/rx_filter.json", "黄金基准缺失");
+    // 必需，不是可选：P1-8 的验收判据只有 MATLAB 一方能兑现，缺了就不是三方互证
+    const nlohmann::json m = load_json_rx(
+        std::string(CUAV_SOURCE_DIR) + "/tests/golden/rx_filter.matlab.json",
+        "MATLAB 一方的黄金向量缺失：MATLAB_ROOT=<MATLAB 安装目录> sh matlab/run_matlab.sh");
+    check_matlab_guards_rx(m, "models/receiver/fir_rx_v1.json");
+
+    const double tol = m.at("tolerance").at("kernel_rel").get<double>();
+    CHECK_MESSAGE(tol <= 1e-9, "判据被放宽了：06 §9D 写的是 1e-9");
+    CHECK(m.at("entry_vs_conv_max_rel").get<double>() <= tol);
+    CHECK(m.at("zf_vs_conv_tail_max_rel").get<double>() <= tol);
+    CHECK(m.at("matlab_vs_python_max_rel").get<double>() <= tol);
+
+    double worst = 0.0, worst_zf = 0.0;
+    std::size_t n = 0;
+    for (nlohmann::json::const_iterator mb = m.at("kernel_check").begin();
+         mb != m.at("kernel_check").end(); ++mb) {
+        const nlohmann::json* src = 0;
+        for (nlohmann::json::const_iterator kc = g.at("kernel_check").begin();
+             kc != g.at("kernel_check").end(); ++kc) {
+            if (kc->at("bw_rel") == mb->at("bw_rel") && kc->at("block") == mb->at("block") &&
+                kc->at("ntaps_padded") == mb->at("ntaps_padded")) {
+                src = &(*kc);
+                break;
+            }
+        }
+        const double bw = mb->at("bw_rel").get<double>();
+        REQUIRE_MESSAGE(src != 0, "MATLAB 一方有 rx_filter.json 里没有的核对块（bw_rel = "
+                                      << bw << "）：两边要一起重生成");
+        std::vector<creal_T> y, zf;
+        run_rx_kernel(*src, y, zf);
+
+        const double r = worst_rel(y, mb->at("expected_causal"));
+        CHECK_MESSAGE(r <= tol, "bw_rel = " << bw << " 的因果输出对 MATLAB 相对差 " << r
+                                            << " 超过 " << tol);
+        // 末态也比：分块无关性靠它，三方不一致这里会先红
+        const double rz = worst_rel(zf, mb->at("zf_tail"));
+        CHECK_MESSAGE(rz <= tol, "bw_rel = " << bw << " 的末态对 MATLAB 相对差 " << rz
+                                             << " 超过 " << tol);
+        worst = std::max(worst, r);
+        worst_zf = std::max(worst_zf, rz);
+        ++n;
+    }
+    CHECK_MESSAGE(n == g.at("kernel_check").size(),
+                  "MATLAB 一方只盖到 " << n << " / " << g.at("kernel_check").size() << " 条核对块");
+    MESSAGE(n << " 条核对块，Coder 内核对 MATLAB 因果输出 " << worst << "、末态 " << worst_zf
+              << "（判据 " << tol << "）；MATLAB 对 Python 参考 "
+              << m.at("matlab_vs_python_max_rel").get<double>());
 }

@@ -734,9 +734,12 @@ def write_rx_filter(args) -> int:
             "group_delay_in": e["group_delay"],
             "block": L,
             "taps_padded": h_pad,
+            "input_block": [[float(v.real), float(v.imag)] for v in blk],
             "expected_causal": [[float(v.real), float(v.imag)] for v in caus],
             "note": "因果输出，群时延未扣；峰值在 n0 + gd。封装层丢掉最前面 gd 个，"
-                    "于是输出样点 m 对应输入样点 m（08 §8 口径二）。",
+                    "于是输出样点 m 对应输入样点 m（08 §8 口径二）。"
+                    "输入块是**显式数据**（float32 精确可表示，JSON 往返无损），"
+                    "三方谁也不再各自跑一遍随机源 —— 共享输入必须共享比特不能共享公式。",
         })
 
     doc = {
@@ -846,7 +849,8 @@ def main(argv=None) -> int:
     ap.add_argument("--rx-gate-stop", type=int, default=24576)
     ap.add_argument("--rx-keep", type=int, default=1024)
     ap.add_argument("--rx-bw-rels", type=float, nargs="+", default=[0.3, 0.5, 0.8])
-    ap.add_argument("--rx-kernel-bw-rels", type=float, nargs="+", default=[0.8])
+    # 0.2 档抽头 57 = 表内最大值（不补零），0.8 档 55（末尾补两个零）：两条路径都盖到
+    ap.add_argument("--rx-kernel-bw-rels", type=float, nargs="+", default=[0.2, 0.8])
     ap.add_argument("--rx-kernel-block", type=int, default=1024)
     args = ap.parse_args(argv)
 
