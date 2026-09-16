@@ -144,7 +144,7 @@ function stashInactive(
  * `scenario` 用来带出场景派生的参数。两者都可以为 null，此时按已填的值尽力编译。
  */
 export function compile(chain: ChainState, cat: Catalog | null, scenario: ScenarioDoc | null): CompileResult {
-  const plan = freqPlan(chain, scenario)
+  const plan = freqPlan(chain, scenario, cat)
   const nodes: DiagramNode[] = []
   const edges: DiagramEdge[] = []
   const nodeSlot: NodeSlotMap = {}

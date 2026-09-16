@@ -25,7 +25,20 @@ export interface DetectionSegment {
   f_hi_Hz: number
 }
 
-export function segmentsOf(rows: readonly DetectionRow[], dt_s: number, stride = 1): DetectionSegment[] {
+/**
+ * 一帧时长可以是一个数，也可以逐节点给（M-2，D-070）。
+ * 多站下各站的 DDC 抽取比原则上可以不同，帧长随之不同；给一个数会让所有站按第一个站的帧长算。
+ * 联合类型是为了让既有调用点与既有单测一字不改。
+ */
+export type FrameDt = number | Readonly<Record<string, number>>
+
+function dtOf(dt: FrameDt, nodeId: string): number {
+  if (typeof dt === 'number') return dt
+  const v = dt[nodeId]
+  return typeof v === 'number' && v > 0 ? v : 0
+}
+
+export function segmentsOf(rows: readonly DetectionRow[], dt_s: FrameDt, stride = 1): DetectionSegment[] {
   const by = new Map<string, DetectionSegment>()
   for (const r of rows) {
     if (!r.hit || r.segment_id === null || r.segment_id === undefined) continue
@@ -35,14 +48,15 @@ export function segmentsOf(rows: readonly DetectionRow[], dt_s: number, stride =
     if (!prev) {
       by.set(key, {
         key, node_id: r.node_id, site_id: r.site_id ?? null, segment_id: r.segment_id,
-        t_start: r.t_s, t_end: r.t_s + dt_s, frames: stride,
+        t_start: r.t_s, t_end: r.t_s + dtOf(dt_s, r.node_id), frames: stride,
         peak_statistic: r.statistic, peak_band_power_dBm: p, peak_snr_dB: r.snr_dB,
         overload: r.overload, f_lo_Hz: r.f_lo_Hz, f_hi_Hz: r.f_hi_Hz,
       })
       continue
     }
     if (r.t_s < prev.t_start) prev.t_start = r.t_s
-    if (r.t_s + dt_s > prev.t_end) prev.t_end = r.t_s + dt_s
+    const d = dtOf(dt_s, r.node_id)
+    if (r.t_s + d > prev.t_end) prev.t_end = r.t_s + d
     prev.frames += stride
     if (r.statistic > prev.peak_statistic) prev.peak_statistic = r.statistic
     if (p !== null && (prev.peak_band_power_dBm === null || p > prev.peak_band_power_dBm)) prev.peak_band_power_dBm = p
@@ -66,4 +80,31 @@ export function frameDurationOf(rows: readonly DetectionRow[], fromIndex: number
     last.set(r.node_id, r.t_s)
   }
   return Number.isFinite(best) ? best : 0
+}
+
+/**
+ * 逐节点的一帧时长（M-2，D-070）：索引给的优先，缺项的从**该节点自己**相邻两行的最小正时差估。
+ * 退回全局最小是错的——那会把抽取比小的站的帧长安到抽取比大的站上。
+ */
+export function frameDurationByNode(rows: readonly DetectionRow[],
+                                    fromIndex: Readonly<Record<string, number>> | null):
+    Record<string, number> {
+  const out: Record<string, number> = {}
+  const best = new Map<string, number>()
+  const last = new Map<string, number>()
+  for (const r of rows) {
+    const prev = last.get(r.node_id)
+    if (prev !== undefined) {
+      const d = r.t_s - prev
+      if (d > 0 && d < (best.get(r.node_id) ?? Infinity)) best.set(r.node_id, d)
+    }
+    last.set(r.node_id, r.t_s)
+  }
+  for (const id of last.keys()) {
+    const fromIdx = fromIndex ? fromIndex[id] : undefined
+    if (typeof fromIdx === 'number' && fromIdx > 0) { out[id] = fromIdx; continue }
+    const est = best.get(id)
+    out[id] = est !== undefined && Number.isFinite(est) ? est : 0
+  }
+  return out
 }

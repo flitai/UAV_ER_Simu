@@ -218,8 +218,8 @@ export function ChainView() {
     )
   }
   const chain = parsed
-  const plan = freqPlan(chain, scenarioDoc)
-  const checks = planChecks(chain, plan, scenarioDoc)
+  const plan = freqPlan(chain, scenarioDoc, catalog)
+  const checks = planChecks(chain, plan, scenarioDoc, catalog)
   const derivable = plan.fs_rf > 0 ? undefined : ([] as readonly string[])
 
   // 引擎报错按节点 id 反查槽位（节点 id 固定，10 报告 §5.4）；

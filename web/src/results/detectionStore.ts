@@ -7,7 +7,7 @@
 import { useEffect } from 'react'
 import { getDetections, getDetectionsIndex, type DetectionRow, type DetectionsIndex } from '../api/client.js'
 import type { RunState } from '../state/types.js'
-import { frameDurationOf, segmentsOf, type DetectionSegment } from './segments.js'
+import { frameDurationByNode, frameDurationOf, segmentsOf, type DetectionSegment } from './segments.js'
 
 export type DetectionStatus = 'idle' | 'polling' | 'final' | 'none'
 
@@ -104,9 +104,15 @@ async function fetchOnce(taskId: string, final: boolean): Promise<void> {
   }
   const dtFromIndex = index ? (Object.values(index.nodes)[0]?.dt_s ?? null) : null
   const dt = frameDurationOf(r.rows, dtFromIndex)
+  // 逐节点帧长（M-2，D-070）：各站的 DDC 抽取比可以不同，突发时长必须按各自的帧长算。
+  // dt_s 这个标量留着给页头显示用（写的是焦点站那一档）。
+  const byNode = index
+    ? Object.fromEntries(Object.entries(index.nodes).map(([k, v]) => [k, v.dt_s]))
+    : null
+  const dtByNode = frameDurationByNode(r.rows, byNode)
   detectionStore.patch({
     rows: r.rows, stride: r.stride, dt_s: dt, index,
-    segments: segmentsOf(r.rows, dt, r.stride),
+    segments: segmentsOf(r.rows, dtByNode, r.stride),
     status: final ? 'final' : 'polling', error: null, fetches: detectionStore.get().fetches + 1,
   })
 }

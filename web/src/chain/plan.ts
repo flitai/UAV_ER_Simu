@@ -10,7 +10,8 @@
 
 import type { ScenarioDoc } from '../state/types.js'
 import { emitterCenters, emitters, sites, type Obj } from '../scene/editor/scenarioOps.js'
-import type { ChainState } from './model.js'
+import { slotState, type ChainState } from './model.js'
+import type { Catalog } from '../api/catalog.js'
 import { propConflict, propView } from './effects.js'
 
 export interface FreqPlan {
@@ -98,7 +99,8 @@ function worstOffset(doc: ScenarioDoc | null, emitterId: string, fTx: number, fR
  * 从链路状态与场景算出频率计划。场景缺失（回放模式）时用槽位里已填的值，
  * 算不出的项留 0 并由检查项报出来，不拿默认值顶替（铁律 15）。
  */
-export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null): FreqPlan {
+export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null,
+                        cat: Catalog | null = null): FreqPlan {
   // 回放模式不看场景：数据自带采样率与中心频率，场景与它无关（防线二、三）。
   // 采样率此时只能由用户在检测段给出频段，或等 U-4 的数据中心把它带出来。
   const doc = chain.mode === 'replay' ? null : scenario
@@ -119,14 +121,17 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null): FreqP
   // 跳频只影响「最坏频偏」这一个派生量
   const worst = worstOffset(doc, String(emitter?.id ?? ''), f_tx, f_rx)
 
-  const ddcOn = !chain.slots.ddc.bypass
+  // 判据与 compile.ts 的 active() 同源：只看 bypass 会在「组件不在目录里」与「回放模式下不适用」
+  // 这两种情形下算出一个根本不存在的 fs_s4，而 compile 又拿它派生检测器频段（±0.45·fs_s4）。
+  // cat 为 null 时 slotState 本来就跳过可用性那一支，行为与只看 bypass 完全一致。
+  const ddcOn = slotState(chain, 'ddc', cat) === 'active'
   const decim = ddcOn ? Math.max(1, Math.round(num(chain.slots.ddc.params.decim, 1))) : 1
   // 缺省把目标搬到 S4 零频附近；用户可改成任意值以演示「目标不在观测中心」
   const f_shift = ddcOn
     ? (chain.slots.ddc.params.f_shift_Hz !== undefined ? num(chain.slots.ddc.params.f_shift_Hz) : f_tx - f_rx)
     : 0
   const fs_s4 = decim > 0 ? fs_rf / decim : 0
-  const chanOn = !chain.slots.chan.bypass
+  const chanOn = slotState(chain, 'chan', cat) === 'active'
   const channels = chanOn ? Math.max(1, Math.round(num(chain.slots.chan.params.channels, 8))) : 1
 
   return {
@@ -156,7 +161,10 @@ function fmt(hz: number): string {
  * 04 §9.3 的六项检查。回放模式下前四项不适用（数据自带采样率与中心频率），
  * 此时只保留标度一致性那一项。
  */
-export function planChecks(chain: ChainState, plan: FreqPlan, scenario: ScenarioDoc | null = null): PlanCheck[] {
+export function planChecks(chain: ChainState, plan: FreqPlan, scenario: ScenarioDoc | null = null,
+                          cat: Catalog | null = null): PlanCheck[] {
+  // 与 freqPlan 同一判据：旁路、未实现、回放不适用三种情形都算「没参与计算」
+  const ddcActive = slotState(chain, 'ddc', cat) === 'active'
   const out: PlanCheck[] = []
   const replay = chain.mode === 'replay'
 
@@ -185,8 +193,8 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
       id: 'decim',
       label: '抽取比例合法',
       ok: decimOk,
-      detail: chain.slots.ddc.bypass
-        ? 'DDC 旁路，S4 与宽带同采样率'
+      detail: !ddcActive
+        ? 'DDC 未参与计算，S4 与宽带同采样率'
         : `抽取 ${plan.decim} 倍后 S4 = ${fmt(plan.fs_s4)}${decimOk ? '' : '；采样率须能被抽取比整除'}`,
     })
 
@@ -197,9 +205,9 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
     out.push({
       id: 'transition',
       label: '滤波器过渡带足够',
-      ok: chain.slots.ddc.bypass || (plan.fs_s4 > 0 && inband <= 0.4 * plan.fs_s4),
-      detail: chain.slots.ddc.bypass
-        ? 'DDC 旁路，不涉及抗混叠滤波'
+      ok: !ddcActive || (plan.fs_s4 > 0 && inband <= 0.4 * plan.fs_s4),
+      detail: !ddcActive
+        ? 'DDC 未参与计算，不涉及抗混叠滤波'
         : `目标落在 S4 的 ±${fmt(inband)}，通带边缘 ${fmt(0.4 * plan.fs_s4)}`,
     })
   }

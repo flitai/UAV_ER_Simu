@@ -212,6 +212,33 @@ test('必填检查：派生参数与恒定参数不算「待填」', () => {
   assert.deepEqual(missingParams(bad, 'rx_fe', cat), ['nf_dB'])
 })
 
+test('频率计划的 DDC 判据与 compile 同源：不在目录 / 旁路 / 回放都算没参与（M-2，D-070）', () => {
+  // 这条以前是红的：freqPlan 只看 bypass，于是「组件不在目录里但用户填过 decim」时会算出一个
+  // 根本不存在的 fs_s4，而 compile 又拿它派生检测器频段（±0.45·fs_s4），频段被凭空收窄。
+  const withDecim = (base: ChainState): ChainState =>
+    ({ ...base, slots: { ...base.slots, ddc: { ...base.slots.ddc, bypass: false, params: { decim: 4 } } } })
+
+  const noDdc: Catalog = { ...cat, components: cat.components.filter((x) => x.type !== 'DDC') }
+  const a = freqPlan(withDecim(synthetic()), scenario, noDdc)
+  assert.equal(a.decim, 1, '组件不在目录里就不该算抽取')
+  assert.equal(a.fs_s4, a.fs_rf)
+
+  const b = freqPlan(synthetic(), scenario, cat)
+  assert.equal(b.decim, 1, '缺省旁路时抽取比为 1')
+
+  const c3 = freqPlan(withDecim(synthetic()), scenario, cat)
+  assert.equal(c3.decim, 4, '目录里有且没旁路时才真的抽取')
+  assert.equal(c3.fs_s4, c3.fs_rf / 4)
+
+  // 回放模式下 DDC 不适用（replayNotApplicable），即使 bypass 为 false 也不该算
+  const rp: ChainState = { ...emptyChain('replay'), slots: { ...emptyChain('replay').slots } }
+  const rp2 = { ...rp, slots: { ...rp.slots, ddc: { ...rp.slots.ddc, bypass: false, params: { decim: 8 } } } }
+  assert.equal(freqPlan(rp2, null, cat).decim, 1, '回放模式下 DDC 不适用')
+
+  // cat 省略时退回老行为，不影响既有调用点
+  assert.equal(freqPlan(withDecim(synthetic()), scenario).decim, 4)
+})
+
 test('频率计划：demo-01 的派生量与六项检查', () => {
   const c = synthetic()
   const p = freqPlan(c, scenario)
