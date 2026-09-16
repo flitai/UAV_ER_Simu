@@ -5,8 +5,13 @@
 从它生成，Python 参考 `algos/reference/ddc.py` 也读它。三方共享的只有这一份**数据**，
 算法各写各的（三方互证的前提）。
 
-设计口径（10 报告 §3.6）：对抽取比 D，通带边 0.4·fs_out、阻带边 0.5·fs_out，
-归一化到输入采样率就是通带 [0, 0.2/D]、阻带 [0.25/D, 0.5]（周/样点）；
+设计口径（10 报告 §3.6）：对抽取比 D，通带边 0.4·fs_out、阻带边 0.5·fs_out。
+换算成周/样点（scipy.signal.remez 在 fs=1.0 下的口径，量程 0…0.5）：
+    fp = 0.4·fs_out/fs_in = 0.4/D，    fst = 0.5·fs_out/fs_in = 0.5/D
+阻带边取 0.5/D 不是别的值，因为抽取 D 倍后混叠恰好发生在 |f| > fs_out/2 处；
+通带边留在 0.4·fs_out，于是过渡带宽 0.1·fs_out。
+**别把「归一化到奈奎斯特」和「周/样点」混起来**——差一个 2，滤波器会窄一半，
+把本该保留的半个输出带白白滤掉（第一版就是这么错的，靠看 S4 的谱才发现）。
 阻带 >= 60 dB；**抽头数取奇数**，使群时延 (N-1)/2 恰为整数个输入样点（08 报告 §8 口径二，
 首期不引入分数延迟器）。D = 1 是 h = [1.0]、群时延 0 的同一条代码路径，不设特例分支。
 
@@ -67,8 +72,8 @@ def _measure(h: np.ndarray, decim: int) -> tuple[float, float]:
     """返回 (阻带最大增益 dB 的相反数, 通带峰峰纹波 dB)。"""
     if decim == 1:
         return (float("inf"), 0.0)
-    fp = PASSBAND_EDGE_REL_OUT / (2.0 * decim)   # 周/样点
-    fst = STOPBAND_EDGE_REL_OUT / (2.0 * decim)
+    fp = PASSBAND_EDGE_REL_OUT / decim          # 周/样点：0.4·fs_out / fs_in
+    fst = STOPBAND_EDGE_REL_OUT / decim        # 周/样点：0.5·fs_out / fs_in
     wst = np.linspace(2.0 * math.pi * fst, math.pi, 8192)
     _, hst = freqz(h, 1.0, worN=wst)
     atten = -20.0 * math.log10(float(np.max(np.abs(hst))))
@@ -91,8 +96,8 @@ def design(decim: int) -> dict:
             "half": [1.0],
         }
 
-    fp = PASSBAND_EDGE_REL_OUT / (2.0 * decim)
-    fst = STOPBAND_EDGE_REL_OUT / (2.0 * decim)
+    fp = PASSBAND_EDGE_REL_OUT / decim
+    fst = STOPBAND_EDGE_REL_OUT / decim
     # Kaiser 估阶作起点（Harris 经验式），再向上找最小的达标奇数
     trans = fst - fp
     n0 = int(math.ceil(STOPBAND_ATTEN_MIN_DB / (22.0 * trans)))

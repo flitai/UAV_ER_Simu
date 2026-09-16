@@ -141,6 +141,12 @@ add_test(NAME cuav_run_run_slice4_evaluate_scene
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
+# M-2（D-070）：宽带链启用 DDC —— 10 MS/s 选出 2438.5 MHz 的图传、抽取 2 倍到 5 MS/s
+add_test(NAME cuav_run_validate_demo02_ddc
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-demo-02-ddc.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
+          --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
+          --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
