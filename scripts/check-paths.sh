@@ -20,7 +20,9 @@ set -eu
 cd "$(dirname "$0")/.."
 
 PATTERN='/Users/|/home/[a-z]|[A-Za-z]:\\Users\\'
-FILES='*.py *.ts *.tsx *.js *.mjs *.sh *.json *.toml *.cmake *.cpp *.h *.hpp *.txt *.bat'
+# *.c 与 *.m 自 M-3（D-071）起也在名单里：Coder 产物是 C、参考模型是 .m，
+# 生成的代码里若混进 MATLAB 安装目录的绝对路径，不查就发现不了（rtwtypes.h 那个坑正是这一类）。
+FILES='*.py *.ts *.tsx *.js *.mjs *.sh *.json *.toml *.cmake *.c *.cpp *.h *.hpp *.m *.txt *.bat'
 
 # shellcheck disable=SC2086
 # 排除本脚本自身：它的注释与判据里必然出现被查的字样。

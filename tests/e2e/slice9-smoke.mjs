@@ -62,11 +62,14 @@ try {
   check('demo-02 是单站两源的宽带场景', st.app.chain.siteIds.length === 1 && st.app.chain.emitterIds.length === 2,
     `站 ${JSON.stringify(st.app.chain.siteIds)} 源 ${JSON.stringify(st.app.chain.emitterIds)}`)
 
-  const plan = await evalJson(page, `({
-    checks: Array.from(document.querySelectorAll('[data-check]')).map(e => [e.dataset.check, e.dataset.checkOk]),
-  })`)
-  const bad = plan.checks.filter(([, ok]) => ok === 'false').map(([id]) => id)
-  check('频率计划全项通过（10 MS/s、2 MHz 图传 + 跳频遥控都装得进 ±4.5 MHz）', bad.length === 0, `不通过：${bad.join(',') || '无'}`)
+  // DOM 写的是 data-ok="1|0"（ChainView.tsx:496），不是 data-check-ok="true|false"：
+  // 原先读 `dataset.checkOk` 恒为 undefined、再比 `=== 'false'` 恒不成立，这条断言从来不可能失败。
+  // slice4 与 slice6 都写对了，slice9 是唯一的例外（M-3 顺带修，D-071）。
+  const plan = await evalJson(page,
+    "Array.from(document.querySelectorAll('[data-check]')).map(e => [e.dataset.check, e.dataset.ok])")
+  const bad = plan.filter(([, ok]) => ok !== '1').map(([id]) => id)
+  check('频率计划全项通过（10 MS/s、2 MHz 图传 + 跳频遥控都装得进 ±4.5 MHz）',
+    plan.length > 0 && bad.length === 0, `共 ${plan.length} 项，不通过：${bad.join(',') || '无'}`)
 
   await page.evaluate(setInput('[data-form=chain-setup] [data-field=duration_s]', '6'))
   await sleep(400)
