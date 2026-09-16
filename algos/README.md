@@ -11,7 +11,10 @@
 | 文件 | 作用 |
 |---|---|
 | `energy_detector.py` | 能量检测器参考实现与检测概率解析式；引擎 C++ 版须复现且不共用代码 |
-| `gen_engine_golden.py` | 复刻引擎随机源，生成 `engine/tests/golden/energy_detector.json`（`--mode probe`）、`energy_detector_sliding.json`（`--mode sliding`，C-3）、`features.json`（`--mode features`，C-4） |
+| `gen_engine_golden.py` | 复刻引擎随机源，生成 `engine/tests/golden/` 下的七份基准：`energy_detector.json`（`--mode probe`）、`energy_detector_sliding.json`（`sliding`，C-3）、`features.json`（`features`，C-4）、`scene_noise_bandlimit.json`（`scene_noise`，C-8）、`ddc.json`（`ddc`，M-2）、`channelizer.json` 与 `rx_filter.json`（`channelizer` / `rx_filter`，M-3）。**改这个脚本时既有 mode 的输出必须逐字节不变**，提交前 `git diff --exit-code` 守着 |
+| `ddc.py` | 数字下变频的独立第二实现（M-2，D-070）：NCO 相位**以圈计不以弧度计**、FIR 点积按抽头**升序**累加 —— 这两条契约换来与引擎 float32 输出逐位相同。`--selftest` 跑物理自检 |
+| `channelizer.py` | 多相 FFT 信道化的独立第二实现（M-3，D-071）。**有意写成直接式**（逐路乘 `exp(+j2πkn/M)` 再求和），不走多相也不走 FFT —— 第二实现要独立才有意义。`--selftest` 六项物理自检（中心增益 / 常数相位 / 邻道抑制 / 群时延 / 块长无关 / 功率和） |
+| `rx_filter.py` | 接收滤波的独立第二实现（M-3，D-071）：自带历史缓冲的卷积，按 `bw_rel` 以 1e-9 相对容差查冻结表，群时延照扣。`--selftest` 同法 |
 | `features.py`、`classify.py` | 突发特征提取与模板匹配识别的参考实现（C-4，D-066）；`classify.py --write-golden` 生成 `engine/tests/golden/recognition.json` |
 | `evaluate.py` | 真值与评价的参考实现（C-5，D-067）：`evaluate.py <run_dir>` 从 `detections / recognitions / truth` 三个 JSONL 独立重算并与 `metrics.json` 逐节逐值对拍；`--write-golden` 生成 `engine/tests/golden/metrics.json`。**只用标准库、显式循环累加** |
 | `ds6_sliding_check.py` | DS-6 分半标定在滑动噪声估计下的复跑（C-3，D-063：失配在干扰尾部，记为发现） |

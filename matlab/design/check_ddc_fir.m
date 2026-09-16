@@ -3,8 +3,8 @@ function check_ddc_fir(tablePath)
 %
 %   这是**校验**，不是生产：冻结表由 scripts/design_ddc_fir.py（scipy.signal.remez，BSD）
 %   设计并入库，本脚本只回答「换一家 Parks-McClellan 实现，结果对不对得上」。
-%   之所以不让 MATLAB 当主设计：开发机的 MATLAB 是学术许可，其产物带
-%   「不得用于政府 / 商业 / 组织用途」的条款，交付路径上不该有它（D-070 修订 D-036）。
+%   之所以不让 MATLAB 当主设计：为了让这张表**在没有 MATLAB 的机器上也能复算**，
+%   与许可无关（D-070 改写后的定论；Coder 路线有效，首个使用者是 M-3）。
 %   缺 MATLAB 不影响构建与验收 —— scripts/build-all.sh 不调用本脚本。
 %
 %   两家都是等波纹设计，抽头数相同时系数应当吻合到 1e-9 量级；真正的验收判据是

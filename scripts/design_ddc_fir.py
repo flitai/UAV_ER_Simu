@@ -18,10 +18,11 @@
 只存半表（含中心抽头），装载时镜像展开：remez 返回的系数**不保证逐位对称**，
 存全表会让三方的群时延在 1e-17 级上对不齐；镜像后对称性逐位成立。
 
-为什么用 scipy 而不是 MATLAB：开发机的 MATLAB 是学术许可，其产物带
-「不得用于政府 / 商业 / 组织用途」的条款；scipy 是 BSD，且只是开发期工具，
-不进运行时也不进交付包（铁律 6 只要求运行不联网、依赖随包）。
-MATLAB 的 firpm 留作独立校验，见 matlab/design/check_ddc_fir.m。
+为什么主设计用 scipy 而不是 MATLAB：为了让这张表**在没有 MATLAB 的机器上也能复算**
+（scipy 是 BSD，且只是开发期工具，不进运行时也不进交付包）。这一条与许可无关 ——
+Coder 路线自 D-070 改写后有效，首个使用者是 M-3。
+MATLAB 的 firpm 留作独立校验，两家等波纹实现互为佐证，实测吻合 1.5e-14，
+见 matlab/design/check_ddc_fir.m。
 
 用法：
     uv run --quiet --with scipy --with numpy python scripts/design_ddc_fir.py            # 只校验

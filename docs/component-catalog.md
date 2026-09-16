@@ -140,10 +140,33 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 的实例上调用，那时端口还不知道，所以目录里只有 `dynamic_ports` 的声明；`Graph::connect` 在
 `configure()` 之后调用，那时 `outputs()` 已按场景的辐射源给出具体端口。画布据此生成端口列表。
 
+### 6.1 `implementation` 与 `source_ref` 的填法（M-3，2026-09-16，D-071）
+
+`implementation` 只有两个取值：`cpp`（手写）与 `coder`（MATLAB Coder 产物）。
+取 `coder` 时 `source_ref` **必填**，`validate_catalog_entry()` 在目录导出时校验，缺失即拒绝
+（`engine/src/catalog.cpp:65-69`）。08 报告 §13 第 4 条要求它带齐四样：
+来源 `.m` 的路径、MATLAB 版本、Coder 版本、codegen 参数哈希。实际取值（`Channelizer`）：
+
+```
+matlab/ref/{cuav_pfb_cycle.m, cuav_pfb_m16.m, cuav_pfb_m2.m, cuav_pfb_m32.m, cuav_pfb_m4.m,
+cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1.0.2973910
+(R2025a) Update 1｜Coder 25.1 (R2025a)｜codegen 参数 sha256 c7f76b71131a0094｜models/channelizer/coder/
+```
+
+三条口径：
+
+1. **六个入口只列文件名、不逐个列哈希** —— 逐个列会让这一行长到没法看；防篡改由**来源集哈希**
+   兜住（任何一份 `.m` 变了它就变，与文件个数、顺序无关）。
+2. **哈希在 Python 侧算**（`scripts/gen_coder_provenance.py`），编进 `engine/src/coder_provenance.cpp`。
+   引擎**不在 `describe()` 时读文件** —— 组件不该依赖部署目录布局，同 `ddc_taps.cpp` 不在运行时读 JSON。
+   `codegen 参数 sha256` 是「配置 + 每个入口的参数形状」规范化后的哈希，与生成时间、机器、目录无关。
+3. **产物文件自身的 sha256 也编进来**，`engine/tests/test_coder_provenance.cpp` 重算一遍比对
+   （25 + 11 个文件）：「手改了生成物」与「改了 `.m` 忘了重生成」都会当场红（铁律 10）。
+
 ## 7. 待写
 
 - [x] 首版目录黄金基准 `tests/golden/component-catalog.json`（2026-09-05，`cuav_run --catalog` 生成，21763 字节）
-- [ ] Coder 产物组件的 `source_ref` 填写示例 —— **改由 M-3 提供**（D-070 ②）：`DDC` 最终是手写件（`implementation = cpp`、`source_ref` 空），首个 Coder 产物是 M-3 的信道化与接收滤波。`implementation = "coder"` 时 `source_ref` 必填的规则（`catalog.cpp:65-69`）一直有效
+- [x] Coder 产物组件的 `source_ref` 填写示例（M-3，2026-09-16，D-071）—— 见 §6.1。`DDC` 是手写件（`implementation = cpp`、`source_ref` 空）；首个 Coder 产物是 `Channelizer` 与 `RxFilter`，`catalog.cpp:65-69` 那道从 B-1 起就在等的闸这才第一次被真正用上
 - [ ] `AddMixer` 的类别现标 `source`，它其实是两路 IQ 相加的处理件；改动要记决策（08 报告 §15 ⑤）
 - [x] D-053 的接口部分（L-1，2026-09-09）：端口类型 `BearingReport` / `ToaReport` / `PositionReport`（`port_types` 7 → 10、`port_compat` 49 → 100，既有 49 行逐字未变，仍是纯对角）；`SceneBoundChannel` 加内部参数 `site_id`（多站绑定，单站可省略即取唯一站，旧行为不变）；`IComponent::check_wiring()` 与错误码 `port_optional` 启用。黄金基准据此更新一次，差异逐项见 11 报告 §7.3
 - [x] D-051 的接口部分（C-1，2026-09-07）：端口类型 `RecognitionList`（`port_types` 6 → 7、`port_compat` 36 → 49，既有 36 行逐字未变）；`PortSpec.optional`（为假时不输出，既有条目字节不变）。黄金基准 `tests/golden/component-catalog.json` 据此更新一次，WORKLOG 有记录
@@ -152,7 +175,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 - [x] D-051 的特征提取与模板识别（C-4，2026-09-13）：新增 `FeatureExtractor` / `TemplateClassifier`，组件 19 → 21；黄金基准据此更新一次，差异经脚本逐项核对只有这两条新增，端口表与既有组件的 `ports` / `params` 逐字未变
 - [x] D-051 的评价器（C-5，2026-09-14）：新增 `Evaluator`，组件 21 → 22；黄金基准据此更新一次，差异经脚本逐项核对只有这一条新增，端口表与既有组件的 `ports` / `params` 逐字未变
 - [x] D-051 的 `DDC`（M-2，2026-09-16，D-070）：新增 `DDC`（receiver 类，参数 `f_shift_Hz` / `decim` / `fir_version`），组件 22 → 23；黄金基准据此更新一次，差异经脚本逐项核对**只有这一条新增**，`port_types` / `port_compat` 与既有组件的 `ports` / `params` 逐字未变
-- [ ] D-051 的其余组件（C-10）：`Channelizer`
+- [x] D-051 的信道化与接收滤波（M-3，2026-09-16，D-071）：新增 `Channelizer` 与 `RxFilter`（均 receiver 类，`implementation = coder`），组件 23 → 25；黄金基准据此更新一次，差异是**纯插入**（109 行新增、零删除），`port_types` / `port_compat` / `engine_version` 与既有 23 条逐条未变
 - [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
 
 ## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）

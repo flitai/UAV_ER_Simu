@@ -586,3 +586,75 @@ TEST_CASE("MATLAB 一方：Coder 内核与 rx_filter.matlab.json 一致到 1e-9�
               << "（判据 " << tol << "）；MATLAB 对 Python 参考 "
               << m.at("matlab_vs_python_max_rel").get<double>());
 }
+
+TEST_CASE("标准算例第 5 项：接收滤波和群时延的解析锚点（04 §15.2）") {
+    const double fs = 1.0e7;
+    const double bw_rel = 0.5;            // 通带边 bw_rel/2 = 0.25·fs = 2.5 MHz，过渡带 0.05·fs
+    const double bw_Hz = bw_rel * fs;
+    const std::size_t n = 40000;
+    const double two_pi = 2.0 * 3.14159265358979323846;
+    std::string err;
+
+    // 单音幅度 1，稳态段取平均模值即增益
+    struct Tone { double f; };
+    const double pass[] = {0.0, 0.5e6, 1.5e6, 2.2e6, -1.0e6, -2.4e6};
+    const double stop[] = {3.0e6, 3.6e6, 4.4e6, -3.2e6, -4.8e6};
+
+    SUBCASE("通带增益在纹波之内，阻带抑制不低于设计线 60 dB") {
+        double worst_pass = 0.0, worst_stop = 1e9;
+        for (std::size_t k = 0; k < sizeof(pass) / sizeof(pass[0]) + sizeof(stop) / sizeof(stop[0]); ++k) {
+            const bool in_pass = k < sizeof(pass) / sizeof(pass[0]);
+            const double f = in_pass ? pass[k] : stop[k - sizeof(pass) / sizeof(pass[0])];
+            std::vector<Complex> x(n);
+            const double w = two_pi * f / fs;
+            for (std::size_t i = 0; i < n; ++i) {
+                const double ph = w * static_cast<double>(i);
+                x[i] = Complex(static_cast<float>(std::cos(ph)), static_cast<float>(std::sin(ph)));
+            }
+            RxFilter c;
+            REQUIRE_MESSAGE(make_rx(c, bw_Hz, err), err);
+            std::vector<Complex> y;
+            REQUIRE_MESSAGE(drive_rx(c, x, fs, 4096, y, err), err);
+            // 掐掉两端的启动与收尾瞬态：滤波器只有 ntaps 个抽头，几十个样点就稳了
+            double s = 0.0;
+            std::size_t cnt = 0;
+            for (std::size_t i = 500; i + 500 < y.size(); ++i) { s += std::abs(y[i]); ++cnt; }
+            const double g_dB = 20.0 * std::log10(std::max(s / static_cast<double>(cnt), 1e-30));
+            if (in_pass) {
+                CHECK_MESSAGE(std::fabs(g_dB) < 0.2, "通带 " << f << " Hz 的增益 " << g_dB << " dB");
+                worst_pass = std::max(worst_pass, std::fabs(g_dB));
+            } else {
+                CHECK_MESSAGE(-g_dB >= 60.0, "阻带 " << f << " Hz 只压了 " << (-g_dB) << " dB");
+                worst_stop = std::min(worst_stop, -g_dB);
+            }
+        }
+        MESSAGE("bw_rel = 0.5：通带最大偏差 " << worst_pass << " dB，阻带最差抑制 " << worst_stop << " dB");
+    }
+
+    SUBCASE("群时延已扣除：输入 n0 处的冲激，输出峰值就在 n0，偏差 0 样点") {
+        // 表里七档的群时延不全相同（0.2 档 28，其余 27），逐档验：扣的是它自己声明的那个数
+        for (std::size_t i = 0; i < dsp::rx_fir_v1_count(); ++i) {
+            const dsp::RxFirTable& t = dsp::rx_fir_v1_at(i);
+            RxFilter c;
+            REQUIRE_MESSAGE(make_rx(c, t.bw_rel * fs, err), err);
+            const std::size_t n0 = 777;
+            std::vector<Complex> x(4000, Complex(0.0f, 0.0f));
+            x[n0] = Complex(1.0f, 0.0f);
+            std::vector<Complex> y;
+            REQUIRE_MESSAGE(drive_rx(c, x, fs, 512, y, err), err);
+            // 查表要等第一块（`bw_rel = bw_Hz / fs_in`，采样率在块元数据里），所以 configure 之后
+            // 群时延还是 0；跑过一块才是表里那个数。这条顺序本身也是要守的口径。
+            CHECK(c.group_delay() == t.group_delay);
+            std::size_t peak = 0;
+            double best = -1.0;
+            for (std::size_t k = 0; k < y.size(); ++k) {
+                const double v = std::abs(y[k]);
+                if (v > best) { best = v; peak = k; }
+            }
+            CHECK_MESSAGE(peak == n0, "bw_rel = " << t.bw_rel << " 的冲激峰值在 " << peak
+                                                  << "，应当就在 " << n0);
+            // 输出条数 = 输入条数 − 群时延：收尾不补零（补出来的输出是用没采到的数据算的）
+            CHECK(y.size() == x.size() - static_cast<std::size_t>(t.group_delay));
+        }
+    }
+}
