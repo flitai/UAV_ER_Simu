@@ -98,3 +98,47 @@ TEST_CASE("接收滤波表：容差只吃表示误差，不做「取最近一档
     CHECK(std::string(dsp::rx_fir_v1_sha256()).size() == 64u);
     CHECK(t0.bw_rel > 0.0);
 }
+
+// --- Coder 算法核的可调用性与群时延锚点（M-3 第 4 步）-------------------------
+extern "C" {
+#include "cuav_rx_fir.h"
+#include "cuav_rx_fir_initialize.h"
+}
+
+TEST_CASE("Coder 内核可从 C++ 调用：冲激响应峰值恰在声明的群时延处（标准算例第 5 项的锚）") {
+    const dsp::RxFirTable* t = dsp::rx_fir_v1(0.8);
+    REQUIRE(t != 0);
+    std::vector<double> h;
+    dsp::rx_fir_expand(*t, h);
+
+    // 各档抽头数不同，内核的接口是定长的最大值：末尾补零。给 FIR 补零不改变 H(ω)，
+    // 群时延仍是真实抽头数决定的 (ntaps-1)/2。
+    const std::size_t NMAX = 57;
+    REQUIRE(h.size() <= NMAX);
+    std::vector<double> hp(NMAX, 0.0);
+    for (std::size_t i = 0; i < h.size(); ++i) hp[i] = h[i];
+
+    cuav_rx_fir_initialize();
+    std::vector<creal_T> x(1024), y(1024), zi(NMAX - 1), zf(NMAX - 1);
+    for (std::size_t i = 0; i < zi.size(); ++i) { zi[i].re = 0.0; zi[i].im = 0.0; }
+    for (std::size_t i = 0; i < x.size(); ++i) { x[i].re = 0.0; x[i].im = 0.0; }
+    const std::size_t n0 = 100;
+    x[n0].re = 1.0;                       // 单位冲激
+
+    cuav_rx_fir(&x[0], &hp[0], &zi[0], &y[0], &zf[0]);
+
+    std::size_t peak = 0;
+    double best = -1.0;
+    for (std::size_t i = 0; i < y.size(); ++i) {
+        const double m = std::fabs(y[i].re);
+        if (m > best) { best = m; peak = i; }
+    }
+    // 因果输出的峰值在 n0 + gd；封装层扣掉 gd 之后输出样点 m 才对应输入样点 m（08 §8 口径二）
+    CHECK_MESSAGE(peak == n0 + static_cast<std::size_t>(t->group_delay),
+                  "冲激峰值在 " << peak << "，应在 " << (n0 + t->group_delay)
+                                << "（= n0 + 群时延）");
+    // 峰值就是中心抽头，逐位相符
+    CHECK(std::fabs(best - h[static_cast<std::size_t>(t->group_delay)]) < 1e-15);
+    MESSAGE("bw_rel = 0.8：抽头 " << t->ntaps << "，群时延 " << t->group_delay
+                                  << " 个输入样点，冲激峰值偏差 0 样点");
+}

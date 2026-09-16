@@ -114,3 +114,60 @@ TEST_CASE("多相原型表：查不到的子信道数返回空指针，不静默
     }
     CHECK(std::string(dsp::pfb_fir_v1_sha256()).size() == 64u);
 }
+
+// --- Coder 算法核的可调用性与解析锚点（M-3 第 4 步）---------------------------
+//
+// 生成的 .h 自带 extern "C" 守卫，C++ 这边直接 include 即可，不用自己包一层。
+extern "C" {
+#include "cuav_pfb_m8.h"
+#include "cuav_pfb_m2_initialize.h"
+}
+
+TEST_CASE("Coder 内核可从 C++ 调用：子信道中心的单音增益恰为 1，邻道泄漏等于原型阻带") {
+    const int M = 8;
+    const dsp::PfbTable* t = dsp::pfb_fir_v1(M);
+    REQUIRE(t != 0);
+    const std::size_t P = static_cast<std::size_t>(t->pad_to);
+    REQUIRE(P == 232u);   // 与生成的 C 的定长接口一致：改了表要重跑 codegen
+
+    std::vector<double> h;
+    dsp::pfb_fir_expand(*t, h);
+    // 内核吃**正序**窗口与**反转后**的抽头（封装层算一次、反复用）
+    std::vector<double> hr(P);
+    for (std::size_t i = 0; i < P; ++i) hr[i] = h[P - 1 - i];
+
+    cuav_pfb_m2_initialize();   // 六个入口共用一个库初始化，名字跟着首个入口走
+
+    const double two_pi = 6.28318530717958647692;
+    for (int k = 0; k < M; ++k) {
+        // 锚在输入样点 n0 = m·M + gd；gd 是 M 的整数倍，故该处单音相位恰为零，y[k] 应是实的 1
+        const long n0 = 40L * M + t->group_delay;
+        std::vector<creal_T> w(P);
+        for (std::size_t j = 0; j < P; ++j) {
+            const long n = n0 - static_cast<long>(P) + 1 + static_cast<long>(j);
+            const double th = two_pi * static_cast<double>(k) * static_cast<double>(n)
+                              / static_cast<double>(M);
+            w[j].re = std::cos(th);
+            w[j].im = std::sin(th);
+        }
+        creal_T y[8];
+        cuav_pfb_m8(&w[0], &hr[0], y);
+
+        const double mag = std::sqrt(y[k].re * y[k].re + y[k].im * y[k].im);
+        CHECK_MESSAGE(std::fabs(mag - 1.0) < 1e-9,
+                      "k = " << k << " 的中心单音增益 " << mag << "，应为 1（sum(h) = 1 的直接后果）");
+        // 常数相位恒为 1 的直接可观测后果：输出是实的，虚部在舍入量级
+        CHECK(std::fabs(y[k].im) < 1e-9);
+
+        double worst = 0.0;
+        for (int j = 0; j < M; ++j) {
+            if (j == k) continue;
+            const double m2 = std::sqrt(y[j].re * y[j].re + y[j].im * y[j].im);
+            if (m2 > worst) worst = m2;
+        }
+        const double leak_dB = 20.0 * std::log10(worst);
+        CHECK_MESSAGE(leak_dB <= -60.0,
+                      "k = " << k << " 的邻道泄漏 " << leak_dB << " dB，应不高于 -60");
+        if (k == 0) MESSAGE("M = 8：中心增益 " << mag << "，最坏邻道泄漏 " << leak_dB << " dB");
+    }
+}

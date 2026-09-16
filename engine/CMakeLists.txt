@@ -11,8 +11,13 @@
 # 保留原文件头（CLAUDE.md 铁律 13）。
 
 cmake_minimum_required(VERSION 3.16)
-project(cuav_engine LANGUAGES CXX)
+project(cuav_engine LANGUAGES C CXX)
 
+# C 语言是 M-3 引入的：MATLAB Coder 的产物是 C99（08 报告 §13 规定 TargetLang = 'C'）。
+# 它们编进独立的静态库 cuav_coder，与手写代码分开——生成物里的告警不可行动，
+# 不该跟着引擎吃 -Wall -Wextra / W4。
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -26,6 +31,26 @@ endif()
 if(NOT TARGET cuav_geo)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../geo ${CMAKE_CURRENT_BINARY_DIR}/geo)
 endif()
+
+# --- MATLAB Coder 产物（M-3，D-071）------------------------------------------
+#
+# 三层分工见 08 报告 §13：matlab/ref/*.m 是算法核的来源，这里编的是 Coder 生成的 C，
+# 封装层（参数校验、样点序号换算与群时延扣除、状态持有、溯源、四态传播）是
+# engine/src/{channelizer,rx_filter}.cpp，手写。
+#
+# 产物在树外（models/<环节>/coder/），路径从 CMAKE_CURRENT_SOURCE_DIR 推导（铁律 17）。
+# 两个目录各有一份 rtwtypes.h，内容逐字节相同（同一套硬件配置），各自自足；
+# 每个 .c 用 #include "..." 找同目录那一份，所以同名不成问题。
+set(CUAV_CODER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../models)
+file(GLOB CUAV_CODER_SRC
+  ${CUAV_CODER_ROOT}/channelizer/coder/*.c
+  ${CUAV_CODER_ROOT}/receiver/coder/*.c)
+add_library(cuav_coder STATIC ${CUAV_CODER_SRC})
+target_include_directories(cuav_coder PUBLIC
+  ${CUAV_CODER_ROOT}/channelizer/coder
+  ${CUAV_CODER_ROOT}/receiver/coder)
+# 刻意不给它 -Wall -Wextra / /W4：生成代码的告警改不得也不该改。
+# 真正要守的是「产物没被人动过」，那由 engine/tests/test_coder_provenance.cpp 的 sha256 兜住。
 
 add_library(cuav_engine STATIC
   src/types.cpp
@@ -60,7 +85,7 @@ target_include_directories(cuav_engine PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
-target_link_libraries(cuav_engine PUBLIC cuav_geo)
+target_link_libraries(cuav_engine PUBLIC cuav_geo cuav_coder)
 
 if(MSVC)
   target_compile_options(cuav_engine PRIVATE /W4)
