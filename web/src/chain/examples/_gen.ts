@@ -3,6 +3,7 @@
 //   npx tsx src/chain/examples/_gen.ts            > src/chain/examples/default.ts   （缺省链路；写成 TS 常量）
 //   npx tsx src/chain/examples/_gen.ts demo-02    > ../tests/regression/diagrams/chain-demo-02.json
 //   npx tsx src/chain/examples/_gen.ts demo-02-ddc > ../tests/regression/diagrams/chain-demo-02-ddc.json
+//   npx tsx src/chain/examples/_gen.ts demo-02-chan > ../tests/regression/diagrams/chain-demo-02-chan.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-aoa    > ../tests/regression/diagrams/chain-3x3-aoa.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-tdoa   > ../tests/regression/diagrams/chain-3x3-tdoa.json
 // 夹具模式读现有夹具文件、parseChain 解回链路状态、按当前目录与槽位表重新 compile：参数一件不丢，
@@ -92,6 +93,38 @@ if (mode === 'default') {
   c.taps.s3 = true
   c.taps.s4 = true
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'demo-02-chan') {
+  // 同一条宽带链，但**启用信道化**（M-3，D-071）：10 MS/s 切成 4 条 2.5 MHz 的子信道，
+  // 取零频那一路（select_channel = channels/2），于是 S5 是 2.5 MS/s @ 2441 MHz。
+  //
+  // 为什么取零频那一路而不是图传所在的那一路：
+  //   · 图传（2437.5–2439.5 MHz）整个落进相邻子信道被压掉，五个跳频点里有三个
+  //     （2440.6875 / 2440.375 / 2441.625 MHz）落在本路 ±1.0 MHz 的通带内、留 375 kHz 余量；
+  //     于是 S5 的瀑布上 0.5–2.5 s（只有图传）是底噪、3–4.5 s（只有跳频）是突发串 ——
+  //     演示的是「把两个辐射源分开」，比「选出一段频率」能讲的更多。
+  //   · 选图传那一路（select_channel = 1）通带边 ±1.0 MHz **恰好等于**图传半带宽，
+  //     零余量，正是 M-2 给 DDC 定 decim 时拒绝过的那种配置。那一档写在模型卡里当已知边界。
+  //   · 另两个跳频点（2442.25 / 2443.4375 MHz）落在阻带，临界抽取下混叠成 62 dB 以下的鬼影。
+  // 带外的两跳按 D-067 ④ 记 truth_out_of_band、不进评价的分母；检测器频段随 fs_s5 自动收窄。
+  const { doc: scenario, sha } = loadScenario('demo-02')
+  const c: ChainState = emptyChain('synthetic', 'chain-demo-02-chan')
+  c.name = '典型链路 · 全合成 · demo-02 宽带 · 信道化启用'
+  c.scenario = { scenario_id: 'demo-02', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1', 'uav-2']
+  c.run = { duration_s: 6, seed: 20260915 }
+  c.slots.rx_fe.params = { gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.chan.bypass = false
+  c.slots.chan.params = { channels: 4, select_channel: 2 }
+  c.slots.det.params = { nfft: 1024 }
+  // 取 S3 与 S5 两个观测点。**不取 S4**：DDC 旁路时 S4 的锚点顺链下滑到信道化那一节，
+  // 与 S5 是同一个节点同一个口，读数会一模一样（D-051 记过的那种「读数相同是真实后果」）。
+  // S3 = 10 MS/s 的宽带、S5 = 2.5 MS/s 的子信道，两份谱摆在一起才看得出信道化做了什么。
+  c.taps.s3 = true
+  c.taps.s4 = false
+  c.taps.s5 = true
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === '3x3-aoa' || mode === '3x3-tdoa') {
   const { doc: scenario } = loadScenario('demo-03')
   const file = join(ROOT, `tests/regression/diagrams/chain-${mode}.json`)
@@ -101,5 +134,5 @@ if (mode === 'default') {
   if (!chain) throw new Error('夹具解不成典型链路：先查槽位表与 parseChain')
   process.stdout.write(serialize(compile(chain, cat, scenario).doc, cat))
 } else {
-  throw new Error(`未知模式 ${mode}：default | demo-02 | demo-02-ddc | 3x3-aoa | 3x3-tdoa`)
+  throw new Error(`未知模式 ${mode}：default | demo-02 | demo-02-ddc | demo-02-chan | 3x3-aoa | 3x3-tdoa`)
 }

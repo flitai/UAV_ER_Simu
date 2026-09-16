@@ -180,6 +180,12 @@ add_test(NAME cuav_run_validate_demo02_ddc
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
+# M-3（D-071）：同一条宽带链启用信道化 —— 10 MS/s 切成 4 条 2.5 MHz 子信道、取零频那一路
+add_test(NAME cuav_run_validate_demo02_chan
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-demo-02-chan.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
+          --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
+          --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
