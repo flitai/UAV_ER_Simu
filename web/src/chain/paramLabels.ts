@@ -38,8 +38,11 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   iq_gain_imbalance_dB: 'IQ 幅度不平衡', iq_phase_imbalance_deg: 'IQ 相位不平衡', dc_offset_mW: '直流',
   noise_mode: '噪声估计', bits: '量化位数', full_scale_dBm: '满量程', rounding: '取整',
   degrade_clip_ratio: '削顶降级比例',
-  // DDC（M-2，D-070）
-  f_shift_Hz: '频移', decim: '抽取比', fir_version: '抗混叠抽头',
+  // DDC（M-2，D-070）、接收滤波与信道化（M-3，D-071）
+  // fir_version 三件组件共用（这张表按参数名索引），所以标签取中性的「抽头版本」，
+  // 不写 DDC 专属的「抗混叠」——信道化的原型与接收滤波的低通都不是抗混叠用的。
+  f_shift_Hz: '频移', decim: '抽取比', fir_version: '抽头版本',
+  bw_Hz: '通带带宽', channels: '子信道数', select_channel: '输出子信道',
   // 频谱、观测点
   nfft: '帧长 nfft', window: '窗函数', overlap: '重叠', segments_per_frame: '平均段数',
   op_id: '观测点', spectrum: '写功率谱', envelope: '写包络', bucket_samples: '包络桶长',

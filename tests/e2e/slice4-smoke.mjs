@@ -85,16 +85,18 @@ try {
     cards.join(' → '))
 
   const states = await evalJson(page, "Object.fromEntries(Array.from(document.querySelectorAll('[data-slot]')).map(e => [e.dataset.slot, e.dataset.slotState]))")
-  // DDC 自 M-2（D-070）起在目录里，缺省旁路；信道化还没实现（待 M-3）
-  check('DDC 缺省旁路、信道化仍未实现，两张卡片都不标「未实现」（2026-09-13；M-2，D-070）',
-    states.ddc === 'bypass' && states.chan === 'unavailable', JSON.stringify(states))
+  // DDC 自 M-2（D-070）起、信道化自 M-3（D-071）起都在目录里，两个都缺省旁路
+  check('DDC 与信道化都缺省旁路（M-2，D-070；M-3，D-071）',
+    states.ddc === 'bypass' && states.chan === 'bypass', JSON.stringify(states))
   const ddcBadge = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-badge]')?.textContent ?? ''")
   check('DDC 卡片右上角标「旁路」', ddcBadge === '旁路', JSON.stringify(ddcBadge))
   const chanBadge = await page.evaluate("document.querySelector('[data-slot=chan] [data-slot-badge]')?.textContent ?? ''")
-  check('未实现的信道化卡片右上角仍不标任何字（用户 2026-09-13）', chanBadge === '', JSON.stringify(chanBadge))
-  // DDC 可用之后旁路勾选框才出现——这是本期在界面上看到它工作的入口
+  check('信道化卡片右上角也标「旁路」（M-3 起它进了目录）', chanBadge === '旁路', JSON.stringify(chanBadge))
+  // 可用之后旁路勾选框才出现——这是在界面上看到这两件工作的入口
   const ddcBypassBox = await page.evaluate("document.querySelector('[data-slot-bypass=ddc]') ? 'yes' : 'no'")
   check('DDC 卡片给出旁路勾选框，取消勾选即启用（M-2）', ddcBypassBox === 'yes', ddcBypassBox)
+  const chanBypassBox = await page.evaluate("document.querySelector('[data-slot-bypass=chan]') ? 'yes' : 'no'")
+  check('信道化卡片给出旁路勾选框，取消勾选即启用（M-3）', chanBypassBox === 'yes', chanBypassBox)
   // 两个新槽位都缺省旁路：测向在单站演示里没有增量，多站定位至少要两个站（D-053 §2.4）
   check('测向与多站定位缺省都旁路，单站的缺省链因此逐字节不变（D-053）',
     states.df === 'bypass' && states.loc === 'bypass', `df ${states.df} / loc ${states.loc}`)
@@ -120,6 +122,10 @@ try {
     evalDerived === 'truth_source,data_id,nfft' && /评价/.test(evalPanel), `eval ${evalDerived} / ${evalPanel}`)
   const note = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-note]')?.textContent ?? ''")
   check('旁路的环节写明信号从哪里取，且不出现 MATLAB 字样', /旁路/.test(note) && !/MATLAB/.test(note), note.slice(0, 40))
+  // 界面上不出现 MATLAB（D-036）：信道化是首条 Coder 链路，卡片上照样一个字不提
+  const chanCard = await page.evaluate("document.querySelector('[data-slot=chan]')?.textContent ?? ''")
+  check('信道化卡片不出现 MATLAB / Coder 字样（D-036）',
+    !/MATLAB/i.test(chanCard) && !/Coder/i.test(chanCard) && /信道化/.test(chanCard), chanCard.slice(0, 60))
 
   // 观测点一行写全名，不是只写 S0…S5 让人去悬停（2026-09-08 用户反馈）
   const tapLabels = await evalJson(page, "Array.from(document.querySelectorAll('.tap-row [data-tap]')).map((e) => e.textContent.trim())")

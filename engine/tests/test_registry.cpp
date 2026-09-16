@@ -31,6 +31,8 @@ Num required_sample(const std::string& type) {
     if (type == "AntennaGain") return {{"gain_dBi", 3.0}};
     if (type == "AdcQuantizer") return {{"full_scale_dBm", -20.0}};
     if (type == "ReceiverFrontEnd") return {{"nf_dB", 6.0}};
+    // RxFilter 的通带按 bw_Hz / 输入采样率查表，本身没有缺省——采样率要到第一块才知道（M-3，D-071）
+    if (type == "RxFilter") return {{"bw_Hz", 8.0e6}};
     return {};
 }
 
@@ -42,16 +44,17 @@ Txt required_text_sample(const std::string& type) {
 
 }  // namespace
 
-TEST_CASE("内置注册表列出二十三个组件，按名排序") {
+TEST_CASE("内置注册表列出二十五个组件，按名排序") {
     Registry r = builtin_registry();
     // 切片 ② 新增四个场景运行时组件（G-2、G-3）、切片 ④a 新增三个天线与接收机组件（C-2）、
     // 切片 ⑥a 新增多路叠加（L-2）、⑥b 新增单站测向、多站定位与到达时间估计（L-3 至 L-5，D-053）、
-    // 切片 ④b 新增特征提取（C-4）与真值评价（C-5）、切片 ④c 新增数字下变频（M-2，D-070）：
+    // 切片 ④b 新增特征提取（C-4）与真值评价（C-5）、切片 ④c 新增数字下变频（M-2，D-070）
+    // 与接收滤波、多相 FFT 信道化（M-3，D-071，首条 Coder 链路）：
     // 目录黄金基准的规则是「已有条目不变，新增允许」。
-    const std::vector<std::string> want = {"AdcQuantizer", "AddMixer", "AntennaGain", "DDC", "DetectionSink",
+    const std::vector<std::string> want = {"AdcQuantizer", "AddMixer", "AntennaGain", "Channelizer", "DDC", "DetectionSink",
                                            "DirectionFinder", "EnergyDetector", "Evaluator", "FeatureExtractor", "FileReplaySource",
                                            "FreeSpaceChannel", "MultiSiteLocator", "NoiseSource",
-                                           "ObservationTap", "ReceiverFrontEnd", "ScenarioSource", "SceneBoundChannel",
+                                           "ObservationTap", "ReceiverFrontEnd", "RxFilter", "ScenarioSource", "SceneBoundChannel",
                                            "SceneEmitterSource", "SpectrumAnalyzer", "Superposition",
                                            "TemplateClassifier", "ToaEstimator", "ToneSource"};
     CHECK(r.types() == want);
@@ -187,7 +190,7 @@ TEST_CASE("目录导出：六类、端口兼容矩阵全枚举、D-013 规则、
     }
     CHECK(ok_count == 10);   // 纯对角：只有同类型可连
 
-    CHECK(j["components"].size() == 23);
+    CHECK(j["components"].size() == 25);
     const std::set<std::string> types = {"number", "string", "enum", "bool"};
     const std::set<std::string> cats = {"source", "channel", "antenna", "receiver", "data", "algorithm"};
     std::string prev;

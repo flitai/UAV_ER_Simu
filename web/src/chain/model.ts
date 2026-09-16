@@ -471,9 +471,10 @@ export function writeParam(
  */
 // 只写事实（本期旁路、信号从哪里取），不写工具链与步骤号：界面上不出现 MATLAB（D-036），
 // 也不向用户解释「还没做」（D-039 ②，用户 2026-09-13 要求去掉「未实现」标记）。
-export const UNAVAILABLE_REASON: Readonly<Record<string, string>> = {
-  Channelizer: '本期旁路',
-}
+//
+// 表眼下是空的：`Channelizer` 自 M-3（D-071）起进了组件目录，那一条随之删掉，不留死条目
+// （同 D-057 的处置）。留着表本身是因为兜底那一支还在用，且下一个未实现的组件上来时有地方写。
+export const UNAVAILABLE_REASON: Readonly<Record<string, string>> = {}
 
 /** 某个组件不在目录里时该说什么。 */
 export function unavailableReason(type: string): string {

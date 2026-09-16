@@ -318,6 +318,66 @@
     },
     {
       "category": "receiver",
+      "description": "多相 FFT 信道化（04 §7.7）：把宽带 IQ 切成 channels 条等宽子信道，临界抽取，**本期只输出其中一路**（select_channel）。**本组件改变采样率**：输出 fs = 输入 fs / channels，中心频率 = 输入中心 + (select_channel − channels/2)·fs_out。时间锚按 08 报告 §8 口径一与口径二：原型滤波器的群时延在这一层扣除，输出样点 m 对应输入样点 m·channels，首样点序号自 0 起且严格连续。原型是等波纹设计的冻结系数表（通带 0.4·fs_out、阻带 0.5·fs_out ≥ 60 dB，抽头数 M·T+1 且 T 取偶数，使群时延为 M 的整数倍）。临界抽取的固有后果：相邻子信道的过渡带折进本路外侧 20%，可用子带是 ±0.4·fs_out。",
+      "display_name": "多相信道化",
+      "implementation": "coder",
+      "model_id": "EM-B-11",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "constraint": "取值须在冻结原型表内（2 / 4 / 8 / 16 / 32 / 64），且输入采样率须能被它整除（08 报告 §8 口径一）",
+          "default": 8.0,
+          "description": "子信道数；输出采样率 = 输入采样率 / 本值",
+          "min": 2.0,
+          "name": "channels",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": 4.0,
+          "description": "输出哪一路：相对输入中心从低到高编号，channels/2 那一路是零频。缺省 4 对应缺省的 channels = 8，即零频那一路；改了 channels 要一并改它",
+          "min": 0.0,
+          "name": "select_channel",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "pfb_v1",
+          "description": "多相原型滤波器的版本：通带 0.4·fs_out、阻带 0.5·fs_out ≥ 60 dB",
+          "enum": [
+            "pfb_v1"
+          ],
+          "name": "fir_version",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "source_ref": "matlab/ref/{cuav_pfb_cycle.m, cuav_pfb_m16.m, cuav_pfb_m2.m, cuav_pfb_m32.m, cuav_pfb_m4.m, cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1.0.2973910 (R2025a) Update 1｜Coder 25.1 (R2025a)｜codegen 参数 sha256 c7f76b71131a0094｜models/channelizer/coder/",
+      "stateful": true,
+      "type": "Channelizer",
+      "version": "0.1.0"
+    },
+    {
+      "category": "receiver",
       "description": "数字下变频（04 §7.7）：数控振荡产生复本振、复混频把目标频段搬到零频附近、抗混叠低通保留目标带宽、按整数比抽取，并更新中心频率、采样率与时间元数据。**本组件改变采样率**，输出 fs = 输入 fs / decim、中心频率 = 输入中心 + f_shift_Hz。时间锚按 08 报告 §8 口径一与口径二：滤波器群时延在这一层扣除，输出样点 m 对应输入样点 m·decim，首样点序号自 0 起且严格连续。抗混叠低通是等波纹设计的冻结系数表（通带 0.4·fs_out、阻带 0.5·fs_out ≥ 60 dB、奇数抽头使群时延为整数样点），decim 的取值必须在表内。",
       "display_name": "数字下变频",
       "implementation": "cpp",
@@ -1674,6 +1734,55 @@
       "scene_bindable": false,
       "stateful": true,
       "type": "ReceiverFrontEnd",
+      "version": "0.1.0"
+    },
+    {
+      "category": "receiver",
+      "description": "接收机的模拟预选 / 中频滤波等效（04 §7.5、附录 A「滤波」）：线性相位 FIR，只做幅频响应与群时延，**不抽取**——输出采样率与中心频率都与输入相同。群时延 (N−1)/2 个输入样点在本层扣除（08 报告 §8 口径二），于是输出样点 m 对应输入样点 m，首样点序号自 0 起且严格连续；收尾不补零，末尾少 (N−1)/2 个输出样点。本组件排在接收机前端**之前**：前端注入的等效热噪声因此不被它整形，S2 的底噪仍是 −174 + nf + 10·log10(fs)。通带按 bw_Hz / 输入采样率查冻结抽头表，采样率要到第一块才知道，故该检查在运行时执行。",
+      "display_name": "接收滤波",
+      "implementation": "coder",
+      "model_id": "EM-B-11",
+      "model_layer": "M3",
+      "model_level": "E2",
+      "params": [
+        {
+          "constraint": "bw_Hz / 输入采样率须落在冻结抽头表内（0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 / 0.8）；采样率要到第一块才知道，故在运行时校验并列出该采样率下可取的值",
+          "description": "接收滤波的通带宽度（复基带双边占用）。缺省由场景站点的 receiver.bw_Hz 带出",
+          "name": "bw_Hz",
+          "required": true,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": "rx_v1",
+          "description": "接收滤波的抽头版本：过渡带 0.05·fs、阻带 ≥ 60 dB、奇数抽头",
+          "enum": [
+            "rx_v1"
+          ],
+          "name": "fir_version",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        }
+      ],
+      "ports": {
+        "in": [
+          {
+            "name": "in",
+            "type": "IQStream"
+          }
+        ],
+        "out": [
+          {
+            "name": "out",
+            "type": "IQStream"
+          }
+        ]
+      },
+      "scene_bindable": false,
+      "source_ref": "matlab/ref/{cuav_rx_fir.m}｜来源集 sha256 74fdd8ada73e105e｜MATLAB 25.1.0.2973910 (R2025a) Update 1｜Coder 25.1 (R2025a)｜codegen 参数 sha256 b2655fcaa2341c7c｜models/receiver/coder/",
+      "stateful": true,
+      "type": "RxFilter",
       "version": "0.1.0"
     },
     {

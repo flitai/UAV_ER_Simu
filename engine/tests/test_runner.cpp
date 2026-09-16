@@ -176,7 +176,7 @@ TEST_CASE("cuav_run --catalog：输出与 catalog_json() 逐字节相同，且�
     CHECK(r.out == catalog_json(builtin_registry()).dump(2) + "\n");
     json j = json::parse(r.out);
     CHECK(j["schema_version"] == "cuav-catalog/1");
-    CHECK(j["components"].size() == 23);
+    CHECK(j["components"].size() == 25);
 }
 
 TEST_CASE("cuav_run --validate：合法框图一条 validate 事件；非法框图一条 error 事件并退出 2") {

@@ -185,14 +185,19 @@ test('模式切换：保留已填参数，只改变体与不适用状态；混�
   assert.equal(slotState(rp, 'det', cat), 'active')
 })
 
-test('槽位状态：未实现的组件标 unavailable，可旁路的标 bypass', () => {
+test('槽位状态：不在目录里的组件标 unavailable，可旁路的标 bypass', () => {
   const c = synthetic()
-  // DDC 已经进目录（M-2，D-070），缺省旁路；信道化还没有（待 M-3）
+  // DDC（M-2，D-070）与信道化（M-3，D-071）都已进目录，两个槽位都缺省旁路
   assert.equal(slotState(c, 'ddc', cat), 'bypass')
-  assert.equal(slotState(c, 'chan', cat), 'unavailable')
-  // 取消勾选旁路就活了——这是本期看到 DDC 工作的入口
+  assert.equal(slotState(c, 'chan', cat), 'bypass')
+  // 取消勾选旁路就活了——这是看到 DDC 与信道化工作的入口
   const on = { ...c, slots: { ...c.slots, ddc: { ...c.slots.ddc, bypass: false } } }
   assert.equal(slotState(on, 'ddc', cat), 'active')
+  const onChan = { ...c, slots: { ...c.slots, chan: { ...c.slots.chan, bypass: false } } }
+  assert.equal(slotState(onChan, 'chan', cat), 'active')
+  // 目录里真没有的组件才是 unavailable——把信道化从目录里拿掉当场就能看出来
+  const catNoChan = { ...cat, components: cat.components.filter((x) => x.type !== 'Channelizer') }
+  assert.equal(slotState(onChan, 'chan', catNoChan), 'unavailable')
   // 已实现且没旁路的是 active
   for (const id of ['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det'] as const) {
     assert.equal(slotState(c, id, cat), 'active', id)
