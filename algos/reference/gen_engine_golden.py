@@ -401,6 +401,112 @@ def write_scene_noise(args) -> int:
     return 0
 
 
+def write_ddc(args) -> int:
+    """DDC：数控振荡混频 + 抗混叠低通 + 抽取（04 §7.7；M-2，D-070）。
+
+    输入不入二进制夹具，由种子按配方复现，两侧各存一份 sha256 对账（同 probe / sliding 的做法）。
+    配方三项按固定次序相加，float32 逐步舍入，与引擎侧的 Complex(float) 加法逐位一致：
+        噪声（xoshiro256++ complex_normal）+ 通带单音 + 门控的阻带单音
+    """
+    import hashlib
+    import struct
+    import ddc as ddc_ref
+
+    fs = args.ddc_fs
+    n = args.ddc_samples
+
+    rng = Xoshiro256pp(args.ddc_seed)
+    noise = np.empty(n, dtype=np.complex64)
+    for i in range(n):
+        noise[i] = rng.complex_normal()
+    t_pass = tone_burst(n, fs, args.ddc_tone_pass, args.ddc_tone_amp, 0, 0)
+    t_stop = tone_burst(n, fs, args.ddc_tone_stop, args.ddc_tone_amp,
+                        args.ddc_gate_start, args.ddc_gate_stop)
+    x = (noise + t_pass + t_stop).astype(np.complex64)
+
+    raw = b"".join(struct.pack("<ff", float(v.real), float(v.imag)) for v in x)
+    in_sha = hashlib.sha256(raw).hexdigest()
+
+    with open(os.path.join(ddc_ref._ROOT, ddc_ref.TABLE_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+    tab = ddc_ref.load_table()
+
+    cases = [("d1", 1, args.ddc_shift), ("d2", 2, args.ddc_shift),
+             ("d4", 4, args.ddc_shift), ("d20", 20, 0.0)]
+    keep = args.ddc_keep
+    expected = {}
+    for cid, d, shift in cases:
+        y = ddc_ref.run(x, d, shift, fs, block=4096, table=tab)
+        gd = tab[d]["group_delay"]
+        want = (n - 1 - gd) // d + 1 if n > gd else 0
+        assert y.size == want, (cid, y.size, want)
+        energy = float(np.sum(np.abs(y.astype(np.complex128)) ** 2))
+        expected[cid] = {
+            "decim": d,
+            "f_shift_Hz": shift,
+            "sample_rate_out_Hz": fs / d,
+            "group_delay_in": gd,
+            "ntaps": tab[d]["ntaps"],
+            "n_out": int(y.size),
+            "n_out_formula": f"({n} - 1 - {gd}) // {d} + 1",
+            "tail_dropped_in": int(n - ((y.size - 1) * d + gd + 1)) if y.size else n,
+            "energy_out": energy,
+            "head": [[float(v.real), float(v.imag)] for v in y[:keep]],
+            "tail": [[float(v.real), float(v.imag)] for v in y[-16:]],
+        }
+
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧 DDC 与 algos/reference/ddc.py 的对拍基准（M-2，D-070）；"
+                   "三方互证的第二实现一方，MATLAB 一方在 ddc.matlab.json（可选）",
+        "generator": "algos/reference/gen_engine_golden.py --mode ddc",
+        "fir": {
+            "version": "lp_v1",
+            "table_source": ddc_ref.TABLE_REL.replace(os.sep, "/"),
+            "table_sha256": table_sha,
+            "entries": {str(d): {"ntaps": tab[d]["ntaps"],
+                                 "group_delay_in": tab[d]["group_delay"],
+                                 "half": [float(v) for v in tab[d]["h"][: (tab[d]["ntaps"] + 1) // 2]]}
+                        for _, d, _ in cases},
+        },
+        "params": {
+            "sample_rate_Hz": fs,
+            "seed": args.ddc_seed,
+            "samples": n,
+            "tone_passband_Hz": args.ddc_tone_pass,
+            "tone_stopband_Hz": args.ddc_tone_stop,
+            "tone_amplitude": args.ddc_tone_amp,
+            "gate_start": args.ddc_gate_start,
+            "gate_stop": args.ddc_gate_stop,
+            "keep_head": keep,
+            "recipe": "x[i] = complex_normal() + tone(f_pass) + tone(f_stop, 门控 [gate_start, gate_stop))，"
+                      "三项按此次序相加、每步 float32；tone 与引擎 ToneSource 同式（相位按绝对样点号闭式算）",
+        },
+        "input": {
+            "sha256_f32_interleaved": in_sha,
+            "head": [[float(v.real), float(v.imag)] for v in x[:64]],
+        },
+        "expected": {"python": expected},
+        "tolerance": {
+            "coeff_rel": 0.0,
+            "sample_rel": 1e-6,
+            "energy_rel": 1e-9,
+            "scalar_exact": ["n_out", "group_delay_in", "ntaps", "tail_dropped_in",
+                             "sample_rate_out_Hz"],
+            "note": "系数是同一份冻结表，必须逐位相同（coeff_rel = 0）。逐样点放到 1e-6："
+                    "两侧都是 float64 同算法同序，唯一的分歧是 cos/sin 的末位（各家 libm 不是正确舍入），"
+                    "而输出按 docs/iq-format.md 存成 complex64，float32 的 eps 就是 1.2e-7——"
+                    "这是存储精度的下限，不是放宽铁律 10。",
+        },
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print(f"写出 {args.out}：{n} 个输入样点，{len(cases)} 个算例，"
+          f"表 sha256 {table_sha[:16]}…，输入 sha256 {in_sha[:16]}…")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -412,7 +518,7 @@ def main(argv=None) -> int:
     ap.add_argument("--band-lo", type=float, default=-1e5)
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
-    ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise"), default="probe")
+    ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc"), default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -425,10 +531,22 @@ def main(argv=None) -> int:
     ap.add_argument("--sn-offset", type=float, default=1e5, help="scene_noise：基带频偏 Hz")
     ap.add_argument("--sn-seed", type=int, default=20260915, help="scene_noise：私有子流种子")
     ap.add_argument("--sn-samples", type=int, default=4096, help="scene_noise：存多少个样点")
+    ap.add_argument("--ddc-fs", type=float, default=1e7, help="ddc：输入采样率")
+    ap.add_argument("--ddc-samples", type=int, default=32768, help="ddc：输入样点数")
+    ap.add_argument("--ddc-seed", type=int, default=20260916, help="ddc：噪声种子")
+    ap.add_argument("--ddc-shift", type=float, default=-2.5e6, help="ddc：频移 Hz")
+    ap.add_argument("--ddc-tone-pass", type=float, default=-2.3e6, help="ddc：通带单音（绝对基带频率）")
+    ap.add_argument("--ddc-tone-stop", type=float, default=1.7e6, help="ddc：阻带单音（绝对基带频率）")
+    ap.add_argument("--ddc-tone-amp", type=float, default=0.5, help="ddc：两个单音的幅度")
+    ap.add_argument("--ddc-gate-start", type=int, default=8192, help="ddc：阻带单音门控起点")
+    ap.add_argument("--ddc-gate-stop", type=int, default=24576, help="ddc：阻带单音门控终点")
+    ap.add_argument("--ddc-keep", type=int, default=1024, help="ddc：每个算例存多少个输出样点")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
         return write_scene_noise(args)
+    if args.mode == "ddc":
+        return write_ddc(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)
