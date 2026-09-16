@@ -115,17 +115,22 @@ Step DDC::process(PortMap& in, PortMap& out, std::string& err) {
             err = "DDC 收到的块没有采样率";
             return Step::Error;
         }
-        const double q = fs_in_ / static_cast<double>(decim_);
-        if (std::fabs(q * static_cast<double>(decim_) - fs_in_) > 1e-9 * fs_in_) {
-            // 08 §8 口径一：除不尽时报错，不四舍五入一个「差不多」的输出采样率
+        // 08 §8 口径一：除不尽时报错，不四舍五入一个「差不多」的输出采样率。
+        // 判据与前端 web/src/chain/plan.ts 的 decim 检查同式（那边是 fs_rf % decim），
+        // 两侧口径写在一处，避免前端放行、引擎拒绝。
+        if (std::fabs(std::fmod(fs_in_, static_cast<double>(decim_))) > 1e-9) {
             err = "输入采样率 " + num(fs_in_) + " Hz 不能被抽取比 " + num(decim_) + " 整除";
             return Step::Error;
         }
-        fs_out_ = q;
-        // 铁律 4 在引擎侧可判定的那一半：搬移后的窄带窗口必须整块落在输入奈奎斯特窗内，
+        fs_out_ = fs_in_ / static_cast<double>(decim_);
+        // 铁律 4 在引擎侧可判定的那一半：抽取时保留的窄带窗口必须整块落在输入奈奎斯特窗内，
         // 否则输出带是从输入带边缘折回来的镜像。另一半（|Δf| + B/2 + 保护带 < Fs/2、过渡带）
         // 要发射带宽与跳频序列这些场景量，组件拿不到，留在前端 web/src/chain/plan.ts。
-        if (std::fabs(f_shift_Hz_) + 0.5 * fs_out_ > 0.5 * fs_in_ * (1.0 + 1e-12)) {
+        //
+        // decim = 1 不在此列：不抽取就没有混叠可言，此时 DDC 退化成纯频移，谱整体**循环**
+        // 旋转、越过奈奎斯特的内容绕回另一端——这正是数字混频器的固有行为，不是错误。
+        // 拿同一条判据去卡它会让「只改中心频率」这件事永远做不成（任何非零频移都过不去）。
+        if (decim_ > 1 && std::fabs(f_shift_Hz_) + 0.5 * fs_out_ > 0.5 * fs_in_ * (1.0 + 1e-12)) {
             err = "|f_shift| + fs_out/2 = " + num(std::fabs(f_shift_Hz_) + 0.5 * fs_out_) +
                   " Hz 超过输入奈奎斯特 " + num(0.5 * fs_in_) + " Hz（铁律 4）";
             return Step::Error;
@@ -165,16 +170,10 @@ Step DDC::process(PortMap& in, PortMap& out, std::string& err) {
         // 本轮攒不满一个输出样点。返回 Idle 是安全的：graph.cpp 在 process() 返回后
         // 无条件清空输入缓冲（与返回值无关），样点已经进了滤波器延迟线；而 any_progress
         // 是全图口径，上游这一轮刚产出过，不会误报「调度停滞」。
-        // 但块长配得比群时延还小会一直攒不出东西，那是配置错，指名报出来而不是让用户
-        // 看到调度器那句含糊的「停滞」（铁律 15）。
-        if (out_count_ == 0 &&
-            samples_in_ > static_cast<std::uint64_t>(st_.group_delay) +
-                          2u * static_cast<std::uint64_t>(decim_)) {
-            err = "DDC 吃了 " + std::to_string(samples_in_) + " 个输入样点仍出不了一个输出样点"
-                  "（群时延 " + std::to_string(st_.group_delay) + " 个输入样点、抽取比 " +
-                  std::to_string(decim_) + "）：块长与抽取比不相容";
-            return Step::Error;
-        }
+        //
+        // 这段空转是**有界**的：抽取相位 next 每块减少一个块长，所以至多 ceil(gd / 块长)
+        // 轮之后必定出第一个输出样点。块长再小也只是多空转几轮，不会卡死——原先这里写过
+        // 一条「块长与抽取比不相容」的护栏，实测不可达，按删死代码的惯例去掉（同 D-057）。
         return Step::Idle;
     }
 

@@ -97,6 +97,7 @@ add_executable(cuav_engine_tests
   tests/test_propagation.cpp
   tests/test_scenario.cpp
   tests/test_channel.cpp
+  tests/test_ddc.cpp
   tests/test_locate.cpp
   tests/test_locate_golden.cpp
   tests/test_receiver_chain.cpp
