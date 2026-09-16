@@ -48,10 +48,10 @@ test('六类分组齐全且都不为空（C-2 补上天线与接收机后，04 �
   const empty = g.filter((x) => x.items.length === 0).map((x) => x.key)
   assert.deepEqual(empty, [], '六个分组都应有组件')
   assert.equal(g.reduce((n, x) => n + x.items.length, 0), cat.components.length)
-  // 天线一件、接收机两件（AntennaGain / ReceiverFrontEnd / AdcQuantizer，D-051）
+  // 天线一件（D-051）；接收机三件：前端与 ADC（D-051）加数字下变频（M-2，D-070）
   assert.deepEqual(g.find((x) => x.key === 'antenna')!.items.map((c) => c.type), ['AntennaGain'])
   assert.deepEqual(g.find((x) => x.key === 'receiver')!.items.map((c) => c.type).sort(),
-    ['AdcQuantizer', 'ReceiverFrontEnd'])
+    ['AdcQuantizer', 'DDC', 'ReceiverFrontEnd'])
 })
 
 test('可选输入口在目录里带 optional 标记（D-051；D-053 起 Superposition 的八个口全可选）', () => {

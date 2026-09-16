@@ -38,6 +38,8 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   iq_gain_imbalance_dB: 'IQ 幅度不平衡', iq_phase_imbalance_deg: 'IQ 相位不平衡', dc_offset_mW: '直流',
   noise_mode: '噪声估计', bits: '量化位数', full_scale_dBm: '满量程', rounding: '取整',
   degrade_clip_ratio: '削顶降级比例',
+  // DDC（M-2，D-070）
+  f_shift_Hz: '频移', decim: '抽取比', fir_version: '抗混叠抽头',
   // 频谱、观测点
   nfft: '帧长 nfft', window: '窗函数', overlap: '重叠', segments_per_frame: '平均段数',
   op_id: '观测点', spectrum: '写功率谱', envelope: '写包络', bucket_samples: '包络桶长',

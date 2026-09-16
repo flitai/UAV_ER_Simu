@@ -187,15 +187,18 @@ test('模式切换：保留已填参数，只改变体与不适用状态；混�
 
 test('槽位状态：未实现的组件标 unavailable，可旁路的标 bypass', () => {
   const c = synthetic()
-  // DDC 与 Channelizer 还没进目录（待 M-2 / M-3）
-  assert.equal(slotState(c, 'ddc', cat), 'unavailable')
+  // DDC 已经进目录（M-2，D-070），缺省旁路；信道化还没有（待 M-3）
+  assert.equal(slotState(c, 'ddc', cat), 'bypass')
   assert.equal(slotState(c, 'chan', cat), 'unavailable')
+  // 取消勾选旁路就活了——这是本期看到 DDC 工作的入口
+  const on = { ...c, slots: { ...c.slots, ddc: { ...c.slots.ddc, bypass: false } } }
+  assert.equal(slotState(on, 'ddc', cat), 'active')
   // 已实现且没旁路的是 active
   for (const id of ['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det'] as const) {
     assert.equal(slotState(c, id, cat), 'active', id)
   }
   // 目录为 null 时不判断可用性（还没拿到目录，不能说人家没实现）
-  assert.notEqual(slotState(c, 'ddc', null), 'unavailable')
+  assert.notEqual(slotState(c, 'chan', null), 'unavailable')
 })
 
 test('必填检查：派生参数与恒定参数不算「待填」', () => {

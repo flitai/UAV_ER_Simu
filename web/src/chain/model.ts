@@ -193,7 +193,10 @@ export const SLOTS: readonly SlotDef[] = [
     ],
   },
   {
+    // 缺省旁路（M-2，D-070）：组件已经落地，但把它接进缺省链会改变 demo-01 的产品、检测与
+    // 评价基准，而 demo-01 是 500 kS/s、decim 只能取 1，抽取本来也无从谈起。缺省接线留给 C-10。
     id: 'ddc', label: 'DDC', hint: '数字下变频', bypassable: true, replayNotApplicable: true,
+    defaultBypass: true,
     variants: [
       { type: 'DDC', node: 'ddc', label: '数字下变频', summary: ['f_shift_Hz', 'decim'] },
     ],
@@ -469,7 +472,6 @@ export function writeParam(
 // 只写事实（本期旁路、信号从哪里取），不写工具链与步骤号：界面上不出现 MATLAB（D-036），
 // 也不向用户解释「还没做」（D-039 ②，用户 2026-09-13 要求去掉「未实现」标记）。
 export const UNAVAILABLE_REASON: Readonly<Record<string, string>> = {
-  DDC: '本期旁路，S4 直接取 ADC 输出',
   Channelizer: '本期旁路',
 }
 

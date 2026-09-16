@@ -85,10 +85,16 @@ try {
     cards.join(' → '))
 
   const states = await evalJson(page, "Object.fromEntries(Array.from(document.querySelectorAll('[data-slot]')).map(e => [e.dataset.slot, e.dataset.slotState]))")
-  check('DDC 与信道化仍在链上、状态 unavailable，但卡片不标「未实现」（2026-09-13）',
-    states.ddc === 'unavailable' && states.chan === 'unavailable', JSON.stringify(states))
+  // DDC 自 M-2（D-070）起在目录里，缺省旁路；信道化还没实现（待 M-3）
+  check('DDC 缺省旁路、信道化仍未实现，两张卡片都不标「未实现」（2026-09-13；M-2，D-070）',
+    states.ddc === 'bypass' && states.chan === 'unavailable', JSON.stringify(states))
   const ddcBadge = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-badge]')?.textContent ?? ''")
-  check('DDC 卡片右上角没有徽标文字', ddcBadge === '', JSON.stringify(ddcBadge))
+  check('DDC 卡片右上角标「旁路」', ddcBadge === '旁路', JSON.stringify(ddcBadge))
+  const chanBadge = await page.evaluate("document.querySelector('[data-slot=chan] [data-slot-badge]')?.textContent ?? ''")
+  check('未实现的信道化卡片右上角仍不标任何字（用户 2026-09-13）', chanBadge === '', JSON.stringify(chanBadge))
+  // DDC 可用之后旁路勾选框才出现——这是本期在界面上看到它工作的入口
+  const ddcBypassBox = await page.evaluate("document.querySelector('[data-slot-bypass=ddc]') ? 'yes' : 'no'")
+  check('DDC 卡片给出旁路勾选框，取消勾选即启用（M-2）', ddcBypassBox === 'yes', ddcBypassBox)
   // 两个新槽位都缺省旁路：测向在单站演示里没有增量，多站定位至少要两个站（D-053 §2.4）
   check('测向与多站定位缺省都旁路，单站的缺省链因此逐字节不变（D-053）',
     states.df === 'bypass' && states.loc === 'bypass', `df ${states.df} / loc ${states.loc}`)
