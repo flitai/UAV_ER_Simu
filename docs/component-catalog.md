@@ -143,7 +143,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 ## 7. 待写
 
 - [x] 首版目录黄金基准 `tests/golden/component-catalog.json`（2026-09-05，`cuav_run --catalog` 生成，21763 字节）
-- [ ] Coder 产物组件的 `source_ref` 填写示例（M-2）
+- [x] ~~Coder 产物组件的 `source_ref` 填写示例（M-2）~~ —— **不再需要**：D-070 放弃 Coder，DSP 件改手写 C++，`implementation` 仍是 `cpp`、`source_ref` 空。`implementation = "coder"` 与它的 `source_ref` 必填规则（`catalog.cpp:65-69`）保留不动，将来若有合规许可的产物可直接用
 - [ ] `AddMixer` 的类别现标 `source`，它其实是两路 IQ 相加的处理件；改动要记决策（08 报告 §15 ⑤）
 - [x] D-053 的接口部分（L-1，2026-09-09）：端口类型 `BearingReport` / `ToaReport` / `PositionReport`（`port_types` 7 → 10、`port_compat` 49 → 100，既有 49 行逐字未变，仍是纯对角）；`SceneBoundChannel` 加内部参数 `site_id`（多站绑定，单站可省略即取唯一站，旧行为不变）；`IComponent::check_wiring()` 与错误码 `port_optional` 启用。黄金基准据此更新一次，差异逐项见 11 报告 §7.3
 - [x] D-051 的接口部分（C-1，2026-09-07）：端口类型 `RecognitionList`（`port_types` 6 → 7、`port_compat` 36 → 49，既有 36 行逐字未变）；`PortSpec.optional`（为假时不输出，既有条目字节不变）。黄金基准 `tests/golden/component-catalog.json` 据此更新一次，WORKLOG 有记录
@@ -151,7 +151,8 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 - [x] D-051 / D-063 的检测升级（C-3，2026-09-12）：`EnergyDetector` 加 `noise_mode / noise_window_frames / merge_gap_frames / band_power_dBm` 与三个内部参数、`scene_bindable = true`（缺省保旧行为，`energy_detector.json` 黄金基准逐字节不变）。黄金基准据此更新一次，差异经脚本逐项核对只有这一条
 - [x] D-051 的特征提取与模板识别（C-4，2026-09-13）：新增 `FeatureExtractor` / `TemplateClassifier`，组件 19 → 21；黄金基准据此更新一次，差异经脚本逐项核对只有这两条新增，端口表与既有组件的 `ports` / `params` 逐字未变
 - [x] D-051 的评价器（C-5，2026-09-14）：新增 `Evaluator`，组件 21 → 22；黄金基准据此更新一次，差异经脚本逐项核对只有这一条新增，端口表与既有组件的 `ports` / `params` 逐字未变
-- [ ] D-051 的其余组件（C-10）：`DDC` / `Channelizer`
+- [x] D-051 的 `DDC`（M-2，2026-09-16，D-070）：新增 `DDC`（receiver 类，参数 `f_shift_Hz` / `decim` / `fir_version`），组件 22 → 23；黄金基准据此更新一次，差异经脚本逐项核对**只有这一条新增**，`port_types` / `port_compat` 与既有组件的 `ports` / `params` 逐字未变
+- [ ] D-051 的其余组件（C-10）：`Channelizer`
 - [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
 
 ## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）

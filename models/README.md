@@ -8,7 +8,7 @@
 | `channel/` | 信道 | 时变复信道，把慢变传播参数施加到采样率上 |
 | `antenna/` | 天线 | 复增益与极化损耗 |
 | `receiver/` | 接收机 | 噪声系数、增益、自动增益控制、阻塞、样本级噪声注入 |
-| `adc-ddc/` | 模数转换与数字下变频 | 量化、削顶、频移、低通、抽取 |
+| `adc-ddc/` | 模数转换与数字下变频 | 量化、削顶、频移、低通、抽取；模型卡 `adc-ddc/README.md`（M-2，D-070），冻结系数表 `adc-ddc/fir_lp_v1.json` |
 | `channelizer/` | 信道化 | 宽带 IQ 切分为子带 IQ |
 | `detection/` | 检测 | 能量检测的滑动噪声估计与突发分段（C-3，D-063）；模型卡在此，代码在引擎 `processing.cpp` |
 
@@ -30,7 +30,7 @@
 
 | 组件 | 形态 | 来源 |
 |---|---|---|
-| DDC、信道化、接收滤波 | MATLAB Coder 生成的 C，放对应子目录的 `coder/`，文件头记来源 `.m`、MATLAB 与 Coder 版本、codegen 参数哈希 | 06 §9D M-2、M-3 |
+| DDC、信道化、接收滤波 | **手写 C++**（D-070 修订 D-036）：开发机的 MATLAB 是学术许可，Coder 产物带「不得用于政府 / 商业 / 组织用途」的条款，而 08 §13 要求产物入库并进交付包。MATLAB 降为内部的设计与校验工具 | 06 §9D M-2、M-3 |
 | ADC 量化削顶、噪声注入、混合、观测量归约 | 手写 C++ | 引擎 `components/` |
 | 场景绑定信道、自由空间信道 | 手写 C++，链接 `geo/` | 06 §9C G-3 |
 
@@ -44,5 +44,9 @@
 - **模型卡**：`antenna/README.md`、`receiver/README.md` 已写（C-2，D-051），记依据、参数、
   取值来源与适用范围；`detection/README.md`（C-3）、`recognition/README.md`（C-4）、`locate/README.md`（L 线）、
   `channel/README.md`（R 线）、`evaluation/README.md`（C-5，2026-09-14：真值口径、两张映射表、指标定义、已知边界）随各自组件落地。
-- **Coder 产物**：`adc-ddc/coder/`、`channelizer/coder/` 等待 M-2 / M-3，那些确实是独立的
-  C 源码，必须与手写代码分开存放并带来源头。
+- **冻结的模型数据**：`adc-ddc/fir_lp_v1.json`（DDC 抗混叠低通的系数表，M-2）、
+  `recognition/library-v1.json`（模板库）这类随组件走的版本化数据。它们是真理源，
+  引擎侧的副本（如 `engine/src/ddc_taps.cpp`）由脚本生成、由单测逐位核对。
+
+~~**Coder 产物**：`adc-ddc/coder/`、`channelizer/coder/`~~ —— **随 D-070 作废**：DSP 件改手写 C++，
+不再有 Coder 产物入库。原因见 `matlab/README.md` 的「许可」一节。
