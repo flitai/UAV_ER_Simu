@@ -42,12 +42,13 @@ Txt required_text_sample(const std::string& type) {
 
 }  // namespace
 
-TEST_CASE("内置注册表列出二十二个组件，按名排序") {
+TEST_CASE("内置注册表列出二十三个组件，按名排序") {
     Registry r = builtin_registry();
     // 切片 ② 新增四个场景运行时组件（G-2、G-3）、切片 ④a 新增三个天线与接收机组件（C-2）、
     // 切片 ⑥a 新增多路叠加（L-2）、⑥b 新增单站测向、多站定位与到达时间估计（L-3 至 L-5，D-053）、
-    // 切片 ④b 新增特征提取（C-4）与真值评价（C-5）：目录黄金基准的规则是「已有条目不变，新增允许」。
-    const std::vector<std::string> want = {"AdcQuantizer", "AddMixer", "AntennaGain", "DetectionSink",
+    // 切片 ④b 新增特征提取（C-4）与真值评价（C-5）、切片 ④c 新增数字下变频（M-2，D-070）：
+    // 目录黄金基准的规则是「已有条目不变，新增允许」。
+    const std::vector<std::string> want = {"AdcQuantizer", "AddMixer", "AntennaGain", "DDC", "DetectionSink",
                                            "DirectionFinder", "EnergyDetector", "Evaluator", "FeatureExtractor", "FileReplaySource",
                                            "FreeSpaceChannel", "MultiSiteLocator", "NoiseSource",
                                            "ObservationTap", "ReceiverFrontEnd", "ScenarioSource", "SceneBoundChannel",
@@ -186,7 +187,7 @@ TEST_CASE("目录导出：六类、端口兼容矩阵全枚举、D-013 规则、
     }
     CHECK(ok_count == 10);   // 纯对角：只有同类型可连
 
-    CHECK(j["components"].size() == 22);
+    CHECK(j["components"].size() == 23);
     const std::set<std::string> types = {"number", "string", "enum", "bool"};
     const std::set<std::string> cats = {"source", "channel", "antenna", "receiver", "data", "algorithm"};
     std::string prev;

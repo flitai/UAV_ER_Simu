@@ -11,6 +11,7 @@
 #include "cuav/components/spectrum.h"
 #include "cuav/components/antenna.h"
 #include "cuav/components/channel.h"
+#include "cuav/components/ddc.h"
 #include "cuav/components/receiver.h"
 #include "cuav/components/scenario.h"
 #include "cuav/components/tap.h"
@@ -236,6 +237,7 @@ Registry builtin_registry() {
     ok = r.add<AntennaGain>(err) && ok;
     ok = r.add<ReceiverFrontEnd>(err) && ok;
     ok = r.add<AdcQuantizer>(err) && ok;
+    ok = r.add<DDC>(err) && ok;
     (void)ok;
     return r;
 }

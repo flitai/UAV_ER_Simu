@@ -32,6 +32,7 @@ add_library(cuav_engine STATIC
   src/random.cpp
   src/dsp.cpp
   src/ddc_taps.cpp
+  src/ddc.cpp
   src/graph.cpp
   src/sources.cpp
   src/processing.cpp
