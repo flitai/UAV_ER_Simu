@@ -32,6 +32,8 @@ add_library(cuav_engine STATIC
   src/random.cpp
   src/dsp.cpp
   src/ddc_taps.cpp
+  src/pfb_taps.cpp
+  src/rx_taps.cpp
   src/ddc.cpp
   src/graph.cpp
   src/sources.cpp
@@ -98,6 +100,8 @@ add_executable(cuav_engine_tests
   tests/test_scenario.cpp
   tests/test_channel.cpp
   tests/test_ddc.cpp
+  tests/test_channelizer.cpp
+  tests/test_rx_filter.cpp
   tests/test_locate.cpp
   tests/test_locate_golden.cpp
   tests/test_receiver_chain.cpp

@@ -66,9 +66,10 @@ std::complex<double> biquad2_step(const Biquad f[2], std::complex<double> state[
 
 // --- DDC：数控振荡混频 + 抗混叠低通 + 抽取（M-2，D-070）----------------------
 //
-// 手写 C++ 而不是 MATLAB Coder 产物：开发机的 MATLAB 是学术许可，其生成的 C 每个文件都盖着
-// 「不得用于政府 / 商业 / 组织用途」，而 08 报告 §13 要求产物入库并进交付包（D-070 修订 D-036）。
-// 系数表仍由等波纹设计冻结在 models/adc-ddc/fir_lp_v1.json，编成 engine/src/ddc_taps.cpp。
+// 手写 C++ 而不是 MATLAB Coder 产物，这是**工程取舍不是许可所迫**（D-070 ①）：08 报告 §13 规定的
+// 封装层五项职责本来就得手写，Coder 只出算法核，而这里的算法核（数控振荡 + 抽取型 FIR）约 60 行。
+// Coder 路线有效，首个使用者是 M-3 的 Channelizer / RxFilter（见本文件末尾两张表）。
+// 系数表由等波纹设计冻结在 models/adc-ddc/fir_lp_v1.json，编成 engine/src/ddc_taps.cpp。
 //
 // 两条写法当作契约，Python 参考 algos/reference/ddc.py 逐字同序（铁律 10）：
 //   ① NCO 相位以**圈**计，不以弧度计。2π 不是精确可表示的二进制数，每次回卷注入一次舍入；
@@ -120,6 +121,56 @@ bool ddc_init(DdcState& st, int decim, std::string& err);
 // 处理一块：x 是 n 个输入样点，输出追加到 out（可能一个都不出，攒不满一个输出样点时就是这样）。
 void ddc_block(DdcState& st, const Complex* x, std::size_t n, std::vector<Complex>& out);
 
+
+
+// --- 多相 FFT 信道化与接收滤波的冻结系数表（M-3）------------------------------
+//
+// 这两件的算法核是 **MATLAB Coder 生成的 C**（D-036 的路线，首个使用者；08 报告 §13），
+// 产物在 models/{channelizer,receiver}/coder/ 下，封装层在 engine/src/{channelizer,rx_filter}.cpp。
+// 这里只放两张**数据**表：系数是常量，让引擎在运行时读 JSON 会使组件依赖部署目录布局。
+// 表与 JSON 的一致性由单测逐位核对，另比对 sha256（改了表忘了重生成会当场红）。
+
+// 多相 FFT 信道化的原型低通，一档对应一个子信道数 M。
+//
+// 抽头数 N = M·T+1 且 T 为偶数，这两条缺一不可：
+//   * N 为奇数 → 群时延 (N-1)/2 是整数个输入样点（08 报告 §8 口径二，首期无分数延迟器）；
+//   * T 为偶数 → gd = M·T/2 是 **M 的整数倍** → 信道化输出的常数相位 exp(-j2πk·gd/M) 恒为 1，
+//     M 路输出不需要任何逐信道的相位修正。
+// N 不是 M 的倍数，所以 pfb_fir_expand 镜像之后再零填充到 pad_to = M·(T+1)，让 M 条支路等长；
+// 给 FIR 末尾补零不改变 H(ω) 的任何一点，群时延与线性相位都不受影响。
+struct PfbTable {
+    int channels;         // M，2 的幂，不小于 2
+    int ntaps;            // N = M·T+1，奇数
+    int taps_per_branch;  // T+1
+    int pad_to;           // M·(T+1)，零填充后的长度
+    int group_delay;      // (N-1)/2 个输入样点，必为 M 的整数倍
+    const double* half;   // 长度 (ntaps+1)/2，含中心抽头
+};
+
+// 按子信道数查表；不在表里返回 0（调用方报错并列出支持的取值，不静默顶替，铁律 15）。
+const PfbTable* pfb_fir_v1(int channels);
+std::size_t pfb_fir_v1_count();
+const PfbTable& pfb_fir_v1_at(std::size_t i);
+// 生成这份 C++ 表时所用 JSON 的 sha256，供单测核对两者没有脱节。
+const char* pfb_fir_v1_sha256();
+// 半表镜像成全表再零填充到 pad_to。与 scripts/design_pfb_fir.py 的 expand() 逐字同法。
+void pfb_fir_expand(const PfbTable& t, std::vector<double>& h);
+
+// 接收滤波的一档。不抽取，只做幅频响应与群时延；建档键是相对通带 bw_rel = bw_Hz / fs_in。
+struct RxFirTable {
+    double bw_rel;
+    int ntaps;            // 奇数
+    int group_delay;      // (ntaps-1)/2 个输入样点，由封装层扣除
+    const double* half;
+};
+
+// 按相对通带查表，相对容差 1e-9（bw_rel 是两个 double 相除来的，0.8 这类值本就不精确可表示）。
+// 这是**表示误差的匹配容差**，不是「取最近一档」；差得更远一律返回 0。
+const RxFirTable* rx_fir_v1(double bw_rel);
+std::size_t rx_fir_v1_count();
+const RxFirTable& rx_fir_v1_at(std::size_t i);
+const char* rx_fir_v1_sha256();
+void rx_fir_expand(const RxFirTable& t, std::vector<double>& h);
 
 }  // namespace dsp
 }  // namespace cuav
