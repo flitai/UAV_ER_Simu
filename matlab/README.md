@@ -27,29 +27,31 @@ matlab/
 ├── ref/       参考模型 .m：cuav_welch_power.m（Welch 功率谱，与 pwelch 互证）
 ├── golden/    黄金向量导出：gen_spectrum_golden.m → engine/tests/golden/spectrum_welch.matlab.json
 ├── design/    设计校验：check_ddc_fir.m（用 firpm 重设计一遍 DDC 抗混叠低通，与冻结表比对）
+├── coder/     Coder 工程与 codegen 脚本（M-3 起：信道化与接收滤波）
 ├── run_all.m  入口，路径从本文件位置推导
 └── run_matlab.sh  MATLAB_ROOT=<安装目录> sh matlab/run_matlab.sh
 ```
 
-## 许可：为什么这里没有 Coder 产物（M-2，D-070）
+## 许可：核实过的事实与用户的澄清（M-2，D-070）
 
-原计划（D-036）是 DSP 件走 MATLAB Coder 生成 C 入库。M-2 开工时实跑了一遍
-`codegen -config coder.config('lib')`：产物本身是干净的（无绝对路径、无动态内存），
-但**每个 `.c` / `.h` 首部都盖着**
+M-2 开工时实跑了一遍 `codegen -config coder.config('lib')`。产物本身是干净的
+（无绝对路径、无动态内存），但**每个 `.c` / `.h` 首部都盖着**
 
 > Academic License - for use in teaching, academic research, and meeting course
 > requirements at degree granting institutions only. Not for government,
 > commercial, or other organizational use.
 
-而 08 报告 §13 要求产物入库并进交付包。用户 2026-09-16 据此拍板：**放弃 Coder，DSP 件改手写 C++**，
-MATLAB 降为内部的设计与校验工具。`coder/` 目录随之撤掉。
+因为开发机装的是 MATLAB **学术许可**。我据此判断它与 08 报告 §13「产物入库并进交付包」冲突，
+M-2 遂以手写 C++ 完成；**当天稍晚用户澄清「本项目属学术用途，学术版许可没有问题」**。
 
-由此还有一条更细的考虑：用学术许可的 MATLAB 为交付件**设计**滤波器，严格说也在该许可的用途
-范围之外，即使输出只是一串数。所以 DDC 的系数表主设计走 Python
-（`scripts/design_ddc_fir.py`，`scipy.signal.remez`，BSD 许可，任何机器都可复算），
-MATLAB 只在 `design/check_ddc_fir.m` 里独立重设计一遍作校验。
-实测两家吻合到 **1.5e-14**，指标（阻带 ≥ 60 dB、通带纹波、奇数抽头）逐档达标。
+由此定下三件事：
 
-黄金向量的输入由 Python 端 `algos/reference/gen_spectrum_golden.py` 写成 JSON（float32 精确值），MATLAB 只读不改写：
-`jsonencode` 只保留 15 位有效数字，会破坏原文件里的精确十进制表示，所以 MATLAB 一方的结果写到同目录的
-`*.matlab.json`。已知的坑：`pwelch` 的 `'centered'` 对偶数 nfft 与 `fftshift` 差一格，一律用 `'twosided'` 再 `fftshift`。
+1. **Coder 路线有效，首个使用者是 M-3**（多相 FFT 信道化与接收滤波）。`coder/` 目录随 M-3 重建。
+2. **`DDC` 保持手写**不是许可所迫，是工程取舍：算法核（数控振荡 + 抽取型 FIR）约 60 行，
+   而封装层按 08 §13 本来就得手写，Coder 省不下多少；且手写版已与独立的 Python 参考**逐位相同**。
+3. **一条待核**：产物文件头会带学术许可条款，而本项目文档里写着交付包、甲方数据与 Windows 单机一体化包。
+   **若 Coder 产物将来随交付物出去，需按实际用途另行核实**——这不是本目录能决定的事，记在这里备查。
+
+另：DDC 的系数表主设计走 Python（`scripts/design_ddc_fir.py`，`scipy.signal.remez`，BSD），
+MATLAB 的 `firpm` 在 `design/check_ddc_fir.m` 作独立校验。这一条**与许可无关**，
+是为了让表在没有 MATLAB 的机器上也能复算，同时两家等波纹实现互为佐证——实测吻合 **1.5e-14**。

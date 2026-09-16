@@ -6,7 +6,7 @@
 | 环节 | 数字下变频（04 §7.7；S3 → S4） |
 | M / E / V | M3 / E2 / V2 |
 | `model_id` | `EM-B-11`（接收机基础，与 `ReceiverFrontEnd` / `AdcQuantizer` 同一概念模型） |
-| 实现 | 手写 C++：`engine/src/ddc.cpp`（封装）+ `engine/src/dsp.cpp` 的 `ddc_*` 三件（算法核） |
+| 实现 | 手写 C++：`engine/src/ddc.cpp`（封装）+ `engine/src/dsp.cpp` 的 `ddc_*` 三件（算法核）。**工程取舍不是许可所迫**——见 §11 |
 | 系数表 | `models/adc-ddc/fir_lp_v1.json`（真理源）→ `engine/src/ddc_taps.cpp`（生成物） |
 | 步骤 / 决策 | 06 §9D M-2；D-070（修订 D-036） |
 
@@ -161,3 +161,19 @@ S4 谱上（t ≥ 5 s 两源同时发射）：图传中心 **−74.93 dBm**、�
 `uv run --quiet --with numpy python algos/reference/gen_engine_golden.py --mode ddc -o engine/tests/golden/ddc.json`。
 输入不入二进制夹具，由种子按配方复现，两侧对一份 `sha256`；系数表另对一份 `sha256`，
 「改了表忘了重生成」会在对拍前就红。
+
+## 11. 为什么这一件是手写的
+
+D-036 定的 DSP 路线是 MATLAB Coder 生成 C。`DDC` 没走那条路，理由**与许可无关**（开发机是学术许可，
+用户 2026-09-16 澄清本项目属学术用途、不构成障碍）：
+
+- 08 §13 规定的**封装层五项职责本来就得手写**（参数校验与铁律 4、样点序号换算与群时延扣除、
+  状态管理与 `reset()`、溯源、四态传播），Coder 只出算法核；
+- 而这里的算法核就是「数控振荡 + 抽取型 FIR」，约 60 行，Coder 省不下多少；
+- 手写版已与独立的 Python 参考跑出**逐位相同**的结果。
+
+**Coder 路线仍然有效**，首个使用者是 M-3 的多相 FFT 信道化与接收滤波——那才是
+「重写等于重新承担一次验证成本」成立的地方（D-070 ②，兑现 P1-8）。
+
+MATLAB 在本件上的贡献是**系数设计的独立校验**（`matlab/design/check_ddc_fir.m` 的 `firpm`，
+与 scipy 吻合 1.5e-14）。主设计走 Python 是为了让表在没有 MATLAB 的机器上也能复算。

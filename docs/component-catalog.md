@@ -143,7 +143,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 ## 7. 待写
 
 - [x] 首版目录黄金基准 `tests/golden/component-catalog.json`（2026-09-05，`cuav_run --catalog` 生成，21763 字节）
-- [x] ~~Coder 产物组件的 `source_ref` 填写示例（M-2）~~ —— **不再需要**：D-070 放弃 Coder，DSP 件改手写 C++，`implementation` 仍是 `cpp`、`source_ref` 空。`implementation = "coder"` 与它的 `source_ref` 必填规则（`catalog.cpp:65-69`）保留不动，将来若有合规许可的产物可直接用
+- [ ] Coder 产物组件的 `source_ref` 填写示例 —— **改由 M-3 提供**（D-070 ②）：`DDC` 最终是手写件（`implementation = cpp`、`source_ref` 空），首个 Coder 产物是 M-3 的信道化与接收滤波。`implementation = "coder"` 时 `source_ref` 必填的规则（`catalog.cpp:65-69`）一直有效
 - [ ] `AddMixer` 的类别现标 `source`，它其实是两路 IQ 相加的处理件；改动要记决策（08 报告 §15 ⑤）
 - [x] D-053 的接口部分（L-1，2026-09-09）：端口类型 `BearingReport` / `ToaReport` / `PositionReport`（`port_types` 7 → 10、`port_compat` 49 → 100，既有 49 行逐字未变，仍是纯对角）；`SceneBoundChannel` 加内部参数 `site_id`（多站绑定，单站可省略即取唯一站，旧行为不变）；`IComponent::check_wiring()` 与错误码 `port_optional` 启用。黄金基准据此更新一次，差异逐项见 11 报告 §7.3
 - [x] D-051 的接口部分（C-1，2026-09-07）：端口类型 `RecognitionList`（`port_types` 6 → 7、`port_compat` 36 → 49，既有 36 行逐字未变）；`PortSpec.optional`（为假时不输出，既有条目字节不变）。黄金基准 `tests/golden/component-catalog.json` 据此更新一次，WORKLOG 有记录
