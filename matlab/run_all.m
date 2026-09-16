@@ -5,5 +5,8 @@ here = fileparts(mfilename('fullpath'));
 repo = fileparts(here);
 addpath(fullfile(here, 'ref'));
 addpath(fullfile(here, 'golden'));
+addpath(fullfile(here, 'design'));
 gen_spectrum_golden(fullfile(repo, 'engine', 'tests', 'golden', 'spectrum_welch.json'));
+% DDC 的抗混叠低通：冻结表由 scripts/design_ddc_fir.py 生产，这里只独立校验一遍（M-2，D-070）
+check_ddc_fir(fullfile(repo, 'models', 'adc-ddc', 'fir_lp_v1.json'));
 end
