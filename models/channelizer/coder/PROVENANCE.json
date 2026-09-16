@@ -1,0 +1,63 @@
+{
+  "schema": "cuav-coder-provenance/1",
+  "generator": "MATLAB_ROOT=<安装目录> sh matlab/run_matlab.sh（matlab/coder/build_coder.m）",
+  "matlab_version": "25.1.0.2973910 (R2025a) Update 1",
+  "coder_version": "25.1 (R2025a)",
+  "entry_points": [
+    {
+      "name": "cuav_pfb_m2",
+      "source_m": "matlab/ref/cuav_pfb_m2.m",
+      "kind": "pfb",
+      "args": "w: complex double [58 1]; hr: double [58 1]; M = 2 (coder.Constant)"
+    },
+    {
+      "name": "cuav_pfb_m4",
+      "source_m": "matlab/ref/cuav_pfb_m4.m",
+      "kind": "pfb",
+      "args": "w: complex double [116 1]; hr: double [116 1]; M = 4 (coder.Constant)"
+    },
+    {
+      "name": "cuav_pfb_m8",
+      "source_m": "matlab/ref/cuav_pfb_m8.m",
+      "kind": "pfb",
+      "args": "w: complex double [232 1]; hr: double [232 1]; M = 8 (coder.Constant)"
+    },
+    {
+      "name": "cuav_pfb_m16",
+      "source_m": "matlab/ref/cuav_pfb_m16.m",
+      "kind": "pfb",
+      "args": "w: complex double [464 1]; hr: double [464 1]; M = 16 (coder.Constant)"
+    },
+    {
+      "name": "cuav_pfb_m32",
+      "source_m": "matlab/ref/cuav_pfb_m32.m",
+      "kind": "pfb",
+      "args": "w: complex double [928 1]; hr: double [928 1]; M = 32 (coder.Constant)"
+    },
+    {
+      "name": "cuav_pfb_m64",
+      "source_m": "matlab/ref/cuav_pfb_m64.m",
+      "kind": "pfb",
+      "args": "w: complex double [1856 1]; hr: double [1856 1]; M = 64 (coder.Constant)"
+    }
+  ],
+  "shared_m": [
+    "matlab/ref/cuav_pfb_cycle.m"
+  ],
+  "config": {
+    "TargetLang": "C",
+    "GenCodeOnly": "true",
+    "EnableDynamicMemoryAllocation": "false",
+    "EnableVariableSizing": "false",
+    "EnableOpenMP": "false",
+    "InstructionSetExtensions": "None",
+    "UseBuiltinFFTWLibrary": "false",
+    "SupportNonFinite": "false",
+    "GenerateExampleMain": "DoNotGenerate",
+    "FilePartitionMethod": "MapMFileToCFile",
+    "ProdHWDeviceType": "Generic->Custom",
+    "ProdBits": "char 8 short 16 int 32 long 32 longlong 64 pointer 64",
+    "CodeTemplate": "matlab/coder/cuav_banner.cgt（默认模板去掉 %<SourceGeneratedOn>）"
+  },
+  "note": "接口尺寸取自 models/channelizer/fir_pfb_v1.json 与 models/receiver/fir_rx_v1.json；各字段的 sha256 由 scripts/gen_coder_provenance.py 补齐并编进 engine/src/coder_provenance.cpp。"
+}

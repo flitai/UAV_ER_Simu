@@ -64,3 +64,6 @@ __pycache__/
 
 # 第三方参考素材（Aaronia AARTOS 截图与视频，D-061），只读、不入库
 ref/
+
+# MATLAB Coder 的暂存目录（M-3）：产物只入库 models/<环节>/coder/ 下那几类
+matlab/coder/_staging/

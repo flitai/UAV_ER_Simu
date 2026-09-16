@@ -1,0 +1,29 @@
+{
+  "schema": "cuav-coder-provenance/1",
+  "generator": "MATLAB_ROOT=<安装目录> sh matlab/run_matlab.sh（matlab/coder/build_coder.m）",
+  "matlab_version": "25.1.0.2973910 (R2025a) Update 1",
+  "coder_version": "25.1 (R2025a)",
+  "entry_points": {
+    "name": "cuav_rx_fir",
+    "source_m": "matlab/ref/cuav_rx_fir.m",
+    "kind": "rx",
+    "args": "x: complex double [1024 1]; h: double [57 1]; zi: complex double [56 1]"
+  },
+  "shared_m": [],
+  "config": {
+    "TargetLang": "C",
+    "GenCodeOnly": "true",
+    "EnableDynamicMemoryAllocation": "false",
+    "EnableVariableSizing": "false",
+    "EnableOpenMP": "false",
+    "InstructionSetExtensions": "None",
+    "UseBuiltinFFTWLibrary": "false",
+    "SupportNonFinite": "false",
+    "GenerateExampleMain": "DoNotGenerate",
+    "FilePartitionMethod": "MapMFileToCFile",
+    "ProdHWDeviceType": "Generic->Custom",
+    "ProdBits": "char 8 short 16 int 32 long 32 longlong 64 pointer 64",
+    "CodeTemplate": "matlab/coder/cuav_banner.cgt（默认模板去掉 %<SourceGeneratedOn>）"
+  },
+  "note": "接口尺寸取自 models/channelizer/fir_pfb_v1.json 与 models/receiver/fir_rx_v1.json；各字段的 sha256 由 scripts/gen_coder_provenance.py 补齐并编进 engine/src/coder_provenance.cpp。"
+}

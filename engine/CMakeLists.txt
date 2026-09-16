@@ -34,6 +34,7 @@ add_library(cuav_engine STATIC
   src/ddc_taps.cpp
   src/pfb_taps.cpp
   src/rx_taps.cpp
+  src/coder_provenance.cpp
   src/ddc.cpp
   src/graph.cpp
   src/sources.cpp
@@ -102,6 +103,7 @@ add_executable(cuav_engine_tests
   tests/test_ddc.cpp
   tests/test_channelizer.cpp
   tests/test_rx_filter.cpp
+  tests/test_coder_provenance.cpp
   tests/test_locate.cpp
   tests/test_locate_golden.cpp
   tests/test_receiver_chain.cpp
