@@ -198,6 +198,12 @@ demo-02 宽带场景，10 MS/s @ 2441 MHz，`channels = 4`、`select_channel = 2
 
 检测器频段随 `fs_s5` 自动收窄到 ±1.125 MHz（`web/src/chain/compile.ts` 早已如此）。
 
+**另一份夹具** `tests/regression/diagrams/chain-demo-02-dsp.json`（C-10）把三级 DSP 一起打开：
+接收滤波 → DDC → 信道化，10 → 5 → 2.5 MS/s，S3 / S4 / S5 一次跑出三种采样率。
+那一份用 `channels = 2`、`select_channel = 1`（可用子带 ±1.0 MHz，正对图传）；
+实测图传带内功率沿链 −47.163 → −47.227 → **−47.161 dBm**，即信道化这一级差 **+0.065 dB**、
+整条三级链累计 **+0.002 dB**。
+
 ## 10. 为什么这一件走 Coder
 
 D-036 定的 DSP 路线是 MATLAB Coder 生成 C，M-2 的 `DDC` 因工程取舍手写（算法核约 60 行，
