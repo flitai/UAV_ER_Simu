@@ -32,6 +32,15 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 04 §15.2 标准算例：从保存的典型链路核对（C-11）===\n'
+# 十二项里覆盖 1、2、3、6、9、10、11 七项；5 / 7 / 8 由 C-10 的三级夹具与引擎单测覆盖，4 / 12 随后续。
+# 实测回放与混合增强两项要 data/iq/measured/（不入 git），缺数据时脚本自己明说跳过、不当作通过。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet --with numpy python tests/regression/standard_cases.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
+fi
+
 echo "=== 常数策略守卫（D-009）==="
 # `geo::legacy::` 里是自 emcore 移植时保留的旧常数（111320 投影、10 MHz 标称带宽等），
 # 它们存在的唯一理由是守住那几份黄金基准。新写代码一律用严格 ENU 与精确光速，

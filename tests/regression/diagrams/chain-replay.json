@@ -1,0 +1,138 @@
+{
+  "schema_version": "cuav-diagram/1",
+  "diagram_id": "chain-replay",
+  "name": "典型链路 · 实测回放（标准算例回归）",
+  "nodes": [
+    {
+      "id": "tx",
+      "type": "FileReplaySource",
+      "params": {
+        "data_id": "dronerfb_0_CH0_S4"
+      }
+    },
+    {
+      "id": "det",
+      "type": "EnergyDetector",
+      "params": {
+        "band_lo_Hz": -2000000,
+        "band_hi_Hz": 2000000,
+        "noise_mode": "sliding"
+      }
+    },
+    {
+      "id": "feat",
+      "type": "FeatureExtractor",
+      "params": {}
+    },
+    {
+      "id": "rec",
+      "type": "TemplateClassifier",
+      "params": {}
+    },
+    {
+      "id": "eval",
+      "type": "Evaluator",
+      "params": {
+        "truth_source": "manifest",
+        "data_id": "dronerfb_0_CH0_S4"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "tx",
+        "port": "out"
+      },
+      "to": {
+        "node": "det",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "tx",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "iq"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "feat",
+        "port": "out"
+      },
+      "to": {
+        "node": "rec",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "rec",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "rec"
+      }
+    }
+  ],
+  "observation_points": [
+    {
+      "id": "s4",
+      "label": "S4 主产品",
+      "node": "tx",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    }
+  ],
+  "run": {
+    "seed": 20260917,
+    "duration_s": 0.05,
+    "time_basis": "LogicalSim"
+  },
+  "template_ref": {
+    "template_id": "chain-v1",
+    "mode": "replay",
+    "version": 1,
+    "inactive_slots": {
+      "rx_fe": {
+        "params": {
+          "noise_mode": "thermal"
+        }
+      }
+    }
+  }
+}

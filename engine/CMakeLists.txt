@@ -192,6 +192,14 @@ add_test(NAME cuav_run_validate_demo02_dsp
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
+# C-11：三种信号源模式各一份回归夹具。**只有全合成这一份进 ctest** ——
+# 另两份要 data/iq/measured/ 解析 data_id，而实测数据不入 git（D-027），
+# 它们由 tests/regression/standard_cases.py 跑，缺数据时那个脚本自己明说跳过。
+add_test(NAME cuav_run_validate_chain_synthetic
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-synthetic.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
+          --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"

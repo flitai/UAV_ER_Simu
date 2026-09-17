@@ -5,6 +5,9 @@
 //   npx tsx src/chain/examples/_gen.ts demo-02-ddc > ../tests/regression/diagrams/chain-demo-02-ddc.json
 //   npx tsx src/chain/examples/_gen.ts demo-02-chan > ../tests/regression/diagrams/chain-demo-02-chan.json
 //   npx tsx src/chain/examples/_gen.ts demo-02-dsp > ../tests/regression/diagrams/chain-demo-02-dsp.json
+//   npx tsx src/chain/examples/_gen.ts synthetic > ../tests/regression/diagrams/chain-synthetic.json
+//   npx tsx src/chain/examples/_gen.ts replay    > ../tests/regression/diagrams/chain-replay.json
+//   npx tsx src/chain/examples/_gen.ts mixed     > ../tests/regression/diagrams/chain-mixed.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-aoa    > ../tests/regression/diagrams/chain-3x3-aoa.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-tdoa   > ../tests/regression/diagrams/chain-3x3-tdoa.json
 // 夹具模式读现有夹具文件、parseChain 解回链路状态、按当前目录与槽位表重新 compile：参数一件不丢，
@@ -15,15 +18,15 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { Catalog } from '../../api/catalog.js'
 import { parse as parseDoc, serialize } from '../../diagram/doc.js'
-import { compile, parseChain } from '../compile.js'
+import { compile, parseChain, switchMode } from '../compile.js'
 import { emptyChain, type ChainState } from '../model.js'
 import type { ScenarioDoc } from '../../state/types.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const cat = JSON.parse(readFileSync(join(ROOT, 'tests/golden/component-catalog.json'), 'utf8')) as Catalog
 
-function loadScenario(id: string): { doc: ScenarioDoc; sha: string } {
-  const p = join(ROOT, `data/scene/beijing-yayuncun/scenarios/${id}.scenario.json`)
+function loadScenario(id: string, dir = 'data/scene/beijing-yayuncun/scenarios'): { doc: ScenarioDoc; sha: string } {
+  const p = join(ROOT, dir, `${id}.scenario.json`)
   return { doc: JSON.parse(readFileSync(p, 'utf8')) as ScenarioDoc, sha: createHash('sha256').update(readFileSync(p)).digest('hex') }
 }
 
@@ -157,6 +160,59 @@ if (mode === 'default') {
   c.taps.s4 = true
   c.taps.s5 = true
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'synthetic') {
+  // 三种信号源模式各一份回归夹具（C-11，10 报告 §9）。这一份是**全合成**：
+  // 就是内置的缺省链（demo-01、20 s、同一组参数），只多勾三个观测点 ——
+  // 04 §15.2 的算例 1（单音频移和功率标度）要在 S1 上读，算例 6（ADC 量化）要 S2 与 S3 对比。
+  const { doc: scenario, sha } = loadScenario('demo-01')
+  const c: ChainState = emptyChain('synthetic', 'chain-synthetic')
+  c.name = '典型链路 · 全合成（标准算例回归）'
+  c.scenario = { scenario_id: 'demo-01', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1']
+  c.run = { duration_s: 20, seed: 20260907 }
+  c.slots.tx_ant.params = { gain_dBi: 2 }
+  c.slots.rx_ant.params = { gain_dBi: 3 }
+  c.slots.rx_fe.params = { nf_dB: 6, gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024 }
+  c.taps.s1 = true
+  c.taps.s2 = true
+  c.taps.s3 = true
+  // **不取 S4**：DDC 旁路时它的锚点顺链下滑到 ADC 那一节，与 S3 同节点同口，产品会一模一样
+  c.taps.s4 = false
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'replay') {
+  // **实测回放**（算例 9）。回放模式没有场景：数据自带采样率与中心频率，前六个环节不适用
+  // （卡片上标「回放数据已含」）。检测频段只能由用户给——这里取 ±2 MHz，覆盖 DroneRFb 片段里
+  // 目标信号的主瓣，而不是 80 MS/s 的整带（整带会把 WiFi 与蓝牙全算进来）。
+  // 片段 dronerfb_0_CH0_S4：80 MS/s @ 2440 MHz、4000000 个样点 = 0.05 s。
+  const c: ChainState = switchMode(emptyChain('replay', 'chain-replay'), 'replay')
+  c.name = '典型链路 · 实测回放（标准算例回归）'
+  c.slots.tx.params = { data_id: 'dronerfb_0_CH0_S4' }
+  c.slots.det.params = { nfft: 1024, band_lo_Hz: -2000000, band_hi_Hz: 2000000 }
+  c.run = { duration_s: 0.05, seed: 20260917 }
+  process.stdout.write(serialize(compile(c, cat, null).doc, cat))
+} else if (mode === 'mixed') {
+  // **混合增强**（算例 10）：合成目标走全链，实测背景在 S4 处相加，前端不再生热噪声
+  // （`noise_mode = none`，D-051 ⑥）。AddMixer 要求两路采样率与中心频率一致，
+  // 所以场景按背景片段配成 80 MS/s @ 2440 MHz、0.05 s —— 缘由写在场景文件的 trace.notes 里。
+  // 前端增益取 0：给合成支路加增益而背景不加，会把两者相对电平拉开 20 dB，背景就被淹没了。
+  const { doc: scenario, sha } = loadScenario('mixed-wideband', 'tests/regression/scenarios')
+  const c: ChainState = switchMode(emptyChain('mixed', 'chain-mixed'), 'mixed')
+  c.name = '典型链路 · 混合增强（标准算例回归）'
+  c.scenario = { scenario_id: 'mixed-wideband', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1']
+  c.backgroundDataId = 'dronerfb_0_CH0_S4'
+  c.run = { duration_s: 0.05, seed: 20260917 }
+  c.slots.tx_ant.params = { gain_dBi: 2 }
+  c.slots.rx_ant.params = { gain_dBi: 3 }
+  c.slots.rx_fe.params = { nf_dB: 6, gain_dB: 0 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024 }
+  c.taps.s4 = true
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === '3x3-aoa' || mode === '3x3-tdoa') {
   const { doc: scenario } = loadScenario('demo-03')
   const file = join(ROOT, `tests/regression/diagrams/chain-${mode}.json`)
@@ -166,5 +222,5 @@ if (mode === 'default') {
   if (!chain) throw new Error('夹具解不成典型链路：先查槽位表与 parseChain')
   process.stdout.write(serialize(compile(chain, cat, scenario).doc, cat))
 } else {
-  throw new Error(`未知模式 ${mode}：default | demo-02 | demo-02-ddc | demo-02-chan | demo-02-dsp | 3x3-aoa | 3x3-tdoa`)
+  throw new Error(`未知模式 ${mode}：default | demo-02 | demo-02-ddc | demo-02-chan | demo-02-dsp | synthetic | replay | mixed | 3x3-aoa | 3x3-tdoa`)
 }

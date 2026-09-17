@@ -1,0 +1,70 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "mixed-wideband",
+  "name": "混合增强算例：实测背景 + 合成单音（80 MS/s 短窗）",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 0.05
+  },
+  "seed": 20260917,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "亚运村侦察站（宽带短窗）",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 80000000,
+        "center_Hz": 2440000000,
+        "bw_Hz": 64000000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "uav-1",
+      "name": "定点单音（混合增强算例）",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.439,
+        "lat": 39.99,
+        "alt_m": 50
+      },
+      "emission": {
+        "center_Hz": 2442500000,
+        "bw_Hz": 200000,
+        "tx_power_dBm": 27,
+        "antenna_gain_dBi": 2,
+        "waveform": {
+          "type": "tone",
+          "offset_Hz": 0
+        }
+      }
+    }
+  ],
+  "routes": [],
+  "trace": {
+    "created_by": "实施方（C-11 步骤 1）",
+    "created_at": "2026-09-17T00:00:00Z",
+    "notes": "04 §15.2 标准算例 10「实测背景加合成目标」要一条真的能跑的混合增强链，而混合增强在 S4 处把回放背景与合成目标相加，AddMixer 要求两路的采样率与中心频率一致。实测背景 dronerfb_0_CH0_S4 是 80 MS/s @ 2440 MHz、4000000 个样点，所以这条场景的站点就按它配：80 MS/s、中心 2440 MHz、时长 0.05 s（恰好 4000000 个样点，与片段等长）。这正是 04 §12.1 说的「100 MS/s 仅文件兼容与短窗」那一档用法，不是常用工作点。合成目标是 2442.5 MHz 的单音：相对中心 +2.5 MHz，nfft 1024 下 bin 宽 78125 Hz，2.5 MHz 恰好是 32 个 bin，单音因此精确落在 bin 中心、不吃扇贝损耗（D-049 ⑪）。源定点在正东约 2.9 km、高 50 m，无航线、无开关事件，自由空间路损约 109.4 dB，接收电平 27 + 2 + 3 − 109.4 ≈ −77.4 dBm；背景片段标定后每 bin 约 −83 dBm（D-047），于是合成目标高出背景约 5 dB —— 两者都看得见，这条链才讲得清「背景是实测的、目标是合成的」。混合增强模式下前端的 noise_mode 是 none（噪声由实测背景自带，D-051 ⑥），本夹具的前端增益取 0 dB：给合成支路加增益而背景不加，会把两者的相对电平拉开 20 dB，背景就被淹没了。"
+  }
+}

@@ -24,6 +24,10 @@ const cat = JSON.parse(readFileSync(join(ROOT, 'tests/golden/component-catalog.j
 const scenario = JSON.parse(
   readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'), 'utf8'),
 ) as ScenarioDoc
+/** 混合增强夹具的场景（C-11）：按实测背景片段配的 80 MS/s 短窗，缘由见它的 trace.notes。 */
+const mixedScenario = JSON.parse(
+  readFileSync(join(ROOT, 'tests/regression/scenarios/mixed-wideband.scenario.json'), 'utf8'),
+) as ScenarioDoc
 /** 三站三源，多站用例用它——demo-01 只有一个站，拿它测多站等于测了个假的。 */
 const scenario3 = JSON.parse(
   readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-03.scenario.json'), 'utf8'),
@@ -1070,4 +1074,23 @@ test('信道化的路号跟着子信道数走，编译时写进框图（C-10）'
   const node = r.doc.nodes.find((n) => n.id === 'chan')!
   assert.equal(node.params.channels, 4)
   assert.equal(node.params.select_channel, 2, '零频那一路')
+})
+
+test('三种信号源模式的回归夹具都解得回典型链路且往返逐字节相同（C-11，10 §9）', () => {
+  const cases: Array<{ file: string; mode: string; scen: ScenarioDoc | null }> = [
+    { file: 'chain-synthetic.json', mode: 'synthetic', scen: scenario },
+    { file: 'chain-replay.json', mode: 'replay', scen: null },
+    { file: 'chain-mixed.json', mode: 'mixed', scen: mixedScenario },
+  ]
+  for (const c of cases) {
+    const text = readFileSync(join(ROOT, 'tests/regression/diagrams', c.file), 'utf8')
+    const r = parseDoc(text)
+    assert.equal(r.ok, true, `${c.file} 不是合法框图`)
+    assert.equal(r.doc!.template_ref!.mode, c.mode, c.file)
+    const chain = parseChain(r.doc!)
+    assert.ok(chain, `${c.file} 解不回典型链路`)
+    assert.equal(chain!.mode, c.mode)
+    // 往返：解回来再编译一遍，与文件逐字节相同
+    assert.equal(serialize(compile(chain!, cat, c.scen).doc, cat), text, `${c.file} 往返不逐字节`)
+  }
 })
