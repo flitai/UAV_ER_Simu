@@ -31,6 +31,19 @@ use-sync-external-store、d3-zoom / drag / selection / interpolate / transition 
 dispatch / timer、d3-ease——自 2026-09-10 起**不再随包**：它们只服务于自由画布，
 画布已由 D-060 删掉。D-032 允许 React Flow 随包的那半条随之作废，`ws` 那半仍然有效。）
 
+地理计算（third_party/geographiclib/，编进 cuav_geo）
+------------------------------------------------------
+GeographicLib 2.5.2 -- MIT
+  Copyright (c) 2008-2025, Charles Karney
+  https://geographiclib.sourceforge.io/
+  用途：WGS-84 坐标基座（大地坐标 ↔ 地心地固 ↔ 站心地平），决策 D-074。
+  抽取范围：只取 Geocentric 与 LocalCartesian 及其最小闭包，七个文件 78105 字节；
+  上游共 53 个源文件，其余（大地线、投影、大地水准面、磁场与重力）未取。
+  版本取 2.5.2 而非更新的 2.7：上游自 2.6 起要求 C++17，本项目是 C++14，
+  2.5.2 是最后一个只要求 C++14 的版本。
+  来源、压缩包 sha256 与完整说明见 third_party/geographiclib/README.md，
+  许可证全文见 third_party/geographiclib/LICENSE.txt。
+
 引擎（engine/third_party/，构建期 vendored）
 --------------------------------------------
 nlohmann/json 3.11.3 -- MIT，编译进 cuav_run（框图 JSON 装载与事件序列化）

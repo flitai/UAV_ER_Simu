@@ -7,6 +7,8 @@
 // 固定场景航迹逐点确定。
 
 #include <cmath>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -15,6 +17,7 @@
 #include "cuav_geo/link_budget.h"
 #include "cuav_geo/scenario.h"
 #include "doctest/doctest.h"
+#include "nlohmann/json.hpp"
 
 using namespace cuav::geo;
 
@@ -327,4 +330,85 @@ TEST_CASE("运动学：非法航线被拒且写明理由") {
     bad.push_back(wp(116.40, 39.99, 100.0, 0.0));     // 速度为零
     CHECK_FALSE(r.build(bad, false, err));
     CHECK_FALSE(err.empty());
+}
+
+// ---- 坐标基座：两家实现对同一份黄金基准（D-074 / D3-1）----
+//
+// 基准由 geo/build/cuav_geo_smoke_test --write-golden tests/golden/geodesy.json 生成，
+// 数值来自 vendored GeographicLib 2.5.2 的 Geocentric。它钉住两件事：
+//   ① 上游升版或 third_party/geographiclib/include/GeographicLib/Config.h 改动导致读数变化；
+//   ② 自写闭式 ClosedFormWgs84 与它的一致性——这是「换基座换对了」的唯一证据。
+//
+// 两个判据不同，理由各自写在断言旁边。
+TEST_CASE("坐标基座：两家实现对 tests/golden/geodesy.json") {
+    const std::string path = std::string(CUAV_SOURCE_DIR) + "/../tests/golden/geodesy.json";
+    std::ifstream f(path);
+    REQUIRE_MESSAGE(f.good(), "打不开黄金基准 " << path
+                    << "；重新生成：geo/build/cuav_geo_smoke_test --write-golden tests/golden/geodesy.json");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    const nlohmann::json j = nlohmann::json::parse(ss.str());
+    REQUIRE(j.contains("cases"));
+    REQUIRE(j["cases"].size() > 0);
+
+    const Lla origin(j["origin"]["lon"].get<double>(),
+                     j["origin"]["lat"].get<double>(),
+                     j["origin"]["alt_m"].get<double>());
+
+    const IGeodesy& gl = geographiclib_geodesy();
+    const IGeodesy& cf = closed_form_geodesy();
+
+    double worst_gl = 0.0, worst_cf = 0.0, worst_gl_enu = 0.0, worst_cf_enu = 0.0;
+    double worst_back_gl = 0.0, worst_back_cf = 0.0;
+
+    for (const auto& c : j["cases"]) {
+        const Lla p(c["lon"].get<double>(), c["lat"].get<double>(), c["alt_m"].get<double>());
+        const Ecef want(c["ecef"][0].get<double>(), c["ecef"][1].get<double>(),
+                        c["ecef"][2].get<double>());
+        const Enu want_enu(c["enu"][0].get<double>(), c["enu"][1].get<double>(),
+                           c["enu"][2].get<double>());
+
+        const Ecef e_gl = gl.to_ecef(p);
+        const Ecef e_cf = cf.to_ecef(p);
+        worst_gl = std::max(worst_gl, chord_distance_m(e_gl, want));
+        worst_cf = std::max(worst_cf, chord_distance_m(e_cf, want));
+
+        const Enu n_gl = gl.to_enu(e_gl, origin);
+        const Enu n_cf = cf.to_enu(e_cf, origin);
+        worst_gl_enu = std::max(worst_gl_enu,
+                                norm(Enu(n_gl.e - want_enu.e, n_gl.n - want_enu.n, n_gl.u - want_enu.u)));
+        worst_cf_enu = std::max(worst_cf_enu,
+                                norm(Enu(n_cf.e - want_enu.e, n_cf.n - want_enu.n, n_cf.u - want_enu.u)));
+
+        // 反算也要钉住：只钉正算的话，Reverse 改坏了这条基准看不出来。
+        worst_back_gl = std::max(worst_back_gl, chord_distance_m(gl.to_ecef(gl.to_lla(want)), want));
+        worst_back_cf = std::max(worst_back_cf, chord_distance_m(cf.to_ecef(cf.to_lla(want)), want));
+    }
+
+    // GeographicLib 判据 1e-9 米而不是逐位：本表就是它生成的，同一台机器上必然逐位复现，
+    // 但换一个平台时 std::sin / std::cos 可能差一个最低位（D-049 ⑪ 已记过同一件事），
+    // 所以判据取纳米级——足以逮住任何真正的改动，又不会在换平台时假红。
+    CHECK(worst_gl < 1e-9);
+    CHECK(worst_gl_enu < 1e-9);
+
+    // 自写闭式判据 1e-6 米：两家的反算算法不同（自写是 Bowring 闭式，不迭代），
+    // 本就不该期望逐位相同；能到微米级就说明两边都对。这个判据是刻意放宽于铁律 10 的 1e-9 的，
+    // 理由同 M-3 把算法核与组件分成两个尺度（D-071 ③）——比较的对象不同，判据就该不同。
+    CHECK(worst_cf < 1e-6);
+    CHECK(worst_cf_enu < 1e-6);
+
+    // 往返：两家都必须回得来。1 毫米是 G-1 立的验收线（06 §9C），这里顺带复核。
+    CHECK(worst_back_gl < 1e-3);
+    CHECK(worst_back_cf < 1e-3);
+
+    MESSAGE("坐标基座 " << j["cases"].size() << " 例："
+            << "GeographicLib 正算最差 " << worst_gl << " m、站心 " << worst_gl_enu << " m；"
+            << "自写闭式正算最差 " << worst_cf << " m、站心 " << worst_cf_enu << " m");
+}
+
+TEST_CASE("坐标基座：D3-1 阶段缺省工厂仍是自写闭式") {
+    // 换基座是一次真正的基准变更（07 报告 §3.4），按铁律 10 单独成一步（D3-2）。
+    // 这条用例在 D3-2 那一步会被**有意改掉**，改动本身就是那一步的标志。
+    CHECK(std::string(default_geodesy().name()) == "closed-form-wgs84");
+    CHECK(std::string(geographiclib_geodesy().name()) == "geographiclib-2.5.2");
 }

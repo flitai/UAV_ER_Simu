@@ -4,7 +4,8 @@
 // CLAUDE.md 铁律 1、2、3、4、9、15。
 //
 // **本文件不含任何 JSON。** 场景文件的读取与逐字段校验在引擎侧
-// （engine/src/scenario_json.cpp，复用已 vendored 的 nlohmann），这样 geo/ 保持零第三方依赖，
+// （engine/src/scenario_json.cpp，复用已 vendored 的 nlohmann），这样 geo/ 不碰 JSON，
+// 自 D-074 / D3-1 起 geo/ 的第三方依赖只有 GeographicLib 的坐标基座抽取一件，
 // 将来独立承载 emcore 的移植（D3）时不会被 JSON 库拖住。
 
 #ifndef CUAV_GEO_SCENARIO_H

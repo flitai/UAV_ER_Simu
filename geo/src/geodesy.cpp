@@ -2,6 +2,10 @@
 
 #include <cmath>
 
+// 坐标基座 vendored GeographicLib 2.5.2（D-074 / D3-1）。
+// 第三方头只出现在这里，不进 cuav_geo/geodesy.h，调用方对它无感。
+#include <GeographicLib/Geocentric.hpp>
+
 namespace cuav {
 namespace geo {
 namespace {
@@ -89,8 +93,66 @@ Ecef ClosedFormWgs84::rotate_to_ecef(const Enu& v, const Lla& origin) const {
                 cp * v.n + sp * v.u);
 }
 
+// ---- GeographicLib 实现（D-074 定的坐标基座）----
+//
+// 椭球换算交 GeographicLib::Geocentric；站心旋转在下面自己写，理由见头文件。
+// WGS84() 返回的是进程内的常量单例，线程安全。
+
+Ecef GeographicLibGeodesy::to_ecef(const Lla& p) const {
+    double x = 0.0, y = 0.0, z = 0.0;
+    GeographicLib::Geocentric::WGS84().Forward(p.lat_deg, p.lon_deg, p.alt_m, x, y, z);
+    return Ecef(x, y, z);
+}
+
+Lla GeographicLibGeodesy::to_lla(const Ecef& p) const {
+    double lat = 0.0, lon = 0.0, h = 0.0;
+    GeographicLib::Geocentric::WGS84().Reverse(p.x, p.y, p.z, lat, lon, h);
+    return Lla(lon, lat, h);
+}
+
+Enu GeographicLibGeodesy::to_enu(const Ecef& p, const Lla& origin) const {
+    return rotate_to_enu(sub(p, to_ecef(origin)), origin);
+}
+
+Ecef GeographicLibGeodesy::from_enu(const Enu& v, const Lla& origin) const {
+    return add(rotate_to_ecef(v, origin), to_ecef(origin));
+}
+
+// 与 ClosedFormWgs84 的同名函数逐字相同：站心旋转只用原点的经纬度，不含椭球参数。
+Enu GeographicLibGeodesy::rotate_to_enu(const Ecef& v, const Lla& origin) const {
+    const double lat = deg2rad(origin.lat_deg), lon = deg2rad(origin.lon_deg);
+    const double sp = std::sin(lat), cp = std::cos(lat);
+    const double sl = std::sin(lon), cl = std::cos(lon);
+    return Enu(-sl * v.x + cl * v.y,
+               -sp * cl * v.x - sp * sl * v.y + cp * v.z,
+               cp * cl * v.x + cp * sl * v.y + sp * v.z);
+}
+
+Ecef GeographicLibGeodesy::rotate_to_ecef(const Enu& v, const Lla& origin) const {
+    const double lat = deg2rad(origin.lat_deg), lon = deg2rad(origin.lon_deg);
+    const double sp = std::sin(lat), cp = std::cos(lat);
+    const double sl = std::sin(lon), cl = std::cos(lon);
+    return Ecef(-sl * v.e - sp * cl * v.n + cp * cl * v.u,
+                cl * v.e - sp * sl * v.n + cp * sl * v.u,
+                cp * v.n + sp * v.u);
+}
+
+// **D3-1 阶段仍然返回自写闭式**。切换基座会改动每一个航迹样点的末几位，
+// 是一次真正的基准变更（07 报告 §3.4），按铁律 10 单独成一步（D3-2）。
+// 换的时候只改这一处，调用方一行不动——这正是 D-035 当初把接口留出来的用意。
 const IGeodesy& default_geodesy() {
     static const ClosedFormWgs84 g;
+    return g;
+}
+
+// 两家实现都要能被单测直接拿到（对拍用），不经缺省工厂。
+const IGeodesy& closed_form_geodesy() {
+    static const ClosedFormWgs84 g;
+    return g;
+}
+
+const IGeodesy& geographiclib_geodesy() {
+    static const GeographicLibGeodesy g;
     return g;
 }
 
