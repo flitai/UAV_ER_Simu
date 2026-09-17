@@ -122,9 +122,26 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     lin = (10.0 ** (a[rows][:, peak - half:peak + half + 1] / 10.0)).sum(axis=1)
     got = 10.0 * math.log10(float(np.mean(lin))) - HANN_ENBW_DB
     want = 27.0 + 2.0 + 3.0 - float(lk["path_loss_dB"])
-    check("算例 1 功率标度", abs(got - want) <= 0.15,
+    check("算例 1 功率标度（S1 = 链路预算）", abs(got - want) <= 0.15,
           f"S1 读 {got:.3f} dBm，链路预算 27 + 2 + 3 − {lk['path_loss_dB']:.3f} = {want:.3f} dBm，"
           f"差 {got - want:+.3f} dB（容差 0.15）")
+
+    # 电平链的另两段（10 报告 §9「全合成链的电平链」，要求从**保存的**链路上量）：
+    # S0 就是发射功率本身（emit_at_tx_power），S2 − S1 就是前端增益。
+    def tone_dbm(op: str) -> float:
+        ix, ax, fx, dx = spectrum(out, op)
+        rr = slice(int(t0 / dx), int(t1 / dx))
+        m = np.median(ax[rr], axis=0)
+        pk = int(np.argmax(m))
+        v = (10.0 ** (ax[rr][:, pk - half:pk + half + 1] / 10.0)).sum(axis=1)
+        return 10.0 * math.log10(float(np.mean(v))) - HANN_ENBW_DB
+
+    s0 = tone_dbm("s0")
+    check("算例 1 电平链起点：S0 = 发射功率", abs(s0 - 27.0) <= 0.05,
+          f"S0 读 {s0:.4f} dBm，场景写的 tx_power_dBm = 27（容差 0.05）")
+    s2 = tone_dbm("s2")
+    check("算例 1 电平链：S2 − S1 = 前端增益", abs((s2 - got) - 20.0) <= 0.05,
+          f"S2 {s2:.3f} − S1 {got:.3f} = {s2 - got:.3f} dB，前端增益 20 dB（容差 0.05）")
 
     # --- 算例 6：ADC 量化和削顶 ------------------------------------------------------
     # **削顶**：缺省满量程 −20 dBm 在这条链上确实压不住峰值。削顶是数据标记，

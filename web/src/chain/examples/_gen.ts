@@ -176,6 +176,8 @@ if (mode === 'default') {
   c.slots.rx_fe.params = { nf_dB: 6, gain_dB: 20 }
   c.slots.adc.params = { full_scale_dBm: -20 }
   c.slots.det.params = { nfft: 1024 }
+  // S0 到 S3 四个点都取：10 报告 §9 的「全合成链的电平链」要从一条**保存的**链路上量出来
+  c.taps.s0 = true
   c.taps.s1 = true
   c.taps.s2 = true
   c.taps.s3 = true

@@ -285,6 +285,16 @@
   ],
   "observation_points": [
     {
+      "id": "s0",
+      "label": "S0 辐射源输出",
+      "node": "tx",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
       "id": "s1",
       "label": "S1 接收天线端",
       "node": "rx_ant",
