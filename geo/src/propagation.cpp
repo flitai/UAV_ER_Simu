@@ -458,5 +458,26 @@ PropagationTerms combine(double distance_m, double frequency_Hz,
     return t;
 }
 
+namespace legacy {
+
+// 自 emcore `src/models/propagation.cpp` 逐字移植（D3-3）。**光速取 3e8 守黄金基准，
+// 不许改成 299792458**（D-009；理由见 cuav_geo/propagation.h 里这一节的头注）。
+namespace {
+const double kSpeedOfLightGolden = 3e8;
+}
+
+double fresnel_v(double obstacle_height_m, double d1_m, double d2_m, double frequency_Hz) {
+    const double lambda = kSpeedOfLightGolden / frequency_Hz;
+    return obstacle_height_m * std::sqrt((2.0 * (d1_m + d2_m)) / (lambda * d1_m * d2_m));
+}
+
+double knife_edge_loss_dB(double v) {
+    if (v <= -0.78) return 0.0;
+    const double t = v - 0.1;
+    return 6.9 + 20.0 * std::log10(std::sqrt(t * t + 1.0) + t);
+}
+
+}  // namespace legacy
+
 }  // namespace geo
 }  // namespace cuav

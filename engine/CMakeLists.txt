@@ -117,6 +117,7 @@ add_executable(cuav_engine_tests
   tests/test_dsp_random.cpp
   tests/test_components.cpp
   tests/test_golden.cpp
+  tests/test_occlusion.cpp
   tests/test_registry.cpp
   tests/test_spectrum.cpp
   tests/test_tap.cpp

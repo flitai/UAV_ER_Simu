@@ -245,6 +245,30 @@ PropagationTerms combine(double distance_m, double frequency_Hz,
                          const std::string& polarization,
                          const PropagationConfig& cfg, double shadow_sample_dB);
 
+namespace legacy {
+
+// ---- 刀口衍射（EM-P-04）：自 emcore `src/models/propagation.cpp` 移植，D3-3 ----
+//
+// 为什么在 legacy 里：这两式的波长用 emcore 的 `kSpeedOfLight = 3e8`，而本项目新写代码
+// 统一 c = 299792458（D-009）。两者相对差 **6.9e-4**（3e8 比 299792458 大 0.069%），
+// 落到刀口损耗上约 **3e-3 dB**（07 报告 §6.4 原写「1e-5 dB」，差三个数量级，§14.4 已修正）——
+// **物理上无关紧要，1e-9 的黄金基准上却是硬伤**。
+//
+// 与别处 legacy 符号不同的是：**引擎实际运行也调这两个**。理由是刀口衍射这一整套
+// （fresnel_v + knife_edge_loss_dB + 适配器几何）是被 148 例黄金基准整体钉住的一个模块，
+// 只换其中一个常数会让它内部自相矛盾——几何走严格站心坐标、波长却走旧光速。
+// R-2 当时预判「D-009 的常数冲突要到 D3 移植 fresnelV 时才出现」，出现了，
+// 按 D-009 的原则处理：移植模块保留原常数，禁止顺手统一（07 报告 §6.4）。
+
+// Fresnel-Kirchhoff 衍射参数 v。obstacle_height_m 是视线侵入刀口的深度。
+double fresnel_v(double obstacle_height_m, double d1_m, double d2_m, double frequency_Hz);
+
+// ITU-R P.526 单刀口衍射损耗（dB，单程）。v ≤ −0.78 时为 0；
+// 掠射（v = 0）解析值 6.9 + 20·log10(√1.01 − 0.1) = 6.03 dB。
+double knife_edge_loss_dB(double v);
+
+}  // namespace legacy
+
 }  // namespace geo
 }  // namespace cuav
 

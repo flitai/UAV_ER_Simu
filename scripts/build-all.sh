@@ -45,8 +45,16 @@ echo "=== 常数策略守卫（D-009）==="
 # `geo::legacy::` 里是自 emcore 移植时保留的旧常数（111320 投影、10 MHz 标称带宽等），
 # 它们存在的唯一理由是守住那几份黄金基准。新写代码一律用严格 ENU 与精确光速，
 # 所以这些符号只允许出现在 golden 与 legacy 文件里——顺手在别处用了，这里就拦下来。
+#
+# **一条写明理由的窄例外（D3-3，D-074 / 07 报告 §6.4）**：`geo/src/occlusion.cpp` 允许调
+# `legacy::fresnel_v` 与 `legacy::knife_edge_loss_dB`，引擎实际运行也走它们。理由是刀口衍射
+# 这一整套（两式 + 适配器几何）是被 tests/golden/occlusion.json 的 148 例**整体**钉住的一个模块，
+# 只把其中的光速常数换成精确值会让模块内部自相矛盾——几何走严格站心坐标、波长却走旧光速。
+# 量级：两个光速常数在刀口损耗上差约 3e-3 dB（07 §14.3 修正过这个数），物理无关紧要，
+# 1e-9 的黄金基准上却是硬伤。例外只此一处一文件两符号，别处照拦。
 bad_legacy=$(grep -rn 'legacy::' "$root/engine/src" "$root/engine/tools" "$root/geo/src" 2>/dev/null \
-  | grep -v '/legacy_' | grep -v '_golden' | grep -v 'namespace legacy' || true)
+  | grep -v '/legacy_' | grep -v '_golden' | grep -v 'namespace legacy' \
+  | grep -vE 'geo/src/occlusion\.cpp:[0-9]+:.*legacy::(fresnel_v|knife_edge_loss_dB)' || true)
 if [ -n "$bad_legacy" ]; then
   echo "$bad_legacy"
   echo "错误：geo::legacy 只允许在 golden 回放与 legacy_*.cpp 里用（D-009）。" >&2

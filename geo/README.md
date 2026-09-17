@@ -38,6 +38,32 @@ geo/build/cuav_geo_smoke_test --write-golden tests/golden/geodesy.json
 （链路距离差 2.7 纳米、路损 3.2e-10 分贝、航迹经纬度 1.4e-14 度），**下游的检测、识别、评价结论一个都没变**；
 三份航迹黄金基准的末几位随之重冻。详见 07 报告 §14。
 
+## 建筑遮挡（D-074，D3-3，2026-09-17）
+
+三件已从 emcore 移植进来：
+
+| 件 | 落点 |
+|---|---|
+| 地图查询接口 `IMapQuery` | `include/cuav_geo/map.h` |
+| 本地场景适配器（100 米桶网格 + 线段遍历） | 同上 + `src/local_scene_adapter.cpp` |
+| 单刀口衍射 `segment_occlusion` | `include/cuav_geo/occlusion.h` + `src/occlusion.cpp` |
+| Fresnel 参数与刀口损耗两式 | `src/propagation.cpp` 的 `legacy::{fresnel_v, knife_edge_loss_dB}` |
+
+**两处有意偏离 emcore 原件**（07 报告 §6.3）：① **接口改吃平面米**，经纬度到米的投影挪到
+调用方——黄金基准回放走 `legacy::local_frame_occlusion()` 的旧常数，引擎实际运行走
+`default_geodesy().to_enu()` 的严格站心地平；② 命名改成本项目的蛇形风格。**数值与算法一字未改。**
+
+**`legacy` 里有两套常数不同的投影，谁也不许去统一谁**：`fix_geometry.h` 的
+`local_frame_111320()` 来自定位模块（纬向 111320），`map.h` 的 `local_frame_occlusion()`
+来自遮挡模块（纬向 110540），各守各的黄金基准（D-009）。
+
+**`legacy::{fresnel_v, knife_edge_loss_dB}` 是引擎实际运行也会调的**——刀口衍射这一整套是被
+148 例黄金基准整体钉住的模块，只换其中的光速常数会让它内部自相矛盾。`scripts/build-all.sh`
+的常数守卫为此开了一条写明理由的窄例外，只此一文件两符号，别处照拦（验证过：在别的文件里调
+这两个符号、或在这个文件里调别的 `legacy::` 符号，都仍会被拦下）。
+
+验收见下一节；实测 148 例全过，其中 29 例判为非视距。
+
 ## 验收（两项缺一不可）
 
 1. 148 例黄金基准对拍，相对误差不超过 1e-9

@@ -29,6 +29,8 @@ add_library(cuav_geo STATIC
   ${CUAV_GEOGRAPHICLIB_DIR}/src/LocalCartesian.cpp
   ${CUAV_GEOGRAPHICLIB_DIR}/src/Math.cpp
   src/geodesy.cpp
+  src/local_scene_adapter.cpp
+  src/occlusion.cpp
   src/kinematics.cpp
   src/link_budget.cpp
   src/propagation.cpp

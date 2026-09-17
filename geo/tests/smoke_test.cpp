@@ -23,6 +23,8 @@
 #include "cuav_geo/geodesy.h"
 #include "cuav_geo/kinematics.h"
 #include "cuav_geo/link_budget.h"
+#include "cuav_geo/map.h"
+#include "cuav_geo/occlusion.h"
 
 using namespace cuav::geo;
 
@@ -179,6 +181,37 @@ int main(int argc, char** argv) {
         // 差别只该来自浮点运算次序，不该来自模型。
         check(worst < 1e-7, "自写的站心旋转应与上游 LocalCartesian 一致");
         std::printf("站心旋转对上游 LocalCartesian：最差 %.3e m\n", worst);
+    }
+
+    // 六、建筑遮挡（D3-3）：一栋楼、一条穿过它的视线，取解析锚点与单调性。
+    // 完整的 148 例黄金对拍在 engine/tests/test_occlusion.cpp，这里只保证本库脱离引擎也自检得动。
+    {
+        check(std::fabs(legacy::knife_edge_loss_dB(0.0) - 6.0329) < 1e-3,
+              "掠射刀口损耗解析锚点 6.03 dB");
+        check(legacy::knife_edge_loss_dB(-2.0) == 0.0, "v ≤ −0.78 判为无遮挡");
+
+        Building b;
+        b.id = "B";
+        b.height_m = 40.0;
+        const double half = 50.0;
+        b.ring_x.push_back(-half); b.ring_y.push_back(-half);
+        b.ring_x.push_back(half);  b.ring_y.push_back(-half);
+        b.ring_x.push_back(half);  b.ring_y.push_back(half);
+        b.ring_x.push_back(-half); b.ring_y.push_back(half);
+        std::vector<Building> bs;
+        bs.push_back(b);
+        LocalSceneAdapter map;
+        map.set_buildings(bs);
+        check(map.building_count() == 1 && map.dropped_count() == 0, "建筑应全部入网格");
+
+        const OcclusionResult low =
+            segment_occlusion(map, MapPoint(-500.0, 0.0, 10.0), MapPoint(500.0, 0.0, 10.0), 2.44e9);
+        check(low.blocked && low.obstruction_loss_dB > 6.0, "楼下穿过应判非视距且损耗大于掠射值");
+        const OcclusionResult high =
+            segment_occlusion(map, MapPoint(-500.0, 0.0, 60.0), MapPoint(500.0, 0.0, 60.0), 2.44e9);
+        check(!high.blocked && high.obstruction_loss_dB == 0.0, "楼顶掠过应判视距且零损耗");
+        std::printf("建筑遮挡：楼下穿过 %.1f dB（侵入 %.0f m），楼顶掠过 %.1f dB\n",
+                    low.obstruction_loss_dB, low.intrusion_m, high.obstruction_loss_dB);
     }
 
     if (failures == 0) std::printf("cuav_geo 冒烟测试通过\n");
