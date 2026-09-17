@@ -13,6 +13,7 @@ import { emitterCenters, emitters, sites, type Obj } from '../scene/editor/scena
 import { slotState, type ChainState } from './model.js'
 import type { Catalog } from '../api/catalog.js'
 import { propConflict, propView } from './effects.js'
+import { gridText, onGrid, passbandEdgeHz } from './firSpecs.js'
 
 export interface FreqPlan {
   /** 宽带采样率，站点接收机给 */
@@ -40,6 +41,15 @@ export interface FreqPlan {
   /** 信道化路数与 S5 采样率；旁路时 channels = 1 */
   channels: number
   fs_s5: number
+  /** 输出的是哪一路（界面编号，`channels/2` 是零频那一路）与它的中心频率 */
+  select: number
+  f_s5: number
+  /**
+   * 辐射源的**全部**中心频点（含跳频序列），未去重、按场景里的次序。
+   * 检查项要按不同的参照点各算一次「最坏频偏」——对 S4 参照 f_rx，对 S5 参照本路中心 ——
+   * 只留一个 `df_max` 就没法换参照点了（C-10）。
+   */
+  centers: number[]
   /** 保护带，缺省取采样率的 5%（见 GUARD_FRACTION 的说明） */
   guard: number
 }
@@ -95,6 +105,25 @@ function worstOffset(doc: ScenarioDoc | null, emitterId: string, fTx: number, fR
   return { df, where }
 }
 
+/** 辐射源的全部中心频点（基频 + 跳频序列）。顺序照场景，不去重——文案里要按下标指认。 */
+function centerSet(doc: ScenarioDoc | null, emitterId: string, fTx: number): number[] {
+  const hops = emitterCenters(doc, emitterId)
+  return hops.length ? hops.slice() : [fTx]
+}
+
+/**
+ * 某个槽位实际生效的 `fir_version`：用户填过就用它，否则取组件目录里的缺省。
+ * **目录取不到就返回 undefined**，让调用方说「算不出」而不是拿一个写死的版本号顶替（铁律 15）。
+ */
+function firVersionOf(chain: ChainState, slot: 'ddc' | 'chan', cat: Catalog | null): string | undefined {
+  const own = chain.slots[slot].params.fir_version
+  if (own !== undefined && own !== '') return String(own)
+  const type = slot === 'ddc' ? 'DDC' : 'Channelizer'
+  const c = cat?.components.find((x) => x.type === type)
+  const spec = c?.params.find((x) => x.name === 'fir_version')
+  return typeof spec?.default === 'string' ? spec.default : undefined
+}
+
 /**
  * 从链路状态与场景算出频率计划。场景缺失（回放模式）时用槽位里已填的值，
  * 算不出的项留 0 并由检查项报出来，不拿默认值顶替（铁律 15）。
@@ -133,15 +162,38 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null,
   const fs_s4 = decim > 0 ? fs_rf / decim : 0
   const chanOn = slotState(chain, 'chan', cat) === 'active'
   const channels = chanOn ? Math.max(1, Math.round(num(chain.slots.chan.params.channels, 8))) : 1
+  // 缺省是零频那一路（`channels/2`，与 S4 中心重合）。这是 M-3 对 10 §3.7 的修正：
+  // 按低→高编号 j = 0 指的是带边那一路，合法但作缺省最差（D-071 ⑧）。
+  const select = chanOn
+    ? (chain.slots.chan.params.select_channel !== undefined
+        ? Math.round(num(chain.slots.chan.params.select_channel))
+        : Math.floor(channels / 2))
+    : 0
+  const fs_s5 = channels > 0 ? fs_s4 / channels : 0
+  const f_s4 = f_rx + f_shift
 
   return {
     fs_rf, f_rx, f_tx, bw_tx,
     df_max: worst.df, df_max_where: worst.where,
     decim, f_shift,
-    fs_s4, f_s4: f_rx + f_shift,
-    channels, fs_s5: channels > 0 ? fs_s4 / channels : 0,
+    fs_s4, f_s4,
+    channels, fs_s5,
+    select,
+    f_s5: chanOn ? f_s4 + (select - channels / 2) * fs_s5 : f_s4,
+    centers: centerSet(doc, String(emitter?.id ?? ''), f_tx),
     guard: GUARD_FRACTION * fs_rf,
   }
+}
+
+/**
+ * 全部中心频点相对某个参照点的**最坏**偏移。参照点是 S4 中心时它退化成原来那条
+ * `max(|f_tx − f_rx − f_shift|, df_max − |f_shift|)`；参照 S5 本路中心时也是同一个式子，
+ * 只是换了参照 —— 这正是 `centers` 要留在计划里的理由（C-10）。
+ */
+function worstOffsetTo(plan: FreqPlan, ref: number): number {
+  let d = 0
+  for (const c of plan.centers) d = Math.max(d, Math.abs(c - ref))
+  return d
 }
 
 /** 回放模式不看场景（防线二、三），与 freqPlan 同一口径。 */
@@ -165,6 +217,7 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
                           cat: Catalog | null = null): PlanCheck[] {
   // 与 freqPlan 同一判据：旁路、未实现、回放不适用三种情形都算「没参与计算」
   const ddcActive = slotState(chain, 'ddc', cat) === 'active'
+  const chanActive = slotState(chain, 'chan', cat) === 'active'
   const out: PlanCheck[] = []
   const replay = chain.mode === 'replay'
 
@@ -188,27 +241,70 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         : `|Δf| + B/2 + 保护带 = ${fmt(need)}，须小于 Fs/2 = ${fmt(plan.fs_rf / 2)}`,
     })
 
-    const decimOk = plan.decim >= 1 && plan.fs_rf > 0 && Math.abs(plan.fs_rf % plan.decim) < 1e-9
+    // 两件事：能整除（引擎的 configure 也查这一条），以及**取值在冻结抽头表的档位里**
+    // ——表外的 decim 没有系数可用，引擎会拒整次运行，前端先说清楚（C-10）。
+    const ddcVer = firVersionOf(chain, 'ddc', cat)
+    const divides = plan.decim >= 1 && plan.fs_rf > 0 && Math.abs(plan.fs_rf % plan.decim) < 1e-9
+    const decimOnGrid = onGrid(ddcVer, plan.decim)
+    const decimOk = divides && decimOnGrid
     out.push({
       id: 'decim',
       label: '抽取比例合法',
-      ok: decimOk,
+      ok: !ddcActive || decimOk,
       detail: !ddcActive
         ? 'DDC 未参与计算，S4 与宽带同采样率'
-        : `抽取 ${plan.decim} 倍后 S4 = ${fmt(plan.fs_s4)}${decimOk ? '' : '；采样率须能被抽取比整除'}`,
+        : `抽取 ${plan.decim} 倍后 S4 = ${fmt(plan.fs_s4)}`
+          + (divides ? '' : '；采样率须能被抽取比整除')
+          + (decimOnGrid ? '' : `；抽取比须取 ${gridText(ddcVer)}`),
     })
 
-    // 过渡带：|Δf − f_shift| + B/2 ≤ 0.4·fs_s4，与 fir_version 的通带边缘一致（08 §8）。
-    // 跳频时抽取后的通带必须装得下**全部**跳频点，否则跳到带外的那几跳会被抗混叠滤波器吃掉。
-    const inband = Math.max(Math.abs(plan.f_tx - plan.f_rx - plan.f_shift),
-                            plan.df_max - Math.abs(plan.f_shift)) + plan.bw_tx / 2
+    // 过渡带：|Δf − f_shift| + B/2 ≤ 通带边缘，跳频时抽取后的通带必须装得下**全部**跳频点，
+    // 否则跳到带外的那几跳会被抗混叠滤波器吃掉。
+    // **通带边缘按 `fir_version` 从冻结表的规格来**（C-10），不再是写死的 0.4 ——
+    // 换一版抽头就换一个数，写死会让检查与实际用的滤波器脱节（`firSpecs.ts` 有对拍闸）。
+    const edgeS4 = passbandEdgeHz(ddcVer, plan.fs_s4)
+    const inband = worstOffsetTo(plan, plan.f_s4) + plan.bw_tx / 2
     out.push({
       id: 'transition',
       label: '滤波器过渡带足够',
-      ok: !ddcActive || (plan.fs_s4 > 0 && inband <= 0.4 * plan.fs_s4),
+      ok: !ddcActive || (edgeS4 !== null && inband <= edgeS4),
       detail: !ddcActive
         ? 'DDC 未参与计算，不涉及抗混叠滤波'
-        : `目标落在 S4 的 ±${fmt(inband)}，通带边缘 ${fmt(0.4 * plan.fs_s4)}`,
+        : edgeS4 === null
+          ? `抽头版本 ${ddcVer ?? '（未选）'} 的通带边缘取不到，算不出`
+          : `目标落在 S4 的 ±${fmt(inband)}，通带边缘 ${fmt(edgeS4)}`,
+    })
+
+    // 信道化（M-3，D-071）：四件事一起看——档位、整除、路号范围、目标装不装得进本路。
+    // **可用子带是 ±0.4·fs_s5 不是 ±0.5·fs_s5**：临界抽取下相邻子信道的过渡带折进本路外侧 20%
+    // （模型卡 `models/channelizer/README.md` §8 第 1 条）。
+    const chanVer = firVersionOf(chain, 'chan', cat)
+    const edgeS5 = passbandEdgeHz(chanVer, plan.fs_s5)
+    const chGrid = onGrid(chanVer, plan.channels)
+    const chDiv = plan.channels >= 1 && plan.fs_s4 > 0 && Math.abs(plan.fs_s4 % plan.channels) < 1e-9
+    const selOk = Number.isInteger(plan.select) && plan.select >= 0 && plan.select < plan.channels
+    const why: string[] = []
+    if (!chGrid) why.push(`子信道数须取 ${gridText(chanVer)}`)
+    if (!chDiv) why.push('S4 采样率须能被子信道数整除')
+    if (!selOk) why.push(`输出子信道须是 [0, ${plan.channels}) 内的整数，${Math.floor(plan.channels / 2)} 是零频那一路`)
+    // **这三条是硬错（引擎的 configure 会拒整次运行），「目标装不装得进本路」不是。**
+    // 选一路子信道本来就是一次有意的取舍——演示夹具 `chain-demo-02-chan` 选的正是
+    // 「图传落进相邻子信道被压掉、跳频留在本路」那种配置。把「装不下」判成红叉，
+    // 等于让界面替用户否掉一个合法而且正是要演示的配置（D-039：只摆事实，不替用户下结论）。
+    // 所以装不装得下写在说明里当事实，不进 ok。
+    const inbandS5 = worstOffsetTo(plan, plan.f_s5) + plan.bw_tx / 2
+    const fits = edgeS5 !== null && inbandS5 <= edgeS5
+    out.push({
+      id: 'channelization',
+      label: '信道化配置可行',
+      ok: !chanActive || why.length === 0,
+      detail: !chanActive
+        ? '信道化未参与计算，S5 与 S4 同采样率'
+        : why.length
+          ? why.join('；')
+          : `S5 = ${fmt(plan.fs_s5)} @ ${fmt(plan.f_s5)}，可用子带 ±${fmt(edgeS5 ?? 0)}`
+            + `；目标占用落在本路的 ±${fmt(inbandS5)}`
+            + (fits ? '，都在子带内' : '，超出的部分会被信道化滤掉'),
     })
   }
 

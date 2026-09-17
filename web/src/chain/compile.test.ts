@@ -911,3 +911,83 @@ test('频率计划：跳频点也要过铁律 4 的闸（G-6，D-069）', () => 
   assert.equal(e1.ok, false)
   assert.ok(e1.detail.includes('最坏跳频点 2440.650 MHz'), e1.detail)
 })
+
+// --- C-10：频率计划的抽头版本与信道化 ------------------------------------------
+
+/** 把一条链的某个 DSP 槽位打开并填参数 */
+function withSlot(base: ChainState, id: 'ddc' | 'chan', params: Record<string, number | string>): ChainState {
+  return { ...base, slots: { ...base.slots, [id]: { ...base.slots[id], bypass: false, params } } }
+}
+
+test('过渡带检查的通带边缘来自冻结表的规格，不是写死的 0.4（C-10）', () => {
+  // demo-01 是 500 kS/s / 400 kHz 占用。decim = 2 → S4 = 250 kS/s，
+  // lp_v1 的通带边缘 0.4·250k = 100 kHz，而目标半带宽就有 200 kHz —— 装不下，必须报出来。
+  const tight = withSlot(synthetic(), 'ddc', { decim: 2, f_shift_Hz: 0 })
+  const t = planChecks(tight, freqPlan(tight, scenario, cat), scenario, cat)
+  const tr = t.find((x) => x.id === 'transition')!
+  assert.equal(tr.ok, false)
+  assert.match(tr.detail, /通带边缘 100\.000 kHz/, tr.detail)
+
+  // decim = 1：S4 仍是 500 kS/s，通带边缘 200 kHz，400 kHz 占用正好贴着边 —— 通过
+  const one = withSlot(synthetic(), 'ddc', { decim: 1, f_shift_Hz: 0 })
+  const o = planChecks(one, freqPlan(one, scenario, cat), scenario, cat)
+  assert.equal(o.find((x) => x.id === 'transition')!.ok, true)
+})
+
+test('抽取比不在冻结表的档位里要当场说清楚，不靠到最近一档（C-10）', () => {
+  const odd = withSlot(synthetic(), 'ddc', { decim: 3, f_shift_Hz: 0 })
+  const checks = planChecks(odd, freqPlan(odd, scenario, cat), scenario, cat)
+  const d = checks.find((x) => x.id === 'decim')!
+  assert.equal(d.ok, false)
+  assert.match(d.detail, /抽取比须取 1 \/ 2 \/ 4 \/ 5 \/ 8 \/ 10 \/ 16 \/ 20/, d.detail)
+})
+
+test('信道化检查：旁路时不拦，启用后四件事一起看（C-10，D-071）', () => {
+  // 旁路（缺省）：这一项恒通过，且说明写的是「没参与计算」
+  const base = planChecks(synthetic(), freqPlan(synthetic(), scenario, cat), scenario, cat)
+  const off = base.find((x) => x.id === 'channelization')!
+  assert.equal(off.ok, true)
+  assert.match(off.detail, /未参与计算/)
+
+  // demo-01 是 500 kS/s：切 4 条 → 每条 125 kS/s，可用子带 ±50 kHz，而目标半带宽 200 kHz。
+  // **装不下不算错**：选一路子信道本来就是有意的取舍（演示夹具选的正是「图传被压掉」那种配置），
+  // 界面只把这件事写成说明，不替用户否掉一个合法配置（D-039）。
+  const on = withSlot(synthetic(), 'chan', { channels: 4, select_channel: 2 })
+  const p = freqPlan(on, scenario, cat)
+  assert.equal(p.channels, 4)
+  assert.equal(p.fs_s5, 125000)
+  assert.equal(p.select, 2)
+  assert.equal(p.f_s5, p.f_s4, '零频那一路的中心与 S4 中心重合')
+  const c1 = planChecks(on, p, scenario, cat).find((x) => x.id === 'channelization')!
+  assert.equal(c1.ok, true, '装不下是取舍不是错')
+  assert.match(c1.detail, /可用子带 ±50\.000 kHz/, c1.detail)
+  // 中心就在本路中心上，但 400 kHz 的占用比 ±50 kHz 的子带宽得多——说明要写占用不是写中心
+  assert.match(c1.detail, /目标占用落在本路的 ±200\.000 kHz，超出的部分会被信道化滤掉/, c1.detail)
+
+  // 档位外的子信道数
+  const bad = withSlot(synthetic(), 'chan', { channels: 6, select_channel: 3 })
+  const c2 = planChecks(bad, freqPlan(bad, scenario, cat), scenario, cat).find((x) => x.id === 'channelization')!
+  assert.equal(c2.ok, false)
+  assert.match(c2.detail, /子信道数须取 2 \/ 4 \/ 8 \/ 16 \/ 32 \/ 64/, c2.detail)
+
+  // 路号越界：报文要把「零频那一路是几号」写出来
+  const oob = withSlot(synthetic(), 'chan', { channels: 4, select_channel: 4 })
+  const c3 = planChecks(oob, freqPlan(oob, scenario, cat), scenario, cat).find((x) => x.id === 'channelization')!
+  assert.equal(c3.ok, false)
+  assert.match(c3.detail, /\[0, 4\) 内的整数，2 是零频那一路/, c3.detail)
+
+  // 采样率除不尽。500000 = 2^5 × 5^6，所以 2 / 4 / 8 / 16 / 32 都除得尽，只有 64 除不尽
+  // （500000 / 64 = 7812.5）——第一版这条用了 32，是我没算就写，测试当场戳穿
+  const nodiv = withSlot(synthetic(), 'chan', { channels: 64, select_channel: 32 })
+  const c4 = planChecks(nodiv, freqPlan(nodiv, scenario, cat), scenario, cat).find((x) => x.id === 'channelization')!
+  assert.equal(c4.ok, false, '500000 / 64 = 7812.5，不是整数')
+  assert.match(c4.detail, /整除/, c4.detail)
+})
+
+test('信道化的缺省路号是零频那一路，不是 0（M-3 对 10 §3.7 的修正，D-071 ⑧）', () => {
+  const on: ChainState = {
+    ...synthetic(),
+    slots: { ...synthetic().slots, chan: { ...synthetic().slots.chan, bypass: false, params: { channels: 8 } } },
+  }
+  assert.equal(freqPlan(on, scenario, cat).select, 4)
+})
