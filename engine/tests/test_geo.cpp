@@ -406,9 +406,11 @@ TEST_CASE("坐标基座：两家实现对 tests/golden/geodesy.json") {
             << "自写闭式正算最差 " << worst_cf << " m、站心 " << worst_cf_enu << " m");
 }
 
-TEST_CASE("坐标基座：D3-1 阶段缺省工厂仍是自写闭式") {
-    // 换基座是一次真正的基准变更（07 报告 §3.4），按铁律 10 单独成一步（D3-2）。
-    // 这条用例在 D3-2 那一步会被**有意改掉**，改动本身就是那一步的标志。
-    CHECK(std::string(default_geodesy().name()) == "closed-form-wgs84");
+TEST_CASE("坐标基座：缺省工厂是 GeographicLib（D3-2 换过来）") {
+    // D3-1 时这条断言的是 "closed-form-wgs84"，并写明「在 D3-2 会被有意改掉，
+    // 改动本身就是那一步的标志」。2026-09-17 由 D3-2 改成现在这样。
+    // 自写闭式没有删，仍然受 tests/golden/geodesy.json 那条用例约束。
+    CHECK(std::string(default_geodesy().name()) == "geographiclib-2.5.2");
+    CHECK(std::string(closed_form_geodesy().name()) == "closed-form-wgs84");
     CHECK(std::string(geographiclib_geodesy().name()) == "geographiclib-2.5.2");
 }

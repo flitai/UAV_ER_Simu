@@ -137,11 +137,16 @@ Ecef GeographicLibGeodesy::rotate_to_ecef(const Enu& v, const Lla& origin) const
                 cp * v.n + sp * v.u);
 }
 
-// **D3-1 阶段仍然返回自写闭式**。切换基座会改动每一个航迹样点的末几位，
-// 是一次真正的基准变更（07 报告 §3.4），按铁律 10 单独成一步（D3-2）。
-// 换的时候只改这一处，调用方一行不动——这正是 D-035 当初把接口留出来的用意。
+// **坐标基座 = GeographicLib**（D-074；2026-09-17 由 D3-2 从自写闭式换过来）。
+//
+// 换过来只改了这一处，调用方一行没动——这正是 D-035 当初把 IGeodesy 接口留出来的用意。
+// 换的后果按铁律 10 单独成一步收口并用字节比对证过，逐项记在 WORKLOG 与 07 报告 §3.4：
+// 扰动相对 1e-12，航迹黄金基准的末几位随之重冻，产品文件逐字节不变。
+//
+// 自写闭式没有删，见下面的 closed_form_geodesy()：它是独立第二实现与对拍件，
+// 两家的一致性由 tests/golden/geodesy.json 的 210 例钉住。
 const IGeodesy& default_geodesy() {
-    static const ClosedFormWgs84 g;
+    static const GeographicLibGeodesy g;
     return g;
 }
 
