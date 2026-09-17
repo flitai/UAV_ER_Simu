@@ -25,6 +25,9 @@ export type SlotId =
   // C-4：挂在「检测识别评价」卡片里的两个槽位（10 报告 §2.1「固定三节点」）。它们不单独成卡，
   // 编译与反解照常按槽位走——这样 parse / compile / 参数归属 / 待填一件不用改，只有画法不同
   | 'feat' | 'rec'
+  // C-10：接收滤波挂在「接收机前端」卡片里。它在链上排在前端**之前**（见 SLOTS 里的说明），
+  // 但属于接收机这一环，所以不另立一张卡
+  | 'rx_flt'
   // C-5：卡片里的第三个子环节——真值与评价（10 报告 §4.5）
   | 'eval'
 
@@ -183,6 +186,19 @@ export const SLOTS: readonly SlotDef[] = [
     variants: [
       { type: 'ReceiverFrontEnd', node: 'rx_fe', label: '接收机前端',
         summary: ['nf_dB', 'gain_dB', 'lo_offset_Hz'] },
+    ],
+  },
+  {
+    // 接收滤波（C-10；组件 M-3 落地，D-071）。挂在前端卡片里，但**链上排在前端之前** ——
+    // 前端注入的等效热噪声因此不被它整形，S2 的底噪仍是 −174 + nf + 10·log10(fs)，
+    // 而那个等式有三处别的地方在依赖（频率计划的 adc_floor、模型卡、slice4 的 S2 断言）。
+    // 缺省旁路：接上它会改变每一条既有链路的产品，而本期没有场景需要它（零基准变更）。
+    // `bw_Hz` 由场景的 `sites[].receiver.bw_Hz` 逐站带出（FROM_SCENE，D-054）——
+    // 那个字段自 G-2 起就被解析、校验，然后一直没有任何模型用它。
+    id: 'rx_flt', label: '接收滤波', hint: '接收通道滤波（04 §7.5 与附录 A 的「滤波」）',
+    group: 'rx_fe', bypassable: true, defaultBypass: true, replayNotApplicable: true,
+    variants: [
+      { type: 'RxFilter', node: 'rx_flt', label: '接收滤波', summary: ['bw_Hz', 'fir_version'] },
     ],
   },
   {
@@ -572,6 +588,9 @@ export const FROM_SCENE: Partial<Record<SlotId, FromSceneParam[]>> = {
   tx_ant: [{ name: 'gain_dBi', from: 'emitter', rel: 'emission.antenna_gain_dBi' }],
   rx_ant: [{ name: 'gain_dBi', from: 'site', rel: 'antenna.gain_dBi' }],
   rx_fe: [{ name: 'nf_dB', from: 'site', rel: 'receiver.nf_dB' }],
+  // C-10：接收滤波的通带由场景逐站带出。`sites[].receiver.bw_Hz` 自 G-2 起就在格式里、
+  // 被引擎解析与校验，`RxFilter` 是它的第一个消费者（D-071 ⑩）
+  rx_flt: [{ name: 'bw_Hz', from: 'site', rel: 'receiver.bw_Hz' }],
 }
 
 /** 这个槽位有没有由场景带出的参数；有的话是哪几个。 */

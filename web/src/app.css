@@ -432,6 +432,9 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .slot-member .v.bad, .slot-member.bad .k { color: #b91c1c; }
 .slot-error { padding: 4px 8px 0; font-size: 11px; color: #b91c1c; }
 .slot-bypass { padding: 4px 8px 0; font-size: 11px; display: flex; align-items: center; gap: 4px; }
+/* 子环节行里的旁路勾选框（C-10）：贴在行尾，不撑高那一行 */
+.slot-bypass.sub { padding: 0 0 0 6px; font-size: 10px; gap: 3px; }
+.slot-bypass.sub input { margin: 0; }
 
 /* 观测点一行，写全名而不只写编号（2026-09-08）；2K 基线下六个全名一行放得下 */
 .tap-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; font-size: 12px;

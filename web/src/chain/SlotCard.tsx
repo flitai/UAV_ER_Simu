@@ -165,6 +165,19 @@ export function SlotCard(p: SlotCardProps) {
               <span className={`v${m.error ? ' bad' : m.missing.length ? ' warn' : ''}`}>
                 {m.error ? '✕' : m.missing.length ? '待填' : m.state === 'active' ? '✓' : (STATE_TEXT[m.state] || unavailableReason(variantOf(p.chain, m.id).type))}
               </span>
+              {/* 可旁路的子环节要有自己的勾选框（C-10）：旁路开关此前只画在卡片上，
+                  于是挂在卡片里的接收滤波一旦缺省旁路，界面上就没有任何地方能把它打开。 */}
+              {SLOT_BY_ID[m.id].bypassable && m.state !== 'not_applicable' && m.state !== 'unavailable' && (
+                <label className="slot-bypass sub" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    data-slot-bypass={m.id}
+                    checked={p.chain.slots[m.id].bypass}
+                    onChange={(e) => p.onBypass(m.id, e.target.checked)}
+                  />
+                  旁路
+                </label>
+              )}
             </div>
           ))}
         </div>

@@ -186,6 +186,12 @@ add_test(NAME cuav_run_validate_demo02_chan
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
+# C-10：三级 DSP 全开 —— 接收滤波 → DDC → 信道化，10 → 5 → 2.5 MS/s
+add_test(NAME cuav_run_validate_demo02_dsp
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-demo-02-dsp.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
+          --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
+          --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
           --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"

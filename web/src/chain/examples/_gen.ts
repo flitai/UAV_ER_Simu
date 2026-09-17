@@ -4,6 +4,7 @@
 //   npx tsx src/chain/examples/_gen.ts demo-02    > ../tests/regression/diagrams/chain-demo-02.json
 //   npx tsx src/chain/examples/_gen.ts demo-02-ddc > ../tests/regression/diagrams/chain-demo-02-ddc.json
 //   npx tsx src/chain/examples/_gen.ts demo-02-chan > ../tests/regression/diagrams/chain-demo-02-chan.json
+//   npx tsx src/chain/examples/_gen.ts demo-02-dsp > ../tests/regression/diagrams/chain-demo-02-dsp.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-aoa    > ../tests/regression/diagrams/chain-3x3-aoa.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-tdoa   > ../tests/regression/diagrams/chain-3x3-tdoa.json
 // 夹具模式读现有夹具文件、parseChain 解回链路状态、按当前目录与槽位表重新 compile：参数一件不丢，
@@ -125,6 +126,37 @@ if (mode === 'default') {
   c.taps.s4 = false
   c.taps.s5 = true
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'demo-02-dsp') {
+  // 三级 DSP 全开（C-10）：接收滤波 → DDC → 信道化，10 → 5 → 2.5 MS/s。
+  // 这份夹具的用处是让 04 §15.2 的算例 5 / 7 / 8 **从一条保存下来的典型链路**跑一遍
+  // ——单测里它们各自过了，但那是直接调组件；C-10 的验收要的是「从框图跑通」。
+  //
+  // 参数都有来历，不是凑的：
+  //   · 接收滤波的通带由场景带出（`sites[].receiver.bw_Hz` = 8 MHz，8/10 = 0.8 正在抽头表里）；
+  //   · DDC 搬 −2.5 MHz、抽 2 倍，S4 = 5 MS/s @ 2438.5 MHz，正对图传中心（同 demo-02-ddc）；
+  //   · 信道化切 2 条取零频那一路，S5 = 2.5 MS/s @ 2438.5 MHz，可用子带 ±1.0 MHz —— 图传
+  //     是 fc = 1 MHz 的 4 阶巴特沃斯带限噪声，落进这一路的约 90%（−0.45 dB），
+  //     它的裙边被切掉的那部分是可算可核的量，不是「看着差不多」。
+  // 三个观测点 S3 / S4 / S5 一次跑出三种采样率，链路上每降一级都看得见。
+  const { doc: scenario, sha } = loadScenario('demo-02')
+  const c: ChainState = emptyChain('synthetic', 'chain-demo-02-dsp')
+  c.name = '典型链路 · 全合成 · demo-02 宽带 · 三级 DSP 全开'
+  c.scenario = { scenario_id: 'demo-02', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1', 'uav-2']
+  c.run = { duration_s: 6, seed: 20260915 }
+  c.slots.rx_fe.params = { gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.rx_flt.bypass = false
+  c.slots.ddc.bypass = false
+  c.slots.ddc.params = { f_shift_Hz: -2500000, decim: 2 }
+  c.slots.chan.bypass = false
+  c.slots.chan.params = { channels: 2, select_channel: 1 }
+  c.slots.det.params = { nfft: 1024 }
+  c.taps.s3 = true
+  c.taps.s4 = true
+  c.taps.s5 = true
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === '3x3-aoa' || mode === '3x3-tdoa') {
   const { doc: scenario } = loadScenario('demo-03')
   const file = join(ROOT, `tests/regression/diagrams/chain-${mode}.json`)
@@ -134,5 +166,5 @@ if (mode === 'default') {
   if (!chain) throw new Error('夹具解不成典型链路：先查槽位表与 parseChain')
   process.stdout.write(serialize(compile(chain, cat, scenario).doc, cat))
 } else {
-  throw new Error(`未知模式 ${mode}：default | demo-02 | demo-02-ddc | demo-02-chan | 3x3-aoa | 3x3-tdoa`)
+  throw new Error(`未知模式 ${mode}：default | demo-02 | demo-02-ddc | demo-02-chan | demo-02-dsp | 3x3-aoa | 3x3-tdoa`)
 }

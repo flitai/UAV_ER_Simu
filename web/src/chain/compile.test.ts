@@ -14,7 +14,7 @@ import type { Catalog } from '../api/catalog.js'
 import { serialize, parse as parseDoc, type DiagramDoc } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { compile, nodeId, parseChain, splitNodeId, switchMode } from './compile.js'
-import { emptyChain, missingParams, PROPAGATION_PARAMS, retiredNote, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
+import { emptyChain, fromSceneOf, missingParams, PROPAGATION_PARAMS, retiredNote, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
 import { propConflict, propView, visiblePropParams } from './effects.js'
 import { freqPlan, planChecks, planOk } from './plan.js'
 import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
@@ -990,4 +990,84 @@ test('信道化的缺省路号是零频那一路，不是 0（M-3 对 10 §3.7 �
     slots: { ...synthetic().slots, chan: { ...synthetic().slots.chan, bypass: false, params: { channels: 8 } } },
   }
   assert.equal(freqPlan(on, scenario, cat).select, 4)
+})
+
+test('接收滤波挂在前端卡片里，链上排在前端之前（C-10）', () => {
+  // 缺省旁路：既有链路一个节点不多
+  const off = compile(synthetic(), cat, scenario)
+  assert.equal(off.doc.nodes.some((n) => n.id === 'rx_flt'), false, '缺省旁路时不该出现节点')
+
+  const on: ChainState = {
+    ...synthetic(),
+    slots: { ...synthetic().slots, rx_flt: { ...synthetic().slots.rx_flt, bypass: false, params: { bw_Hz: 400000 } } },
+  }
+  const r = compile(on, cat, scenario)
+  const ids = r.doc.nodes.map((n) => n.id)
+  assert.ok(ids.includes('rx_flt'))
+  assert.ok(ids.indexOf('rx_flt') < ids.indexOf('rx_fe'), '接收滤波要排在前端之前')
+  assert.equal(r.doc.nodes.find((n) => n.id === 'rx_flt')!.type, 'RxFilter')
+  assert.equal(r.doc.nodes.find((n) => n.id === 'rx_flt')!.params.bw_Hz, 400000)
+  // 连线：接收天线 → 接收滤波 → 前端
+  const into = r.doc.edges.find((e) => e.to.node === 'rx_flt')!
+  assert.equal(into.from.node, 'rx_ant')
+  const outof = r.doc.edges.find((e) => e.from.node === 'rx_flt')!
+  assert.equal(outof.to.node, 'rx_fe')
+  // 往返仍逐字节相同
+  const text = serialize(r.doc, cat)
+  const round = parseDoc(text)
+  assert.equal(round.ok, true)
+  const back = parseChain(round.doc!)
+  assert.ok(back, '带接收滤波的框图要解得回典型链路')
+  assert.equal(serialize(compile(back!, cat, scenario).doc, cat), text, '往返逐字节相同')
+})
+
+test('接收滤波的通带由场景逐站带出，不是第二份真理源（C-10，D-054 的 FROM_SCENE）', () => {
+  assert.deepEqual(fromSceneOf('rx_flt').map((f) => [f.name, f.from, f.rel]),
+    [['bw_Hz', 'site', 'receiver.bw_Hz']])
+  // demo-01 的站点没写 receiver.bw_Hz，于是它照旧算「待填」——场景给不出值时不无条件放行（铁律 15）
+  const on: ChainState = {
+    ...synthetic(),
+    slots: { ...synthetic().slots, rx_flt: { ...synthetic().slots.rx_flt, bypass: false } },
+  }
+  const site = (scenario.sites as Array<Record<string, unknown>>)[0]!
+  const has = typeof ((site.receiver ?? {}) as Record<string, unknown>).bw_Hz === 'number'
+  assert.deepEqual(missingParams(on, 'rx_flt', cat, [], () => has, 'site-1'), has ? [] : ['bw_Hz'])
+})
+
+test('接收滤波的通带在提交前就查表（C-10）：引擎要到第一块才查得了', () => {
+  const on = (params: Record<string, number>): ChainState => ({
+    ...synthetic(),
+    slots: { ...synthetic().slots, rx_flt: { ...synthetic().slots.rx_flt, bypass: false, params } },
+  })
+  // demo-01：400 kHz / 500 kS/s = 0.8，正在表里
+  const good = on({})
+  const p = freqPlan(good, scenario, cat)
+  assert.equal(p.bw_rx, 400000, '通带由场景的 sites[].receiver.bw_Hz 带出')
+  const c1 = planChecks(good, p, scenario, cat).find((x) => x.id === 'rx_filter')!
+  assert.equal(c1.ok, true)
+  assert.match(c1.detail, /0\.800，在抽头表内/, c1.detail)
+
+  // 手改成表外的比值：0.64 不在表里，报文要把可取的档位列出来
+  const bad = on({ bw_Hz: 320000 })
+  const c2 = planChecks(bad, freqPlan(bad, scenario, cat), scenario, cat).find((x) => x.id === 'rx_filter')!
+  assert.equal(c2.ok, false)
+  assert.match(c2.detail, /须取 0\.2 \/ 0\.3 \/ 0\.4 \/ 0\.5 \/ 0\.6 \/ 0\.7 \/ 0\.8/, c2.detail)
+
+  // 旁路时不拦
+  const off = planChecks(synthetic(), freqPlan(synthetic(), scenario, cat), scenario, cat)
+  assert.equal(off.find((x) => x.id === 'rx_filter')!.ok, true)
+  assert.equal(freqPlan(synthetic(), scenario, cat).bw_rx, 0, '旁路时不算通带')
+})
+
+test('信道化的路号跟着子信道数走，编译时写进框图（C-10）', () => {
+  // 只改 channels、不动路号：计划给 channels/2，编译必须把它写下去，
+  // 否则框图带着目录缺省的 4 出去，引擎当场拒（越界）
+  const on: ChainState = {
+    ...synthetic(),
+    slots: { ...synthetic().slots, chan: { ...synthetic().slots.chan, bypass: false, params: { channels: 4 } } },
+  }
+  const r = compile(on, cat, scenario)
+  const node = r.doc.nodes.find((n) => n.id === 'chan')!
+  assert.equal(node.params.channels, 4)
+  assert.equal(node.params.select_channel, 2, '零频那一路')
 })

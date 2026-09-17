@@ -50,6 +50,11 @@ export interface FreqPlan {
    * 只留一个 `df_max` 就没法换参照点了（C-10）。
    */
   centers: number[]
+  /**
+   * 接收滤波的通带（Hz，复基带双边占用）；该槽位没参与计算时为 0。
+   * 真理源是场景的 `sites[].receiver.bw_Hz`（FROM_SCENE，D-054），用户在卡片上改的是那个字段。
+   */
+  bw_rx: number
   /** 保护带，缺省取采样率的 5%（见 GUARD_FRACTION 的说明） */
   guard: number
 }
@@ -160,6 +165,7 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null,
     ? (chain.slots.ddc.params.f_shift_Hz !== undefined ? num(chain.slots.ddc.params.f_shift_Hz) : f_tx - f_rx)
     : 0
   const fs_s4 = decim > 0 ? fs_rf / decim : 0
+  const rxFltOn = slotState(chain, 'rx_flt', cat) === 'active'
   const chanOn = slotState(chain, 'chan', cat) === 'active'
   const channels = chanOn ? Math.max(1, Math.round(num(chain.slots.chan.params.channels, 8))) : 1
   // 缺省是零频那一路（`channels/2`，与 S4 中心重合）。这是 M-3 对 10 §3.7 的修正：
@@ -181,6 +187,11 @@ export function freqPlan(chain: ChainState, scenario: ScenarioDoc | null,
     select,
     f_s5: chanOn ? f_s4 + (select - channels / 2) * fs_s5 : f_s4,
     centers: centerSet(doc, String(emitter?.id ?? ''), f_tx),
+    bw_rx: rxFltOn
+      ? (chain.slots.rx_flt.params.bw_Hz !== undefined
+          ? num(chain.slots.rx_flt.params.bw_Hz)
+          : num(((site?.receiver ?? {}) as Record<string, unknown>).bw_Hz))
+      : 0,
     guard: GUARD_FRACTION * fs_rf,
   }
 }
@@ -273,6 +284,24 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         : edgeS4 === null
           ? `抽头版本 ${ddcVer ?? '（未选）'} 的通带边缘取不到，算不出`
           : `目标落在 S4 的 ±${fmt(inband)}，通带边缘 ${fmt(edgeS4)}`,
+    })
+
+    // 接收滤波（C-10）：`bw_rel = bw_Hz / fs_in` 必须落在冻结抽头表的档位里。
+    // **引擎要到第一块才查得了表**（采样率在块元数据里），那时任务已经跑起来了、失败在半路；
+    // 前端知道站点的采样率，所以能在提交之前就说清楚（08 §8 口径三的两侧分工）。
+    const rxActive = slotState(chain, 'rx_flt', cat) === 'active'
+    const bwRel = plan.fs_rf > 0 ? plan.bw_rx / plan.fs_rf : 0
+    const rxOnGrid = onGrid('rx_v1', bwRel)
+    out.push({
+      id: 'rx_filter',
+      label: '接收滤波通带可查表',
+      ok: !rxActive || (plan.bw_rx > 0 && rxOnGrid),
+      detail: !rxActive
+        ? '接收滤波未参与计算，通道不做滤波'
+        : plan.bw_rx > 0
+          ? `通带 ${fmt(plan.bw_rx)} / 采样率 ${fmt(plan.fs_rf)} = ${bwRel.toFixed(3)}`
+            + (rxOnGrid ? '，在抽头表内' : `；该比值须取 ${gridText('rx_v1')}，改站点的接收带宽`)
+          : '站点没写接收带宽（sites[].receiver.bw_Hz），算不出',
     })
 
     // 信道化（M-3，D-071）：四件事一起看——档位、整除、路号范围、目标装不装得进本路。

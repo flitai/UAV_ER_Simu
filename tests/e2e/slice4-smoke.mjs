@@ -102,6 +102,15 @@ try {
     states.df === 'bypass' && states.loc === 'bypass', `df ${states.df} / loc ${states.loc}`)
   check('其余七个环节是启用态', ['tx', 'tx_ant', 'ch', 'rx_ant', 'rx_fe', 'adc', 'det'].every((k) => states[k] === 'active'),
     JSON.stringify(states))
+  // 接收滤波挂在「接收机前端」卡片里（C-10）：不另立一张卡，缺省旁路，行尾有自己的旁路勾选框
+  const rxSubs = await evalJson(page, "Array.from(document.querySelectorAll('[data-slot=rx_fe] [data-slot-sub]')).map(e => [e.dataset.slotSub, e.dataset.slotSubState])")
+  check('接收机前端卡片里挂着接收滤波，缺省旁路（C-10）',
+    JSON.stringify(rxSubs) === JSON.stringify([['rx_flt', 'bypass']]), JSON.stringify(rxSubs))
+  const rxFltBox = await page.evaluate("document.querySelector('[data-slot=rx_fe] [data-slot-bypass=rx_flt]') ? 'yes' : 'no'")
+  check('接收滤波这一行自带旁路勾选框，取消勾选即启用（C-10）', rxFltBox === 'yes', rxFltBox)
+  // 十一个环节不变：接收滤波不单独成卡（GRID_SLOTS 只收没有 group 的槽位）
+  check('链条仍是十一张卡，接收滤波不另立一张', cards.length === 11, `${cards.length} 张`)
+
   // 检测识别评价一张卡、三个环节（C-4，10 报告 §2.1）：特征提取与模板识别挂在卡片里，不单独成卡
   const subs = await evalJson(page, "Array.from(document.querySelectorAll('[data-slot=det] [data-slot-sub]')).map(e => [e.dataset.slotSub, e.dataset.slotSubState])")
   check('检测识别评价卡片里挂着特征提取、模板识别与评价三个子环节，都是启用态（C-4 / C-5）',
@@ -196,6 +205,9 @@ try {
   const plan = await evalJson(page, "Object.fromEntries(Array.from(document.querySelectorAll('[data-check]')).map(e => [e.dataset.check, e.dataset.ok]))")
   check('频率计划六项检查全过（04 §9.3）', Object.values(plan).every((v) => v === '1'), JSON.stringify(plan))
   check('检查项含 ADC 量化噪声那一条（实测逼出来的）', 'adc_floor' in plan, Object.keys(plan).join(','))
+  // C-10 新增两项：接收滤波的通带能不能查表、信道化配置是否可行
+  check('检查项含接收滤波与信道化两条（C-10）',
+    'rx_filter' in plan && 'channelization' in plan, Object.keys(plan).join(','))
 
   // ---------- ② 改一个参数，看它进框图 ----------
   await page.evaluate("(document.querySelector('[data-slot=rx_fe]').click(), true)")

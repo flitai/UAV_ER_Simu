@@ -266,7 +266,11 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
     }
     if (id === 'ch' && v.type === 'FreeSpaceChannel') params.frequency_Hz = plan.f_tx
     if (id === 'ddc') { params.f_shift_Hz = plan.f_shift; params.decim = plan.decim }
-    if (id === 'chan') params.channels = plan.channels
+    // 子信道数与路号一起从计划来（C-10）。只写 `channels` 不写 `select_channel` 会留一个坑：
+    // 目录里的缺省路号是 4（配缺省的 channels = 8），用户把 channels 改成 4 却没动路号时，
+    // 编译出来的框图带着 select_channel = 4，引擎当场拒（越界）。计划里那个「缺省取 channels/2」
+    // 的口径必须写进框图，否则它只在界面上成立。
+    if (id === 'chan') { params.channels = plan.channels; params.select_channel = plan.select }
     if (chain.run.block_size !== undefined && 'block_samples' in params) delete params.block_samples
     return params
   }
@@ -317,7 +321,9 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
 
   // ---------------------------------------------------------------- 每站一条接收链
   const LINK_SLOTS: SlotId[] = ['tx_ant', 'ch', 'rx_ant']
-  const SITE_SLOTS: SlotId[] = ['rx_fe', 'adc', 'ddc', 'chan']
+  // 接收侧按站实例化的链段，**顺序就是信号流的顺序**。接收滤波排在前端之前：
+  // 前端注入的等效热噪声因此不被它整形，S2 的底噪仍是 −174 + nf + 10·log10(fs)（C-10，D-071 ⑩）
+  const SITE_SLOTS: SlotId[] = ['rx_flt', 'rx_fe', 'adc', 'ddc', 'chan']
 
   for (const site of sitesSel) {
     // 每源一条前段支路
@@ -374,10 +380,21 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
       cursor = { node: MIX, port: 'out' }
     }
 
-    // S4 兜底：DDC 未启用（旁路或未实现）时，主产品就落在链尾（10 报告 §2.3）
-    if (cursor) {
-      tapAt.s4 = (tapAt.s4 ?? []).filter((x) => x.inst !== (manySites ? site : ''))
-      addTap('s4', manySites ? site : '', cursor.node, cursor.port)
+    // S4 兜底：DDC 未启用（旁路或未实现）时，主产品就落在链尾（10 报告 §2.3）。
+    //
+    // **只有没被锚定过才兜底**（C-10 修）。原来这里是无条件覆盖，注释写的是「未启用时」、
+    // 代码却没有那个条件：DDC 与信道化**同时**启用时链尾是信道化，S4 会被挪到 S5 那一点上，
+    // 两个观测点读数一模一样，而 CLAUDE.md 开篇把主产品定义为「DDC 后、信道化前」。
+    // 此前看不出来，是因为只开 DDC 时链尾恰好就是 DDC 那个节点，覆盖前后是同一个位置。
+    //
+    // 混合增强是例外：背景回放在 S4 处与合成目标相加（10 报告 §2.3），主产品是相加之后那一点，
+    // 所以那一档仍然挪到链尾。（DSP 厚化与混合增强同时开的组合本期不支持，
+    // `AddMixer` 要求两路采样率与中心频率一致，见 `models/adc-ddc/README.md` §8.3。）
+    const s4Inst = manySites ? site : ''
+    const s4Anchored = (tapAt.s4 ?? []).some((x) => x.inst === s4Inst)
+    if (cursor && (!s4Anchored || chain.mode === 'mixed')) {
+      tapAt.s4 = (tapAt.s4 ?? []).filter((x) => x.inst !== s4Inst)
+      addTap('s4', s4Inst, cursor.node, cursor.port)
     }
 
     if (cursor && active('det')) {
