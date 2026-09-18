@@ -1,0 +1,112 @@
+# 双平台构建与测试（D3-8，铁律 16：客户端与单机包 Windows x64 优先，服务端 Windows 或 Linux
+# x64 视情选择，**二者从第一天起都进 CI 构建**）。这条规矩自 2026-09-02 写下，
+# 到 2026-09-18 之前一直欠着——C++ 侧只在开发机（macOS）上编过。
+#
+# **这里能证明什么**：两个目标平台上编得过、311 条 doctest 与 17 条 ctest 全过、
+# 29 份黄金基准在三种编译器下给出同样的数。D3-8 的退出条件就是这些。
+#
+# **这里证明不了什么**（都要真机，属 P2 交付阶段）：
+#   · 单机一体化包在干净 Windows 机上安装运行；
+#   · 性能数字——构建机是共享虚拟机，实时因子之类不作数（D-015 / D-016）；
+#   · 七套端到端用例——要浏览器、应用服务、145 GB 底图与建筑集，都不入 git；
+#   · 建筑遮挡相关用例——`buildings.geojson` 15.9 MB 不入 git，相关用例**自己说跳过、不算通过**。
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  cpp:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # 一个平台红了，另一个也要跑完：两边各报各的错，一次看全
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux x64 / GCC
+          - os: windows-latest
+            label: Windows x64 / MSVC
+    # Windows 上也用 bash：命令两个平台逐字相同，且 `set -e` 的语义一致
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 记下编译器与 CMake 版本（数字要能对上是哪一版编出来的）
+        run: |
+          cmake --version
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cmake --system-information 2>/dev/null | grep -i -m 3 "CMAKE_CXX_COMPILER\b\|MSVC_VERSION" || true
+          else
+            c++ --version
+          fi
+
+      # geo 先建：它能独立构建是有意保留的性质（引擎 CMake 另外把它 add_subdirectory 挂上）
+      - name: 构建 geo
+        run: |
+          cmake -S geo -B geo/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build geo/build --config Release --parallel
+
+      - name: geo 测试（坐标基座 210 例 + 遮挡黄金基准）
+        run: ctest --test-dir geo/build -C Release --output-on-failure
+
+      - name: 构建 engine
+        run: |
+          cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build engine/build --config Release --parallel
+
+      - name: engine 测试（doctest + cuav_run 冒烟）
+        run: ctest --test-dir engine/build -C Release --output-on-failure
+
+      - name: 组件目录对黄金基准逐字节
+        run: |
+          RUN=engine/build/cuav_run
+          [ -x "$RUN" ] || RUN=engine/build/Release/cuav_run.exe
+          "$RUN" --catalog > /tmp/catalog.json
+          diff -u tests/golden/component-catalog.json /tmp/catalog.json \
+            && echo "组件目录与黄金基准逐字节相同"
+
+  js:
+    name: 前端与应用服务 (Linux x64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 交付基线的 Node LTS 版本仍是 OPEN（阶段 0 冻结，04 附录 B）。
+      # 这里钉一个只是为了 CI 可复现，**不构成那项决策**。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 构建前端
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: 前端单测（含读仓库黄金基准的对拍）
+        run: cd web && npm test
+
+      - name: 构建应用服务
+        run: |
+          cd server
+          npm ci
+          npm run build
+
+      # 服务端有一部分用例要真引擎（`CUAV_RUN`）。这个 job 不建 C++，
+      # 那些用例会自己跳过——**跳过不是通过**，真引擎的集成由 cpp job 的 ctest 覆盖。
+      - name: 应用服务单测
+        run: cd server && npm test
+
+      - name: 路径可迁移检查（铁律 17）
+        run: sh scripts/check-paths.sh
+
+      - name: 文件名纯 ASCII 检查（铁律 15）
+        run: sh scripts/check-ascii.sh
