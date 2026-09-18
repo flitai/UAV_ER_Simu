@@ -119,13 +119,47 @@ TEST_CASE("E1 档下 link_budget 与不给配置时逐位相同") {
 
 // ------------------------------------------------------------ 判据 9：两道闸与 E3
 
-TEST_CASE("E3 未实现：configure 级校验必须拒，报文写明待 D3") {
-    PropagationConfig cfg;
-    cfg.level = PropLevel::E3;
-    std::string err;
-    CHECK_FALSE(cfg.validate(err));
-    CHECK(err.find("E3") != std::string::npos);
-    CHECK(err.find("D3") != std::string::npos);
+TEST_CASE("E3 本身可用（D3-5），但与两个「建筑遮挡的统计等效」互斥——闸三与闸四") {
+    // D3-5 之前这里断言的是「E3 一律拒、报文写明待 D3」。接线之后 E3 是正常档位，
+    // 拒绝的只剩同源双计的两种组合（07 报告 §5.2、§6.5）。
+    {   // 单选 E3：通
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        std::string err;
+        CHECK_MESSAGE(cfg.validate(err), err);
+    }
+    {   // 闸三：E3 + 统计阴影 = 同一效应算两遍
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        cfg.shadow = true;
+        std::string err;
+        CHECK_FALSE(cfg.validate(err));
+        CHECK(err.find("prop_shadow") != std::string::npos);
+        CHECK(err.find("双计") != std::string::npos);
+    }
+    {   // 闸四：E3 + 城市经验 = 同一效应算两遍
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        cfg.primary = PrimaryModel::UrbanEmpirical;
+        std::string err;
+        CHECK_FALSE(cfg.validate(err));
+        CHECK(err.find("双计") != std::string::npos);
+        CHECK(err.find("two_ray") != std::string::npos);
+    }
+    {   // E3 + 地面双径：允许（两者不是同一效应）
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        cfg.primary = PrimaryModel::TwoRay;
+        std::string err;
+        CHECK_MESSAGE(cfg.validate(err), err);
+    }
+    {   // E3 + 天气：允许
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        cfg.weather = true;
+        std::string err;
+        CHECK_MESSAGE(cfg.validate(err), err);
+    }
 }
 
 TEST_CASE("E1 档却选了效应：不静默忽略，报错并指路") {

@@ -40,6 +40,25 @@ uv run --quiet --with numpy python tests/regression/standard_cases.py   # 已接
 第 9、10 项要 `data/iq/measured/`（不入 git，D-027）。数据不在时脚本**明说跳过**、
 不当作通过也不静默略过（铁律 15）。
 
+### E3 建筑遮挡（D3-5，D-074）
+
+`e3_occlusion_chain.py` 跑 `diagrams/chain-demo-01-e3.json`（就是全合成那份，只把传播档位
+提到 E3），核七件事：视距不再恒真、三段式的前两段走得出来、恒等式 `path = free_space + extra`
+照旧成立、刀口损耗就是这一档的全部附加损耗、`included_loss_terms` 每行都声明 `diffraction`、
+07 §1.5 的起飞点锚点（**211.1 m / 36.98 dB**，调研值 210 m / 37.0 dB）、建筑加载的计数
+（47662 栋）如实进了产物。
+
+```
+uv run --quiet python tests/regression/e3_occlusion_chain.py    # 已接进 scripts/build-all.sh
+```
+
+要 `data/scene/<aoi>/buildings.geojson`（不入 git）。数据不在时同样**明说跳过、不当作通过**。
+
+**「`line_of_sight = !blocked` 与损耗大小无关」这条性质不在这个脚本里验**：demo-01 这条航线上
+被挡的帧全都挡得很深（最小 33.8 dB），一帧掠射也没有，拿它当证据等于拿碰巧没有反例的数据说事。
+该性质由 `engine/tests/test_occlusion.cpp` 里**特意构造**的掠射几何钉着（墙高扫到刚擦视线，
+实测 7.38 dB 仍判非视距）。
+
 ## 二、四项跨层一致性算例（01 §8.3）
 
 这四项检查同一场景、同一随机种子、同一参数版本下，从 IQ 级归约到信号级或功能级的统计量，
@@ -49,7 +68,7 @@ uv run --quiet --with numpy python tests/regression/standard_cases.py   # 已接
 | # | 算例 | 比对双方 | 状态 |
 |---|---|---|---|
 | ① | 自由空间加高斯白噪声，单音与突发 | EM-S-02 的检测概率公式 与 IQ 级蒙特卡洛检测概率 | [x] 2026-09-14 典型链路实例（§五）：Pd_mc 0.7026 对解析 0.7164，差 0.0138 ≤ 0.05；参考实现侧 2026-09-04（`ds7_pd_curves.py`，差 0.0016–0.0050）|
-| ② | 建筑遮挡 | EM-P-04 的附加损耗 与 IQ 级接收功率统计 | [ ] |
+| ② | 建筑遮挡 | EM-P-04 的附加损耗 与 IQ 级接收功率统计 | [ ] 待写成算例；D3-5 已有量：demo-01 末端 E1 → E3 链路预算差 **32.30 dB**、S3 带内信噪比 33.7 → 1.4 dB，两者之差 0.6 dB 里有多少是抽象误差还没拆 |
 | ③ | 双径 | EM-P-02 与 IQ 级复信道功率起伏 | [ ] |
 | ④ | 混合增强 | 实测背景加合成目标的信噪比归约 与 信号级预测 | [ ] |
 

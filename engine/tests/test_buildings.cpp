@@ -239,8 +239,12 @@ TEST_CASE("真实建筑集：清单解析、计数、代价与共享缓存") {
 
     const std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     BuildingsStats st;
-    const geo::LocalSceneAdapter* map = shared_scene_map(repo(kAoiRoot), kAoiId, st, err);
+    geo::SceneFrame mframe;
+    const geo::LocalSceneAdapter* map = shared_scene_map(repo(kAoiRoot), kAoiId, st, mframe, err);
     REQUIRE_MESSAGE(map != 0, err);
+    // 帧与地图同源：调用方拿不到「另一个原点」的机会（D3-4 的口径，D3-5 靠它）
+    CHECK(mframe.origin().lon_deg == doctest::Approx(116.405));
+    CHECK(mframe.origin().lat_deg == doctest::Approx(39.99));
     const double ms =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 
@@ -264,7 +268,9 @@ TEST_CASE("真实建筑集：清单解析、计数、代价与共享缓存") {
 
     // 第二次必须命中缓存：K 个站共用一份桶网格，不是 K 份（07 报告 §7.1）
     BuildingsStats st2;
-    const geo::LocalSceneAdapter* again = shared_scene_map(repo(kAoiRoot), kAoiId, st2, err);
+    geo::SceneFrame frame2;
+    const geo::LocalSceneAdapter* again =
+        shared_scene_map(repo(kAoiRoot), kAoiId, st2, frame2, err);
     CHECK(again == map);
     CHECK(st2.buildings == st.buildings);
 

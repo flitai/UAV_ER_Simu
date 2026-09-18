@@ -20,7 +20,15 @@ const CHROME_CANDIDATES = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
 ]
 
-export async function launchChrome({ port = 9333, userDataDir, windowSize = '1400,900' } = {}) {
+// port 缺省 **0 = 让 Chrome 自己挑一个空闲端口**，实际端口从
+// `<userDataDir>/DevToolsActivePort` 读回来。
+//
+// 为什么不写死一个端口（这是踩出来的）：七套端到端接连跑时，上一套的 Chrome 可能还没退干净。
+// 端口写死的话，新起的那个绑不上，而下面这个就绪探针**探到的是正在退出的那一个**——于是
+// `/json/version` 返回 200、`Page.open` 却 `TypeError: fetch failed`，整套在第一步就废，
+// 报的还是个与被测代码毫无关系的错。单独重跑必过，连着跑偶尔挂，最难查的那种。
+// 每套用例的 userDataDir 本来就是各自 mkdtemp 出来的，所以让 Chrome 自己挑端口零冲突。
+export async function launchChrome({ port = 0, userDataDir, windowSize = '1400,900' } = {}) {
   const { existsSync, mkdtempSync } = await import('node:fs')
   const bin = CHROME_CANDIDATES.find((p) => existsSync(p))
   if (!bin) throw new Error('找不到 Chrome 或 Chromium，端到端测试需要其中之一')
@@ -36,11 +44,24 @@ export async function launchChrome({ port = 9333, userDataDir, windowSize = '140
     `--remote-debugging-port=${port}`, `--user-data-dir=${userDataDir}`,
     `--window-size=${windowSize}`, '--hide-scrollbars', 'about:blank',
   ], { stdio: 'ignore' })
+  // 让 Chrome 挑端口时，它就绪之后才写 DevToolsActivePort；读到的一定是**这一个**进程的端口。
+  const { readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const portFile = join(userDataDir, 'DevToolsActivePort')
+  let actual = port
   for (let i = 0; i < 100; i++) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${port}/json/version`)
-      if (r.ok) return { proc, port, browser: (await r.json())['Browser'] }
-    } catch { /* 还没起来 */ }
+    if (port === 0) {
+      try {
+        const line = readFileSync(portFile, 'utf8').split('\n')[0].trim()
+        if (line) actual = Number(line)
+      } catch { /* 还没写出来 */ }
+    }
+    if (actual) {
+      try {
+        const r = await fetch(`http://127.0.0.1:${actual}/json/version`)
+        if (r.ok) return { proc, port: actual, browser: (await r.json())['Browser'] }
+      } catch { /* 还没起来 */ }
+    }
     await sleep(200)
   }
   proc.kill()

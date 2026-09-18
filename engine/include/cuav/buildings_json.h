@@ -86,10 +86,14 @@ bool aoi_buildings_ref(const std::string& scene_root, const std::string& aoi_id,
 // 进程内共享的场景地图：同一个 (scene_root, aoi_id) 只加载一次。
 // 返回的指针由进程持有，调用方不得释放；失败返回 nullptr 并写 err。
 //
+// **frame 与适配器一起给出、不许调用方自己再算一个**：建筑是按这个帧投到平面米的，
+// 链路几何把站点与目标投进去时必须用同一个，否则整份建筑集相对视线平移且不会报警（D3-4）。
+//
 // 线程安全：内部加锁；返回之后的适配器是只读的，raycast 可并发调用（见 map.h）。
 const geo::LocalSceneAdapter* shared_scene_map(const std::string& scene_root,
                                                const std::string& aoi_id,
-                                               BuildingsStats& stats, std::string& err);
+                                               BuildingsStats& stats, geo::SceneFrame& frame,
+                                               std::string& err);
 
 }  // namespace cuav
 

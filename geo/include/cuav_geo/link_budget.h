@@ -10,7 +10,8 @@
 // 替代型主模型也走 extra_loss_dB（extra = L_primary − L_fs），于是
 // path_loss_dB = free_space_dB + extra_loss_dB 这个恒等式在任何档位下都成立——
 // 「只改 extra_loss_dB 与 line_of_sight 两处，帧结构与本接口不变」这句承诺照旧兑现。
-// line_of_sight 在显式平地假设下仍恒真；D3（切片 ⑤）接入建筑遮挡后在此改。
+// 自 D3-5（2026-09-18）起 E3 档接入建筑遮挡（EM-P-04）：line_of_sight 由几何给出、
+// 刀口衍射损耗只进 extra_loss_dB。**帧结构与本接口的承诺照旧兑现**——只改了这两处。
 
 #ifndef CUAV_GEO_LINK_BUDGET_H
 #define CUAV_GEO_LINK_BUDGET_H
@@ -18,6 +19,7 @@
 #include <string>
 
 #include "cuav_geo/geodesy.h"
+#include "cuav_geo/map.h"
 #include "cuav_geo/propagation.h"
 
 namespace cuav {
@@ -42,16 +44,38 @@ struct LinkGeometry {
     double azimuth_deg;
     double elevation_deg;
     double range_rate_mps;    // > 0 表示远离
-    bool line_of_sight;       // 首期平地假设恒真（铁律 2）
+    // 视线在**几何上**有没有被建筑切断。**与损耗大小无关**：掠射只损 0.2 dB 也算非视距
+    // （07 报告 §5.1，D-074 ⑤）。这个布尔量的含义只有一个——楼挡没挡住；界面据它给链路线
+    // 上色，颜色要摆事实、不摆实施方挑的门限（D-039）。没有地图时恒真（显式平地假设，铁律 2）。
+    bool line_of_sight;
     // 收发端**离地高度** = alt_m − terrainHeight_m（铁律 2 的显式平地假设、铁律 2 禁止隐式相加）。
     // 只有地面双径用得上；E1 档不读它。tx = 辐射源、rx = 站点。
     double tx_height_m;
     double rx_height_m;
+    // E3 档下的建筑刀口衍射（EM-P-04），**单程 ×1**；没有地图或未被切断时为 0。
+    // intrusion_m 是视线侵入体块的竖直深度，只作解释不参与计算。
+    double diffraction_dB;
+    double intrusion_m;
 
     LinkGeometry()
         : distance_m(0.0), azimuth_deg(0.0), elevation_deg(0.0),
           range_rate_mps(0.0), line_of_sight(true),
-          tx_height_m(0.0), rx_height_m(0.0) {}
+          tx_height_m(0.0), rx_height_m(0.0),
+          diffraction_dB(0.0), intrusion_m(0.0) {}
+};
+
+// E3 档的建筑遮挡查询：地图、平面工作帧与频率捆在一起，作为 link_geometry() 的可选输入。
+//
+// **频率必须逐帧给**，不能在建链路时定死：跳频源的中心频点每次停留都在变，而菲涅尔参数
+// v ∝ 1/√λ 依赖它（D-069 记过「参数帧里的 tx_center_Hz 是瞬时频点」）。
+//
+// frame 是 geo::SceneFrame（cuav_geo/map.h）：**必须与建筑进适配器时用的是同一个**，
+// 否则整份建筑集相对视线平移，而且不会报警（D3-4 立的口径）。
+struct OcclusionQuery {
+    const IMapQuery* map;
+    SceneFrame frame;
+    double frequency_Hz;
+    OcclusionQuery() : map(0), frequency_Hz(0.0) {}
 };
 
 // site → emitter 的几何。emitter_velocity 是**地固系 ECEF 速度**；
@@ -63,12 +87,14 @@ struct LinkGeometry {
 // 折到多普勒上是 0.001 Hz 量级，不影响任何验收数字；但它确实是两种口径，记在这里免得日后当缺陷查。
 // terrain_height_m 是场景 coordinate.terrainHeight_m（显式平地假设的参考平面海拔）；
 // 缺省 0 保持既有调用点一字不改。
+// occ 非空即按建筑几何判视距并算刀口衍射（E3，D3-5）；为空时 line_of_sight 恒真、
+// diffraction_dB 恒 0，代码路径与 D3-5 之前逐字相同。
 LinkGeometry link_geometry(const Lla& site, const Lla& emitter, const Ecef& emitter_velocity,
-                           double terrain_height_m = 0.0);
+                           double terrain_height_m = 0.0, const OcclusionQuery* occ = 0);
 
 struct LinkBudget {
     double free_space_dB;
-    double extra_loss_dB;             // 首期恒 0；D3 换刀口衍射附加损耗
+    double extra_loss_dB;             // E1 恒 0；E2 起装主模型差额 / 阴影 / 天气，E3 再加刀口衍射
     double path_loss_dB;              // = free_space + extra。**纯传播损耗，不含发射功率与天线增益**
     double doppler_Hz;
     double delay_s;

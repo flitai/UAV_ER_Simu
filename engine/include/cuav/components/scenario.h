@@ -52,9 +52,10 @@ public:
 
     double update_rate_Hz() const { return update_rate_Hz_; }
 
-    // E3 档下的建筑几何。E1 / E2 恒为 nullptr——建筑是**懒加载**的（D3-4，07 报告 §7.4）。
-    // 本步只把它取到手；接进链路预算（line_of_sight 与 extra_loss_dB）是 D3-5。
+    // E3 档下的建筑几何与它所在的平面工作帧。E1 / E2 恒为 nullptr——建筑是**懒加载**的
+    // （D3-4，07 报告 §7.4）；自 D3-5 起它已接进链路预算（line_of_sight 与 extra_loss_dB）。
     const geo::IMapQuery* scene_map() const { return map_; }
+    const geo::SceneFrame& scene_frame() const { return frame_; }
     // 装载器注入的观测区域数据包根目录。公开出来是为了让单测钉住注入这一环：
     // 两处（describe 的参数名、configure 的取值键）拼错任何一处都会静默失效。
     const std::string& scene_root() const { return scene_root_; }
@@ -62,6 +63,9 @@ public:
 private:
     // 建筑几何的懒加载。只在 init() 里、只在 prop_.level == E3 时调。
     bool load_scene_map(std::string& err);
+    // 把地图与平面帧发给各条链路。链路是在 configure() 里搭的（那时还没读建筑），
+    // 所以这一步必须在 load_scene_map() 之后、产帧之前。
+    bool attach_scene_map(std::string& err);
 
     // 内部参数（装载器注入）
     std::string scenario_path_, scenario_id_, site_id_, scene_root_;
@@ -83,7 +87,9 @@ private:
     std::vector<geo::EmitterRuntime> entities_;
 
     // 进程内共享的建筑桶网格（K 个站共用一份），不属本组件所有、不释放。
+    // frame_ 是建筑投到平面米时用的那个帧，**必须与地图同源**（由 shared_scene_map 一并给出）。
     const geo::IMapQuery* map_ = nullptr;
+    geo::SceneFrame frame_;
 
     std::uint64_t produced_ = 0;
     std::uint64_t report_every_ = 2;

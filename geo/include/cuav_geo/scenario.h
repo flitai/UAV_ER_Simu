@@ -232,9 +232,25 @@ public:
 
     // update_rate_Hz ∈ [10, 100]，越界写 err 返回 false。
     // cfg 缺省即 E1（自由空间），与 D-058 之前的行为逐数值相同（12 §0 第 10 条）。
+    //
     bool build(const Scenario& s, const std::string& site_id, const std::string& emitter_id,
                double update_rate_Hz, std::string& err,
                const PropagationConfig& cfg = PropagationConfig());
+
+    // E3 档的建筑几何与它所在的平面工作帧（D3-5）。
+    //
+    // **为什么与 build() 分开两步**：建筑是懒加载的（D3-4），只有 E3 才读，而读它要
+    // 240 ms；build() 发生在组件的 configure() 里，那正是 `cuav_run --validate` 唯一走的
+    // 那条路——在那里读建筑等于每次校验都付这笔钱。于是 build() 先把链路搭起来，
+    // 地图在 init() 里再给进来。
+    //
+    // frame **必须与建筑进适配器时用的是同一个**，否则整份建筑集相对视线平移，而且不会报警。
+    // 调用方从 shared_scene_map() 一并取回这两样，不各算各的（D3-4 立的口径）。
+    void set_scene_map(const IMapQuery* map, const SceneFrame& frame);
+
+    // E3 档而地图还没给进来时为真。**调用方必须在产帧之前查它**——E3 少了地图就是
+    // 「选了建筑遮挡却按自由空间算」，界面上还分不出来，正是铁律 15 禁止的静默降级。
+    bool needs_scene_map() const;
 
     // 统计阴影的序列（EM-P-08）。**必须在 frame() 之前一次算完**：frame() 的无副作用与
     // 可乱序调用是硬不变量（见本类的类注释），而阴影是沿航迹的一阶递推。
@@ -252,6 +268,7 @@ public:
         std::uint64_t index;
         double valid_from_s, valid_to_s, update_rate_Hz;
         double path_loss_dB, noise_floor_dBm_per_Hz;
+        // E3 档下由建筑几何给出（= 没被楼切断），其余档恒真。与损耗大小无关（07 §5.1）。
         bool line_of_sight;
         double doppler_Hz, delay_s;
         // 站点看辐射源的方向（到达角）与辐射源看站点的方向（离开角）。
@@ -266,6 +283,8 @@ public:
         // included_loss_terms 告诉下游这条路损里已经含了哪几类，据此判断能不能再叠加
         // （EM-P-13 §10.9）。E1 档下 extra 恒 0、included 只有 free_space。
         double free_space_dB, extra_loss_dB;
+        // E3 档的刀口衍射，已含在 extra_loss_dB 里；单独给出只为链路报告能写出这一项。
+        double diffraction_dB;
         std::vector<std::string> included_loss_terms;
         bool degraded;
         std::string reason;
@@ -277,7 +296,7 @@ public:
               elevation_deg(0.0), aod_azimuth_deg(0.0), aod_elevation_deg(0.0),
               lon(0.0), lat(0.0), alt_m(0.0), heading_deg(0.0),
               speed_mps(0.0), tx_on(true), center_Hz(0.0), valid(true),
-              free_space_dB(0.0), extra_loss_dB(0.0), degraded(false) {}
+              free_space_dB(0.0), extra_loss_dB(0.0), diffraction_dB(0.0), degraded(false) {}
     };
 
     Frame frame(std::uint64_t k) const;
@@ -295,6 +314,9 @@ private:
     double terrain_height_m_;
     std::string polarization_;
     ShadowSequence shadow_;
+    // D3-5：E3 档的建筑几何。不属本类所有（进程内共享一份桶网格），E1 / E2 下恒为空。
+    const IMapQuery* map_;
+    SceneFrame frame_;
 };
 
 }  // namespace geo

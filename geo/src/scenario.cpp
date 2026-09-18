@@ -254,7 +254,7 @@ double EmitterRuntime::center_Hz_at(double t_s) const {
 // ---------------------------------------------------------------------------
 
 LinkFrameSource::LinkFrameSource()
-    : rx_nf_dB_(0.0), rate_(0.0), terrain_height_m_(0.0), polarization_("vertical") {}
+    : rx_nf_dB_(0.0), rate_(0.0), terrain_height_m_(0.0), polarization_("vertical"), map_(0) {}
 
 bool LinkFrameSource::build(const Scenario& s, const std::string& site_id,
                             const std::string& emitter_id, double update_rate_Hz,
@@ -283,7 +283,18 @@ bool LinkFrameSource::build(const Scenario& s, const std::string& site_id,
     polarization_ = (em != 0 && !em->emission.polarization.empty())
                         ? em->emission.polarization : std::string("vertical");
     shadow_ = ShadowSequence();
+    map_ = 0;
+    frame_ = SceneFrame();
     return true;
+}
+
+void LinkFrameSource::set_scene_map(const IMapQuery* map, const SceneFrame& frame) {
+    map_ = map;
+    frame_ = frame;
+}
+
+bool LinkFrameSource::needs_scene_map() const {
+    return prop_.level == PropLevel::E3 && map_ == 0;
 }
 
 bool LinkFrameSource::init_shadow(INormalSource& rng, double duration_s, std::string& err) {
@@ -336,7 +347,15 @@ LinkFrameSource::Frame LinkFrameSource::frame(std::uint64_t k) const {
     f.tx_on = emitter_.tx_on_at(t);
     f.center_Hz = emitter_.center_Hz_at(t);
 
-    const LinkGeometry g = link_geometry(site_pos_, m.position, m.velocity, terrain_height_m_);
+    // 建筑遮挡按**本帧的瞬时频点**算：菲涅尔参数 v ∝ 1/√λ，跳频源每次停留都在变
+    // （D-069：帧里的 center_Hz 是瞬时频点不是跳频序列）。E1 / E2 下 map_ 为空，
+    // link_geometry() 走的是与 D3-5 之前逐字相同的那条路径。
+    OcclusionQuery occ;
+    occ.map = map_;
+    occ.frame = frame_;
+    occ.frequency_Hz = f.center_Hz;
+    const LinkGeometry g =
+        link_geometry(site_pos_, m.position, m.velocity, terrain_height_m_, map_ ? &occ : 0);
     f.distance_m = g.distance_m;
     f.azimuth_deg = g.azimuth_deg;
     f.elevation_deg = g.elevation_deg;
@@ -357,6 +376,7 @@ LinkFrameSource::Frame LinkFrameSource::frame(std::uint64_t k) const {
     f.valid = b.valid;
     f.free_space_dB = b.free_space_dB;
     f.extra_loss_dB = b.extra_loss_dB;
+    f.diffraction_dB = b.terms.diffraction_dB;
     f.included_loss_terms = b.terms.included;
     f.degraded = b.degraded;
     f.reason = b.reason;

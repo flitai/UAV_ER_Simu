@@ -6,6 +6,7 @@
 //   npx tsx src/chain/examples/_gen.ts demo-02-chan > ../tests/regression/diagrams/chain-demo-02-chan.json
 //   npx tsx src/chain/examples/_gen.ts demo-02-dsp > ../tests/regression/diagrams/chain-demo-02-dsp.json
 //   npx tsx src/chain/examples/_gen.ts synthetic > ../tests/regression/diagrams/chain-synthetic.json
+//   npx tsx src/chain/examples/_gen.ts demo-01-e3 > ../tests/regression/diagrams/chain-demo-01-e3.json
 //   npx tsx src/chain/examples/_gen.ts replay    > ../tests/regression/diagrams/chain-replay.json
 //   npx tsx src/chain/examples/_gen.ts mixed     > ../tests/regression/diagrams/chain-mixed.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-aoa    > ../tests/regression/diagrams/chain-3x3-aoa.json
@@ -183,6 +184,27 @@ if (mode === 'default') {
   c.taps.s3 = true
   // **不取 S4**：DDC 旁路时它的锚点顺链下滑到 ADC 那一节，与 S3 同节点同口，产品会一模一样
   c.taps.s4 = false
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'demo-01-e3') {
+  // **E3 建筑遮挡**的回归夹具（D3-5，D-074）。就是上面那份全合成链，只把传播档位提到 E3。
+  // 20 s 足够把三段式的前两段走完：起飞时被楼挡住三十几分贝，约 7 s 后过顶转视距。
+  // 跑它要真实建筑集（`buildings.geojson` 不入 git），缺数据时回归脚本明说跳过（D-073 ③）。
+  const { doc: scenario, sha } = loadScenario('demo-01')
+  const c: ChainState = emptyChain('synthetic', 'chain-demo-01-e3')
+  c.name = '典型链路 · 全合成 · E3 建筑遮挡'
+  c.scenario = { scenario_id: 'demo-01', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1']
+  c.run = { duration_s: 20, seed: 20260907 }
+  c.slots.tx_ant.params = { gain_dBi: 2 }
+  c.slots.rx_ant.params = { gain_dBi: 3 }
+  c.slots.rx_fe.params = { nf_dB: 6, gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024 }
+  // 传播档位是 `ch` 卡片上的参数，经槽位表的 proxy 写到 `scn` 节点（D-058 ③）
+  c.slots.ch.params = { prop_level: 'E3' }
+  c.taps.s1 = true
+  c.taps.s3 = true
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === 'replay') {
   // **实测回放**（算例 9）。回放模式没有场景：数据自带采样率与中心频率，前六个环节不适用

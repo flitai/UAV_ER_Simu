@@ -28,7 +28,8 @@ namespace geo {
 // ---------------------------------------------------------------- 枚举
 
 // 01 的精度等级。选中的档直接写进溯源六件套的 model_level。
-// E3 需要逐建筑几何，待 D3（切片 ⑤）；本库给出它的取值但 configure() 一侧必须拒（12 §4.4）。
+// E3 需要逐建筑几何（自 D3-5 起可用，D-074）：`LinkFrameSource::build()` 必须拿到
+// 一份 IMapQuery，拿不到即拒——不静默退回 E1（铁律 15）。
 enum class PropLevel { E1 = 0, E2, E3 };
 
 // 替代型主模型，至多一个（闸一：界面上做成单选）。
@@ -139,19 +140,21 @@ struct PropagationConfig {
 extern const char* const kTermFreeSpace;        // "free_space"
 extern const char* const kTermGroundReflection; // "ground_reflection"
 extern const char* const kTermUrbanMean;        // "urban_mean"
+extern const char* const kTermDiffraction;      // "diffraction"（E3 建筑刀口衍射，D3-5）
 extern const char* const kTermShadow;           // "shadow"
 extern const char* const kTermWeather;          // "weather"
 
 // 逐项分解。总额 = free_space_dB + extra_dB，其中
-// extra_dB = primary_excess_dB + shadow_dB + weather_dB。
+// extra_dB = primary_excess_dB + diffraction_dB + shadow_dB + weather_dB。
 struct PropagationTerms {
     double free_space_dB;        // L_fs(d_d)，基线
     double primary_excess_dB;    // 替代型主模型相对自由空间的差；free_space 时为 0
+    double diffraction_dB;       // EM-P-04 建筑单刀口衍射，**单程 ×1**；只有 E3 档非零
     double shadow_dB;            // X_σ，正值 = 额外衰减
     double weather_dB;           // 大气 + 降雨
     double atmospheric_dB;
     double rain_dB;
-    double extra_dB;             // = primary_excess + shadow + weather
+    double extra_dB;             // = primary_excess + diffraction + shadow + weather
 
     // 双径的解释字段（EM-P-02 §10.7、§10.8）
     double two_ray_correction_dB;   // C_2ray，> 0 为增强
@@ -167,7 +170,8 @@ struct PropagationTerms {
     std::string reason;
 
     PropagationTerms()
-        : free_space_dB(0.0), primary_excess_dB(0.0), shadow_dB(0.0), weather_dB(0.0),
+        : free_space_dB(0.0), primary_excess_dB(0.0), diffraction_dB(0.0),
+          shadow_dB(0.0), weather_dB(0.0),
           atmospheric_dB(0.0), rain_dB(0.0), extra_dB(0.0),
           two_ray_correction_dB(0.0), reflection_mag(0.0), reflection_phase_rad(0.0),
           path_diff_m(0.0), breakpoint_m(0.0), fade_clipped(false),
@@ -240,10 +244,15 @@ private:
 // shadow_dB 由调用方从 ShadowSequence 取好传进来（本函数不持有随机状态，保持纯函数）。
 //
 // 返回的 terms 里 extra_dB 就是要写进 LinkBudget::extra_loss_dB 的值。
+//
+// diffraction_sample_dB 与 shadow_sample_dB 同一形状：**由调用方算好传进来**，本函数不碰地图、
+// 保持纯函数（遮挡要 IMapQuery 与平面帧，那是 link_geometry() 的事，D3-5）。
+// 它只在 E3 档被计入——与 cfg.shadow 门住阴影样本同理，免得别处漏传一个非零值就悄悄改了结果。
 PropagationTerms combine(double distance_m, double frequency_Hz,
                          double h_t_m, double h_r_m, bool line_of_sight,
                          const std::string& polarization,
-                         const PropagationConfig& cfg, double shadow_sample_dB);
+                         const PropagationConfig& cfg, double shadow_sample_dB,
+                         double diffraction_sample_dB = 0.0);
 
 namespace legacy {
 

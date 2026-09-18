@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "cuav_geo/occlusion.h"
+
 namespace cuav {
 namespace geo {
 namespace {
@@ -23,18 +25,31 @@ double delay_s(double distance_m) { return distance_m / speed_of_light_mps(); }
 double thermal_noise_dBm_per_Hz(double nf_dB) { return -174.0 + nf_dB; }
 
 LinkGeometry link_geometry(const Lla& site, const Lla& emitter, const Ecef& emitter_velocity,
-                           double terrain_height_m) {
+                           double terrain_height_m, const OcclusionQuery* occ) {
     const IGeodesy& g = default_geodesy();
     LinkGeometry out;
     const LookAngles la = look_angles(site, emitter);
     out.distance_m = la.distance_m;
     out.azimuth_deg = la.azimuth_deg;
     out.elevation_deg = la.elevation_deg;
-    out.line_of_sight = true;   // 显式平地假设，D3 接入遮挡后在此改
+    out.line_of_sight = true;   // 没有地图时的显式平地假设（铁律 2）
     // 离地高度：alt_m 按场景 coordinate.alt_ref 解释，减去显式平地假设的参考平面（铁律 2）。
-    // 只有地面双径读它；E1 档下算了也不用。
+    // 地面双径与建筑遮挡都读它；E1 档下算了也不用。
     out.tx_height_m = emitter.alt_m - terrain_height_m;
     out.rx_height_m = site.alt_m - terrain_height_m;
+
+    // 建筑遮挡（EM-P-04，D3-5）。两个端点投到平面工作帧：x / y 取站心地平的东 / 北，
+    // **z 取离地高差**——不是 ENU 的 up（10 km 外它已被地球曲率压低 7.8 m，而建筑的
+    // base_m / height_m 是离地高差，铁律 2 禁止把两者混为一谈）。
+    if (occ != 0 && occ->map != 0 && occ->frequency_Hz > 0.0) {
+        const MapPoint tx = occ->frame.point(emitter.lon_deg, emitter.lat_deg, out.tx_height_m);
+        const MapPoint rx = occ->frame.point(site.lon_deg, site.lat_deg, out.rx_height_m);
+        const OcclusionResult r = segment_occlusion(*occ->map, tx, rx, occ->frequency_Hz);
+        // line_of_sight = !blocked，**与损耗大小无关**（07 §5.1）。
+        out.line_of_sight = !r.blocked;
+        out.diffraction_dB = r.obstruction_loss_dB;
+        out.intrusion_m = r.intrusion_m;
+    }
 
     if (out.distance_m > 0.0) {
         const Ecef los = sub(g.to_ecef(emitter), g.to_ecef(site));
@@ -65,7 +80,7 @@ LinkBudget link_budget(const LinkGeometry& g, double frequency_Hz, double rx_nf_
     }
     // E1（缺省）时 combine() 只算自由空间、extra_dB 恒 0，下面三行与 D-058 之前逐字等价。
     b.terms = combine(g.distance_m, frequency_Hz, g.tx_height_m, g.rx_height_m,
-                      g.line_of_sight, polarization, cfg, shadow_sample_dB);
+                      g.line_of_sight, polarization, cfg, shadow_sample_dB, g.diffraction_dB);
     b.free_space_dB = b.terms.free_space_dB;
     b.extra_loss_dB = b.terms.extra_dB;
     b.path_loss_dB = b.free_space_dB + b.extra_loss_dB;

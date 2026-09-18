@@ -23,6 +23,7 @@ double clamp01(double v) { return v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v); }
 const char* const kTermFreeSpace = "free_space";
 const char* const kTermGroundReflection = "ground_reflection";
 const char* const kTermUrbanMean = "urban_mean";
+const char* const kTermDiffraction = "diffraction";
 const char* const kTermShadow = "shadow";
 const char* const kTermWeather = "weather";
 
@@ -163,10 +164,21 @@ EnvTemplate env_template(EnvClass c) {
 // ---------------------------------------------------------------- 配置校验
 
 bool PropagationConfig::validate(std::string& err) const {
+    // E3 与两个「建筑遮挡的统计等效」互斥——闸三与闸四（07 报告 §5.2、§6.5，D-074 ⑥）。
+    // 两者都在用统计量描述同一件事（建筑挡住了视线），与按几何算出来的确定性绕射同时开
+    // 就是同源双计（EM-P-13 §10.9）。报错并说明，不静默禁用其中一个（铁律 15）。
     if (level == PropLevel::E3) {
-        err = "prop_level = E3（建筑遮挡与刀口绕射）需要逐建筑几何，待 D3（切片 ⑤）接入；"
-              "本版本支持 E1（自由空间）与 E2（双径 / 城市经验 / 阴影 / 天气）";
-        return false;
+        if (shadow) {
+            err = "prop_level = E3 已按建筑几何确定性地算出遮挡损耗，统计阴影（EM-P-08）是"
+                  "同一效应的统计等效，同时开即同源双计；请关掉 prop_shadow，或把档位降回 E2";
+            return false;
+        }
+        if (primary == PrimaryModel::UrbanEmpirical) {
+            err = "prop_level = E3 已按建筑几何确定性地算出遮挡损耗，城市经验（EM-P-05）的"
+                  "路损指数与环境偏置本身就是建筑密度的经验拟合，同时开即同源双计；"
+                  "E3 下 prop_primary 只能是 free_space 或 two_ray";
+            return false;
+        }
     }
     if (level == PropLevel::E1) {
         // E1 只算自由空间路损、多普勒与时延。选了别的却停在 E1，不静默忽略（铁律 15）。
@@ -401,11 +413,13 @@ double ShadowSequence::at(std::size_t k) const {
 PropagationTerms combine(double distance_m, double frequency_Hz,
                          double h_t_m, double h_r_m, bool line_of_sight,
                          const std::string& polarization,
-                         const PropagationConfig& cfg, double shadow_sample_dB) {
+                         const PropagationConfig& cfg, double shadow_sample_dB,
+                         double diffraction_sample_dB) {
     PropagationTerms t;
     t.free_space_dB = fspl_dB(distance_m, frequency_Hz);
 
-    bool has_ground = false, has_urban = false, has_shadow = false, has_weather = false;
+    bool has_ground = false, has_urban = false, has_diffraction = false;
+    bool has_shadow = false, has_weather = false;
 
     // E1：只算自由空间。代码路径与本方案之前逐字相同，缺省档因此逐数值等于今天。
     // validate() 已经拒过「E1 却选了别的」，这里再兜一道——combine 也被单测直接调用。
@@ -432,6 +446,17 @@ PropagationTerms combine(double distance_m, double frequency_Hz,
             }
         }
 
+        // E3 的建筑刀口衍射（EM-P-04，D3-5）。**加项，不是替代型主模型**：它与自由空间
+        // 或双径叠加，故 included 里 free_space（乃至 ground_reflection）照旧在。
+        // 单程 ×1 不乘 2——emcore 的原注写的是雷达双程，本系统是电子侦察单向链路。
+        if (cfg.level == PropLevel::E3) {
+            t.diffraction_dB = diffraction_sample_dB;
+            // 视距时损耗为零，但 E3 这一档确实「算过了遮挡」，清单照样声明：
+            // 下游据 included 判断「能不能再叠加一个建筑遮挡的统计等效」，
+            // 答案与这一帧恰好挡没挡住无关（EM-P-13 §10.9）。
+            has_diffraction = true;
+        }
+
         if (cfg.shadow) {
             t.shadow_dB = shadow_sample_dB;
             has_shadow = true;
@@ -447,12 +472,13 @@ PropagationTerms combine(double distance_m, double frequency_Hz,
         }
     }
 
-    t.extra_dB = t.primary_excess_dB + t.shadow_dB + t.weather_dB;
+    t.extra_dB = t.primary_excess_dB + t.diffraction_dB + t.shadow_dB + t.weather_dB;
 
     // included_loss_terms 按固定顺序，下游据此判断能不能再叠加（EM-P-13 §10.9）
     t.included.push_back(kTermFreeSpace);
     if (has_ground) t.included.push_back(kTermGroundReflection);
     if (has_urban) t.included.push_back(kTermUrbanMean);
+    if (has_diffraction) t.included.push_back(kTermDiffraction);
     if (has_shadow) t.included.push_back(kTermShadow);
     if (has_weather) t.included.push_back(kTermWeather);
     return t;

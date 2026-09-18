@@ -187,7 +187,7 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
 
 | 参数 | 类型 | 缺省 | 含义 |
 |---|---|---|---|
-| `prop_level` | 枚举 `E1 / E2 / E3` | `E1` | 精度档（01 的 E1–E4），直接写进溯源的 `model_level`。**`E3` 收到即报错**，待 D3-5 接线（切片 ⑤）；D3-4 起 `E3` 已经会去取建筑几何，见下 |
+| `prop_level` | 枚举 `E1 / E2 / E3` | `E1` | 精度档（01 的 E1–E4），直接写进溯源的 `model_level`。**`E3` 自 D3-5 起可用**（建筑遮挡与刀口绕射），但与 `prop_shadow`、`urban_empirical` 互斥（闸三、闸四），且**界面上暂时仍选不到**——浏览器侧还没有同源的遮挡复算（D3-6），见下 |
 | `prop_primary` | 枚举 `free_space / two_ray / urban_empirical` | `free_space` | 替代型主模型，**至多一个**（EM-P-13 §10.9 防重复计损） |
 | `prop_shadow` | 布尔 | `false` | 统计阴影（EM-P-08） |
 | `prop_weather` | 布尔 | `false` | 大气与降雨（EM-P-07） |
@@ -220,7 +220,12 @@ D-059（2026-09-10）把它从典型链路的槽位表里撤掉——那个页�
 读进来核对清单里的 sha256，**懒加载**：只有 `prop_level = E3` 才读，且加载发生在
 `init()` 而不是装载器里，因此 `cuav_run --validate` 一个字节也不读（实测中位 3.1 ms）。
 一个进程只加载一次，K 个站共用一份桶网格。通路的四条约定见 `docs/scene-package.md` §3.1。
-`prop_level = E3` 目前仍被 `PropagationConfig::validate()` 拒——建筑取到手了，但还没接进
-链路预算（`line_of_sight` 与 `extra_loss_dB`），那是 D3-5。
+**D3-5（2026-09-18）接线完成**：`prop_level = E3` 不再被 `PropagationConfig::validate()` 拒，
+视距由建筑几何给出（`line_of_sight = !blocked`，与损耗大小无关）、刀口衍射只进 `extra_loss_dB`、
+`included_loss_terms` 增取值 `diffraction`。同时补两道闸：**E3 与 `prop_shadow` 互斥、E3 与
+`urban_empirical` 互斥**（都是建筑遮挡的统计等效，同开即同源双计）；E3 与地面双径、大气降雨
+可以同开。**界面上 E3 暂时仍选不到**：浏览器这一侧还没有同源的遮挡复算，放开会让场景页的预览
+与跑出来的结果对不上（D3-6 补复算、D3-7 去置灰）。公式与八条声明过的简化见模型卡
+`models/channel/README.md` §3.6。
 
 模型公式、参数来源与适用范围见模型卡 `models/channel/README.md`。

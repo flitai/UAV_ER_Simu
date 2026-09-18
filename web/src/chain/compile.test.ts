@@ -847,15 +847,23 @@ test('右栏按当前档位显隐：E1 只有档位一项，选了双径才出�
     .includes('rain_rate_mmh'))
 })
 
-test('前端的相容判据与引擎 PropagationConfig::validate 一一对应', () => {
+test('前端的相容判据与引擎 PropagationConfig::validate 对应，E3 上前端更严且说得出缘由', () => {
   const V = (p: Record<string, unknown>) => propView(p as Record<string, never>)
   assert.equal(propConflict(V({})), null)
-  assert.match(propConflict(V({ prop_level: 'E3' }))!, /D3/)
   assert.match(propConflict(V({ prop_primary: 'two_ray' }))!, /E2/)
   assert.match(
     propConflict(V({ prop_level: 'E2', prop_primary: 'urban_empirical',
                      urban_loss_mode: 'mean_with_shadow_margin', prop_shadow: true }))!,
     /双计/)
+
+  // **这一条自 D3-5 起是「前端更严」，不再是「两边一样」**：引擎已经支持 E3
+  // （建筑几何进了帧生产端），前端仍拦着，拦的是浏览器这一侧还复算不出同样的数——
+  // 放开会让场景页的链路预览与跑出来的结果对不上。D3-6 补复算、D3-7 才去置灰。
+  // 断言钉住「报文说的是这个缘由」，免得哪天又改回「引擎待接入」那句已经不成立的话。
+  const e3 = propConflict(V({ prop_level: 'E3' }))!
+  assert.ok(e3.includes('引擎已经支持'), 'E3 的报文不能再说引擎没接入')
+  assert.match(e3, /浏览器/)
+  assert.doesNotMatch(e3, /待 D3/)
 })
 
 test('传播信道只有一个变体：定参自由空间已撤（D-059）', () => {

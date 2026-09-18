@@ -324,6 +324,7 @@ bool ScenarioSource::init(IRandom& rng, std::string& err) {
     // 而 E1 / E2 一栋也用不上。放在 init() 而不是 configure()，于是校验路径
     // （cuav_run --validate，装载器只调 configure）一个字节也不读，仍是 9 ms 那一档。
     if (!load_scene_map(err)) return false;
+    if (!attach_scene_map(err)) return false;
 
     produced_ = 0;
     reported_upto_ = 0;
@@ -332,16 +333,33 @@ bool ScenarioSource::init(IRandom& rng, std::string& err) {
 
 bool ScenarioSource::load_scene_map(std::string& err) {
     map_ = 0;
+    frame_ = geo::SceneFrame();
     if (prop_.level != geo::PropLevel::E3) return true;
     BuildingsStats stats;
-    const geo::LocalSceneAdapter* m = shared_scene_map(scene_root_, scene_.aoi_id, stats, err);
+    geo::SceneFrame frame;
+    const geo::LocalSceneAdapter* m =
+        shared_scene_map(scene_root_, scene_.aoi_id, stats, frame, err);
     if (m == 0) {
         err = "站点 " + site_id_ + " 选了 E3（建筑遮挡与绕射）但建筑几何取不到：" + err;
         return false;
     }
     map_ = m;
+    frame_ = frame;
     // 剔了几件、忽略了几个孔都要说出来，不静默（铁律 15）。
     status_.notes.push_back(stats.summary());
+    return true;
+}
+
+bool ScenarioSource::attach_scene_map(std::string& err) {
+    for (std::size_t i = 0; i < links_.size(); ++i) {
+        links_[i].set_scene_map(map_, frame_);
+        // 兜底：E3 走到这一步还没有地图，就是「选了建筑遮挡却按自由空间算」。
+        // load_scene_map() 正常会先报错，这一道是防将来改动把那条路绕过去（铁律 15）。
+        if (links_[i].needs_scene_map()) {
+            err = "链路 " + links_[i].link_id() + " 选了 E3 但没有建筑几何";
+            return false;
+        }
+    }
     return true;
 }
 
@@ -414,6 +432,7 @@ Step ScenarioSource::process(PortMap&, PortMap& out, std::string& err) {
                 lf.update_rate_Hz = f.update_rate_Hz;
                 lf.free_space_dB = f.free_space_dB;
                 lf.extra_loss_dB = f.extra_loss_dB;
+                lf.diffraction_dB = f.diffraction_dB;
                 lf.included_loss_terms = f.included_loss_terms;
                 // 传播模型自身的降级不算无效：数照旧给得出，只是可信度降一档（05 §6.2.3 四态）
                 lf.state = !f.valid ? State::Invalid

@@ -305,6 +305,9 @@ public:
                  {"delay_s", l.delay_s}, {"doppler_Hz", l.doppler_Hz},
                  {"valid_from_s", l.valid_from_s}, {"valid_to_s", l.valid_to_s},
                  {"update_rate_Hz", l.update_rate_Hz}, {"state", to_string(l.state)}};
+        // E3 的刀口衍射是**可选键**：只在非零时写。E1 / E2 的 links.jsonl 与 link 事件
+        // 因此逐字节不变（07 报告 §9.2 说的「可选字段」，D3-5 的零回归判据靠它）。
+        if (l.diffraction_dB != 0.0) row["diffraction_dB"] = l.diffraction_dB;
         sink_.emit("link", l.t_s, strip_t(row));
         write_jsonl(links_, "links.jsonl", row);
         ++links_written_;

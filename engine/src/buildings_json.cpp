@@ -273,6 +273,7 @@ namespace {
 struct MapCacheEntry {
     geo::LocalSceneAdapter adapter;
     BuildingsStats stats;
+    geo::SceneFrame frame;
 };
 
 std::mutex& map_cache_mutex() {
@@ -289,13 +290,15 @@ std::map<std::string, MapCacheEntry*>& map_cache() {
 
 const geo::LocalSceneAdapter* shared_scene_map(const std::string& scene_root,
                                                const std::string& aoi_id,
-                                               BuildingsStats& stats, std::string& err) {
+                                               BuildingsStats& stats, geo::SceneFrame& frame,
+                                               std::string& err) {
     const std::string key = scene_root + "\n" + aoi_id;
     std::lock_guard<std::mutex> lock(map_cache_mutex());
     std::map<std::string, MapCacheEntry*>& cache = map_cache();
     std::map<std::string, MapCacheEntry*>::iterator it = cache.find(key);
     if (it != cache.end()) {
         stats = it->second->stats;
+        frame = it->second->frame;
         return &it->second->adapter;
     }
 
@@ -313,8 +316,10 @@ const geo::LocalSceneAdapter* shared_scene_map(const std::string& scene_root,
     // 两边的口径一致时它应当为零；不为零就把它并进计数，不让它无声无息（铁律 15）。
     entry->stats.dropped_degenerate += entry->adapter.dropped_count();
     entry->stats.buildings = entry->adapter.building_count();
+    entry->frame = ref.frame;
     cache[key] = entry;
     stats = entry->stats;
+    frame = entry->frame;
     return &entry->adapter;
 }
 

@@ -21,7 +21,8 @@ data/runs/<task_id>/
 ├── events.jsonl                 引擎 stdout 事件原样落盘，每行带 seq；由 cuav_run 自己写，与 stdout 逐字节相同（B-4）；服务端不改它，也不对外暴露
 ├── track.jsonl                  实体状态，每行一个 EntityState（见 docs/scenario-format.md §7）
 ├── links.jsonl                  链路帧读数，每行一条链路一帧（字段同 WS link 事件，docs/api-versions.md §4；
-│                                自 D-058 起含 free_space_dB / extra_loss_dB / included_loss_terms）
+│                                自 D-058 起含 free_space_dB / extra_loss_dB / included_loss_terms；
+│                                自 D3-5 起 E3 档另有可选键 diffraction_dB，只在非零时出现）
 ├── detections.jsonl             检测行，每帧一行（C-3，§5；生产者 EnergyDetector，惰性建文件；多站下每站一个检测器各写自己的行）
 ├── detections.index.json        检测摘要 cuav-detections-index/1：每个检测器一条（参数、门限、计数、四态、trace），运行结束时写
 ├── features.jsonl               突发特征，每个突发一行、行自带 trace（C-4，§5.2；生产者 FeatureExtractor，惰性建文件；多站下 feat__<site> 各写自己的行）

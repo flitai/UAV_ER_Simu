@@ -17,8 +17,11 @@
 
 #include "nlohmann/json.hpp"
 
+#include "cuav/scenario_json.h"
 #include "cuav_geo/geodesy.h"
+#include "cuav_geo/link_budget.h"
 #include "cuav_geo/map.h"
+#include "cuav_geo/scenario.h"
 #include "cuav_geo/legacy_frames.h"
 #include "cuav_geo/occlusion.h"
 #include "cuav_geo/propagation.h"
@@ -221,4 +224,215 @@ TEST_CASE("建筑遮挡：适配器的几条行为约定") {
         const double v = legacy::fresnel_v(30.0, 450.0, 550.0, 2.44e9);
         CHECK(r.obstruction_loss_dB == doctest::Approx(legacy::knife_edge_loss_dB(v)).epsilon(1e-12));
     }
+}
+
+// ---------------------------------------------------------------------------
+// D3-5：接进帧生产端。上面那批测的是遮挡本身，这批测的是「它怎么进链路预算」。
+// 全部自造几何，不依赖观测区域数据包（buildings.geojson 不入 git）。
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// 站在原点、目标在正东 d 米处的一条链路，中间按需摆一栋楼。
+struct E3Fixture {
+    Lla origin;
+    SceneFrame frame;
+    Lla site;
+    Lla emitter;
+    LocalSceneAdapter map;
+
+    E3Fixture() : origin(116.405, 39.99, 0.0) {
+        frame = SceneFrame(origin);
+        site = Lla(116.405, 39.99, 30.0);          // 站点天线 30 m，与 demo-01 同
+    }
+
+    // 把目标放到正东约 d 米处、离地 h 米。返回实际投影出来的东向距离。
+    double put_emitter_east(double d_m, double h_m) {
+        // 粗算一个经度增量再用帧本身核实：不假设换算常数（铁律 1，投影只有一个真理源）
+        const double deg = d_m / 85000.0;          // 39.99°N 上 1 度经度约 85 km
+        emitter = Lla(origin.lon_deg + deg, origin.lat_deg, h_m);
+        double x = 0.0, y = 0.0;
+        frame.to_plane(emitter.lon_deg, emitter.lat_deg, x, y);
+        return x;
+    }
+
+    // 一栋跨在视线上的楼：东向 [x0, x1]、南北 ±80 m、高 height_m。
+    void put_wall(double x0, double x1, double height_m) {
+        Building b;
+        b.id = "WALL";
+        b.base_m = 0.0;
+        b.height_m = height_m;
+        const double xs[4] = {x0, x1, x1, x0};
+        const double ys[4] = {-80.0, -80.0, 80.0, 80.0};
+        for (int i = 0; i < 4; ++i) { b.ring_x.push_back(xs[i]); b.ring_y.push_back(ys[i]); }
+        std::vector<Building> v;
+        v.push_back(b);
+        map.set_buildings(v);
+    }
+
+    OcclusionQuery query(double f_Hz) const {
+        OcclusionQuery q;
+        q.map = &map;
+        q.frame = frame;
+        q.frequency_Hz = f_Hz;
+        return q;
+    }
+};
+
+}  // namespace
+
+TEST_CASE("D3-5：link_geometry 按建筑几何给 line_of_sight 与刀口损耗") {
+    E3Fixture fx;
+    const double east = fx.put_emitter_east(800.0, 50.0);
+    CHECK(east == doctest::Approx(800.0).epsilon(0.02));   // 帧自己说了算，不靠我猜的常数
+    fx.put_wall(380.0, 420.0, 90.0);                       // 90 m 的墙，挡得死死的
+    const Ecef v;                                          // 静止，多普勒与本条无关
+
+    const OcclusionQuery q = fx.query(2.44e9);
+    const LinkGeometry blocked = link_geometry(fx.site, fx.emitter, v, 0.0, &q);
+    CHECK_FALSE(blocked.line_of_sight);
+    CHECK(blocked.diffraction_dB > 6.0);
+    CHECK(blocked.intrusion_m > 0.0);
+
+    // 同一条链路，不给地图 → 与 D3-5 之前逐字相同的那条路径
+    const LinkGeometry bare = link_geometry(fx.site, fx.emitter, v, 0.0);
+    CHECK(bare.line_of_sight);
+    CHECK(bare.diffraction_dB == 0.0);
+    CHECK(bare.distance_m == doctest::Approx(blocked.distance_m).epsilon(1e-12));
+    CHECK(bare.azimuth_deg == doctest::Approx(blocked.azimuth_deg).epsilon(1e-12));
+
+    // 目标升到楼顶之上 → 视距恢复、损耗归零
+    fx.put_emitter_east(800.0, 300.0);
+    const LinkGeometry clear = link_geometry(fx.site, fx.emitter, v, 0.0, &q);
+    CHECK(clear.line_of_sight);
+    CHECK(clear.diffraction_dB == 0.0);
+
+    // **单程 ×1 不乘 2**：与直接调 segment_occlusion 的结果逐位相同
+    fx.put_emitter_east(800.0, 50.0);
+    const MapPoint tx = fx.frame.point(fx.emitter.lon_deg, fx.emitter.lat_deg, 50.0);
+    const MapPoint rx = fx.frame.point(fx.site.lon_deg, fx.site.lat_deg, 30.0);
+    const OcclusionResult direct = segment_occlusion(fx.map, tx, rx, 2.44e9);
+    const LinkGeometry again = link_geometry(fx.site, fx.emitter, v, 0.0, &q);
+    CHECK(again.diffraction_dB == direct.obstruction_loss_dB);
+    CHECK(again.diffraction_dB < 2.0 * direct.obstruction_loss_dB);
+}
+
+TEST_CASE("D3-5：line_of_sight = !blocked，与损耗大小无关") {
+    // 07 §5.1 的口径：掠射只损几分贝也算非视距。这个布尔量的含义是「楼挡没挡住」，
+    // 不是「损耗够不够大」——界面据它给链路线上色，颜色要摆事实不摆实施方挑的门限（D-039）。
+    E3Fixture fx;
+    fx.put_emitter_east(800.0, 50.0);
+    const Ecef v;
+    const OcclusionQuery q = fx.query(2.44e9);
+
+    // 把墙压到刚好擦着视线：站 30 m、目标 50 m、墙在中点，视线在那里约 40 m 高
+    bool found_grazing = false;
+    for (double h = 40.0; h <= 41.0; h += 0.02) {
+        fx.put_wall(380.0, 420.0, h);
+        const LinkGeometry g = link_geometry(fx.site, fx.emitter, v, 0.0, &q);
+        if (g.line_of_sight) continue;
+        if (g.diffraction_dB > 0.0 && g.diffraction_dB < 8.0) {
+            // 损耗才几分贝，但几何上确实被切断了 → 仍判非视距
+            CHECK_FALSE(g.line_of_sight);
+            found_grazing = true;
+            MESSAGE("掠射：墙高 " << h << " m，刀口损耗 " << g.diffraction_dB
+                                 << " dB，仍判非视距");
+            break;
+        }
+    }
+    CHECK(found_grazing);
+}
+
+TEST_CASE("D3-5：刀口损耗只进 extra_loss_dB，且只在 E3 档计入") {
+    E3Fixture fx;
+    fx.put_emitter_east(800.0, 50.0);
+    fx.put_wall(380.0, 420.0, 90.0);
+    const Ecef v;
+    const OcclusionQuery q = fx.query(2.44e9);
+    const LinkGeometry g = link_geometry(fx.site, fx.emitter, v, 0.0, &q);
+    REQUIRE_FALSE(g.line_of_sight);
+    REQUIRE(g.diffraction_dB > 6.0);
+
+    {   // E1：算过遮挡也不计入——档位说了算，与帧里带没带这个数无关
+        PropagationConfig cfg;   // 缺省 E1
+        const LinkBudget b = link_budget(g, 2.44e9, 6.0, cfg);
+        CHECK(b.extra_loss_dB == 0.0);
+        CHECK(b.terms.diffraction_dB == 0.0);
+        CHECK(b.path_loss_dB == doctest::Approx(b.free_space_dB).epsilon(1e-12));
+        CHECK(b.terms.included.size() == 1);
+        CHECK(b.terms.included[0] == std::string(kTermFreeSpace));
+        // line_of_sight 照旧透传：它是几何事实，不随档位变
+        CHECK_FALSE(b.line_of_sight);
+    }
+    {   // E3：计入，且恒等式照旧
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        const LinkBudget b = link_budget(g, 2.44e9, 6.0, cfg);
+        CHECK(b.terms.diffraction_dB == g.diffraction_dB);
+        CHECK(b.extra_loss_dB == doctest::Approx(g.diffraction_dB).epsilon(1e-12));
+        CHECK(b.path_loss_dB ==
+              doctest::Approx(b.free_space_dB + b.extra_loss_dB).epsilon(1e-12));
+        REQUIRE(b.terms.included.size() == 2);
+        CHECK(b.terms.included[0] == std::string(kTermFreeSpace));
+        CHECK(b.terms.included[1] == std::string(kTermDiffraction));
+    }
+    {   // E3 + 天气：加项各自独立，顺序固定 free_space → diffraction → weather
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        cfg.weather = true;
+        cfg.rain_rate_mmh = 25.0;
+        const LinkBudget b = link_budget(g, 2.44e9, 6.0, cfg);
+        CHECK(b.extra_loss_dB ==
+              doctest::Approx(b.terms.diffraction_dB + b.terms.weather_dB).epsilon(1e-12));
+        REQUIRE(b.terms.included.size() == 3);
+        CHECK(b.terms.included[1] == std::string(kTermDiffraction));
+        CHECK(b.terms.included[2] == std::string(kTermWeather));
+    }
+    {   // E3 视距时损耗为零，但 included 照样声明 diffraction——下游问的是
+        // 「这条路损里算没算过建筑遮挡」，答案与这一帧恰好挡没挡住无关（EM-P-13 §10.9）
+        fx.put_emitter_east(800.0, 300.0);
+        const LinkGeometry clear = link_geometry(fx.site, fx.emitter, v, 0.0, &q);
+        REQUIRE(clear.line_of_sight);
+        PropagationConfig cfg;
+        cfg.level = PropLevel::E3;
+        const LinkBudget b = link_budget(clear, 2.44e9, 6.0, cfg);
+        CHECK(b.extra_loss_dB == 0.0);
+        REQUIRE(b.terms.included.size() == 2);
+        CHECK(b.terms.included[1] == std::string(kTermDiffraction));
+    }
+}
+
+TEST_CASE("D3-5：E3 而没有地图 → needs_scene_map 为真，不静默按自由空间算") {
+    Scenario s;
+    std::string err;
+    // 借 demo-01 来搭一条真链路；缺数据包时跳过（场景文件在 data/ 下，不入 git）
+    const std::string path = repo_path("data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json");
+    std::ifstream probe(path.c_str());
+    if (!probe.good()) {
+        MESSAGE("跳过：示例场景不在盘上");
+        return;
+    }
+    probe.close();
+
+    LoadedScenario ls;
+    REQUIRE_MESSAGE(load_scenario_file(path, ls, err), err);
+
+    PropagationConfig cfg;
+    cfg.level = PropLevel::E3;
+    LinkFrameSource lf;
+    REQUIRE_MESSAGE(lf.build(ls.scenario, "site-1", "uav-1", 20.0, err, cfg), err);
+    // build 本身不拒——地图是懒加载的，要到 init() 才拿得到（07 §7.4）。
+    // 但「还缺地图」这件事必须问得出来，由调用方在产帧之前拦下。
+    CHECK(lf.needs_scene_map());
+
+    E3Fixture fx;
+    fx.put_wall(380.0, 420.0, 90.0);
+    lf.set_scene_map(&fx.map, fx.frame);
+    CHECK_FALSE(lf.needs_scene_map());
+
+    // E1 / E2 从来不缺地图
+    PropagationConfig e1;
+    LinkFrameSource lf1;
+    REQUIRE_MESSAGE(lf1.build(ls.scenario, "site-1", "uav-1", 20.0, err, e1), err);
+    CHECK_FALSE(lf1.needs_scene_map());
 }
