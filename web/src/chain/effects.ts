@@ -46,7 +46,9 @@ export interface PropView {
   urbanMargin: boolean
   /** 这一档实际包含哪几类损耗，顺序与 `geo/propagation.cpp` 的 `included` 一致 */
   terms: LossTerm[]
-  /** 卡片上写的一行 */
+  /** 包含哪几项，**不带档位前缀**。卡片上用这个——档位就在它上面那个下拉里，写两遍是重复（D-062） */
+  effects: string
+  /** 带档位前缀的一行。检查项的说明用这个：那里没有下拉，得自己交代是哪一档 */
   text: string
 }
 
@@ -94,9 +96,10 @@ export function propView(params: Record<string, ParamValue>): PropView {
     : primary === 'urban_empirical' ? `${TERM_LABEL.urban_mean}（${ENV_LABEL[env]}）`
     : TERM_LABEL.free_space
   const rest = terms.filter((t) => t !== 'free_space' && t !== 'ground_reflection' && t !== 'urban_mean')
-  const text = `${level} · ${head}${rest.length ? ' + ' + rest.map((t) => TERM_LABEL[t]).join(' + ') : ''}`
+  const effects = `${head}${rest.length ? ' + ' + rest.map((t) => TERM_LABEL[t]).join(' + ') : ''}`
+  const text = `${level} · ${effects}`
 
-  return { level, primary, env, shadow, weather, urbanMargin, terms, text }
+  return { level, primary, env, shadow, weather, urbanMargin, terms, effects, text }
 }
 
 /**

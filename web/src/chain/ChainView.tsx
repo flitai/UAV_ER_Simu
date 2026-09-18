@@ -30,8 +30,7 @@ import {
   splitProxy, variantOf, writeParam,
   type ChainMode, type ChainState, type ParamScope, type SlotId, type TapId,
 } from './model.js'
-import { LEVEL_LABEL, propConflict, propView, visiblePropParams,
-  type PropLevel } from './effects.js'
+import { propConflict, propView, visiblePropParams } from './effects.js'
 import { freqPlan, planChecks } from './plan.js'
 import { SlotCard } from './SlotCard.js'
 
@@ -364,6 +363,7 @@ export function ChainView() {
                       commit({ ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], variant } } }, '换变体')}
                     onBypass={(id, bypass) =>
                       commit({ ...chain, slots: { ...chain.slots, [id]: { ...chain.slots[id], bypass } } }, bypass ? '旁路' : '启用')}
+                    onLevel={(level) => setSlotParam(def.id, 'prop_level', level, 'shared', [])}
                   />
                   {p.next === 'right' && <span className="chain-conn to-right" aria-hidden>→</span>}
                   {p.next === 'left' && <span className="chain-conn to-left" aria-hidden>←</span>}
@@ -751,6 +751,8 @@ function PropagationGroup(p: {
   const view = propView(p.chain.slots[p.slot].params)
   const show = new Set(visiblePropParams(view))
   const conflict = propConflict(view)
+  const rows = (host.params as ParamSpec[])
+    .filter((ps) => !ps.internal && show.has(ps.name) && ps.name !== 'prop_level')
 
   return (
     <div className="group" data-form="propagation">
@@ -758,34 +760,24 @@ function PropagationGroup(p: {
       <div className="pp-sub" data-prop-summary={view.terms.join(',')}>本档包含：{view.text}</div>
       {conflict && <div className="pp-warn" data-prop-conflict>{conflict}</div>}
 
-      {(host.params as ParamSpec[]).filter((ps) => !ps.internal && show.has(ps.name)).map((ps) => (
+      {/* **档位不在这儿**：它自 2026-09-18 起在卡片上（用户指示）。`visiblePropParams` 仍然
+          含 prop_level——那张表同时决定「编译时把哪些参数写给 scn 节点」（compile.ts），
+          去掉它整条传播配置就不会被写进框图了。这里只是不重复渲染它。 */}
+      {rows.length === 0 ? (
+        <div className="pp-line dim">
+          {view.level === 'E1'
+            ? 'E1 只算自由空间路损、多普勒与时延，没有逐项开关。档位在左边卡片上改。'
+            : '这一档没有可调的逐项开关。'}
+        </div>
+      ) : rows.map((ps) => (
         <PRow key={ps.name} label={paramLabel(ps)} title={paramTitle(ps, range(ps))} unit={ps.unit}>
-          {ps.name === 'prop_level'
-            ? <LevelField value={cur[ps.name]} onChange={(x) => p.onParam(ps.name, x, 'shared', [])} />
-            : <Field ps={ps} value={cur[ps.name]} onChange={(x) => p.onParam(ps.name, x, 'shared', [])} />}
+          <Field ps={ps} value={cur[ps.name]} onChange={(x) => p.onParam(ps.name, x, 'shared', [])} />
         </PRow>
       ))}
     </div>
   )
 }
 
-/**
- * 档位下拉。三档都可选：**E3 自 D3-7（2026-09-18）起放开**——建筑遮挡自 D3-5 起进了帧生产端，
- * 浏览器一侧自 D3-6 起有同源复算（`scene/occlusion/`，与 C++ 同守 148 例），
- * 原先那句「待 D3」与置灰随之撤掉（D-074）。
- * 档位之间的互斥（E1 只算自由空间、E3 与统计阴影 / 城市经验同源双计）由 `propConflict()`
- * 当场说明；界面拦不住手写的框图，所以引擎 `configure()` 那一侧同样拒——两头都做（铁律 15）。
- */
-function LevelField(p: { value: ParamValue | undefined; onChange: (v: ParamValue | undefined) => void }) {
-  const cur = typeof p.value === 'string' ? p.value : 'E1'
-  const levels: PropLevel[] = ['E1', 'E2', 'E3']
-  return (
-    <select className={p.value === undefined ? 'dim' : ''} data-field="prop_level" value={cur}
-      onChange={(e) => p.onChange(e.target.value)}>
-      {levels.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}
-    </select>
-  )
-}
 
 // ------------------------------------------------------------------ 观测点行
 

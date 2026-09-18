@@ -369,12 +369,14 @@ try {
     + " out[el.dataset.check] = el.dataset.ok; return JSON.stringify(out) })()"))
   check('E3 在框图页不再置灰：档位自洽与建筑几何两项都通过（D3-7）',
     e3Checks.propagation === '1' && e3Checks.prop_scene === '1', JSON.stringify(e3Checks))
-  // 卡片上只列「这一档包含哪几项」（D-058 用户拍板第 ① 条），逐项开关在右栏
+  // 卡片上：档位下拉（2026-09-18 起）+ 一行「这一档包含哪几项」（D-058 用户拍板第 ① 条），
+  // 逐项开关仍在右栏。那一行不带档位前缀，档位读下拉。
   const propText = await page.evaluate(
     "(() => { const el = document.querySelector('[data-slot-effects]');"
-    + " return (el?.dataset.slotEffects ?? '') + '|' + (el?.textContent ?? '') })()")
-  check('传播卡片列出这一档包含哪几项，含建筑遮挡（E3 的 diffraction 每帧都声明）',
-    /free_space,diffraction/.test(propText) && /E3/.test(propText) && /建筑遮挡/.test(propText), propText)
+    + " const lv = document.querySelector('[data-slot-level=ch]');"
+    + " return (lv?.value ?? '') + '|' + (el?.dataset.slotEffects ?? '') + '|' + (el?.textContent ?? '') })()")
+  check('传播卡片的档位下拉显示 E3，下面一行列出含建筑遮挡（diffraction 每帧都声明）',
+    /^E3\|/.test(propText) && /free_space,diffraction/.test(propText) && /建筑遮挡/.test(propText), propText)
 
   for (let i = 0; i < 40; i++) {
     if (await page.evaluate("(!document.querySelector('[data-action=run]')?.disabled)")) break

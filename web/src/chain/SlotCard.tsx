@@ -11,7 +11,7 @@ import {
   SLOT_BY_ID, effectiveParams, fromSceneOf, ownerEntity, proxyOf, unavailableReason, variantOf,
   type ChainState, type SlotId, type SlotState,
 } from './model.js'
-import { propView } from './effects.js'
+import { LEVEL_LABEL, propView, type PropLevel } from './effects.js'
 import { readField } from '../scene/editor/deviceFields.js'
 import { paramLabel } from './paramLabels.js'
 
@@ -45,6 +45,8 @@ export interface SlotCardProps {
   onSelect: (id: SlotId) => void
   onVariant: (id: SlotId, variant: number) => void
   onBypass: (id: SlotId, bypass: boolean) => void
+  /** 传播档位（只有代理型槽位用得上）。档位在卡片上改，逐项开关仍在右栏（2026-09-18 用户指示） */
+  onLevel: (level: string) => void
 }
 
 const STATE_TEXT: Record<SlotState, string> = {
@@ -132,12 +134,28 @@ export function SlotCard(p: SlotCardProps) {
       )}
       {p.state === 'bypass' && <div className="slot-note" data-slot-note>已旁路，信号直通</div>}
 
-      {/* 传播信道：卡片上只列这一档包含哪几项效应，逐项开关在右栏（D-058，用户拍板第 ① 条）。
+      {/* 传播信道：**档位下拉在卡片上**（2026-09-18 用户指示），下面一行列这一档包含哪几项效应。
+          原先档位在右栏，而右栏只有点中这张卡才出现——不点它就看不出还有个档位可调，
+          「怎么看不到遮挡的效应」就是这么来的。逐项开关仍在右栏（D-058 用户拍板第 ① 条：
+          卡片只列包含哪几项），这里放的是**同一个控件挪过来**，不是第二个入口（D-057）。
           清单由当前配置直接派生，不读引擎输出——它显示的是用户自己的选择。 */}
       {proxyOf(p.id) && p.state === 'active' && (() => {
         const v = propView(p.chain.slots[p.id].params)
+        const levels: PropLevel[] = ['E1', 'E2', 'E3']
         return (
-          <div className="slot-effects" data-slot-effects={v.terms.join(',')}>{v.text}</div>
+          <>
+            <select
+              className="slot-variant"
+              data-slot-level={p.id}
+              data-field="prop_level"
+              value={v.level}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => p.onLevel(e.target.value)}
+            >
+              {levels.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}
+            </select>
+            <div className="slot-effects" data-slot-effects={v.terms.join(',')}>{v.effects}</div>
+          </>
         )
       })()}
 

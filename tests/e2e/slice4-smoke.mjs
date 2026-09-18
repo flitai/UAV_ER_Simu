@@ -267,28 +267,33 @@ try {
   check('传播信道不再要求手填距离', !String(chVar.pending).includes('distance_m'), chVar.pending)
 
   // ---------- ②c 传播环境与效应（D-058）----------
+  // 档位下拉自 2026-09-18 起**在卡片上**（用户指示）：右栏只有点中这张卡才出现，
+  // 档位放那儿等于不点就看不出还有个档位可调。右栏留逐项开关。
   const eff0 = await evalJson(page, `(() => {
     const card = document.querySelector('[data-slot-effects]')
     const grp = document.querySelector('[data-form=propagation]')
-    const lv = document.querySelector('[data-form=propagation] [data-field=prop_level]')
+    const lv = document.querySelector('[data-slot-level=ch]')
     return { terms: card && card.dataset.slotEffects, text: card && card.textContent,
              hasGroup: !!grp, level: lv && lv.value,
              options: lv ? Array.from(lv.options).map((o) => o.value + (o.disabled ? '(禁)' : '')) : [],
+             inPanel: !!document.querySelector('[data-form=propagation] [data-field=prop_level]'),
              shown: Array.from(document.querySelectorAll('[data-form=propagation] [data-field]'))
                          .map((e) => e.dataset.field) }
   })()`)
-  check('传播信道卡片上写着这一档包含哪几项效应',
-    eff0.terms === 'free_space' && String(eff0.text).startsWith('E1'), JSON.stringify(eff0.text))
-  check('右栏有「传播效应」分组，缺省 E1', eff0.hasGroup === true && eff0.level === 'E1', eff0.level)
-  check('E1 档下只显示档位一项（十五行不一次全摆出来）',
-    eff0.shown.join(',') === 'prop_level', eff0.shown.join(','))
+  // 那一行**不带档位前缀**：档位就在它上面的下拉里，写两遍是同一个事实出现两次（D-062）
+  check('传播信道卡片上写着这一档包含哪几项效应，且不重复写档位',
+    eff0.terms === 'free_space' && String(eff0.text).trim() === '自由空间', JSON.stringify(eff0.text))
+  check('档位下拉在卡片上、缺省 E1，右栏不再重复一份（同一件事一个入口，D-057）',
+    eff0.level === 'E1' && eff0.inPanel === false, `卡片 ${eff0.level}，右栏有档位 ${eff0.inPanel}`)
+  check('右栏有「传播效应」分组；E1 档下没有逐项开关，只写一行说明', eff0.hasGroup === true
+    && eff0.shown.length === 0, eff0.shown.join(',') || '（无开关）')
   // D3-7（2026-09-18）起三档都可选：引擎自 D3-5 起算建筑遮挡，浏览器自 D3-6 起有同源复算。
   // 此前这里断言的是「E3 保留在下拉里但置灰」。
   check('三档都可选，E3 不再置灰（D3-7）',
     eff0.options.join(' ') === 'E1 E2 E3', eff0.options.join(' '))
 
   // 切到 E2 + 城市经验：卡片跟着变，逐项开关出现
-  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_level]');
+  await page.evaluate(`(() => { const el = document.querySelector('[data-slot-level=ch]');
     el.value = 'E2'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
   await sleep(300)
   await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_primary]');
@@ -343,7 +348,7 @@ try {
   await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_shadow]');
     el.value = 'false'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
   await sleep(300)
-  await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_level]');
+  await page.evaluate(`(() => { const el = document.querySelector('[data-slot-level=ch]');
     el.value = 'E1'; el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
   await sleep(400)
   const back1 = await evalJson(page, `(() => {
