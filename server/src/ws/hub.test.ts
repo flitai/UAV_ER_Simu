@@ -119,6 +119,19 @@ class Client {
   }
 }
 
+/**
+ * 带名字的等待（D3-8）。挂住时说得出是**哪一步**——CI 上这个文件整体挂死过两轮，
+ * 而 node 的测试运行器只报得出文件名，报不出停在哪个 await 上。
+ * 用在那些可能永远不落地的 Promise 上（握手结局、关闭事件、fetch）。
+ */
+function step<T>(label: string, p: Promise<T>, ms = 15000): Promise<T> {
+  let t: ReturnType<typeof setTimeout>
+  const guard = new Promise<never>((_, rej) => {
+    t = setTimeout(() => rej(new Error(`卡在：${label}`)), ms)
+  })
+  return Promise.race([p, guard]).finally(() => clearTimeout(t)) as Promise<T>
+}
+
 const isDone = (r: TaskRecord | null) => !!r && r.run_state !== 'queued' && r.run_state !== 'running' && r.exit_code !== undefined
 const done = (m: TaskManager, id: string) => waitFor(() => (isDone(m.get(id)) ? m.get(id)! : undefined), `任务 ${id} 结束`)
 
@@ -330,17 +343,17 @@ test('心跳：按间隔收到 heartbeat{last_seq}（seq 0）；不回 pong 的�
 
 test('非 /ws 路径的 upgrade 被拒（1006）；普通 HTTP GET /ws 走路由 404；hub.close() 让客户端收 1001', async () => {
   const other = new Client(rig.wsUrl.replace('/ws', '/other'))
-  await assert.rejects(other.open())
-  assert.equal((await other.closed).code, 1006)
-  assert.equal((await fetch(`${rig.base}/ws`)).status, 404)
+  await assert.rejects(() => step('非 /ws 的握手被拒', other.open()))
+  assert.equal((await step('非 /ws 的 close 事件', other.closed)).code, 1006)
+  assert.equal((await step('GET /ws 走路由', fetch(`${rig.base}/ws`))).status, 404)
 
   const c = new Client(rig.wsUrl)
-  await c.open()
-  const r = await rig.mgr.submit({ body: await slice1() })
+  await step('正常握手', c.open())
+  const r = await step('提交任务', rig.mgr.submit({ body: await slice1() }))
   c.subscribe(r.task.task_id, 0)
   await c.untilTerminal()
   assert.equal(rig.hub.size, 1)
-  await rig.hub.close()
-  assert.equal((await c.closed).code, CLOSE_GOING_AWAY)
+  await step('hub.close()', rig.hub.close())
+  assert.equal((await step('hub 关闭后客户端收 close', c.closed)).code, CLOSE_GOING_AWAY)
   assert.equal(rig.hub.size, 0)
 })
