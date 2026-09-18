@@ -7,6 +7,8 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <fcntl.h>
+#include <io.h>
 #include <windows.h>
 #else
 #include <sys/stat.h>
@@ -69,6 +71,13 @@ bool atomic_replace(const std::string& tmp, const std::string& dst, std::string&
         return false;
     }
     return true;
+#endif
+}
+
+void set_stdout_binary() {
+#ifdef _WIN32
+    // 只改换行翻译这一件事；失败不致命（管道已被重定向到某种不支持的句柄），照常往下走。
+    _setmode(_fileno(stdout), _O_BINARY);
 #endif
 }
 

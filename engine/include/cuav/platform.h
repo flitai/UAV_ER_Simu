@@ -28,6 +28,15 @@ std::string join(const std::string& a, const std::string& b);
 // 当前 UTC 时间，ISO 8601（如 2026-09-05T08:00:00Z）。只用于任务起止的墙钟记录，不进仿真时间（铁律 3）。
 std::string utc_now_iso8601();
 
+// 把标准输出切成二进制模式，**让引擎在任何平台都只写 `\n`**（D3-8，D-074）。
+//
+// Windows 的 C 运行库默认把 stdout 当文本，`\n` 出去变成 `\r\n`。落盘那一侧本来就都带
+// `std::ios::binary`（events.jsonl、各 .jsonl、metrics.json、产品 .f32），唯独 stdout 没有，
+// 于是同一条事件在文件里是 LF、在管道里是 CRLF——D-041 ① 承诺的「stdout 与 events.jsonl
+// 逐字节相同」在 Windows 上不成立，而应用服务正是逐行读那个管道的。
+// 类 Unix 上是空操作。进程一起来就调，早于任何输出。
+void set_stdout_binary();
+
 }  // namespace platform
 }  // namespace cuav
 
