@@ -62,8 +62,25 @@ class Client {
   readonly ws: WebSocket
   readonly msgs: Msg[] = []
   readonly closed: Promise<{ code: number; reason: string }>
+  /**
+   * 握手的结局。**三个事件都认，而且在构造时就挂上监听**（D3-8）。
+   *
+   * 原来只在 `open()` 被调用时挂 `open` / `error` 两个：握手被拒时若某个 Node 版本
+   * **只发 close 不发 error**，这个 Promise 就永远不落地。CI（Node 22）上
+   * `ws/hub.test.ts` 的最后一条因此挂死，本地（Node 25.8）116 ms 就过——
+   * 内置 WebSocket 是 undici 的实现，跨版本在这件事上表现不同。
+   * 构造时挂而不是 `open()` 里挂，顺带消掉「事件早于监听」那个竞态。
+   */
+  private readonly handshake: Promise<void>
   constructor(url: string) {
     this.ws = new WebSocket(url)
+    this.handshake = new Promise<void>((resolve, reject) => {
+      this.ws.addEventListener('open', () => resolve())
+      this.ws.addEventListener('error', () => reject(new Error('ws error')))
+      this.ws.addEventListener('close', (e: CloseEvent) => reject(new Error(`ws closed ${e.code}`)))
+    })
+    // 没人 await 它时不要变成未处理的拒绝（正常关闭也会走到 reject 那一支）
+    this.handshake.catch(() => undefined)
     this.ws.binaryType = 'arraybuffer'
     this.ws.addEventListener('message', (e: MessageEvent) => {
       if (typeof e.data === 'string') this.msgs.push({ kind: 'text', ev: JSON.parse(e.data) as EngineEvent })
@@ -75,10 +92,7 @@ class Client {
     this.closed = new Promise((r) => this.ws.addEventListener('close', (e: CloseEvent) => r({ code: e.code, reason: e.reason })))
   }
   open(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.ws.addEventListener('open', () => resolve())
-      this.ws.addEventListener('error', () => reject(new Error('ws error')))
-    })
+    return this.handshake
   }
   subscribe(task: string, since = 0): void {
     this.ws.send(JSON.stringify({ subscribe: task, since }))
