@@ -177,6 +177,7 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
 - [x] D-051 的 `DDC`（M-2，2026-09-16，D-070）：新增 `DDC`（receiver 类，参数 `f_shift_Hz` / `decim` / `fir_version`），组件 22 → 23；黄金基准据此更新一次，差异经脚本逐项核对**只有这一条新增**，`port_types` / `port_compat` 与既有组件的 `ports` / `params` 逐字未变
 - [x] D-051 的信道化与接收滤波（M-3，2026-09-16，D-071）：新增 `Channelizer` 与 `RxFilter`（均 receiver 类，`implementation = coder`），组件 23 → 25；黄金基准据此更新一次，差异是**纯插入**（109 行新增、零删除），`port_types` / `port_compat` / `engine_version` 与既有 23 条逐条未变
 - [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
+- [x] D-074 的建筑通路（D3-4，2026-09-18）：`ScenarioSource` 新增**一个内部参数** `scene_root`（见 §8 末），组件数、端口表与其余组件一字未变。黄金基准据此更新一次，差异是**纯插入的 8 行**；全库内部参数 32 → 33
 
 ## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）
 
@@ -186,7 +187,7 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
 
 | 参数 | 类型 | 缺省 | 含义 |
 |---|---|---|---|
-| `prop_level` | 枚举 `E1 / E2 / E3` | `E1` | 精度档（01 的 E1–E4），直接写进溯源的 `model_level`。**`E3` 收到即报错**，待 D3（切片 ⑤） |
+| `prop_level` | 枚举 `E1 / E2 / E3` | `E1` | 精度档（01 的 E1–E4），直接写进溯源的 `model_level`。**`E3` 收到即报错**，待 D3-5 接线（切片 ⑤）；D3-4 起 `E3` 已经会去取建筑几何，见下 |
 | `prop_primary` | 枚举 `free_space / two_ray / urban_empirical` | `free_space` | 替代型主模型，**至多一个**（EM-P-13 §10.9 防重复计损） |
 | `prop_shadow` | 布尔 | `false` | 统计阴影（EM-P-08） |
 | `prop_weather` | 布尔 | `false` | 大气与降雨（EM-P-07） |
@@ -212,5 +213,14 @@ D-059（2026-09-10）把它从典型链路的槽位表里撤掉——那个页�
 手填固定距离永远是错的选择；组件保留供标准算例与手写框图用。
 自由画布里仍可把它与高档位搭在一起，此时链路读数与实际施加的 IQ 不一致，属高级用法自负其责
 （12 报告 §4.5）。
+
+**`E3` 要建筑几何，通路是一个内部参数（D3-4，2026-09-18）**：`ScenarioSource` 多一个内部参数
+`scene_root`（观测区域数据包的根目录），由装载器注入——**框图里不写路径、浏览器见不到**，
+与 `scenario_path` 同法（D-037）。建筑在 `<scene_root>/<aoi_id>/buildings.geojson`，
+读进来核对清单里的 sha256，**懒加载**：只有 `prop_level = E3` 才读，且加载发生在
+`init()` 而不是装载器里，因此 `cuav_run --validate` 一个字节也不读（实测中位 3.1 ms）。
+一个进程只加载一次，K 个站共用一份桶网格。通路的四条约定见 `docs/scene-package.md` §3.1。
+`prop_level = E3` 目前仍被 `PropagationConfig::validate()` 拒——建筑取到手了，但还没接进
+链路预算（`line_of_sight` 与 `extra_loss_dB`），那是 D3-5。
 
 模型公式、参数来源与适用范围见模型卡 `models/channel/README.md`。

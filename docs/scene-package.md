@@ -92,6 +92,38 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
 瓦片里的 `buildings` 图层只作为观测区域**之外**的渲染回退，**永远不进入遮挡计算**。原因是
 瓦片建筑经过切割简化，且缺失高度时被填了默认值，不适合用于计算（决策 D-002）。
 
+### 3.1 建筑进引擎的通路（D3-4，2026-09-18）
+
+引擎读这份文件的路径只有一条，中间不许有别的入口：
+
+```
+<scene_root>/<aoi_id>/manifest.json     入口清单；场景声明它的字节哈希，装载器已核过
+     ├─ aoi.center                      → 平面工作帧 geo::SceneFrame 的原点
+     └─ products[] 里 buildings.geojson 的 sha256
+<scene_root>/<aoi_id>/buildings.geojson
+     └─ engine/src/buildings_json.cpp   nlohmann 解析（geo/ 不碰 JSON）
+          └─ std::vector<geo::Building> 平面米、外环首尾不闭合
+               └─ geo::LocalSceneAdapter  100 m 桶网格
+```
+
+四条约定：
+
+1. **读进来就核 sha256**，与清单里记的对不上即失败并说出两个哈希（铁律 8）。清单自身的
+   字节哈希由场景的 `aoi.manifest_sha256` 核（`check_aoi_manifest`），于是从场景到建筑
+   字节是一条完整的信任链。
+2. **懒加载**：只有传播档位是 E3 才读。`cuav_run --validate` 走的装载器只调 `configure()`，
+   一个字节也不读；加载发生在 `ScenarioSource::init()`。
+3. **一个进程只加载一次**：`shared_scene_map()` 按 `(scene_root, aoi_id)` 缓存，K 个站
+   共用一份桶网格，不是 K 份。
+4. **平面帧的原点是数据包的属性，不是场景的**：取清单里的 `aoi.center`，于是同一个数据包的
+   所有站、所有场景共用同一把尺子。换算是严格站心地平的东 / 北分量（铁律 1）；
+   **高度不经这个帧**——`base_m / height_m` 是离地高差，直接用（铁律 2）。
+
+`MultiPolygon` 按「每个子多边形的外环各当一栋」拆，`id` 加 `#<序号>` 后缀；内环（孔）忽略
+并计数。实测（sha256 `269a8674…`）：47582 要素 → **47662 栋**（47546 `Polygon` + 36 件
+`MultiPolygon` 拆出的 116 栋），忽略内环 345 个，剔除 0 件。加载 210–242 ms
+（读盘 + 核哈希 + 解析 + 投影 + 桶网格），逐段见 07 报告 §14bis.1。
+
 ## 4. 底图与 DEM 的提供方式（已冻结）
 
 - 底图与 DEM 是本项目自持的真实文件，`scene/fetch_tiles.py` 的默认源即包内 `data/basemap/planet.pmtiles`；

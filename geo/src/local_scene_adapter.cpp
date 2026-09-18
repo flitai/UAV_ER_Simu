@@ -31,6 +31,27 @@ thread_local unsigned tl_gen = 0;
 
 }  // namespace
 
+// --------------------------------------------------------------------- SceneFrame
+//
+// 严格站心地平（铁律 1），走缺省坐标基座——自 D3-2 起是 vendored GeographicLib。
+// 只取东 / 北；up 丢掉的理由写在 map.h 的 SceneFrame 头注里。
+
+void SceneFrame::to_plane(double lon_deg, double lat_deg, double& x_m, double& y_m) const {
+    const IGeodesy& g = default_geodesy();
+    const Enu e = g.to_enu(g.to_ecef(Lla(lon_deg, lat_deg, origin_.alt_m)), origin_);
+    x_m = e.e;
+    y_m = e.n;
+}
+
+MapPoint SceneFrame::point(double lon_deg, double lat_deg, double height_agl_m) const {
+    MapPoint p;
+    to_plane(lon_deg, lat_deg, p.x, p.y);
+    p.z = height_agl_m;
+    return p;
+}
+
+// ------------------------------------------------------------- LocalSceneAdapter
+
 LocalSceneAdapter::LocalSceneAdapter() : terrain_height_m_(0.0), dropped_(0) {}
 
 void LocalSceneAdapter::set_buildings(std::vector<Building> buildings) {

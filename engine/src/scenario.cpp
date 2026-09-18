@@ -1,5 +1,7 @@
 #include "cuav/components/scenario.h"
 
+#include "cuav/buildings_json.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -168,6 +170,10 @@ ComponentInfo ScenarioSource::describe() const {
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("scenario_id", "场景标识，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("site_id", "绑定的站点标识，由装载器按 scene_binding 注入").internal_only(),
+        ParamSpec::text("scene_root",
+                        "观测区域数据包的根目录，由装载器注入（cuav_run --scene-root）。"
+                        "建筑几何在 <scene_root>/<aoi_id>/ 下，只有 prop_level = E3 才去读（懒加载，D3-4）")
+            .internal_only(),
     };
     return i;
 }
@@ -178,6 +184,7 @@ bool ScenarioSource::configure(const std::map<std::string, double>& params,
     get_text(text_params, "scenario_path", scenario_path_);
     get_text(text_params, "scenario_id", scenario_id_);
     get_text(text_params, "site_id", site_id_);
+    get_text(text_params, "scene_root", scene_root_);
 
     sample_rate_Hz_ = get_num(params, "sample_rate_Hz", 0.0);
     if (!(sample_rate_Hz_ > 0.0)) { err = "ScenarioSource 需要正的 sample_rate_Hz"; return false; }
@@ -313,8 +320,28 @@ bool ScenarioSource::init(IRandom& rng, std::string& err) {
             if (!links_[i].init_shadow(sub, duration_s, err)) return false;
         }
     }
+    // 建筑几何（D3-4）。**只有 E3 才读**：整份 16 MB、47662 栋，解析加建桶网格约 160 ms，
+    // 而 E1 / E2 一栋也用不上。放在 init() 而不是 configure()，于是校验路径
+    // （cuav_run --validate，装载器只调 configure）一个字节也不读，仍是 9 ms 那一档。
+    if (!load_scene_map(err)) return false;
+
     produced_ = 0;
     reported_upto_ = 0;
+    return true;
+}
+
+bool ScenarioSource::load_scene_map(std::string& err) {
+    map_ = 0;
+    if (prop_.level != geo::PropLevel::E3) return true;
+    BuildingsStats stats;
+    const geo::LocalSceneAdapter* m = shared_scene_map(scene_root_, scene_.aoi_id, stats, err);
+    if (m == 0) {
+        err = "站点 " + site_id_ + " 选了 E3（建筑遮挡与绕射）但建筑几何取不到：" + err;
+        return false;
+    }
+    map_ = m;
+    // 剔了几件、忽略了几个孔都要说出来，不静默（铁律 15）。
+    status_.notes.push_back(stats.summary());
     return true;
 }
 

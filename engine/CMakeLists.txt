@@ -78,6 +78,7 @@ add_library(cuav_engine STATIC
   src/diagram_json.cpp
   src/sha256.cpp
   src/scenario_json.cpp
+  src/buildings_json.cpp
   src/scenario.cpp
   src/channel.cpp
   src/antenna.cpp
@@ -118,6 +119,7 @@ add_executable(cuav_engine_tests
   tests/test_components.cpp
   tests/test_golden.cpp
   tests/test_occlusion.cpp
+  tests/test_buildings.cpp
   tests/test_registry.cpp
   tests/test_spectrum.cpp
   tests/test_tap.cpp

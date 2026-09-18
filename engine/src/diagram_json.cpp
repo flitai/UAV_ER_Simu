@@ -455,6 +455,14 @@ bool inject_scene(const ComponentInfo& info, const std::string& node_id, const n
     txt["scenario_path"] = cache.scenario.path;
     txt["scenario_id"] = bound_id;
 
+    // 观测区域数据包的根目录（D3-4）：建筑几何在 <scene_root>/<aoi_id>/ 下。
+    // 只给声明了这个内部参数的组件（今天只有 ScenarioSource），它也只在 E3 档才真去读。
+    // 与 scenario_path 同理，框图里永远不写路径（D-037）。
+    {
+        const ParamSpec* root_sp = find_spec(info, "scene_root");
+        if (root_sp != 0 && root_sp->internal) txt["scene_root"] = options.scene_root;
+    }
+
     // 跨节点一致性：同一场景下所有场景绑定节点必须同采样率，否则参数帧与 IQ 块的样点窗口对不上，
     // 而调度器会把没被消费的块静默覆盖掉（08 报告 §9.4）。这道闸放在这里，不等运行时才炸。
     std::map<std::string, double>::const_iterator fs_it = num.find("sample_rate_Hz");

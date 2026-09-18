@@ -2032,6 +2032,14 @@
           "required": false,
           "type": "string",
           "unit": ""
+        },
+        {
+          "description": "观测区域数据包的根目录，由装载器注入（cuav_run --scene-root）。建筑几何在 <scene_root>/<aoi_id>/ 下，只有 prop_level = E3 才去读（懒加载，D3-4）",
+          "internal": true,
+          "name": "scene_root",
+          "required": false,
+          "type": "string",
+          "unit": ""
         }
       ],
       "ports": {

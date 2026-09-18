@@ -25,6 +25,7 @@
 #include "cuav/random.h"
 #include "cuav/dsp.h"
 #include "cuav_geo/activity.h"
+#include "cuav_geo/map.h"
 #include "cuav_geo/scenario.h"
 
 namespace cuav {
@@ -51,9 +52,19 @@ public:
 
     double update_rate_Hz() const { return update_rate_Hz_; }
 
+    // E3 档下的建筑几何。E1 / E2 恒为 nullptr——建筑是**懒加载**的（D3-4，07 报告 §7.4）。
+    // 本步只把它取到手；接进链路预算（line_of_sight 与 extra_loss_dB）是 D3-5。
+    const geo::IMapQuery* scene_map() const { return map_; }
+    // 装载器注入的观测区域数据包根目录。公开出来是为了让单测钉住注入这一环：
+    // 两处（describe 的参数名、configure 的取值键）拼错任何一处都会静默失效。
+    const std::string& scene_root() const { return scene_root_; }
+
 private:
+    // 建筑几何的懒加载。只在 init() 里、只在 prop_.level == E3 时调。
+    bool load_scene_map(std::string& err);
+
     // 内部参数（装载器注入）
-    std::string scenario_path_, scenario_id_, site_id_;
+    std::string scenario_path_, scenario_id_, site_id_, scene_root_;
     // 用户参数
     double sample_rate_Hz_ = 0.0;
     double update_rate_Hz_ = 20.0;
@@ -70,6 +81,9 @@ private:
     std::vector<geo::LinkFrameSource> links_;   // 与 ports_ 严格同序
     std::vector<PortSpec> ports_;
     std::vector<geo::EmitterRuntime> entities_;
+
+    // 进程内共享的建筑桶网格（K 个站共用一份），不属本组件所有、不释放。
+    const geo::IMapQuery* map_ = nullptr;
 
     std::uint64_t produced_ = 0;
     std::uint64_t report_every_ = 2;

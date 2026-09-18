@@ -32,6 +32,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "cuav_geo/geodesy.h"
+
 namespace cuav {
 namespace geo {
 
@@ -44,6 +46,37 @@ struct MapPoint {
     double z;
     MapPoint() : x(0.0), y(0.0), z(0.0) {}
     MapPoint(double a, double b, double c) : x(a), y(b), z(c) {}
+};
+
+// 遮挡几何的平面工作帧：站心地平的**东 / 北**分量，原点由观测区域数据包给定（D3-4）。
+//
+// **为什么要有这么个东西**：IMapQuery 收平面米，投影在调用方（见本文件头注的偏离一）。
+// 那就必须保证「建筑进来时用的那把尺子」与「站点、目标进去时用的那把尺子」是同一把——
+// 原点差一米，整份建筑集就相对视线平移一米。把原点连同换算一起封成一个对象，
+// 建筑加载与链路计算各持一份拷贝但同一个原点，07 报告 §11 风险 4（legacy 投影与严格 ENU 混用）
+// 就没有发生的余地。
+//
+// **z 不由本帧产生**。to_plane 只给 x / y；高度一律用离地高差另行给入（铁律 2 的显式平地假设）。
+// 拿 ENU 的 up 当高度是错的：10 km 外的地面点，up 已经因地球曲率低了 7.8 m，
+// 而建筑的 base_m / height_m 是离地高差，两者不是一回事、更不许相加（铁律 2）。
+//
+// 水平分量本身也带一点高度耦合：同一经纬度、高 100 m 的点，其 ENU 东 / 北比地面点偏约
+// h·d/R ≈ 0.16 m @ 10 km。远小于建筑轮廓的尺度，但记在这里，别当成零。
+class SceneFrame {
+public:
+    SceneFrame() {}
+    explicit SceneFrame(const Lla& origin) : origin_(origin) {}
+
+    const Lla& origin() const { return origin_; }
+
+    // 经纬度 → 平面米。高度取原点高度，故只反映水平位置。
+    void to_plane(double lon_deg, double lat_deg, double& x_m, double& y_m) const;
+
+    // 经纬度 + **离地高差** → 遮挡几何的平面点。
+    MapPoint point(double lon_deg, double lat_deg, double height_agl_m) const;
+
+private:
+    Lla origin_;
 };
 
 // 平面包围盒，米。

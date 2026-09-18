@@ -121,7 +121,9 @@ test('内部参数在目录里有标记，画布据此隐藏（D-037）', () => 
   // + SceneBoundChannel 的 site_id（D-053 多站绑定）+ DirectionFinder 与 ToaEstimator 各 3 处
   // + EnergyDetector 3 处（D-063 绑站只为给检测行注入 site_id）= 21
   // + Evaluator 4 处（manifest_path / scenario_path / scenario_id / site_id，C-5）= 32
-  assert.equal(internal.length, 32, '全库 32 处内部参数（C-4 起特征提取与模板识别各带站点身份，识别另有 library_path；C-5 评价器四处）')
+  // + ScenarioSource.scene_root（D3-4：观测区域数据包的根目录，E3 档据此懒加载建筑）= 33
+  assert.equal(internal.length, 33, '全库 33 处内部参数（C-4 起特征提取与模板识别各带站点身份，识别另有 library_path；C-5 评价器四处；D3-4 场景参数源的 scene_root）')
+  assert.ok(internal.includes('ScenarioSource.scene_root'), '观测区域根目录是内部参数：路径不进框图、浏览器见不到（D-037、D3-4）')
   assert.ok(internal.includes('Evaluator.manifest_path'), '评价器的清单路径是内部参数（D-037）')
   assert.ok(internal.includes('EnergyDetector.site_id'), '检测器的站点标识是内部参数（D-063）')
   assert.ok(internal.includes('SceneBoundChannel.site_id'), '多站绑定的站点标识也是内部参数（D-053）')
