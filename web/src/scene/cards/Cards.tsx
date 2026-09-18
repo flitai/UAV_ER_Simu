@@ -6,9 +6,10 @@
 // 刷新节奏：4 Hz 定频取版本号重算，与地图 20 Hz 定频同一思路（D-049 ⑩）。
 // 卡片只摆事实（D-039）：无威胁 %、无概率 %，读数都是产品行或按链路帧算出的量。
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useAppState, useStore } from '../../state/store.js'
 import { fmtDb, fmtDeg, fmtHz, fmtMeters } from '../../shell/format.js'
+import { losProbeStore, probeInputAt, runLosProbe } from '../losProbe.js'
 import { currentSituation, situationRev } from '../situationView.js'
 import { focusTargetId } from '../focus.js'
 import { buildSiteCards, buildTargetCards, type SiteCardData, type SiteRow, type TargetCardData } from './derive.js'
@@ -174,6 +175,79 @@ function SiteRows({ cards, selectedId, onPick }: { cards: SiteCardData[]; select
   )
 }
 
+/**
+ * 视距探测卡（D3-7，D-074）。**只摆事实**（D-039）：站、点、假设高度、距离、视距与否、刀口损耗。
+ *
+ * 假设高度是一个输入不是读数——同一点贴地与 120 米是两个完全不同的答案，藏起来等于让人读错。
+ * 自由空间路损**不在这张卡上**：浏览器里没有第二份 `fspl_dB`，为了一行读数新造一份无人守着的物理不划算。
+ */
+function LosProbeCard() {
+  const s = useAppState()
+  const store = useStore()
+  const st = useSyncExternalStore(losProbeStore.subscribe, losProbeStore.get, losProbeStore.get)
+  const scene = s.scene.summary
+  if (st.status === 'idle') return null
+
+  const r = st.result
+  /** 改高度即把它固定下来（下一次点地图仍用这个值）；`null` 表示放开、跟回焦点目标。 */
+  const retarget = (h: number | null) => {
+    losProbeStore.setHeight(h)
+    if (!r || !scene) return
+    const next = probeInputAt(s, r.lon, r.lat, h ?? undefined)
+    if ('error' in next) {
+      store.dispatch({ type: 'ui/toast', kind: 'warn', text: `视距探测：${next.error}` })
+      return
+    }
+    void runLosProbe(scene.buildingsUrl, scene.center[0], scene.center[1], next.input)
+  }
+
+  return (
+    <div className="group" data-form="los-probe">
+      <div className="group-title los-title">
+        视距探测
+        <span className="spacer" />
+        <button type="button" className="mini" data-action="clear-los-probe" onClick={() => losProbeStore.clear()}>清除</button>
+      </div>
+      {st.status === 'loading' && <div className="dim">正在取建筑几何…（首次约 0.2 秒，之后即时）</div>}
+      {st.status === 'error' && <div className="pp-warn">{st.error}</div>}
+      {r && (
+        <table className="los-table" data-los-probe={r.line_of_sight ? 'los' : 'nlos'}>
+          <tbody>
+            <tr><td className="name">站</td><td colSpan={2}>◉ {r.site_name}<span className="dim"> · 离地 {r.site.alt_m.toFixed(0)} m</span></td></tr>
+            <tr><td className="name">点</td><td colSpan={2} className="mono">{r.lon.toFixed(6)}, {r.lat.toFixed(6)}</td></tr>
+            <tr>
+              <td className="name">假设目标高度</td>
+              <td colSpan={2}>
+                <input type="number" className="form-input mini-num" data-field="los-height" step={10} min={0}
+                       value={Math.round(r.height_agl_m)} onChange={(e) => retarget(Number(e.target.value))} />
+                <span className="dim"> m（AGL）</span>
+                {st.heightOverride !== null
+                  ? <button type="button" className="mini" data-action="los-height-follow"
+                            title="放开固定，跟回焦点目标此刻的离地高" onClick={() => retarget(null)}>跟随目标</button>
+                  : <span className="dim"> · 跟随焦点目标</span>}
+              </td>
+            </tr>
+            <tr><td className="name">距离</td><td colSpan={2}>{fmtMeters(r.distance_m)}<span className="dim"> · 方位 {fmtDeg(r.azimuth_deg)}</span></td></tr>
+            <tr>
+              <td className="name">视距</td>
+              <td colSpan={2} data-los-probe-verdict={r.line_of_sight ? 'los' : 'nlos'}>
+                <span className={r.line_of_sight ? 'los' : 'nlos'}>●</span> {r.line_of_sight ? '视距' : '非视距'}
+              </td>
+            </tr>
+            <tr>
+              <td className="name">刀口绕射损耗</td>
+              <td colSpan={2} data-los-probe-field="diffraction">{fmtDb(r.diffraction_dB)}
+                {!r.line_of_sight && <span className="dim"> · 侵入 {r.intrusion_m.toFixed(1)} m</span>}
+              </td>
+            </tr>
+            <tr><td className="name">频率</td><td colSpan={2}>{fmtHz(r.frequency_Hz)}</td></tr>
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 export function SituationPanel() {
   const s = useAppState()
   const store = useStore()
@@ -195,6 +269,8 @@ export function SituationPanel() {
   if (!doc) return <div className="group placeholder">载入场景后在这里看态势</div>
   return (
     <div className="situation" data-situation data-cards={cards.length}>
+      {/* 探测结果压在最上面：它是刚刚点出来的，不是常驻读数；没探测过时整张卡不渲染 */}
+      <LosProbeCard />
       {focus ? <FocusCard c={focus} /> : <div className="group dim">场景里没有辐射源</div>}
       {cards.length > 0 && (
         <div className="group">

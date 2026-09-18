@@ -185,9 +185,12 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
   公式与参数来源见模型卡 `models/channel/README.md`。
   **帧结构一个字段不加**：`included_loss_terms` 只进链路报告（`link` 事件与 `links.jsonl`），
   不进 `SceneParamFrame`——帧是 IQ 施加路径，加字段没有消费者。
-- `line_of_sight` 在平地假设下**仍恒为真**；E3（建筑遮挡与刀口绕射、几何视距判定）待 D3（切片 ⑤），
-  引擎收到 `prop_level = E3` 即报错。由此两处本期取不到：阴影 σ 表的 NLOS 一列、
-  测向误差预算的 `sigma_mp_nlos_deg`。**选了「城市」环境不等于做了遮挡判定。**
+- `line_of_sight` **在 E1 / E2 档下恒为真**（显式平地假设，铁律 2），由此两处在这两档取不到：
+  阴影 σ 表的 NLOS 一列、测向误差预算的 `sigma_mp_nlos_deg`。**选了「城市」环境不等于做了遮挡判定。**
+  **E3 档自 D3-5（2026-09-18）起由建筑几何给出**：`line_of_sight = !blocked`（与损耗大小无关，
+  掠射只损几分贝也算非视距），单刀口绕射损耗单程 ×1 进 `extra_loss_dB`，`included_loss_terms`
+  多一项 `diffraction`，`link` 事件与 `links.jsonl` 多一个可选键 `diffraction_dB`（只在非零时写）。
+  E3 要观测区域的建筑几何（`--scene-root`，缺省 `data/scene`），且与统计阴影、城市经验互斥。
 - `doppler_Hz = -f · (dr/dt) / c`（远离为负）；`delay_s = d / c`。
 - 实体状态 `EntityState{t_s, id, lon, lat, alt_m, heading_deg, speed_mps, tx_on, center_Hz}`
   经引擎观察者回调上报，不做端口类型（端口只承载数据流）。

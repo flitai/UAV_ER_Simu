@@ -536,3 +536,12 @@ button.mini { font-size: 11px; padding: 0 5px; }
   font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   background: var(--white); border: 1px solid var(--border); border-radius: 6px;
   padding: 8px; white-space: pre; user-select: text; }
+/* 视距探测卡（D3-7）：站 → 被点那一点的一次推演。两列，左列是项名，右列摆事实 */
+.group-title.los-title { display: flex; align-items: baseline; gap: 6px; }
+.group-title.los-title .spacer { flex: 1 1 auto; }
+.los-table { width: 100%; border-collapse: collapse; font-size: var(--fs-label); }
+.los-table td { padding: 3px 4px; border-bottom: 1px solid var(--earth); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.los-table td.name { color: var(--dim); width: 44%; }
+.los-table .los { color: var(--ok); margin-right: 3px; }
+.los-table .nlos { color: var(--bad); margin-right: 3px; }
+.form-input.mini-num { width: 68px; padding: 0 3px; }

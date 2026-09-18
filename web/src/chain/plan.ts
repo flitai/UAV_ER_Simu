@@ -8,7 +8,7 @@
 // （08 报告 §8 口径三：铁律 4 的检查置于封装层）。两侧的口径写在同一份表里，
 // 避免出现前端放行、引擎拒绝的情况。
 
-import type { ScenarioDoc } from '../state/types.js'
+import type { SceneSummaryLite, ScenarioDoc } from '../state/types.js'
 import { emitterCenters, emitters, sites, type Obj } from '../scene/editor/scenarioOps.js'
 import { slotState, type ChainState } from './model.js'
 import type { Catalog } from '../api/catalog.js'
@@ -208,6 +208,12 @@ function worstOffsetTo(plan: FreqPlan, ref: number): number {
 }
 
 /** 回放模式不看场景（防线二、三），与 freqPlan 同一口径。 */
+/** 场景文件的 `aoi.id`——E3 要的建筑几何就放在这个观测区域的数据包里（docs/scene-package.md §3.1）。 */
+function aoiIdOf(doc: ScenarioDoc | null): string {
+  const aoi = doc?.aoi as Record<string, unknown> | undefined
+  return typeof aoi?.id === 'string' ? aoi.id : ''
+}
+
 function scenarioOf(chain: ChainState, scenario: ScenarioDoc | null): ScenarioDoc | null {
   return chain.mode === 'replay' ? null : scenario
 }
@@ -225,7 +231,7 @@ function fmt(hz: number): string {
  * 此时只保留标度一致性那一项。
  */
 export function planChecks(chain: ChainState, plan: FreqPlan, scenario: ScenarioDoc | null = null,
-                          cat: Catalog | null = null): PlanCheck[] {
+                          cat: Catalog | null = null, scene: SceneSummaryLite | null = null): PlanCheck[] {
   // 与 freqPlan 同一判据：旁路、未实现、回放不适用三种情形都算「没参与计算」
   const ddcActive = slotState(chain, 'ddc', cat) === 'active'
   const chanActive = slotState(chain, 'chan', cat) === 'active'
@@ -426,6 +432,30 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
       ok: why === null,
       detail: why ?? `${pv.text}（${pv.terms.length} 项）`,
     })
+
+    // E3 要逐建筑几何（D3-7，07 §5.4 那张分工表的第一行）。前端查得到的是
+    // 「场景引用的观测区域，与当前载入的数据包是不是同一个、里面有没有建筑」；
+    // 引擎那一侧查 `<scene_root>/<aoi_id>/manifest.json` 的字节哈希，比这严。
+    // 数据包还没载进来时不假装通过，也不假装失败——照实说在等（铁律 15）。
+    if (pv.level === 'E3') {
+      const aoiId = aoiIdOf(scenarioOf(chain, scenario))
+      const feats = scene?.buildings.features ?? 0
+      const ok = !!scene && !!aoiId && scene.id === aoiId && feats > 0
+      out.push({
+        id: 'prop_scene',
+        label: 'E3 有观测区域建筑几何',
+        ok,
+        detail: !scene
+          ? '观测区域数据包还没载入，E3 的建筑遮挡算不了'
+          : !aoiId
+          ? '场景文件里没有 aoi 段，指不出该用哪个观测区域的建筑几何'
+          : scene.id !== aoiId
+          ? `场景要的是观测区域 ${aoiId}，当前载入的是 ${scene.id}`
+          : feats > 0
+          ? `${scene.name}：${feats} 栋建筑`
+          : `观测区域 ${scene.id} 的清单里没有建筑`,
+      })
+    }
   }
 
   out.push({

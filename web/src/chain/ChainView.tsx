@@ -30,7 +30,7 @@ import {
   splitProxy, variantOf, writeParam,
   type ChainMode, type ChainState, type ParamScope, type SlotId, type TapId,
 } from './model.js'
-import { LEVEL_LABEL, LEVEL_UNAVAILABLE, propConflict, propView, visiblePropParams,
+import { LEVEL_LABEL, propConflict, propView, visiblePropParams,
   type PropLevel } from './effects.js'
 import { freqPlan, planChecks } from './plan.js'
 import { SlotCard } from './SlotCard.js'
@@ -219,7 +219,7 @@ export function ChainView() {
   }
   const chain = parsed
   const plan = freqPlan(chain, scenarioDoc, catalog)
-  const checks = planChecks(chain, plan, scenarioDoc, catalog)
+  const checks = planChecks(chain, plan, scenarioDoc, catalog, s.scene.summary)
   const derivable = plan.fs_rf > 0 ? undefined : ([] as readonly string[])
 
   // 引擎报错按节点 id 反查槽位（节点 id 固定，10 报告 §5.4）；
@@ -770,8 +770,11 @@ function PropagationGroup(p: {
 }
 
 /**
- * 档位下拉。**E3 保留但置灰**（D-058）：隐藏会让人以为这条链只有两档。
- * 界面置灰拦不住手写的框图，所以引擎 `configure()` 那一侧也拒——两头都做（铁律 15）。
+ * 档位下拉。三档都可选：**E3 自 D3-7（2026-09-18）起放开**——建筑遮挡自 D3-5 起进了帧生产端，
+ * 浏览器一侧自 D3-6 起有同源复算（`scene/occlusion/`，与 C++ 同守 148 例），
+ * 原先那句「待 D3」与置灰随之撤掉（D-074）。
+ * 档位之间的互斥（E1 只算自由空间、E3 与统计阴影 / 城市经验同源双计）由 `propConflict()`
+ * 当场说明；界面拦不住手写的框图，所以引擎 `configure()` 那一侧同样拒——两头都做（铁律 15）。
  */
 function LevelField(p: { value: ParamValue | undefined; onChange: (v: ParamValue | undefined) => void }) {
   const cur = typeof p.value === 'string' ? p.value : 'E1'
@@ -779,11 +782,7 @@ function LevelField(p: { value: ParamValue | undefined; onChange: (v: ParamValue
   return (
     <select className={p.value === undefined ? 'dim' : ''} data-field="prop_level" value={cur}
       onChange={(e) => p.onChange(e.target.value)}>
-      {levels.map((l) => (
-        <option key={l} value={l} disabled={!!LEVEL_UNAVAILABLE[l]}>
-          {LEVEL_LABEL[l]}{LEVEL_UNAVAILABLE[l] ? `（${LEVEL_UNAVAILABLE[l]}）` : ''}
-        </option>
-      ))}
+      {levels.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}
     </select>
   )
 }

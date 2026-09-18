@@ -33,7 +33,8 @@ try {
   check('WebGL2 可用（MapLibre GL 5 不支持 WebGL1）', st.webgl2 === true)
   // 切片 ② 起再多七层态势（链路线、规划航线、航迹、航点、站点圆点、站点图标、目标图标）：
   // 60 + 建筑 + 山体阴影 + 边界 + 7 = 70（09 §5.2、§10）
-  check('样式图层齐全（底图 60 + 建筑 + 山体阴影 + AOI 边界 + 态势 13 = 76；态势自 D-061 起 13 层）', st.layers.length === 76,
+  // D-061 把态势加到 13 层；D3-7 再加视距探测的两层（线与点，独立于态势图层）
+  check('样式图层齐全（底图 60 + 建筑 + 山体阴影 + AOI 边界 + 态势 13 + 视距探测 2 = 78）', st.layers.length === 78,
     `实际 ${st.layers.length} 层`)
   check('底图数据源已挂载', st.sources.includes('pm'))
   check('高程数据源已挂载', st.sources.includes('dem'))

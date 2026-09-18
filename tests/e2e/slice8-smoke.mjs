@@ -145,8 +145,8 @@ try {
   check('右栏不点选即有焦点卡（第一个目标 uav-1）、目标列表 3 行、站点 3 行；没有表单、没有空态提示（D-062）',
     dom.panel === 1 && dom.focus === 'uav-1' && dom.rows === 3 && dom.siteCards === 3 && dom.selBar === 0 && !dom.placeholder && dom.leftForms === 0 && st.app.scene.focus === 'uav-1',
     JSON.stringify(dom))
-  check('焦点卡里每站一行、有定位行、身份默认折叠；左栏对象树只有 7 行（3 站 + 3 源 + 1 区），数据包折叠；顶栏无时间读数；工具条只露「测量」',
-    dom.siteRows === 3 && dom.fixes >= 1 && dom.identityOpen === false && dom.treeRows === 7 && dom.pkgOpen === false && dom.topbarTime === 0 && JSON.stringify(dom.tools) === '["measure"]',
+  check('焦点卡里每站一行、有定位行、身份默认折叠；左栏对象树只有 7 行（3 站 + 3 源 + 1 区），数据包折叠；顶栏无时间读数；工具条只露观察组两件（测量 / 视距，D3-7）',
+    dom.siteRows === 3 && dom.fixes >= 1 && dom.identityOpen === false && dom.treeRows === 7 && dom.pkgOpen === false && dom.topbarTime === 0 && JSON.stringify(dom.tools) === '["measure","los"]',
     JSON.stringify(dom))
 
   // ---------- ③ 卡上的数 = 端点行 ----------

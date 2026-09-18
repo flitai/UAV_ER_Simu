@@ -831,6 +831,14 @@ test('传播效应清单与 geo/propagation.cpp 的 included_loss_terms 同一�
     ['free_space', 'urban_mean', 'shadow'],
   )
   assert.match(propView({ prop_level: 'E2', prop_primary: 'urban_empirical' }).text, /城区/)
+  // E3 的建筑遮挡是**加项不是替代型主模型**，free_space 照旧在；而且**每一帧都声明**，
+  // 与这一帧恰好挡没挡住无关（07 §14ter.3：下游据它判断能不能再叠一个统计等效）
+  assert.deepEqual(propView({ prop_level: 'E3' }).terms, ['free_space', 'diffraction'])
+  assert.deepEqual(
+    propView({ prop_level: 'E3', prop_primary: 'two_ray', prop_weather: true }).terms,
+    ['free_space', 'ground_reflection', 'diffraction', 'weather'],
+  )
+  assert.match(propView({ prop_level: 'E3' }).text, /建筑遮挡/)
 })
 
 test('右栏按当前档位显隐：E1 只有档位一项，选了双径才出材质', () => {
@@ -847,7 +855,7 @@ test('右栏按当前档位显隐：E1 只有档位一项，选了双径才出�
     .includes('rain_rate_mmh'))
 })
 
-test('前端的相容判据与引擎 PropagationConfig::validate 对应，E3 上前端更严且说得出缘由', () => {
+test('前端的相容判据与引擎 PropagationConfig::validate 一一对应（含 E3 的闸三闸四）', () => {
   const V = (p: Record<string, unknown>) => propView(p as Record<string, never>)
   assert.equal(propConflict(V({})), null)
   assert.match(propConflict(V({ prop_primary: 'two_ray' }))!, /E2/)
@@ -856,14 +864,19 @@ test('前端的相容判据与引擎 PropagationConfig::validate 对应，E3 上
                      urban_loss_mode: 'mean_with_shadow_margin', prop_shadow: true }))!,
     /双计/)
 
-  // **这一条自 D3-5 起是「前端更严」，不再是「两边一样」**：引擎已经支持 E3
-  // （建筑几何进了帧生产端），前端仍拦着，拦的是浏览器这一侧还复算不出同样的数——
-  // 放开会让场景页的链路预览与跑出来的结果对不上。D3-6 补复算、D3-7 才去置灰。
-  // 断言钉住「报文说的是这个缘由」，免得哪天又改回「引擎待接入」那句已经不成立的话。
-  const e3 = propConflict(V({ prop_level: 'E3' }))!
-  assert.ok(e3.includes('引擎已经支持'), 'E3 的报文不能再说引擎没接入')
-  assert.match(e3, /浏览器/)
-  assert.doesNotMatch(e3, /待 D3/)
+  // **E3 自 D3-7 起放开**：引擎自 D3-5 起算它，浏览器自 D3-6 起有同源复算，
+  // 那条「浏览器还差一步」的拦截随之撤掉。这里钉住「E3 本身不再被拦」——
+  // 它曾经写过两版都已不成立的报文（「待 D3 接入」「浏览器还差一步」），
+  // 断言比注释管用（D3-3 的那条经验）。
+  const e3 = propConflict(V({ prop_level: 'E3' }))
+  assert.equal(e3, null, 'E3 已经能算了，不该再被前端拦住')
+  assert.equal(propConflict(V({ prop_level: 'E3', prop_primary: 'two_ray' })), null)
+
+  // 闸三、闸四：两者都是建筑遮挡的统计等效，与确定性绕射同开即同源双计
+  assert.match(propConflict(V({ prop_level: 'E3', prop_shadow: true }))!, /统计阴影/)
+  assert.match(propConflict(V({ prop_level: 'E3', prop_shadow: true }))!, /双计/)
+  assert.match(propConflict(V({ prop_level: 'E3', prop_primary: 'urban_empirical' }))!, /城市经验/)
+  assert.match(propConflict(V({ prop_level: 'E3', prop_primary: 'urban_empirical' }))!, /双计/)
 })
 
 test('传播信道只有一个变体：定参自由空间已撤（D-059）', () => {
@@ -884,21 +897,54 @@ test('用了已撤掉变体的框图：不硬解、不改写，落到「不是�
   assert.equal(retiredNote(['SceneBoundChannel', 'AntennaGain']), null)
 })
 
-test('频率计划第 11 项：E3 与「自由空间定参 + 高档位」都被拦住', () => {
+test('频率计划第 11 项「传播档位自洽」：E3 本身放行，同源双计仍拦', () => {
   const c = synthetic()
   const ok = planChecks(c, freqPlan(c, scenario), scenario).find((k) => k.id === 'propagation')!
   assert.equal(ok.ok, true)
 
+  // E3 自 D3-7 起自身通过（D3-5 引擎接线 + D3-6 浏览器复算都到位了）
   const e3 = synthetic()
   e3.slots.ch.params = { ...e3.slots.ch.params, prop_level: 'E3' }
-  const bad = planChecks(e3, freqPlan(e3, scenario), scenario).find((k) => k.id === 'propagation')!
+  assert.equal(planChecks(e3, freqPlan(e3, scenario), scenario).find((k) => k.id === 'propagation')!.ok, true)
+
+  // E3 + 统计阴影仍是同源双计
+  const dbl = synthetic()
+  dbl.slots.ch.params = { ...dbl.slots.ch.params, prop_level: 'E3', prop_shadow: true }
+  const bad = planChecks(dbl, freqPlan(dbl, scenario), scenario).find((k) => k.id === 'propagation')!
   assert.equal(bad.ok, false)
-  assert.equal(planOk(planChecks(e3, freqPlan(e3, scenario), scenario)), false)
+  assert.equal(planOk(planChecks(dbl, freqPlan(dbl, scenario), scenario)), false)
 
   // 回放模式不做这条检查：没有场景也没有 scn 节点，传播配置不参与计算
   const rp = emptyChain('replay', 'chain-rp')
   rp.slots.ch.params = { prop_level: 'E3' }
   assert.equal(planChecks(rp, freqPlan(rp, null), null).some((k) => k.id === 'propagation'), false)
+})
+
+test('频率计划新增第 14 项：E3 要有观测区域建筑几何（D3-7）', () => {
+  const pkg = {
+    id: 'beijing-yayuncun', name: '北京亚运村周围',
+    bbox: [116.288, 39.9, 116.522, 40.08] as [number, number, number, number],
+    center: [116.405, 39.99] as [number, number], extentKm: [19.96, 19.97] as [number, number],
+    buildings: { features: 47582, srcPct: {}, heightQ50: 20, heightMax: 528 },
+    basemapUrl: '', demTiles: '', buildingsUrl: '', osmSnapshot: null, attribution: null,
+  }
+  const e1 = synthetic()
+  // E1 / E2 不要建筑几何，这一项根本不出现
+  assert.equal(planChecks(e1, freqPlan(e1, scenario), scenario, null, pkg).some((k) => k.id === 'prop_scene'), false)
+
+  const e3 = synthetic()
+  e3.slots.ch.params = { ...e3.slots.ch.params, prop_level: 'E3' }
+  const find = (scene: typeof pkg | null) =>
+    planChecks(e3, freqPlan(e3, scenario), scenario, null, scene).find((k) => k.id === 'prop_scene')!
+  assert.equal(find(pkg).ok, true)
+  assert.match(find(pkg).detail, /47582/)
+  // 数据包没载入时不假装通过（铁律 15）
+  assert.equal(find(null).ok, false)
+  assert.match(find(null).detail, /还没载入/)
+  // 载入的是别的观测区域：照实说是哪一个对不上
+  const other = { ...pkg, id: 'xian-demo' }
+  assert.equal(find(other).ok, false)
+  assert.match(find(other).detail, /beijing-yayuncun/)
 })
 
 test('频率计划：跳频点也要过铁律 4 的闸（G-6，D-069）', () => {

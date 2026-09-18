@@ -13,7 +13,7 @@
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
 //     node tests/e2e/slice2-smoke.mjs [--url http://127.0.0.1:8080/]
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -53,8 +53,9 @@ function reloadUrl(suffix) {
  * 自由画布（连同它的「示例框图」下拉与源码页签）已由 D-060 删掉，这是现在唯一能把
  * 非典型链路的框图送进界面的路——而且走的是公开端点，不依赖任何调试钩子。
  */
-async function loadDiagramViaApi(page, relPath, hash) {
+async function loadDiagramViaApi(page, relPath, hash, patch) {
   const doc = JSON.parse(readFileSync(join(ROOT, relPath), 'utf8'))
+  if (patch) patch(doc)
   const body = JSON.stringify(JSON.stringify(doc, null, 2) + '\n')
   const status = await page.evaluateAsync(
     `fetch('/api/v1/diagrams/${doc.diagram_id}', { method: 'PUT',`
@@ -112,15 +113,16 @@ try {
 
   // ---------- 工具：编辑场景 → 布站 → 撤销 → 重做 ----------
   const toolsBefore = await page.evaluate("Array.from(document.querySelectorAll('[data-tool]')).map(b => b.dataset.tool)")
-  check('观察状态下工具条只露「测量」，编辑工具收在「编辑场景」后面（D-062）',
-    JSON.stringify(toolsBefore) === JSON.stringify(['measure']) && (await page.evaluate("!!document.querySelector('[data-act=edit-mode]')")), JSON.stringify(toolsBefore))
+  check('观察状态下工具条只露「测量」与「视距」，编辑工具收在「编辑场景」后面（D-062、D3-7）',
+    JSON.stringify(toolsBefore) === JSON.stringify(['measure', 'los']) && (await page.evaluate("!!document.querySelector('[data-act=edit-mode]')")), JSON.stringify(toolsBefore))
   await page.evaluate("(document.querySelector('[data-act=edit-mode]').click(), true)")
   let tools = []
-  for (let i = 0; i < 30 && tools.length < 6; i++) {
+  for (let i = 0; i < 30 && tools.length < 7; i++) {
     tools = await page.evaluate("Array.from(document.querySelectorAll('[data-tool]')).map(b => b.dataset.tool)")
-    if (tools.length < 6) await sleep(100)
+    if (tools.length < 7) await sleep(100)
   }
-  check('进入编辑后工具六件齐全（测量 / 选择 / 布站 / 布目标 / 航点 / 布告警区；布目标自 D-053 起，布告警区自 D-061 起）', JSON.stringify(tools) === JSON.stringify(['measure', 'select', 'site', 'emitter', 'waypoint', 'zone']), JSON.stringify(tools))
+  check('进入编辑后工具七件齐全（测量 / 视距 / 选择 / 布站 / 布目标 / 航点 / 布告警区；布目标自 D-053 起，布告警区自 D-061 起，视距自 D3-7 起）',
+    JSON.stringify(tools) === JSON.stringify(['measure', 'los', 'select', 'site', 'emitter', 'waypoint', 'zone']), JSON.stringify(tools))
 
   await page.evaluate("(document.querySelector('[data-tool=site]').click(), true)")
   st = await waitApp(page, (a) => a.scene.tool === 'site', '切到布站工具')
@@ -239,6 +241,160 @@ try {
     `t=${tRA.toFixed(2)}s ${pA.toFixed(2)} dBm（${lA.distance_m.toFixed(0)} m），t=${tRB.toFixed(2)}s ${pB.toFixed(2)} dBm（${lB.distance_m.toFixed(0)} m）；` +
     `实测差 ${measured.toFixed(3)} dB，几何差 ${geometric.toFixed(3)} dB，偏差 ${Math.abs(measured - geometric).toFixed(3)} dB`)
   check('功率确实随距离下降（瀑布上看得到的那条渐暗的线）', pA > pB && geometric > 3, `衰落 ${geometric.toFixed(2)} dB`)
+
+  // ---------- 视距探测：点选建筑两侧一致（D3-7，切片 ⑤ 的验收；07 报告 §2.4） ----------
+  // 遮挡落点选了「浏览器也算一份」（D-074 ①）之后，这条验收从「布两次目标各跑一次任务」
+  // 变成一次点击就能验的事。这里验的是**交互与渲染—物理同源**：楼是从渲染图层上挑的
+  // （铁律 11 的同一份 GeoJSON），点是按它的轮廓算的，判定由浏览器复算给出。
+  // 物理本身不在这儿验——那由 tests/golden/occlusion{,-aoi}.json 两侧各守一遍。
+  if (!existsSync(join(ROOT, 'data/scene/beijing-yayuncun/buildings.geojson'))) {
+    // data/** 不入 git（D-027）。**这不是通过**，是跳过（先例 D-073 ③）。
+    console.error('  … 跳过视距探测：buildings.geojson 不在盘上')
+  } else {
+  await page.evaluate("(document.querySelector('[data-tool=los]').click(), true)")
+  st = await waitApp(page, (a) => a.scene.tool === 'los', '切到视距探测')
+  const cv = JSON.parse(await page.evaluate(
+    "(() => { const c = document.querySelector('.scene-map canvas'); const r = c.getBoundingClientRect();"
+    + " return JSON.stringify({x: r.x, y: r.y, w: r.width, h: r.height}) })()"))
+  const clickAt = async (lon, lat) => {
+    const px = JSON.parse(await page.evaluate(
+      `(() => { const p = window.__map.project([${lon}, ${lat}]); return JSON.stringify({x: p.x, y: p.y}) })()`))
+    for (const type of ['mousePressed', 'mouseReleased']) {
+      await page.send('Input.dispatchMouseEvent', {
+        type, x: Math.round(cv.x + px.x), y: Math.round(cv.y + px.y), button: 'left', clickCount: 1 })
+    }
+    return page.waitFor((x) => x.app?.losProbe?.status === 'ready'
+      && Math.abs(x.app.losProbe.lon - lon) < 1e-4 && Math.abs(x.app.losProbe.lat - lat) < 1e-4,
+      { label: `探测 ${lon.toFixed(5)},${lat.toFixed(5)}`, timeoutMs: 30000 })
+  }
+
+  // 第一次点会把 15.9 MB 的建筑几何取下来（懒加载，D3-6）——首屏那条断言证的就是它之前没取
+  st = await clickAt(116.4075, 39.9915)
+  check('第一次探测才把建筑几何取下来，取到的栋数与引擎一致（47662）',
+    st.app.occlusion.status === 'ready' && st.app.occlusion.buildings === 47662,
+    JSON.stringify(st.app.occlusion))
+  const card = JSON.parse(await page.evaluate(
+    "(() => { const el = document.querySelector('[data-form=los-probe]');"
+    + " return JSON.stringify({ has: !!el, verdict: el?.querySelector('[data-los-probe-verdict]')?.dataset.losProbeVerdict ?? '',"
+    + " text: el?.textContent ?? '' }) })()"))
+  check('右栏出视距探测卡，摆出站、点、假设高度、距离、视距与刀口损耗',
+    card.has && /视距探测/.test(card.text) && /假设目标高度/.test(card.text) && /刀口绕射损耗/.test(card.text)
+    && (card.verdict === 'los' || card.verdict === 'nlos'), card.verdict)
+  check('探测线画在图上，颜色跟着视距与否走（与链路线同一对色）',
+    (await page.evaluateAsync("new Promise((r) => setTimeout(() => r(window.__map.queryRenderedFeatures({layers:['cuav-losprobe-line','cuav-losprobe-dot']}).length), 200))")) >= 2)
+
+  // 假设高度固定在 40 m：站在 30 m，这条视线在楼那儿只有 30–40 m 高，
+  // 60 m 以上的楼必挡得住。**固定下来是必须的**——否则下一次点击会跳回焦点目标那一档（此刻 160 m）
+  await page.evaluate(`(() => {
+    const el = document.querySelector('[data-field=los-height]');
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(el, '40');
+    el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`)
+  st = await waitApp(page, (a) => a.losProbe.height_agl_m === 40, '把假设高度固定在 40 m')
+  check('假设高度是一个可改的输入，改了立即重算', st.app.losProbe.height_agl_m === 40)
+
+  // 从**渲染图层**上挑一栋高过 60 m 的楼（铁律 11：渲染与遮挡吃的是同一份 GeoJSON），
+  // 沿「站 → 楼心」在楼前楼后各取一点。
+  const site = st.app.losProbe   // 站址在场景里，直接从场景文件取更稳
+  const sp = scenario.sites[0].position
+  const cands = JSON.parse(await page.evaluate(`(() => {
+    const m = window.__map;
+    const mPerDegLat = 111034.4, mPerDegLon = 111320 * Math.cos(${sp.lat} * Math.PI / 180);
+    const out = [];
+    for (const f of m.queryRenderedFeatures({ layers: ['aoi-buildings-3d'] })) {
+      const h = f.properties && f.properties.height_m;
+      if (!(h >= 60)) continue;
+      const g = f.geometry; if (!g || g.type !== 'Polygon') continue;
+      const ring = g.coordinates[0]; if (!ring || ring.length < 4) continue;
+      let cx = 0, cy = 0; for (const p of ring) { cx += p[0]; cy += p[1]; }
+      cx /= ring.length; cy /= ring.length;
+      let half = 0;
+      for (const p of ring) half = Math.max(half, Math.hypot((p[0]-cx)*mPerDegLon, (p[1]-cy)*mPerDegLat));
+      const dx = (cx - ${sp.lon}) * mPerDegLon, dy = (cy - ${sp.lat}) * mPerDegLat;
+      const r = Math.hypot(dx, dy);
+      if (r < 120 || r > 700) continue;
+      const near = [${sp.lon} + dx / r * (r - half - 25) / mPerDegLon, ${sp.lat} + dy / r * (r - half - 25) / mPerDegLat];
+      const far  = [${sp.lon} + dx / r * (r + half + 25) / mPerDegLon, ${sp.lat} + dy / r * (r + half + 25) / mPerDegLat];
+      const pf = m.project(far);
+      // 两个点都得落在画布中间部分，不然点不到
+      if (pf.x < m.getCanvas().clientWidth * 0.1 || pf.x > m.getCanvas().clientWidth * 0.9) continue;
+      if (pf.y < m.getCanvas().clientHeight * 0.1 || pf.y > m.getCanvas().clientHeight * 0.9) continue;
+      out.push({ id: String(f.properties.id), h, r, near, far });
+    }
+    out.sort((a, b) => a.r - b.r);
+    return JSON.stringify(out.slice(0, 6));
+  })()`))
+  check('地图上挑得到高过 60 m 的楼（渲染与遮挡同一份 GeoJSON，铁律 11）', cands.length > 0, `${cands.length} 栋候选`)
+  let picked = null
+  let farAllBlocked = true
+  for (const c of cands) {
+    const far = (await clickAt(c.far[0], c.far[1])).app.losProbe
+    if (far.line_of_sight) { farAllBlocked = false; continue }
+    const near = (await clickAt(c.near[0], c.near[1])).app.losProbe
+    if (near.line_of_sight) { picked = { c, near, far }; break }
+  }
+  check('楼后那一侧无条件非视距（视线在楼那儿只有 30–40 m，楼有 60 m 以上）', farAllBlocked)
+  check('点选建筑两侧一致：楼前视距、楼后非视距且报得出刀口损耗（切片 ⑤ 验收）',
+    !!picked && picked.near.line_of_sight === true && picked.far.line_of_sight === false
+    && picked.far.diffraction_dB > 0 && picked.near.diffraction_dB === 0,
+    picked ? `楼 ${picked.c.id}（${picked.c.h} m，${picked.c.r.toFixed(0)} m 外）：`
+      + `楼前视距，楼后 ${picked.far.diffraction_dB.toFixed(1)} dB、侵入 ${picked.far.intrusion_m.toFixed(1)} m`
+      : `${cands.length} 栋候选里没有一栋的楼前是开阔的`)
+  await page.evaluate("(document.querySelector('[data-action=clear-los-probe]')?.click(), true)")
+  await page.evaluate("(document.querySelector('[data-tool=los]').click(), true)")
+  await waitApp(page, (a) => a.scene.tool === 'select', '放下视距工具')
+  }
+
+  // ---------- 链路线第一次变红：跑一条 E3 的链（D3-7） ----------
+  // `line_of_sight` 从链路帧一路通到链路线着色，非视距红 #b91c1c 在 D2-4 标定过对比度，
+  // 但**在 D3-5 之前一次也没画出来过**——缺的只是生产者（07 报告 §1 第 2 行）。
+  // 这里跑一条 E3 的链把它画出来：demo-01 起飞头几秒被 62 m 的楼挡着（D3-5 实测 36.98 dB），
+  // 所以 3 秒的窗口里全程非视距。
+  const e3Id = await loadDiagramViaApi(page, 'tests/regression/diagrams/chain-demo-01-e3.json',
+                                       '?scenario=demo-01#/diagram', (d) => {
+    d.diagram_id = 'slice2-e3-nlos'
+    d.name = 'slice2 E3 非视距（端到端用，跑完即删）'
+    d.run.duration_s = 3
+    for (const n of d.nodes) if (n.params && 'total_samples' in n.params) n.params.total_samples = 1500000
+  })
+  st = await waitApp(page, (a) => a.view === 'diagram' && a.context.diagramId === e3Id, '载入 E3 框图')
+  const e3Checks = JSON.parse(await page.evaluate(
+    "(() => { const out = {}; for (const el of document.querySelectorAll('[data-check]'))"
+    + " out[el.dataset.check] = el.dataset.ok; return JSON.stringify(out) })()"))
+  check('E3 在框图页不再置灰：档位自洽与建筑几何两项都通过（D3-7）',
+    e3Checks.propagation === '1' && e3Checks.prop_scene === '1', JSON.stringify(e3Checks))
+  // 卡片上只列「这一档包含哪几项」（D-058 用户拍板第 ① 条），逐项开关在右栏
+  const propText = await page.evaluate(
+    "(() => { const el = document.querySelector('[data-slot-effects]');"
+    + " return (el?.dataset.slotEffects ?? '') + '|' + (el?.textContent ?? '') })()")
+  check('传播卡片列出这一档包含哪几项，含建筑遮挡（E3 的 diffraction 每帧都声明）',
+    /free_space,diffraction/.test(propText) && /E3/.test(propText) && /建筑遮挡/.test(propText), propText)
+
+  for (let i = 0; i < 40; i++) {
+    if (await page.evaluate("(!document.querySelector('[data-action=run]')?.disabled)")) break
+    await sleep(250)
+  }
+  const beforeE3 = (await page.waitFor((x) => !!x.app, { label: '取当前任务' })).app.context.taskId
+  await page.evaluate("(document.querySelector('[data-action=run]').click(), true)")
+  st = await waitApp(page, (a) => a.context.taskId && a.context.taskId !== beforeE3, 'E3 任务已提交')
+  const e3Task = st.app.context.taskId
+  st = await waitApp(page, (a) => ['finished', 'failed', 'cancelled'].includes(a.task.runState), 'E3 任务结束', 180000)
+  check('E3 任务跑完（服务端不传 --scene-root，引擎按缺省的 data/scene 找建筑）',
+    st.app.task.runState === 'finished' && st.app.task.result === 'valid',
+    `${st.app.task.runState} / ${st.app.task.result}`)
+  await page.pressKey(alt(1))
+  st = await waitApp(page, (a) => a.links.length >= 1 && a.links[0].los === false, '链路读数报非视距', 30000)
+  check('链路第一次报非视距，刀口损耗算进了路损（D3-5 实测起飞处 36.98 dB）',
+    st.app.links[0].los === false && st.app.links[0].pathLoss_dB > 120,
+    JSON.stringify(st.app.links[0]))
+  const redLine = JSON.parse(await page.evaluateAsync(
+    "new Promise((r) => setTimeout(() => r(JSON.stringify(window.__map.queryRenderedFeatures({layers:['cuav-link-line']})"
+    + ".map((f) => f.properties.los))), 300))"))
+  check('链路线第一次画成红的（非视距色 #b91c1c，D2-4 标定过对比度却一直没有生产者）',
+    redLine.length >= 1 && redLine.every((x) => x === false), JSON.stringify(redLine))
+  await deleteDiagram(page, e3Id)
+  // 回到切片 ② 那份框图与任务，后面的场景编辑断言接着用它
+  await loadDiagramViaApi(page, 'engine/tests/diagrams/slice2_scenario_link.json', '?scenario=demo-01#/scene')
+  st = await waitApp(page, (a) => a.view === 'scene', '回到场景页')
 
   // ---------- 表单编辑与保存场景 ----------
   // 先把前面「布站→撤销→重做→撤销」留下的未保存状态存一次：场景文件已是编辑器的规范序列化

@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
 import { occlusionState, occlusionNote } from '../scene/occlusion/store.js'
+import { losProbeStore } from '../scene/losProbe.js'
 import { SceneView } from '../scene/SceneView.js'
 import { situationSnapshot } from '../scene/sceneStore.js'
 import { currentSituation } from '../scene/situationView.js'
@@ -116,6 +117,22 @@ export function AppShell() {
       occlusion: (() => {
         const o = occlusionState()
         return { status: o.status, buildings: o.stats?.buildings ?? null, ms: o.ms, note: occlusionNote() }
+      })(),
+      // 最近一次视距探测（D3-7）。只读，探针不触发探测
+      losProbe: (() => {
+        const p = losProbeStore.get()
+        const r = p.result
+        return {
+          status: p.status,
+          site_id: r?.site_id ?? null,
+          lon: r?.lon ?? null,
+          lat: r?.lat ?? null,
+          height_agl_m: r?.height_agl_m ?? null,
+          distance_m: r?.distance_m ?? null,
+          line_of_sight: r?.line_of_sight ?? null,
+          diffraction_dB: r?.diffraction_dB ?? null,
+          intrusion_m: r?.intrusion_m ?? null,
+        }
       })(),
       detections: probeDetections(detectionStore.get()),
       recognitions: probeRecognitions(recognitionStore.get()),

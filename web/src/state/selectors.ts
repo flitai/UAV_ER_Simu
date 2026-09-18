@@ -86,6 +86,18 @@ export interface ProbeExtras {
   timeline3?: ReturnType<typeof probeTimeline3>
   /** 建筑几何的懒加载状态（D3-6），由 scene/occlusion/store.ts 给 */
   occlusion?: { status: string; buildings: number | null; ms: number; note: string }
+  /** 最近一次视距探测（D3-7），由 scene/losProbe.ts 给；没探测过时 status = 'idle'、其余为 null */
+  losProbe?: {
+    status: string
+    site_id: string | null
+    lon: number | null
+    lat: number | null
+    height_agl_m: number | null
+    distance_m: number | null
+    line_of_sight: boolean | null
+    diffraction_dB: number | null
+    intrusion_m: number | null
+  }
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -207,6 +219,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     // 建筑几何的懒加载（D3-6）。`status` 在没人要它之前必须是 `idle`——
     // 那 15.9 MB 只有真要算遮挡时才取，端到端据此验「懒加载确实懒住了」。
     occlusion: x.occlusion,
+    losProbe: x.losProbe,
     entities: x.entities,
     links: x.links,
     // 逐项挑而不是整包展开——这里漏了新字段就在探针上看不见，切片 ⑥b 踩过一次

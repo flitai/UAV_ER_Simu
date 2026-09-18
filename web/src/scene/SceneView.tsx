@@ -23,6 +23,8 @@ import { MapToolbar } from './MapToolbar.js'
 import { LeftColumn } from './LeftColumn.js'
 import { RightColumn } from './RightColumn.js'
 import { focusTargetId } from './focus.js'
+import { addLosProbeLayers, setLosProbe } from './layers/losProbe.js'
+import { losProbeStore, probeInputAt, runLosProbe } from './losProbe.js'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { cursorStore } from '../shell/cursorStore.js'
 import { useAppState, useStore } from '../state/store.js'
@@ -73,6 +75,7 @@ export function SceneView({ active }: { active: boolean }) {
       if (hill) addHillshade(map, { tiles: scene.demTiles })
       addAoiBoundary(map, scene.bbox)
       mountSituation(map)
+      addLosProbeLayers(map)
       setReady(true)
     }
     map.on('style.load', mount)
@@ -129,6 +132,20 @@ export function SceneView({ active }: { active: boolean }) {
       const tool = state.scene.editor.tool
       const { lng, lat } = e.lngLat
 
+      // 视距探测（D3-7）：算的是「假设目标在这一点上」，与编辑无关，所以放在观察组里。
+      // 第一次点会把建筑几何取下来（懒加载），之后每次都是本地几微秒。
+      if (tool === 'los') {
+        const r = probeInputAt(state, lng, lat, losProbeStore.get().heightOverride ?? undefined)
+        if ('error' in r) {
+          st.dispatch({ type: 'ui/toast', kind: 'warn', text: `视距探测：${r.error}` })
+          return
+        }
+        if (scene && !bboxContains(scene.bbox, lng, lat)) {
+          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '点在观测区域之外：那里没有建筑数据，视距判定不可信' })
+        }
+        void runLosProbe(scene?.buildingsUrl ?? '', scene?.center[0] ?? 0, scene?.center[1] ?? 0, r.input)
+        return
+      }
       if (tool === 'measure') {
         const pts = state.scene.editor.measure
         const next = pts.length >= 2 ? [{ lon: lng, lat }] : [...pts, { lon: lng, lat }]
@@ -276,6 +293,21 @@ export function SceneView({ active }: { active: boolean }) {
     if (!situation) clearSituation(map)
   }, [situation, ready])
 
+  // 探测线跟着探测结果走。**不进主 store**（D-049 ⑩）：订阅那个小 store，变了就重画一条线。
+  useEffect(() => {
+    if (!ready) return
+    const draw = () => {
+      const map = mapRef.current
+      if (!map) return
+      const r = losProbeStore.get().result
+      setLosProbe(map, r && losProbeStore.get().status === 'ready'
+        ? { from: [r.site.lon, r.site.lat], to: [r.lon, r.lat], line_of_sight: r.line_of_sight }
+        : null)
+    }
+    draw()
+    return losProbeStore.subscribe(draw)
+  }, [ready])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !scene || !map.isStyleLoaded()) return
@@ -304,7 +336,8 @@ export function SceneView({ active }: { active: boolean }) {
     if (!on) {
       // 收起编辑工具时把手里的编辑工具放下；测量是观察工具，留着
       const st = live.current.state
-      if (st.scene.editor.tool !== 'select' && st.scene.editor.tool !== 'measure') live.current.store.dispatch({ type: 'scene/tool', tool: 'select' })
+      const t = st.scene.editor.tool
+      if (t !== 'select' && t !== 'measure' && t !== 'los') live.current.store.dispatch({ type: 'scene/tool', tool: 'select' })
     }
   }, [])
 

@@ -187,7 +187,7 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
 
 | 参数 | 类型 | 缺省 | 含义 |
 |---|---|---|---|
-| `prop_level` | 枚举 `E1 / E2 / E3` | `E1` | 精度档（01 的 E1–E4），直接写进溯源的 `model_level`。**`E3` 自 D3-5 起可用**（建筑遮挡与刀口绕射），但与 `prop_shadow`、`urban_empirical` 互斥（闸三、闸四），且**界面上暂时仍选不到**——浏览器侧还没有同源的遮挡复算（D3-6），见下 |
+| `prop_level` | 枚举 `E1 / E2 / E3` | `E1` | 精度档（01 的 E1–E4），直接写进溯源的 `model_level`。**`E3` 自 D3-5 起可用**（建筑遮挡与刀口绕射），自 D3-7 起界面上也可选；与 `prop_shadow`、`urban_empirical` 互斥（闸三、闸四），见下 |
 | `prop_primary` | 枚举 `free_space / two_ray / urban_empirical` | `free_space` | 替代型主模型，**至多一个**（EM-P-13 §10.9 防重复计损） |
 | `prop_shadow` | 布尔 | `false` | 统计阴影（EM-P-08） |
 | `prop_weather` | 布尔 | `false` | 大气与降雨（EM-P-07） |
@@ -207,8 +207,8 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
 `path_loss_exponent`（无意义但可判别）上都是字面取值，不能同时当「按表取」的标记。
 
 **跨参数约束**在 `PropagationConfig::validate()` 一处（`geo/src/propagation.cpp`）：
-`E3` 未实现即拒；`E1` 却选了主模型或效应即拒（不静默忽略）；城市经验取 `mean_with_shadow_margin`
-再开 `prop_shadow` 即同源双计而拒。**`FreeSpaceChannel`（自由空间定参）不参与这套档位**：它不吃场景参数帧。
+`E3` 与 `prop_shadow` / `urban_empirical` 同开即拒（闸三、闸四）；`E1` 却选了主模型或效应即拒
+（不静默忽略）；城市经验取 `mean_with_shadow_margin` 再开 `prop_shadow` 即同源双计而拒。**`FreeSpaceChannel`（自由空间定参）不参与这套档位**：它不吃场景参数帧。
 D-059（2026-09-10）把它从典型链路的槽位表里撤掉——那个页面上能跑的配置一定有场景，
 手填固定距离永远是错的选择；组件保留供标准算例与手写框图用。
 自由画布里仍可把它与高档位搭在一起，此时链路读数与实际施加的 IQ 不一致，属高级用法自负其责
@@ -224,8 +224,10 @@ D-059（2026-09-10）把它从典型链路的槽位表里撤掉——那个页�
 视距由建筑几何给出（`line_of_sight = !blocked`，与损耗大小无关）、刀口衍射只进 `extra_loss_dB`、
 `included_loss_terms` 增取值 `diffraction`。同时补两道闸：**E3 与 `prop_shadow` 互斥、E3 与
 `urban_empirical` 互斥**（都是建筑遮挡的统计等效，同开即同源双计）；E3 与地面双径、大气降雨
-可以同开。**界面上 E3 暂时仍选不到**：浏览器这一侧还没有同源的遮挡复算，放开会让场景页的预览
-与跑出来的结果对不上（D3-6 补复算、D3-7 去置灰）。公式与八条声明过的简化见模型卡
-`models/channel/README.md` §3.6。
+可以同开。**D3-7（2026-09-18）界面放开**：框图页的档位下拉不再置灰，卡片上列出这一档包含哪几项
+（E3 下是「自由空间 + 建筑遮挡」），闸三闸四同步进了前端镜像 `web/src/chain/effects.ts`
+的 `propConflict()`，另加一条检查项「E3 有观测区域建筑几何」——前端查得到的是「场景引用的观测区域
+与当前载入的数据包是不是同一个」，引擎那一侧核对清单字节哈希，比前端严。公式与八条声明过的简化
+见模型卡 `models/channel/README.md` §3.6。
 
 模型公式、参数来源与适用范围见模型卡 `models/channel/README.md`。

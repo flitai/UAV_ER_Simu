@@ -74,6 +74,10 @@ export function MapToolbar(p: MapToolbarProps) {
         <button type="button" title="两点之间的距离与真北顺时针方位" data-tool="measure"
                 className={tool === 'measure' ? 'on' : ''}
                 onClick={() => dispatch({ type: 'scene/tool', tool: tool === 'measure' ? 'select' : 'measure' })}>测量</button>
+        {/* 视距探测（D3-7）：点地图任一点，对焦点站算视距与刀口绕射损耗。观察工具，不在编辑组里。 */}
+        <button type="button" title="点地图任一点，对焦点站算视距与刀口绕射损耗（假设目标在那一点上，高度可在右栏改）"
+                data-tool="los" className={tool === 'los' ? 'on' : ''}
+                onClick={() => dispatch({ type: 'scene/tool', tool: tool === 'los' ? 'select' : 'los' })}>视距</button>
       </div>
       <div className="tool-group" data-tool-group="edit">
         <button type="button" data-act="edit-mode" className={p.editMode ? 'on' : ''} disabled={!canEdit}

@@ -282,8 +282,10 @@ try {
   check('右栏有「传播效应」分组，缺省 E1', eff0.hasGroup === true && eff0.level === 'E1', eff0.level)
   check('E1 档下只显示档位一项（十五行不一次全摆出来）',
     eff0.shown.join(',') === 'prop_level', eff0.shown.join(','))
-  check('E3 保留在下拉里但置灰（不隐藏，也不让选）',
-    eff0.options.includes('E3(禁)'), eff0.options.join(' '))
+  // D3-7（2026-09-18）起三档都可选：引擎自 D3-5 起算建筑遮挡，浏览器自 D3-6 起有同源复算。
+  // 此前这里断言的是「E3 保留在下拉里但置灰」。
+  check('三档都可选，E3 不再置灰（D3-7）',
+    eff0.options.join(' ') === 'E1 E2 E3', eff0.options.join(' '))
 
   // 切到 E2 + 城市经验：卡片跟着变，逐项开关出现
   await page.evaluate(`(() => { const el = document.querySelector('[data-form=propagation] [data-field=prop_level]');
