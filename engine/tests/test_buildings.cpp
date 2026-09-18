@@ -21,6 +21,8 @@
 #include "cuav/diagram_json.h"
 #include "cuav/random.h"
 #include "cuav/registry.h"
+#include "nlohmann/json.hpp"
+
 #include "cuav_geo/geodesy.h"
 #include "cuav_geo/occlusion.h"
 
@@ -286,6 +288,50 @@ TEST_CASE("真实建筑集：清单解析、计数、代价与共享缓存") {
     CHECK(occ.obstruction_loss_dB > 6.0);
     MESSAGE("中心 2 km 贴地视线：遮挡 " << occ.obstruction_loss_dB << " dB，侵入 "
                                        << occ.intrusion_m << " m");
+}
+
+TEST_CASE("真实建筑集上的五条射线：本侧是真理源，浏览器 TS 复算对拍同一份表（D3-6）") {
+    // tests/golden/occlusion.json 的 148 例用的是 12 栋合成楼加 legacy 投影，**测不到**
+    // GeoJSON 的解析规则、严格站心地平的平面帧、四万多栋楼上的桶网格。这一条补上那一段：
+    // 与 web/src/scene/occlusion/occlusion.test.ts 读同一份 tests/golden/occlusion-aoi.json。
+    const std::string manifest = repo("data/scene/beijing-yayuncun/manifest.json");
+    if (!file_exists(manifest)) {
+        MESSAGE("跳过：观测区域数据包不在盘上（data/** 不入 git），本条要真实建筑集");
+        return;
+    }
+    std::string err;
+    BuildingsStats st;
+    geo::SceneFrame frame;
+    const geo::LocalSceneAdapter* map = shared_scene_map(repo(kAoiRoot), kAoiId, st, frame, err);
+    REQUIRE_MESSAGE(map != 0, err);
+
+    std::ifstream f(repo("tests/golden/occlusion-aoi.json").c_str());
+    REQUIRE_MESSAGE(f.good(), "打不开 tests/golden/occlusion-aoi.json");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    const nlohmann::json g = nlohmann::json::parse(ss.str());
+
+    // 输入必须是同一份数据：建筑数与平面帧原点都钉住，否则这张表说的不是同一件事
+    CHECK(st.buildings == g["_meta"]["input"]["buildings_count"].get<std::size_t>());
+    CHECK(frame.origin().lon_deg == doctest::Approx(116.405));
+    CHECK(frame.origin().lat_deg == doctest::Approx(39.99));
+
+    const double f_Hz = g["_meta"]["input"]["frequency_Hz"].get<double>();
+    const double tol = g["_meta"]["tolerance_rel"].get<double>();
+    REQUIRE(g["segment_occlusion_aoi"].size() == 5);
+    for (const auto& c : g["segment_occlusion_aoi"]) {
+        const auto& r = c["ray"];
+        const geo::OcclusionResult got = geo::segment_occlusion(
+            *map, geo::MapPoint(r[0].get<double>(), r[1].get<double>(), r[2].get<double>()),
+            geo::MapPoint(r[3].get<double>(), r[4].get<double>(), r[5].get<double>()), f_Hz);
+        CHECK(got.blocked == c["out"]["blocked"].get<bool>());
+        const double want_l = c["out"]["obstructionLoss_dB"].get<double>();
+        const double want_i = c["out"]["intrusion_m"].get<double>();
+        CHECK_MESSAGE(std::fabs(got.obstruction_loss_dB - want_l) <= tol * std::fabs(want_l),
+                      "obstructionLoss_dB 得 " << got.obstruction_loss_dB << " 基准 " << want_l);
+        CHECK_MESSAGE(std::fabs(got.intrusion_m - want_i) <= tol * std::fabs(want_i),
+                      "intrusion_m 得 " << got.intrusion_m << " 基准 " << want_i);
+    }
 }
 
 TEST_CASE("装载器注入 scene_root，且 E1 档下一个字节也不读建筑") {

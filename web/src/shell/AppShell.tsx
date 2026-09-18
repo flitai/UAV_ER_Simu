@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
+import { occlusionState, occlusionNote } from '../scene/occlusion/store.js'
 import { SceneView } from '../scene/SceneView.js'
 import { situationSnapshot } from '../scene/sceneStore.js'
 import { currentSituation } from '../scene/situationView.js'
@@ -111,6 +112,11 @@ export function AppShell() {
       cards: probeCards(buildTargetCards(st.scene.scenario.doc, currentSituation(st.scene.scenario.doc))),
       siteCards: probeSiteCards(buildSiteCards(st.scene.scenario.doc, currentSituation(st.scene.scenario.doc))),
       timeline: { ...timeStore.get(), markers: timelineMarkers(st).length, source: currentSituation(st.scene.scenario.doc).source },
+      // 建筑几何是懒加载的（D3-6）：没人要它之前 status 恒为 idle，这里只是读，不触发加载
+      occlusion: (() => {
+        const o = occlusionState()
+        return { status: o.status, buildings: o.stats?.buildings ?? null, ms: o.ms, note: occlusionNote() }
+      })(),
       detections: probeDetections(detectionStore.get()),
       recognitions: probeRecognitions(recognitionStore.get()),
       metrics: probeMetrics(metricsStore.get()),

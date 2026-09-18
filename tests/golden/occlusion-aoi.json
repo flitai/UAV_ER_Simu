@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "what": "北京亚运村真实建筑集上的五条射线：C++ 与浏览器 TypeScript 两侧同守（D3-6，决策 D-074）",
+    "why": "occlusion.json 的 148 例用的是 12 栋合成楼加 legacy 投影，它**测不到**三样东西——GeoJSON 的解析规则、严格站心地平的平面帧、四万多栋楼上的桶网格。这五条射线补上这一段：两侧从同一份 buildings.geojson 各自解析、各自投影、各自遍历，结果必须对得上。",
+    "truth_source": "C++（geo/ + engine/src/buildings_json.cpp）。本表的数由它产生，TypeScript 一侧复算对拍（D-074 ① 的三条纪律）。",
+    "input": {
+      "buildings": "data/scene/beijing-yayuncun/buildings.geojson",
+      "buildings_sha256": "269a8674706766e033f05f008b1f751b0ee9b90fab95a608f5f9680aa6077258",
+      "buildings_count": 47662,
+      "frame": "geo::SceneFrame，原点 = manifest.json 的 aoi.center = [116.405, 39.99]，东/北取严格站心地平；z 是离地高差",
+      "frequency_Hz": 2440000000.0
+    },
+    "tolerance_rel": 1e-9,
+    "measured_rel": {
+      "obstructionLoss_dB": 9.505e-13,
+      "intrusion_m": 1.347e-12,
+      "note": "两侧不逐位相同也不该期望逐位相同：椭球换算一边是 vendored GeographicLib、一边是 preview.ts 的自写闭式，两家本身就差 1.7e-9 m（07 报告 §3.2）。判据取 1e-9，实测余量约一千倍。"
+    },
+    "regenerate": "建筑集不入 git，所以两侧的用例在缺数据时都明说跳过（D-073 ③）。真要重生成：先确认 C++ 侧 engine/tests/test_buildings.cpp 的那条用例失败并打印出实测值，核对是有意的物理改动之后再更新本表——C++ 是真理源，顺序不能反。",
+    "rays_note": "ray = [x0, y0, z0, x1, y1, z1]，平面米，z 为离地高差。第一条与 test_buildings.cpp 里那条「中心 2 km 贴地视线」是同一条。"
+  },
+  "segment_occlusion_aoi": [
+    { "ray": [-1000.0, 0.0, 1.5, 1000.0, 0.0, 1.5],
+      "out": { "blocked": true, "obstructionLoss_dB": 33.624205413151159, "intrusion_m": 60.5 } },
+    { "ray": [0.0, -2000.0, 30.0, 0.0, 2000.0, 50.0],
+      "out": { "blocked": true, "obstructionLoss_dB": 31.177529580211758, "intrusion_m": 55.21211687033383 } },
+    { "ray": [-3000.0, -3000.0, 30.0, 3000.0, 3000.0, 160.0],
+      "out": { "blocked": true, "obstructionLoss_dB": 36.881367420550369, "intrusion_m": 107.35381773530591 } },
+    { "ray": [500.0, 500.0, 30.0, -2500.0, 1800.0, 80.0],
+      "out": { "blocked": true, "obstructionLoss_dB": 26.363443361389702, "intrusion_m": 30.131841371537959 } },
+    { "ray": [-200.0, 900.0, 30.0, 4000.0, -1200.0, 120.0],
+      "out": { "blocked": true, "obstructionLoss_dB": 17.671395633155782, "intrusion_m": 6.7206236557935597 } }
+  ]
+}

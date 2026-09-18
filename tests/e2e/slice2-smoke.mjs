@@ -90,6 +90,12 @@ try {
   check('场景已载入', st.app.scene.scenarioId === 'demo-01' && st.app.scene.sites === 1 && st.app.scene.emitters === 1 && st.app.scene.waypoints === 3,
     JSON.stringify({ id: st.app.scene.scenarioId, sites: st.app.scene.sites, wps: st.app.scene.waypoints }))
   check('场景哈希与盘上文件一致（框图 scenario_ref 用的就是它）', /^[0-9a-f]{64}$/.test(st.app.scene.scenarioSha256), st.app.scene.scenarioSha256.slice(0, 8) + '…')
+  // D3-6：建筑几何 15.9 MB、浏览器 JSON.parse 要 72 ms、堆涨 41 MB（07 §2.3）。
+  // **首屏一定不能付这笔钱**——MapLibre 渲染那份是在 worker 里另拉的，遮挡这份只有真要算时才取。
+  // 这条是「懒加载真的懒住了」唯一的自动化证据：模块被顶层 import 拖进首屏，它就会红（07 §11 风险 8）。
+  check('建筑几何没有在场景页首屏被加载（懒加载，D3-6）',
+    st.app.occlusion?.status === 'idle' && st.app.occlusion?.buildings === null,
+    JSON.stringify(st.app.occlusion))
   for (const id of ['cuav-zone-fill', 'cuav-zone-line', 'cuav-link-line', 'cuav-link-label', 'cuav-route-line', 'cuav-trail-line', 'cuav-waypoint-dot', 'cuav-site-dot', 'cuav-site-icon', 'cuav-target-pole', 'cuav-target-ring', 'cuav-target-icon', 'cuav-target-label']) {
     if (!st.layers.includes(id)) { check(`态势图层 ${id} 存在`, false); break }
   }

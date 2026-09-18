@@ -154,6 +154,29 @@ TypeScript 复算，两侧同守 `tests/golden/occlusion.json` 的 148 例、判
 
 **链路级的非视距在界面上不需要新代码**：`line_of_sight` 从链路帧一路通到 `sceneStore` 与
 链路线着色，非视距红 `#b91c1c` 在第 4 节标定过对比度却一次没画出来过——缺的只是生产者。
+**生产者自 D3-5（2026-09-18）上线**：`line_of_sight` 由建筑几何给出，不再恒真。
+界面上要看到它还差一步——E3 在前端仍拦着，D3-7 去置灰。
+
+### 5.1 落地情况（2026-09-18，D3-5 / D3-6）
+
+| 侧 | 落点 | 守什么 |
+|---|---|---|
+| C++（真理源） | `geo/src/{local_scene_adapter,occlusion}.cpp`、`geo/src/link_budget.cpp` 接线、`engine/src/buildings_json.cpp` 解析 | 148 例 + 真实建筑集五条射线 |
+| 浏览器复算 | `web/src/scene/occlusion/{frame,adapter,occlusion,geojson,store}.ts` | 同一份 148 例 + 同一份五条射线 |
+
+三条纪律照办。另外**核实到 148 例不够用**：它用的是 12 栋合成楼加 legacy 投影，
+**测不到**解析规则、严格站心平面帧与四万多栋楼上的桶网格。因此新增
+`tests/golden/occlusion-aoi.json`（北京亚运村真实建筑集五条射线，C++ 产生、浏览器对拍），
+实测两侧最差相对差 **9.5e-13（损耗）/ 1.3e-12（侵入）**，判据 1e-9。
+两侧的解析计数也逐项对上：47582 要素 → **47662 栋**、忽略内环 345、剔除 0。
+
+**懒加载懒的是数据不是代码**：整个遮挡模块在产物里只占 **835 字节**（gzip 增 0.57 kB），
+而 15.9 MB 的 `buildings.geojson` 在场景页首屏一个字节也不取。
+`slice2` 有一条断言首屏 `app.occlusion.status === 'idle'`——那是「懒住了」唯一的自动化证据。
+
+**与 C++ 有意的一处不同**：几何类型不认识时 C++ 报错（本项目的建筑集只会有 `Polygon` 与
+`MultiPolygon`，出现别的说明上游变了），浏览器计数并跳过——同一份文件还要交给 MapLibre 渲染，
+一个坏要素不该让整幅图白掉。计数进 `stats.skippedGeometry`，说得出来，不是静默丢。
 
 ## 6. 移植落地情况（2026-09-04，里程碑 D1）
 

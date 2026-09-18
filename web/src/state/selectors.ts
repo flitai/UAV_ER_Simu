@@ -84,6 +84,8 @@ export interface ProbeExtras {
   truth?: ReturnType<typeof probeTruth>
   /** 检测识别页签的时间线三行（C-9），由 results/timeline3.ts 的 probeTimeline3 算 */
   timeline3?: ReturnType<typeof probeTimeline3>
+  /** 建筑几何的懒加载状态（D3-6），由 scene/occlusion/store.ts 给 */
+  occlusion?: { status: string; buildings: number | null; ms: number; note: string }
 }
 
 function probeMarkers(s: AppState, v: SignalViewState | null | undefined): Array<{ id: string; freq_Hz: number | null; level_dB: number | null }> {
@@ -202,6 +204,9 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       waypoints: waypointCount(s),
       zones: zones(s.scene.scenario.doc).map((z) => ({ id: String(z.id), kind: String(z.kind), radius_m: Number(z.radius_m) })),
     },
+    // 建筑几何的懒加载（D3-6）。`status` 在没人要它之前必须是 `idle`——
+    // 那 15.9 MB 只有真要算遮挡时才取，端到端据此验「懒加载确实懒住了」。
+    occlusion: x.occlusion,
     entities: x.entities,
     links: x.links,
     // 逐项挑而不是整包展开——这里漏了新字段就在探针上看不见，切片 ⑥b 踩过一次

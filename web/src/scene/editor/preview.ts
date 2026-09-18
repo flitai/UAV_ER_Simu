@@ -41,8 +41,8 @@ export function chordDistanceM(a: Lla, b: Lla): number {
   return Math.sqrt(dx * dx + dy * dy + dz * dz)
 }
 
-/** ECEF 矢量转站心 ENU（只旋转不平移）。 */
-function rotateToEnu(v: Ecef, origin: Lla): { e: number; n: number; u: number } {
+/** ECEF 矢量转站心 ENU（只旋转不平移）。遮挡的平面帧也用它（scene/occlusion/frame.ts）。 */
+export function rotateToEnu(v: Ecef, origin: Lla): { e: number; n: number; u: number } {
   const lat = origin.lat * DEG
   const lon = origin.lon * DEG
   const sp = Math.sin(lat)
