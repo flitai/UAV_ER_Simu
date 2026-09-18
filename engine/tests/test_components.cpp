@@ -1,6 +1,8 @@
 // 组件与端到端链路的单元测试。
 #include "doctest/doctest.h"
 
+#include "tmpdir.h"
+
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -21,12 +23,7 @@ using namespace cuav;
 
 namespace {
 
-std::string temp_dir() {
-    const char* t = std::getenv("TMPDIR");
-    std::string d = t ? t : "/tmp/";
-    if (!d.empty() && d[d.size() - 1] != '/') d += '/';
-    return d;
-}
+std::string temp_dir() { return cuav_test::temp_dir(); }
 
 // 写一份最小但合规的产物：.iq 加旁挂清单（docs/iq-format.md 第 3、4 节）
 void write_fixture(const std::string& stem, const std::vector<std::int16_t>& interleaved,
@@ -1096,10 +1093,7 @@ namespace {
 std::string library_v1() { return std::string(CUAV_SOURCE_DIR) + "/../models/recognition/library-v1.json"; }
 
 std::string temp_dir_components() {
-    const char* t = std::getenv("TMPDIR");
-    std::string d = t ? t : "/tmp/";
-    if (!d.empty() && d[d.size() - 1] != '/') d += '/';
-    return d + "cuav_components_test/";
+    return cuav_test::temp_root("cuav_components_test") + "/";
 }
 
 std::string write_temp(const std::string& name, const std::string& text) {

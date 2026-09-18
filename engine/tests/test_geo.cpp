@@ -386,11 +386,23 @@ TEST_CASE("坐标基座：两家实现对 tests/golden/geodesy.json") {
         worst_back_cf = std::max(worst_back_cf, chord_distance_m(cf.to_ecef(cf.to_lla(want)), want));
     }
 
-    // GeographicLib 判据 1e-9 米而不是逐位：本表就是它生成的，同一台机器上必然逐位复现，
-    // 但换一个平台时 std::sin / std::cos 可能差一个最低位（D-049 ⑪ 已记过同一件事），
-    // 所以判据取纳米级——足以逮住任何真正的改动，又不会在换平台时假红。
-    CHECK(worst_gl < 1e-9);
-    CHECK(worst_gl_enu < 1e-9);
+    // **判据用「ECEF 量级的最低位」，不用一个米数**（D3-8 实测后改的形状，同 D3-2 §14.2 那次）。
+    //
+    // 原来写的是 1e-9 米，理由是「换平台时 sin / cos 可能差一个最低位」——方向对，数错了：
+    // double 在 6.4e6 米处的最低位**恰好就是 9.3132e-10 米**，所以 1e-9 米等于要求
+    // 比浮点本身能给的还准。在生成本表的那台机上它恒为 0（同一个 libm 算两遍），
+    // 一换到 Linux / GCC 就当场超差——实测正算 1.000 个最低位、站心 2.358 个。
+    //
+    // 站心那一栏尤其要说清楚：它是两个 ~6.4e6 米的 ECEF 数**相减**得到的小量，
+    // 绝对舍入下限是**被减数**那个量级的最低位，与结果本身多小无关。
+    //
+    // 上界的来历：正算每个分量走一次 sin / cos（各 ≤ 1 个最低位）再乘地球半径，
+    // 三分量取模长 ≤ 2√3 ≈ 3.5；站心多一次 ECEF 相减（各 ≤ 2），每分量 ≤ 4、
+    // 取模长 ≤ 4√3 ≈ 7。取 4 与 8，实测余量 4.0 倍与 3.4 倍。
+    // 这不是放宽判据：换平台真出了物理上的改动，量级是米不是纳米，照样逮得住。
+    const double kEcefUlp = std::ldexp(1.0, -30);   // 9.3132e-10 m：double 在 [4.19e6, 8.39e6) 上的最低位
+    CHECK(worst_gl < 4 * kEcefUlp);
+    CHECK(worst_gl_enu < 8 * kEcefUlp);
 
     // 自写闭式判据 1e-6 米：两家的反算算法不同（自写是 Bowring 闭式，不迭代），
     // 本就不该期望逐位相同；能到微米级就说明两边都对。这个判据是刻意放宽于铁律 10 的 1e-9 的，
@@ -402,8 +414,10 @@ TEST_CASE("坐标基座：两家实现对 tests/golden/geodesy.json") {
     CHECK(worst_back_gl < 1e-3);
     CHECK(worst_back_cf < 1e-3);
 
+    // 同时按最低位报一遍：换平台时这个数才是直接可比的，米数会让人以为两台机不一样准
     MESSAGE("坐标基座 " << j["cases"].size() << " 例："
-            << "GeographicLib 正算最差 " << worst_gl << " m、站心 " << worst_gl_enu << " m；"
+            << "GeographicLib 正算最差 " << worst_gl << " m（" << worst_gl / kEcefUlp
+            << " 个最低位）、站心 " << worst_gl_enu << " m（" << worst_gl_enu / kEcefUlp << " 个）；"
             << "自写闭式正算最差 " << worst_cf << " m、站心 " << worst_cf_enu << " m");
 }
 

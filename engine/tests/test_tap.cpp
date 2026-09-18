@@ -1,6 +1,8 @@
 // 观测点组件与运行观察者（B-3）：产品文件与索引、与 SpectrumAnalyzer 同源、包络、确定性、回调。
 #include "doctest/doctest.h"
 
+#include "tmpdir.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -24,12 +26,7 @@ using namespace cuav;
 
 namespace {
 
-std::string temp_root() {
-    const char* t = std::getenv("TMPDIR");
-    std::string d = t ? t : "/tmp/";
-    if (!d.empty() && d[d.size() - 1] != '/') d += '/';
-    return d + "cuav_tap_test";
-}
+std::string temp_root() { return cuav_test::temp_root("cuav_tap_test"); }
 
 std::vector<unsigned char> read_bytes(const std::string& p) {
     std::ifstream f(p.c_str(), std::ios::binary);

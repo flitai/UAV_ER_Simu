@@ -4,6 +4,8 @@
 // 随机量用蒙特卡洛矩校验（铁律 9），不拿"跑出来是多少就是多少"当基准。
 #include "doctest/doctest.h"
 
+#include "tmpdir.h"
+
 #include <cmath>
 #include <complex>
 #include <cstdlib>
@@ -624,8 +626,7 @@ TEST_CASE("观测点索引：削顶累计随 ADC 一路带到索引里（D-051�
     Registry r = builtin_registry();
     std::string err;
     // 用系统临时目录，不污染 data/runs（那是任务产品目录）
-    const char* tmp = std::getenv("TMPDIR");
-    const std::string dir = std::string(tmp ? tmp : "/tmp/") + "cuav_clip_test";
+    const std::string dir = cuav_test::temp_root("cuav_clip_test");
     REQUIRE(platform::make_dirs(dir + "/s3", err));
 
     Graph g;

@@ -1,6 +1,8 @@
 // cuav_run 运行器（B-4）：命令行解析、目录、只校验、运行事件流、events.jsonl 镜像、种子覆盖、数据解析入口、退出码。
 #include "doctest/doctest.h"
 
+#include "tmpdir.h"
+
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -22,12 +24,7 @@ using nlohmann::json;
 
 namespace {
 
-std::string temp_root() {
-    const char* t = std::getenv("TMPDIR");
-    std::string d = t ? t : "/tmp/";
-    if (!d.empty() && d[d.size() - 1] != '/') d += '/';
-    return d + "cuav_runner_test";
-}
+std::string temp_root() { return cuav_test::temp_root("cuav_runner_test"); }
 
 std::string fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice1_tone_noise_psd.json"; }
 std::string detect_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_detect.json"; }

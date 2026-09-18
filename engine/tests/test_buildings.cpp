@@ -294,12 +294,18 @@ TEST_CASE("真实建筑集上的五条射线：本侧是真理源，浏览器 TS
     // tests/golden/occlusion.json 的 148 例用的是 12 栋合成楼加 legacy 投影，**测不到**
     // GeoJSON 的解析规则、严格站心地平的平面帧、四万多栋楼上的桶网格。这一条补上那一段：
     // 与 web/src/scene/occlusion/occlusion.test.ts 读同一份 tests/golden/occlusion-aoi.json。
-    const std::string manifest = repo("data/scene/beijing-yayuncun/manifest.json");
-    if (!file_exists(manifest)) {
-        MESSAGE("跳过：观测区域数据包不在盘上（data/** 不入 git），本条要真实建筑集");
+    // **判跳过要判它真正读的那个文件**。原先这里判的是 `manifest.json`——而清单**入 git**、
+    // 建筑集不入，于是在任何没有建筑集的机器上这条不跳过、直接硬失败（D3-8 在 CI 上当场红）。
+    // 上面那条「真实建筑集：清单解析、计数、代价与共享缓存」判了两道（清单一道、建筑集一道），
+    // 这条是后写的，漏了第二道。缺数据要**明说跳过、不当作通过**（D-073 ③）。
+    std::string err;
+    AoiBuildingsRef ref;
+    if (!file_exists(repo("data/scene/beijing-yayuncun/manifest.json"))
+        || !aoi_buildings_ref(repo(kAoiRoot), kAoiId, ref, err)
+        || !file_exists(ref.buildings_path)) {
+        MESSAGE("跳过：buildings.geojson 不在盘上（data/** 不入 git），本条要真实建筑集");
         return;
     }
-    std::string err;
     BuildingsStats st;
     geo::SceneFrame frame;
     const geo::LocalSceneAdapter* map = shared_scene_map(repo(kAoiRoot), kAoiId, st, frame, err);

@@ -62,8 +62,11 @@ __pycache__/
 .vscode/
 *.swp
 
-# 第三方参考素材（Aaronia AARTOS 截图与视频，D-061），只读、不入库
-ref/
+# 第三方参考素材（Aaronia AARTOS 截图与视频，D-061），只读、不入库。
+# **必须带前导斜杠只锚仓库根**：不带的话 `ref/` 匹配任何一层的同名目录，
+# 把 `matlab/ref/` 也一并吞了——Coder 产物的来源 .m 因此八个从未入库，
+# 溯源链只在开发机上验得通（D3-8 在 Linux CI 上当场报「读不到 matlab/ref/cuav_pfb_cycle.m」）。
+/ref/
 
 # MATLAB Coder 的暂存目录（M-3）：产物只入库 models/<环节>/coder/ 下那几类
 matlab/coder/_staging/

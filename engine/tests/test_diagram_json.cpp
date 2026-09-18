@@ -2,6 +2,8 @@
 // 观测点并联、数据解析器、结构错误的定位。规范 docs/diagram-format.md。
 #include "doctest/doctest.h"
 
+#include "tmpdir.h"
+
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -21,12 +23,7 @@ using nlohmann::json;
 
 namespace {
 
-std::string temp_root() {
-    const char* t = std::getenv("TMPDIR");
-    std::string d = t ? t : "/tmp/";
-    if (!d.empty() && d[d.size() - 1] != '/') d += '/';
-    return d + "cuav_diagram_test";
-}
+std::string temp_root() { return cuav_test::temp_root("cuav_diagram_test"); }
 
 json read_json(const std::string& p) {
     std::ifstream f(p.c_str());

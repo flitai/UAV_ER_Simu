@@ -43,10 +43,14 @@ void check_files(const char* dir, std::size_t n,
         const coder_provenance::FileHash& f = at(i);
         const std::string path = std::string(CUAV_SOURCE_DIR) + "/../" + dir + "/" + f.name;
         std::string hex, err;
-        REQUIRE_MESSAGE(sha256_file(path, hex, err), "读不到产物 " << f.name << "：" << err);
+        // 报文里的文件名要包一层 std::string：MSVC 上直接把 `const char*` 交给 doctest
+        // 会打印成指针地址（D3-8 实测：`00007FF6636423F0 与入库时的 sha256 对不上`），
+        // 失败时就看不出是哪个产物——而这条测试失败时唯一要回答的问题就是"哪一个"。
+        REQUIRE_MESSAGE(sha256_file(path, hex, err),
+                        "读不到产物 " << std::string(f.name) << "：" << err);
         CHECK_MESSAGE(hex == std::string(f.sha256),
-                      f.name << " 与入库时的 sha256 对不上：产物被改过，"
-                             "或改了 .m 重生成后没跑 scripts/gen_coder_provenance.py");
+                      std::string(f.name) << " 与入库时的 sha256 对不上：产物被改过，"
+                                             "或改了 .m 重生成后没跑 scripts/gen_coder_provenance.py");
         if (hex == std::string(f.sha256)) ++ok;
     }
     MESSAGE(std::string(dir) << "：" << ok << " / " << n << " 个产物文件哈希相符");
