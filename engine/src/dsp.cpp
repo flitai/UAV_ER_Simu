@@ -1,5 +1,8 @@
 #include "cuav/dsp.h"
 
+// `std::rotate` / `std::swap` 在 <algorithm> 里。macOS 的 libc++ 与 MSVC 都把它传递包含了进来，
+// 只有 libstdc++ 没有——D3-8 第一次在 Linux / GCC 上编时当场报「'rotate' is not a member of 'std'」。
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>

@@ -4,6 +4,9 @@
 #include "doctest/doctest.h"
 
 #include <cmath>
+// `std::function` 在 <functional> 里。macOS 的 libc++ 传递包含了它，MSVC 没有——
+// D3-8 第一次在 Windows / MSVC 上编时当场报「'function': is not a member of 'std'」。
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
