@@ -19,10 +19,18 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 同一分支上新推一次就把上一次没跑完的取消掉：第一天就撞上了——
+# js 那个 job 卡住不退，四轮各留一个跑不完的 job 在那儿占着。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cpp:
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
+    # 挂住就该当场红，不该占着构建机跑到默认的 6 小时上限
+    timeout-minutes: 30
     strategy:
       # 一个平台红了，另一个也要跑完：两边各报各的错，一次看全
       fail-fast: false
@@ -76,6 +84,7 @@ jobs:
   js:
     name: 前端与应用服务 (Linux x64)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -102,7 +111,11 @@ jobs:
 
       # 服务端有一部分用例要真引擎（`CUAV_RUN`）。这个 job 不建 C++，
       # 那些用例会自己跳过——**跳过不是通过**，真引擎的集成由 cpp job 的 ctest 覆盖。
+      #
+      # 单独给 5 分钟：本地 4 秒跑完（119 过 8 跳，拿假引擎复现过 CI 的条件），
+      # 而 CI 上它挂住不退。挂多久都是白挂，先让它红出来、把日志露出来（D3-8）。
       - name: 应用服务单测
+        timeout-minutes: 5
         run: cd server && npm test
 
       - name: 路径可迁移检查（铁律 17）
