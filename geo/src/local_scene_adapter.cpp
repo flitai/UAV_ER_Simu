@@ -14,7 +14,6 @@ namespace cuav {
 namespace geo {
 namespace {
 
-const double kPi = 3.14159265358979323846;
 const double kCellM = 100.0;   // 桶边长（米），同 occlusion.ts 的 CELL_M
 
 inline std::int64_t cell_key(std::int64_t cx, std::int64_t cy) {
@@ -253,17 +252,6 @@ MaterialInfo LocalSceneAdapter::material(const std::string& object_id, double) c
     }
     return m;
 }
-
-namespace legacy {
-
-LocalFrame2 local_frame_occlusion(double ref_lat_deg) {
-    LocalFrame2 f;
-    f.m_per_deg_lat = 110540.0;
-    f.m_per_deg_lon = 111320.0 * std::cos(ref_lat_deg * (kPi / 180.0));
-    return f;
-}
-
-}  // namespace legacy
 
 }  // namespace geo
 }  // namespace cuav

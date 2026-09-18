@@ -15,7 +15,7 @@
 //
 // 一、**接口改吃平面米，不吃经纬度**。emcore 的 raycast 收 {x=经度, y=纬度, z=高度}，
 //     投影常数写死在适配器构造函数里。本项目把投影挪到调用方：
-//       · 黄金基准回放 → `legacy::local_frame_occlusion()`（旧常数，守 148 例）；
+//       · 黄金基准回放 → `legacy::local_frame_occlusion()`（cuav_geo/legacy_frames.h，守 148 例）；
 //       · 引擎实际运行 → `default_geodesy().to_enu()`（严格站心地平，铁律 1）。
 //     这与 D-053 把定位求解器改成平面坐标接口是同一套做法：一份数学两处用，
 //     旧常数只留在 legacy 里，不渗进新代码。
@@ -157,26 +157,6 @@ private:
     std::vector<Indexed> indexed_;
     std::unordered_map<std::int64_t, std::vector<int> > grid_;
 };
-
-namespace legacy {
-
-// 遮挡黄金基准那份投影的尺度（米/度）。
-//
-// **注意它与 fix_geometry.h 里的 `local_frame_111320()` 常数不同**：那一份来自 emcore 的
-// 定位模块（纬向也取 111320），这一份来自遮挡模块（纬向取 110540）。两份各守各的黄金基准，
-// **谁也不许去「统一」谁**（D-009）。差多少已经量过：亚运村处纬向偏 −0.445%、经向 −0.138%，
-// 折到 demo-01 整条航线的刀口损耗上最大 0.1 dB，命中的楼一栋没变（07 报告 §6.2）。
-//
-// 引擎实际运行不走这里，走 `default_geodesy().to_enu()`（铁律 1）。
-// `scripts/build-all.sh` 有一条 grep 守着 `legacy::` 不渗进新代码。
-struct LocalFrame2 {
-    double m_per_deg_lat;
-    double m_per_deg_lon;
-    LocalFrame2() : m_per_deg_lat(0.0), m_per_deg_lon(0.0) {}
-};
-LocalFrame2 local_frame_occlusion(double ref_lat_deg);
-
-}  // namespace legacy
 
 }  // namespace geo
 }  // namespace cuav

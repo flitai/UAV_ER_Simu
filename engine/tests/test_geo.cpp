@@ -14,6 +14,7 @@
 
 #include "cuav_geo/geodesy.h"
 #include "cuav_geo/kinematics.h"
+#include "cuav_geo/legacy_frames.h"
 #include "cuav_geo/link_budget.h"
 #include "cuav_geo/scenario.h"
 #include "doctest/doctest.h"
@@ -413,4 +414,51 @@ TEST_CASE("坐标基座：缺省工厂是 GeographicLib（D3-2 换过来）") {
     CHECK(std::string(default_geodesy().name()) == "geographiclib-2.5.2");
     CHECK(std::string(closed_form_geodesy().name()) == "closed-form-wgs84");
     CHECK(std::string(geographiclib_geodesy().name()) == "geographiclib-2.5.2");
+}
+
+// ---- 两套旧投影必须保持不同（D3-3 收尾，2026-09-17）----
+//
+// 本项目从 emcore 移植了两批黄金基准，当年是用两把刻度不同的尺子量出来的：
+// 测向定位那批纬向 111320、建筑遮挡那批纬向 110540，经向两批都是 111320·cos(参考纬度)。
+//
+// **把它们「统一」掉是一个看起来像清理、实际上会毁掉验证的动作**：统一 = 用我方常数重新
+// 生成黄金基准 = 抹掉「基准独立于我方代码产生」这个唯一的价值（铁律 10）。
+// 此前拦这件事的只有注释。注释改错了没人知道，断言改错了当场就红——本用例把两套常数
+// 连同「它们必须不同」这条关系一起钉住。
+//
+// 系统实际运行两把都不用：链路几何、定位求解与将来的遮挡接线走的都是严格站心地平（铁律 1）。
+TEST_CASE("两套旧投影：常数钉死，且必须彼此不同") {
+    const double lat = 39.99;   // 观测区域中心
+    const legacy::LocalFrame loc = legacy::local_frame_locate(lat);
+    const legacy::LocalFrame occ = legacy::local_frame_occlusion(lat);
+
+    // 一、各自的常数原样钉住。改任何一个都要先想清楚对应那批 golden 会不会废。
+    CHECK(loc.m_per_deg_lat == 111320.0);
+    CHECK(occ.m_per_deg_lat == 110540.0);
+
+    // 二、经向两套同式，纬向两套必须不同——**这条就是「不许统一」的可执行版本**。
+    CHECK(loc.m_per_deg_lon == occ.m_per_deg_lon);
+    CHECK(loc.m_per_deg_lat != occ.m_per_deg_lat);
+    CHECK(std::fabs(loc.m_per_deg_lat - occ.m_per_deg_lat) == doctest::Approx(780.0));
+
+    // 三、两套都是刻意近似的，谁也不等于 WGS-84 的真值——所以谁也不能拿去当生产用的尺子。
+    // 真值：子午圈曲率半径与卯酉圈曲率半径在该纬度上各自折成米/度。
+    const double a = wgs84_a(), e2 = wgs84_e2();
+    const double sphi = std::sin(lat * kPi / 180.0), cphi = std::cos(lat * kPi / 180.0);
+    const double w = std::sqrt(1.0 - e2 * sphi * sphi);
+    const double true_lat = a * (1.0 - e2) / (w * w * w) * kPi / 180.0;
+    const double true_lon = a / w * cphi * kPi / 180.0;
+    const double err_loc_lat = loc.m_per_deg_lat / true_lat - 1.0;
+    const double err_occ_lat = occ.m_per_deg_lat / true_lat - 1.0;
+    const double err_lon = loc.m_per_deg_lon / true_lon - 1.0;
+    CHECK(std::fabs(err_loc_lat) > 1e-3);      // 定位那套偏大约 +0.26%
+    CHECK(std::fabs(err_occ_lat) > 1e-3);      // 遮挡那套偏小约 −0.45%
+    CHECK(err_loc_lat * err_occ_lat < 0.0);    // **一个偏大一个偏小，方向都相反**
+    MESSAGE("在 " << lat << "°N：定位那套纬向偏 " << err_loc_lat * 100.0
+            << "%、遮挡那套偏 " << err_occ_lat * 100.0 << "%，两套经向同偏 " << err_lon * 100.0 << "%");
+
+    // 四、参考纬度改变时经向跟着变、纬向不变（等距圆柱投影的定义）。
+    const legacy::LocalFrame occ0 = legacy::local_frame_occlusion(0.0);
+    CHECK(occ0.m_per_deg_lat == occ.m_per_deg_lat);
+    CHECK(occ0.m_per_deg_lon > occ.m_per_deg_lon);
 }

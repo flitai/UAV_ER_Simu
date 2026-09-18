@@ -3,6 +3,7 @@
 // 只把接口从经纬度改成平面坐标，经纬度那一层挪进 legacy 供 golden 回放。
 
 #include "cuav_geo/locate_aoa.h"
+#include "cuav_geo/legacy_frames.h"
 
 #include <cmath>
 #include <cstddef>
@@ -146,7 +147,7 @@ AoaLonLatSolution aoa_localization_lonlat(const std::vector<AoaLonLatObs>& obs) 
     if (obs.size() < 2) return out;
     const double ref_lat = obs[0].lat;
     const double ref_lon = obs[0].lon;
-    const LocalFrame f = local_frame_111320(ref_lat);
+    const LocalFrame f = local_frame_locate(ref_lat);
 
     std::vector<AoaPlaneObs> plane;
     plane.reserve(obs.size());

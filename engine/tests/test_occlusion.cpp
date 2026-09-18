@@ -19,6 +19,7 @@
 
 #include "cuav_geo/geodesy.h"
 #include "cuav_geo/map.h"
+#include "cuav_geo/legacy_frames.h"
 #include "cuav_geo/occlusion.h"
 #include "cuav_geo/propagation.h"
 
@@ -119,7 +120,7 @@ TEST_CASE("建筑遮挡：对 emcore 黄金基准 148 例") {
     const double lon0 = g["_meta"]["origin_point"]["lon"].get<double>();
     const double lat0 = g["_meta"]["origin_point"]["lat"].get<double>();
     // 黄金基准回放走旧常数投影；引擎实际运行走严格站心地平（铁律 1，见 map.h 头注）。
-    const legacy::LocalFrame2 fr = legacy::local_frame_occlusion(lat0);
+    const legacy::LocalFrame fr = legacy::local_frame_occlusion(lat0);
 
     std::vector<Building> bs;
     for (const auto& jb : g["_buildings"]) {

@@ -6,7 +6,7 @@
 // **移植时做了一处有意的接口改动**：emcore 的求解器吃经纬度、内部用 111320·cos(φ) 的等距圆柱
 // 投影。本项目的口径是严格 ENU（D-009：移植模块保留原常数守 golden，新写代码统一严格 ENU，
 // 禁止顺手统一）。做法是把**数学部分与投影解耦**：这里只做平面上的协方差与椭圆，
-// golden 回放走 `legacy::local_frame_111320()` 投影，引擎侧走 `default_geodesy().to_enu()`，
+// golden 回放走 `legacy::local_frame_locate()` 投影（cuav_geo/legacy_frames.h），引擎侧走 `default_geodesy().to_enu()`，
 // 一份数学两处用。`legacy::` 里的常数一个字都不许改，否则 golden 就废了。
 
 #ifndef CUAV_GEO_FIX_GEOMETRY_H
@@ -53,20 +53,8 @@ bool inv_sym2x2(double a, double b, double c, Sym2x2Inv& out);
 enum class GeometryQuality { Good = 0, Fair, Poor, Degenerate };
 const char* to_string(GeometryQuality q);
 
-// ---------------------------------------------------------------------------
-// 只供黄金基准回放的旧口径。**新代码一律不许用**（D-009），
-// `scripts/build-all.sh` 有一条 grep 守着：`legacy::` 只允许出现在 golden 与 legacy 文件里。
-namespace legacy {
-
-// emcore 的局部等距圆柱投影尺度（m/度），锚定参考纬度。常数 111320 原样保留。
-struct LocalFrame {
-    double m_per_deg_lat;
-    double m_per_deg_lon;
-    LocalFrame() : m_per_deg_lat(0.0), m_per_deg_lon(0.0) {}
-};
-LocalFrame local_frame_111320(double ref_lat_deg);
-
-}  // namespace legacy
+// 只供黄金基准回放的旧投影（`legacy::local_frame_locate`）已挪到 cuav_geo/legacy_frames.h，
+// 与遮挡那一套并排放着——两套的纬向常数不同，放在一起才不容易拿错（D3-3 收尾）。
 
 }  // namespace geo
 }  // namespace cuav

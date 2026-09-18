@@ -18,6 +18,7 @@
 #include "cuav_geo/fix_geometry.h"
 #include "cuav_geo/locate_aoa.h"
 #include "cuav_geo/locate_tdoa.h"
+#include "cuav_geo/legacy_frames.h"
 
 using namespace cuav;
 
@@ -54,7 +55,7 @@ TEST_CASE("黄金基准：定位几何四个函数与 emcore 逐值相符（相�
 
     std::size_t n = 0;
     for (const auto& c : g["localFrame"]) {
-        const geo::legacy::LocalFrame f = geo::legacy::local_frame_111320(c["in"][0].get<double>());
+        const geo::legacy::LocalFrame f = geo::legacy::local_frame_locate(c["in"][0].get<double>());
         check_rel(f.m_per_deg_lat, c["out"]["mPerDegLat"].get<double>(), kTol, "mPerDegLat");
         check_rel(f.m_per_deg_lon, c["out"]["mPerDegLon"].get<double>(), kTol, "mPerDegLon");
         ++n;
@@ -208,7 +209,7 @@ TEST_CASE("黄金基准：TDOA 双曲定位与 emcore 逐值相符（independent
         std::size_t ref = 0;
         for (std::size_t i = 1; i < rows.size(); ++i) if (rows[i].snr > rows[ref].snr) ref = i;
 
-        const geo::legacy::LocalFrame f = geo::legacy::local_frame_111320(rows[ref].lat);
+        const geo::legacy::LocalFrame f = geo::legacy::local_frame_locate(rows[ref].lat);
         std::vector<geo::ToaPlaneObs> obs;
         for (std::size_t i = 0; i < rows.size(); ++i) {
             geo::ToaPlaneObs o;

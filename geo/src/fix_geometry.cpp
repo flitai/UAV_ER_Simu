@@ -10,7 +10,6 @@ namespace geo {
 
 namespace {
 const double kPi = 3.14159265358979323846;
-double deg2rad(double d) { return d * kPi / 180.0; }
 double rad2deg(double r) { return r * 180.0 / kPi; }
 }  // namespace
 
@@ -55,17 +54,6 @@ const char* to_string(GeometryQuality q) {
     }
     return "degenerate";
 }
-
-namespace legacy {
-
-LocalFrame local_frame_111320(double ref_lat_deg) {
-    LocalFrame f;
-    f.m_per_deg_lat = 111320.0;
-    f.m_per_deg_lon = 111320.0 * std::cos(deg2rad(ref_lat_deg));
-    return f;
-}
-
-}  // namespace legacy
 
 }  // namespace geo
 }  // namespace cuav

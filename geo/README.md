@@ -53,9 +53,14 @@ geo/build/cuav_geo_smoke_test --write-golden tests/golden/geodesy.json
 调用方——黄金基准回放走 `legacy::local_frame_occlusion()` 的旧常数，引擎实际运行走
 `default_geodesy().to_enu()` 的严格站心地平；② 命名改成本项目的蛇形风格。**数值与算法一字未改。**
 
-**`legacy` 里有两套常数不同的投影，谁也不许去统一谁**：`fix_geometry.h` 的
-`local_frame_111320()` 来自定位模块（纬向 111320），`map.h` 的 `local_frame_occlusion()`
-来自遮挡模块（纬向 110540），各守各的黄金基准（D-009）。
+**`legacy` 里有两套常数不同的投影，谁也不许去统一谁**：`local_frame_locate()` 来自定位模块
+（纬向 111320），`local_frame_occlusion()` 来自遮挡模块（纬向 110540），经向两套都是
+111320·cos(参考纬度)，各守各的黄金基准（D-009）。两者**并排放在 `cuav_geo/legacy_frames.h`
+一个文件里**——名字里的数字分不清它俩（经向都含 111320），放在一起才拿不错。
+统一它们 = 用我方常数重新生成黄金基准 = 抹掉「基准独立于我方代码产生」这个唯一的价值。
+`engine/tests/test_geo.cpp` 有一条用例把两套常数连同「必须彼此不同」这条关系钉成断言
+（实测在 39.99°N：定位那套纬向偏 **+0.257%**、遮挡那套偏 **−0.445%**，一个偏大一个偏小）
+——此前拦这件事的只有注释。
 
 **`legacy::{fresnel_v, knife_edge_loss_dB}` 是引擎实际运行也会调的**——刀口衍射这一整套是被
 148 例黄金基准整体钉住的模块，只换其中的光速常数会让它内部自相矛盾。`scripts/build-all.sh`

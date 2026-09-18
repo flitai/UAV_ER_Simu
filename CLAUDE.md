@@ -217,6 +217,7 @@
 - 建筑遮挡（已可用，D3-3，D-074）：`geo/` 新增 `IMapQuery` / `LocalSceneAdapter`（100 m 桶网格 + 线段遍历）/
   `segment_occlusion`（ITU-R P.526 单刀口）+ `legacy::{fresnel_v, knife_edge_loss_dB}`，自 emcore 移植、数值一字未改。
   **接口吃平面米**：黄金回放走 `legacy::local_frame_occlusion()`（110540 / 111320·cosφ），引擎走严格 ENU。
+  两套旧投影并排放在 `cuav_geo/legacy_frames.h`（定位那套纬向 111320、遮挡这套 110540，经向同式），**不许统一**，`test_geo.cpp` 有一条用例把这条关系钉成断言。
   黄金基准 `tests/golden/occlusion.json`（148 例 + 12 栋楼）与 `propagation.json` 的 `fresnelV` 108 例 / `knifeEdgeLoss_dB` 14 例，
   判据 `rel ≤ 1e-9`；解析锚点掠射 v=0 → **6.03 dB**。**尚未接进链路预算**（`line_of_sight` 仍恒真，接线是 D3-5）。
   `legacy::` 守卫为 `geo/src/occlusion.cpp` 的那两个符号开了写明理由的窄例外，别处照拦。
