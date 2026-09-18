@@ -339,9 +339,16 @@ try {
     picked ? `楼 ${picked.c.id}（${picked.c.h} m，${picked.c.r.toFixed(0)} m 外）：`
       + `楼前视距，楼后 ${picked.far.diffraction_dB.toFixed(1)} dB、侵入 ${picked.far.intrusion_m.toFixed(1)} m`
       : `${cands.length} 栋候选里没有一栋的楼前是开阔的`)
-  await page.evaluate("(document.querySelector('[data-action=clear-los-probe]')?.click(), true)")
+  // 放下工具，探测就该跟着收走——它是一次当场的推演，不是场景里的对象（2026-09-18 用户指出）。
+  // 与「测量」同一条口径。**不用点「清除」**：这里特意只切工具，验的就是自动收走那一条。
   await page.evaluate("(document.querySelector('[data-tool=los]').click(), true)")
-  await waitApp(page, (a) => a.scene.tool === 'select', '放下视距工具')
+  st = await waitApp(page, (a) => a.scene.tool === 'select' && a.losProbe.status === 'idle', '放下视距工具即收走探测')
+  const leftover = await page.evaluateAsync(
+    "new Promise((r) => setTimeout(() => r(window.__map.queryRenderedFeatures({layers:['cuav-losprobe-line','cuav-losprobe-dot']}).length), 300))")
+  check('放下视距工具，探测线与卡片一起收走，图上不留东西',
+    st.app.losProbe.status === 'idle' && leftover === 0
+    && (await page.evaluate("!document.querySelector('[data-form=los-probe]')")),
+    `残留要素 ${leftover}`)
   }
 
   // ---------- 链路线第一次变红：跑一条 E3 的链（D3-7） ----------

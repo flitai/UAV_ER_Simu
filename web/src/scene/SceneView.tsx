@@ -293,6 +293,18 @@ export function SceneView({ active }: { active: boolean }) {
     if (!situation) clearSituation(map)
   }, [situation, ready])
 
+  // **放下视距工具，探测就跟着收走**（2026-09-18 用户指出）。
+  // 它是一次当场的推演，不是场景里的对象——算完了不该赖在图上。
+  // 与「测量」同一条口径：`scene/tool` 一换工具就把测量读数清空（reducer 里 `measure: []`），
+  // 视距探测原先没跟上，只有卡片上那个「清除」按钮，得手动点。
+  // 换场景也清：结果里记着的站来自上一份场景，留着就是一条对不上号的读数（铁律 15）。
+  useEffect(() => {
+    if (s.scene.editor.tool !== 'los') losProbeStore.clear()
+  }, [s.scene.editor.tool])
+  useEffect(() => {
+    losProbeStore.clear()
+  }, [s.scene.scenario.id])
+
   // 探测线跟着探测结果走。**不进主 store**（D-049 ⑩）：订阅那个小 store，变了就重画一条线。
   useEffect(() => {
     if (!ready) return
