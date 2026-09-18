@@ -342,9 +342,16 @@ test('心跳：按间隔收到 heartbeat{last_seq}（seq 0）；不回 pong 的�
 })
 
 test('非 /ws 路径的 upgrade 被拒（1006）；普通 HTTP GET /ws 走路由 404；hub.close() 让客户端收 1001', async () => {
-  const other = new Client(rig.wsUrl.replace('/ws', '/other'))
-  await assert.rejects(() => step('非 /ws 的握手被拒', other.open()))
-  assert.equal((await step('非 /ws 的 close 事件', other.closed)).code, 1006)
+  // **这一条用 `ws` 包的客户端，不用 Node 内置的**（D3-8）。
+  // 内置的那个是 undici 的实现，握手被拒时 Node 22 **只发 error 不发 close**——
+  // 于是 `await closed` 永远不落地，CI 上这个文件整体挂死（本地 Node 25.8 发 close，
+  // 116 ms 就过）。被测的是「服务端拒掉非 /ws 的 upgrade」，不是客户端库的关闭语义，
+  // 换一个跨版本行为稳定的客户端，断言强度一点不降（同一文件里漏 pong 那条早就这么做了）。
+  const other = new WsClient(rig.wsUrl.replace('/ws', '/other'))
+  const otherClosed = new Promise<number>((x) => other.once('close', (cd) => x(cd)))
+  await assert.rejects(() => step('非 /ws 的握手被拒',
+    new Promise<void>((_, rej) => other.once('error', (e) => rej(e)))))
+  assert.equal(await step('非 /ws 的 close 事件', otherClosed), 1006)
   assert.equal((await step('GET /ws 走路由', fetch(`${rig.base}/ws`))).status, 404)
 
   const c = new Client(rig.wsUrl)
