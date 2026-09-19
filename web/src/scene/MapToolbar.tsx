@@ -90,6 +90,14 @@ export function MapToolbar(p: MapToolbarProps) {
             {t.label}
           </button>
         ))}
+        {/* 正在给谁画。用户 2026-09-19 的原话是「画航点时要和当前选中的目标相关联，
+            不能和不同的目标画串了」——串不串是一回事，**看不看得出来**是另一回事，
+            以前这里一个字都没有。 */}
+        {p.editMode && tool === 'waypoint' && (
+          <span className="tool-note" data-route-for={s.scene.editor.routeFor ?? ''}>
+            正在给 <b>{s.scene.editor.routeFor ?? '—'}</b> 画航点 · 双击或 Esc 结束
+          </span>
+        )}
         {p.editMode && (
           <>
             <button type="button" title="撤销" data-act="undo" disabled={!undo.past.length}

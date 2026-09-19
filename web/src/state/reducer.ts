@@ -1,6 +1,9 @@
 // 应用状态的 reducer（09 附录 A.1）。纯函数：所有网络与定时器都在 shell/actions.ts 与 hooks 里。
 
 import { lineFromEvent, pushLines } from './logRing.js'
+// 焦点目标的规则只有这一处定义（D-062）：右栏焦点卡、地图叠加、探针与这里共用它。
+// 不在这儿再写一遍——这个 bug 的根子正是同一条规则被三处各算了一遍。
+import { focusTargetId } from '../scene/focus.js'
 import { clampViewport, fullWindow, spectrumGeomOf } from '../signal/viewport.js'
 import type {
   Action, AppState, DiagramError, LogLine, ProductIndex, ResultState, RunState, TaskRecord, WsTextEvent,
@@ -35,7 +38,7 @@ export function initialState(devMode: boolean, innerWidth: number, diagramText =
     scene: {
       packageId: null, summary: null, error: null, dirty: false,
       scenario: { list: [], id: null, doc: null, sha256: '', status: 'idle', error: null },
-      editor: { tool: 'select', selection: null, measure: [] },
+      editor: { tool: 'select', selection: null, measure: [], routeFor: null },
       undo: { past: [], future: [] },
     },
     diagram: {
@@ -273,8 +276,23 @@ export function reducer(s: AppState, a: Action): AppState {
     }
     case 'scene/saved':
       return { ...s, scene: { ...s.scene, dirty: false, scenario: { ...s.scene.scenario, sha256: a.sha256 } } }
-    case 'scene/tool':
-      return { ...s, scene: { ...s.scene, editor: { ...s.scene.editor, tool: a.tool, measure: [] } } }
+    case 'scene/tool': {
+      // 航点工具**进来时把目标锁住**，并让选择跟着它——这样「画给谁」「屏幕上显示谁的航线」
+      // 「右栏在配谁」三件事说的是同一个目标。此前三者各算各的：显示按选择（而选中站点时
+      // 那个 id 根本不是辐射源，航线整条消失）、画按「选择否则第一个」，于是会画串。
+      if (a.tool === 'waypoint') {
+        const id = focusTargetId(s)
+        if (!id) return toast(s, 'warn', '场景里还没有目标：先用「布目标」放一个，再画它的航点')
+        return {
+          ...s,
+          scene: {
+            ...s.scene,
+            editor: { ...s.scene.editor, tool: a.tool, measure: [], routeFor: id, selection: { kind: 'emitter', id } },
+          },
+        }
+      }
+      return { ...s, scene: { ...s.scene, editor: { ...s.scene.editor, tool: a.tool, measure: [], routeFor: null } } }
+    }
     case 'scene/select':
       return { ...s, scene: { ...s.scene, editor: { ...s.scene.editor, selection: a.selection } } }
     case 'scene/measure':

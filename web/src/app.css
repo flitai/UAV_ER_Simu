@@ -569,3 +569,7 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .ds-clear { margin-top: 4px; }
 .ds-note { font-size: var(--fs-label); line-height: 1.5; }
 .ds-actions { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+
+/* 「正在给谁画航点」（2026-09-19 用户反馈：画串了看不出来）。跟在工具按钮后面，不另起一行。 */
+.tool-note { font-size: var(--fs-label); color: var(--dim); padding: 0 6px; white-space: nowrap; }
+.tool-note b { color: var(--ink); }

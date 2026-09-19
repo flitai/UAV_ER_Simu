@@ -157,3 +157,39 @@ test('同一句提示不叠第二条（2026-09-19 用户实测：保存失败那
   s = reducer(s, fail)
   assert.equal(s.ui.toasts.length, 2, '关掉之后同一句话要能再提醒一次')
 })
+
+test('航点工具进来时把目标锁住，三件事说的是同一个目标（2026-09-19 用户反馈「画串了」）', () => {
+  const doc = {
+    emitters: [{ id: 'uav-1' }, { id: 'uav-2' }],
+    sites: [{ id: 'site-1' }],
+    routes: [{ emitter_id: 'uav-1', waypoints: [] }, { emitter_id: 'uav-2', waypoints: [] }],
+  }
+  let s = s0()
+  s = reducer(s, { type: 'scene/scenarioLoaded', id: 'x', doc, sha256: 'a'.repeat(64) })
+
+  // 选中 uav-2 再进航点工具：锁的是 uav-2
+  s = reducer(s, { type: 'scene/select', selection: { kind: 'emitter', id: 'uav-2' } })
+  s = reducer(s, { type: 'scene/tool', tool: 'waypoint' })
+  assert.equal(s.scene.editor.routeFor, 'uav-2')
+  assert.deepEqual(s.scene.editor.selection, { kind: 'emitter', id: 'uav-2' }, '选择跟着锁定走，屏幕上显示的就是这一条')
+
+  // 换工具即解锁，不留着一个过期的目标
+  s = reducer(s, { type: 'scene/tool', tool: 'select' })
+  assert.equal(s.scene.editor.routeFor, null)
+
+  // **选中的是站点**时不该拿站点 id 当目标：按焦点规则退回第一个辐射源（D-062）
+  s = reducer(s, { type: 'scene/select', selection: { kind: 'site', id: 'site-1' } })
+  s = reducer(s, { type: 'scene/tool', tool: 'waypoint' })
+  assert.equal(s.scene.editor.routeFor, 'uav-1')
+  assert.deepEqual(s.scene.editor.selection, { kind: 'emitter', id: 'uav-1' }, '锁了谁就选中谁，别让屏幕上显示的和画的是两回事')
+})
+
+test('场景里没有目标时，航点工具不进入，并说清要先布一个', () => {
+  let s = s0()
+  s = reducer(s, { type: 'scene/scenarioLoaded', id: 'x', doc: { emitters: [], sites: [] }, sha256: 'b'.repeat(64) })
+  s = reducer(s, { type: 'scene/tool', tool: 'waypoint' })
+  assert.equal(s.scene.editor.tool, 'select', '没有目标就别进工具——进去了每次点击都无声无息')
+  assert.equal(s.scene.editor.routeFor, null)
+  assert.equal(s.ui.toasts.length, 1)
+  assert.match(s.ui.toasts[0].text, /布目标/)
+})

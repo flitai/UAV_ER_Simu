@@ -32,7 +32,7 @@ import { useAppState, useStore } from '../state/store.js'
 import { saveScenario } from '../shell/actions.js'
 import { mountSituation, useLiveSituation, useScenarioLayers } from './useSituation.js'
 import { clearSituation, setLayersVisible } from './layers/situation.js'
-import { addEmitter, addSite, addWaypoint, addZone, emitters, moveSite, moveWaypoint } from './editor/scenarioOps.js'
+import { addEmitter, addSite, addWaypoint, addZone, moveSite, moveWaypoint } from './editor/scenarioOps.js'
 
 export function SceneView({ active }: { active: boolean }) {
   const s = useAppState()
@@ -139,14 +139,6 @@ export function SceneView({ active }: { active: boolean }) {
     const map = mapRef.current
     if (!map || !ready) return
 
-    const currentEmitter = (): string | null => {
-      const st = live.current.state
-      const sel = st.scene.editor.selection
-      if (sel && (sel.kind === 'emitter' || sel.kind === 'waypoint')) return sel.id
-      const first = emitters(st.scene.scenario.doc)[0]
-      return first ? String(first.id) : null
-    }
-
     const onClick = (e: MapMouseEvent) => {
       const { state, store: st } = live.current
       const doc = state.scene.scenario.doc
@@ -195,7 +187,9 @@ export function SceneView({ active }: { active: boolean }) {
         return
       }
       if (tool === 'waypoint') {
-        const em = currentEmitter()
+        // 用**进工具时锁定**的那个目标（reducer 的 scene/tool）。此前这里每次点击都现算
+        // 「当前选中的是谁」，没选中辐射源就静默落到第一个——那正是「和不同的目标画串」的由来。
+        const em = state.scene.editor.routeFor
         if (!em) return
         const next = addWaypoint(doc, em, lng, lat)
         st.dispatch({ type: 'scene/edit', doc: next })
@@ -219,7 +213,9 @@ export function SceneView({ active }: { active: boolean }) {
       } else if (f.layer.id === 'cuav-site-dot') {
         st.dispatch({ type: 'scene/select', selection: { kind: 'site', id: String(f.properties?.id) } })
       } else if (f.layer.id === 'cuav-waypoint-dot') {
-        const em = currentEmitter()
+        // 航点要素自带 emitter_id（`setPlannedRoute`）：点中的是谁的点就选谁的，不拿选择去猜。
+        // 画出来的点必然带着它，所以这里没有兜底分支——没有就是哪里出了别的错，不该悄悄顶替。
+        const em = String(f.properties?.emitter_id ?? '')
         if (em) st.dispatch({ type: 'scene/select', selection: { kind: 'waypoint', id: em, index: Number(f.properties?.index ?? 0) } })
       } else {
         // 点目标就选中那个辐射源（D-053 §5.3）。原来这里硬接 sites[0] 拼出一条链路，
@@ -244,9 +240,8 @@ export function SceneView({ active }: { active: boolean }) {
       if (!f) return
       if (f.layer.id === 'cuav-site-dot') drag = { kind: 'site', id: String(f.properties?.id), index: -1 }
       else {
-        const sel = state.scene.editor.selection
-        const em = sel && (sel.kind === 'emitter' || sel.kind === 'waypoint') ? sel.id
-          : String(emitters(state.scene.scenario.doc)[0]?.id ?? '')
+        // 拖的是哪一个点，就改哪个目标的航线——从要素身上读，别拿「当前选中的」去猜
+        const em = String(f.properties?.emitter_id ?? '')
         if (!em) return
         drag = { kind: 'waypoint', id: em, index: Number(f.properties?.index ?? 0) }
       }
@@ -290,7 +285,10 @@ export function SceneView({ active }: { active: boolean }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const selEmitter = s.scene.editor.selection && 'id' in s.scene.editor.selection ? s.scene.editor.selection.id : null
+  // 显示哪条航线 = **焦点目标**（D-062 的既有规则，`scene/focus.ts` 一处定义）。
+  // 原来这里写的是「选择里只要带 id 就拿来用」——选中一个**站点**或告警区时，
+  // 那个 id 根本不是辐射源，`waypointsOf` 查不到，整条航线就从地图上消失了。
+  const selEmitter = focusTargetId(s)
   const selWp = s.scene.editor.selection?.kind === 'waypoint' ? s.scene.editor.selection.index : -1
   const selTarget = s.scene.editor.selection?.kind === 'emitter' ? s.scene.editor.selection.id : null
   useScenarioLayers(situation ? mapRef.current : null, ready, s.scene.scenario.doc, selEmitter, selWp)

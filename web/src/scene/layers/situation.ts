@@ -310,7 +310,11 @@ export function setSites(map: MLMap, sites: SitePoint[]): void {
 }
 
 /** 规划航线：一条虚线加一串航点方块。selectedIndex 为选中的航点，用于编辑器。 */
-export function setPlannedRoute(map: MLMap, points: RoutePoint[], selectedIndex = -1): void {
+/**
+ * 画选中目标的航线。`emitterId` 会写进每个航点要素——**点选与拖动从要素身上读它属于谁**，
+ * 不再拿「当前选中的是谁」去猜（2026-09-19 用户反馈「画航点会和不同的目标画串」）。
+ */
+export function setPlannedRoute(map: MLMap, points: RoutePoint[], selectedIndex = -1, emitterId: string | null = null): void {
   setData(map, SRC.route, {
     type: 'FeatureCollection',
     features:
@@ -322,7 +326,7 @@ export function setPlannedRoute(map: MLMap, points: RoutePoint[], selectedIndex 
     type: 'FeatureCollection',
     features: points.map((p, i) => ({
       type: 'Feature',
-      properties: { index: i, alt_m: p.alt_m, selected: i === selectedIndex },
+      properties: { index: i, alt_m: p.alt_m, selected: i === selectedIndex, emitter_id: emitterId ?? '' },
       geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
     })),
   })

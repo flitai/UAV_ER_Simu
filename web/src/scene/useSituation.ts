@@ -51,6 +51,7 @@ export function useScenarioLayers(
       map,
       wps.map((w) => ({ lon: w.position.lon, lat: w.position.lat, alt_m: w.position.alt_m })),
       selectedWaypoint,
+      emId,
     )
     // 告警区（D-061）：圆的多边形近似，随文档变化重画
     setZones(

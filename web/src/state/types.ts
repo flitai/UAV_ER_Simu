@@ -154,7 +154,15 @@ export interface AppState {
       status: 'idle' | 'loading' | 'ok' | 'error'
       error: string | null
     }
-    editor: { tool: SceneTool; selection: SceneSelection | null; measure: MeasurePoint[] }
+    editor: {
+      tool: SceneTool; selection: SceneSelection | null; measure: MeasurePoint[]
+      /**
+       * 航点工具**锁定**的那个目标（2026-09-19 用户反馈「画航点会和不同的目标画串」）。
+       * 进工具时定一次、退工具时清掉；画的过程中选择再怎么变都不改它。
+       * 此前每次点击都现算「当前选中的是谁」，没选中辐射源就**静默**落到第一个目标。
+       */
+      routeFor: string | null
+    }
     undo: UndoStack<ScenarioDoc>
   }
   diagram: {
