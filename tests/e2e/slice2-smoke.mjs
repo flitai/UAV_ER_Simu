@@ -27,6 +27,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, arr) =>
 const BASE = (args.url ?? 'http://127.0.0.1:8080/').replace(/\/?$/, '/')
 
 const checks = []
+const netUrls = []
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }); console.error(`  ${ok ? '✓' : '✗'} ${name}${detail ? `  —— ${detail}` : ''}`) }
 const alt = (digit) => ({ key: String(digit), code: `Digit${digit}`, vk: 48 + digit, modifiers: 1 })
 const waitApp = (page, fn, label, timeoutMs = 90000) => { console.error(`  … ${label}`); return page.waitFor((s) => s.app && fn(s.app, s), { label, timeoutMs }) }
@@ -77,6 +78,9 @@ try {
   console.log(`浏览器 ${chrome.browser}`)
   page = await Page.open(chrome.port, 'about:blank')
   await page.send('Network.enable')
+  // 请求地址收全，D4 用它验两件事：建筑几何在被人要之前一次没取过（懒加载）、
+  // 取的那一次正是交给渲染的那个地址（同源）
+  page.on('Network.requestWillBeSent', (p) => netUrls.push(p.request.url))
   // 页面里的未捕获异常一律记下来：React 19 遇到渲染期异常会卸载整棵树，
   // 到那时探针也没了，只看超时信息根本不知道发生了什么。
   await page.send('Runtime.enable')
@@ -446,8 +450,102 @@ try {
   check('测试不留副作用：场景已存回原样，哈希与基准一致', st.app.scene.scenarioSha256 === golden.scenario_sha256,
     `${st.app.scene.scenarioSha256.slice(0, 8)}… vs 基准 ${golden.scenario_sha256.slice(0, 8)}…`)
 
-  await page.screenshot(join(tmpdir(), 'cuav-slice2-smoke.png'))
-  console.log(`截图 ${join(tmpdir(), 'cuav-slice2-smoke.png')}`)
+  // ---------- D4 渲染—物理同源验收（D-076；铁律 11）----------
+  // 到 D3-6 为止「同一份 GeoJSON 驱动渲染与遮挡」是**按结构成立**的：两侧读同一个地址、
+  // 解析规则逐条对齐。这里把它在跑起来的画面上核一遍，并把「探针无副作用」从头注里的
+  // 一句声明变成断言。
+  await page.send('Page.navigate', { url: reloadUrl('?dev=1&scenario=demo-01#/scene') })
+  // **等的是新文档，不是旧文档**：导航刚发出时旧页面还活着，而它同样满足「地图好了、场景好了」，
+  // 于是 waitFor 会立刻返回旧页面的状态，紧接着那一页被拆掉——后面的读数就变成
+  // 「78 个图层忽然变 0 个」和「map.style 是 null」（2026-09-19 实测撞到两次）。
+  // `app.perf` 只在 `?dev=1` 下非空，拿它认出新文档。
+  st = await page.waitFor((s) => s.app?.perf && s.ready && s.tilesLoaded && s.app?.scene?.status === 'ok'
+    && s.layers.includes('aoi-buildings-3d'), { label: '开发者模式的场景页', timeoutMs: 120000 })
+
+  // D4-3 其一：探针无副作用。连调 30 次，相机、图层、数据源一个不变，
+  // **而且不会顺手把 15.9 MB 的建筑几何拉下来**——那正是一个「帮忙」的探针最容易干的事。
+  //
+  // 要先避开一件与探针毫无关系的事：**无头 Chrome 会在页面开起来约 8.5 秒时丢一次 WebGL 上下文**
+  // （2026-09-19 实测，单次导航也会；MapLibre 的 `_contextLost` 把 `map.style` 置空，
+  // 随后自动恢复，实测 6–20 秒后图层数回到 78）。那一拍图层读成 0，跟探针无关。
+  // 所以：只在上下文活着的窗口里测，撞上丢失就重测，并把它照实说出来而不是赖给探针。
+  // 比较分两半，因为这两半的**可信度不同**：
+  //   · 相机、地图实例号、建筑加载状态：与 GL 上下文无关，30 次里每一次都必须一样；
+  //   · 图层数与数据源数：上下文一丢就读成 0，那不是探针干的。只在上下文活着的那些采样之间比
+  //     ——「探针加了一个图层」会让它从 78 变 79，照样抓得到。
+  const camOf = (x) => JSON.stringify({ ready: x.ready, inst: x.app.mapInstanceId,
+    center: x.center, zoom: x.zoom, pitch: x.pitch, bearing: x.bearing, occlusion: x.app.occlusion.status })
+  const glOf = (x) => JSON.stringify({ layers: x.layers.length, sources: x.sources.length })
+  const mapAlive = async () => (await page.evaluate('window.__probe().layers.length')) > 0
+  const waitAlive = async (label) => {
+    for (let i = 0; i < 60; i++) { if (await mapAlive()) return true; await sleep(500) }
+    throw new Error(`${label}：WebGL 上下文一直没回来`)
+  }
+  // 建筑请求要从**这次重载之后**数起（前面的视距探测早就加载过一次了），
+  // 而且渲染那一次不算在探针头上：`addBuildings3d` 把地址交给了 MapLibre，它自己会去取。
+  const bldgReqs = () => netUrls.filter((u) => u.includes('buildings.geojson')).length
+  const reqAtStart = bldgReqs()
+  await waitAlive('探针无副作用')
+  const t0Probe = Date.now()
+  const cams = []
+  const gls = []
+  for (let i = 0; i < 30; i++) {
+    const x = await page.evaluate('window.__probe()')
+    cams.push(camOf(x))
+    if (x.layers.length > 0) gls.push(glOf(x))
+  }
+  const probeMs = (Date.now() - t0Probe) / 30
+  const camBad = cams.findIndex((v) => v !== cams[0])
+  const glBad = gls.findIndex((v) => v !== gls[0])
+  const glLost = 30 - gls.length
+  check('探针无副作用：连调 30 次，相机 / 地图实例 / 建筑加载状态一个不变（D4-3）',
+    camBad < 0, camBad < 0 ? cams[0] : `第 ${camBad + 1} 次起变了：${cams[0]} → ${cams[camBad]}`)
+  check('探针不增删图层与数据源（上下文活着的那些采样之间比；无头 Chrome 约每十秒丢一次 WebGL 上下文并自动恢复，那一拍读成 0，与探针无关）',
+    gls.length > 0 && glBad < 0,
+    gls.length === 0 ? '30 次全撞上上下文丢失，没测成'
+      : `${gls[0]}，可比采样 ${gls.length}/30${glLost ? `（${glLost} 次上下文不在）` : ''}`)
+  check('探针不会顺手加载建筑几何（懒加载的反面是「谁都能不小心触发它」）',
+    (await page.evaluate('window.__probe()')).app.occlusion.status === 'idle'
+    && bldgReqs() === reqAtStart,
+    `探针期间建筑请求增加 ${bldgReqs() - reqAtStart} 次，单次探针约 ${probeMs.toFixed(1)} ms`)
+
+  // D4-1 + D4-2：同源核对。这一条是命令不是探针——它会触发那次懒加载。
+  await waitAlive('同源核对')
+  let same = await page.evaluateAsync('window.__cuav.scene.sameSource()')
+  // 源刚加载完之前画面上可能一栋楼都没有；那时候「没有不一致」是空话，函数自己会判 ok=false
+  for (let i = 0; i < 20 && same.rendered === 0; i++) {
+    await sleep(600)
+    await waitAlive('同源核对')
+    same = await page.evaluateAsync('window.__cuav.scene.sameSource()')
+  }
+  // **同一份文件被取了两次**：MapLibre 为渲染取一次（在它自己的 worker 里，解析成私有结构），
+  // 遮挡侧再取一次（`occlusion/store.ts` 的头注写明了不复用——复用等于把渲染实现细节焊进物理）。
+  // 这是有意的，代价是多一次 15.9 MB 的本地传输；写在这里免得日后被当成 bug 或被「顺手优化」掉。
+  const reqNow = bldgReqs()
+  check('D4-1 渲染与遮挡吃的是同一个地址，而且那个地址真的被取过（铁律 11）',
+    same.sameUrl && same.renderUrl === same.physicsUrl && reqNow - reqAtStart >= 1,
+    `${same.renderUrl}；本次重载后取过 ${reqNow} 次（渲染一次 + 遮挡一次，两侧各自解析）`)
+  check('D4-2 画面上每一栋楼在遮挡侧都找得到，且 id / height_m / base_m 逐项相同',
+    same.ok && same.rendered > 0 && same.matched === same.rendered
+    && same.diffs.length === 0 && same.missingInPhysics.length === 0,
+    `画面 ${same.rendered} 栋、对上 ${same.matched} 栋、差异 ${same.diffs.length} 处`
+    + `；桶网格共 ${same.physicsTotal} 栋`
+    + (same.diffs.length ? `：${JSON.stringify(same.diffs.slice(0, 3))}` : ''))
+  // 顶点数只报不判：MapLibre 对 GeoJSON 源按 tolerance 简化并在瓦片边界切开，
+  // 那是渲染的产物不是数据的属性。把它写出来，免得下次有人把它当成「几何对不上」。
+  console.log(`  ·  顶点数与物理侧不同的 ${same.ringPointsDiff} / ${same.rendered} 栋`
+    + `（MapLibre 瓦片化简化，不是数据差异）`)
+
+  // D4-3 其二：瓦片 buildings 层没进遮挡计算。结构上由 build-all.sh 的守卫保证
+  //（web/src/scene/occlusion/ 一个文件都不认识 MapLibre）；这里量的是它的后果——
+  // 桶网格里的栋数等于那份 GeoJSON 解出来的数，瓦片一栋也没混进来。
+  check('D4-3 瓦片 buildings 层没混进遮挡计算：桶网格 47662 栋 = GeoJSON 47582 要素拆出来的数',
+    same.physicsTotal === 47662, `${same.physicsTotal} 栋`)
+
+  const shot = join(tmpdir(), 'cuav-slice2-smoke.png')
+  await page.screenshot(shot)
+  console.log(`截图 ${shot}`)
+  console.log(`D4 数值：画面 ${same.rendered} 栋 / 对上 ${same.matched} 栋 / 差异 ${same.diffs.length} 处 / 桶网格 ${same.physicsTotal} 栋`)
 } catch (e) {
   console.error(`\n中断：${(e && e.message) ? e.message.slice(0, 300) : e}`)
   checks.push({ name: '端到端跑完（未中断）', ok: false, detail: String((e && e.message) || e).slice(0, 200) })

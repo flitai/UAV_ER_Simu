@@ -32,3 +32,22 @@ node tests/e2e/scene-smoke.mjs [--url http://127.0.0.1:8080/] [--out 截图路�
 
 用调试协议轮询探针可以绕开前两条；第三条由 `Page.captureScreenshot` 走渲染管线解决，
 不需要动应用代码。
+
+## 第四个坑：无头 Chrome 会周期性丢 WebGL 上下文（2026-09-19 实测，D4 / D-076）
+
+页面开起来约 **8.5 秒**时 WebGL 上下文被丢一次，随后**自动恢复**（实测 6–20 秒后回来）；
+之后还会再丢。单次导航就会发生，与本项目的代码无关，也与同时开着几个浏览器无关
+（把机器上残留的 Chrome 全清掉照样复现）。
+
+它的表现是：MapLibre 的 `_contextLost` 把 `map.style` 置为 null，于是
+
+- `window.__probe()` 的 `layers` 与 `sources` 那一拍读成 **0**（`ready` 仍是 true，
+  `map._removed` 仍是 false——**所以不是地图被拆了**）；
+- `queryRenderedFeatures()` 那一拍返回空；
+- `map.getSource(...)` 会抛「Cannot read properties of null」。
+
+**任何按 `layers` / `sources` / 渲染要素计数写的断言都要想到它。** 两种写法：
+盯着 `layers.length > 0` 等上下文回来再测（`slice2` 的 `waitAlive`），
+或者只在上下文活着的那些采样之间比（`slice2` 的「探针不增删图层」那条，
+30 次采样里通常有 14–20 次可比）。**别把它算成被测代码的副作用**——
+D4 那条「探针无副作用」第一版就是这么写的，连红三轮才查出来跟探针毫无关系。

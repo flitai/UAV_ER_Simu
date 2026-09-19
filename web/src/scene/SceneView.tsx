@@ -19,6 +19,7 @@ import { addHillshade, removeHillshade } from './layers/hillshade.js'
 import { addBuildings3d, setBuildingsColorBySrc } from './layers/buildings3d.js'
 import { addAoiBoundary, bboxContains } from './layers/aoiBoundary.js'
 import { installProbe } from './probe.js'
+import { sameSourceCheck } from './sameSourceProbe.js'
 import { MapToolbar } from './MapToolbar.js'
 import { LeftColumn } from './LeftColumn.js'
 import { RightColumn } from './RightColumn.js'
@@ -69,6 +70,26 @@ export function SceneView({ active }: { active: boolean }) {
     })
     mapRef.current = map
     const uninstall = installProbe(map)
+    // 开发者模式的同源核对命令（D4，D-076）。放在这里而不是 AppShell：它要地图实例与场景清单，
+    // 两样都只有这里有。**它不是探针**——会触发建筑几何的懒加载，`__probe()` 得保持无副作用。
+    //
+    // `dev` 有意**不进本效应的依赖表**：依赖表变一次就重建一次地图（`mapInstanceId` 会跳，
+    // 09 §4.2 要求它在视图切换时不变）。开发者模式是地址栏参数、一整个会话里不会变，读一次就够。
+    if (dev) {
+      window.__cuav = {
+        ...(window.__cuav ?? { ws: { dropForTest: () => false, state: () => null } }),
+        // 读 **mapRef.current** 而不是捕获上面那个 `map`：本效应的依赖是 `[scene]`，换场景时
+        // 清理函数会 `map.remove()` 再建一个新的，而闭包里捕获的那个已经被拆了——
+        // 调它会拿到「`map.style` 是 null」这种莫名其妙的报错（2026-09-19 实测撞到）。
+        scene: {
+          sameSource: async () => {
+            const m = mapRef.current
+            if (!m) return { error: '地图还没建起来' }
+            return sameSourceCheck(m, scene.buildingsUrl, scene.center[0], scene.center[1])
+          },
+        },
+      }
+    }
     const mount = () => {
       if (!map.isStyleLoaded()) return
       addBuildings3d(map, { data: scene.buildingsUrl })

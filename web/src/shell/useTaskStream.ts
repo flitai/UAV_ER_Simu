@@ -19,6 +19,9 @@ declare global {
       /** 当前框图的规范文本。端到端拿它与盘上字节逐字节对拍（`slice4-smoke`），
        *  也用来读节点参数——`__probe()` 的 diagram 只给计数，读不到参数（D-058 加）。 */
       diagramText?: () => string
+      /** 渲染与物理同源的当场核对（D4，D-076）。**是命令不是探针**：它会触发建筑几何的懒加载，
+       *  而 `__probe()` 必须保持无副作用（D4-3 的验收条件之一）。 */
+      scene?: { sameSource: () => Promise<unknown> }
     }
   }
 }

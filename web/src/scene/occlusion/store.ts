@@ -19,9 +19,14 @@ export interface OcclusionState {
   /** 取 + 解析 + 建桶网格的墙钟毫秒，供探针核对「懒加载没白懒」 */
   ms: number
   error: string | null
+  /**
+   * 实际取的那个地址（D4，D-076）。同源这件事要**验得出来**而不只是声明：
+   * 端到端拿它与 `fill-extrusion` 数据源的 `data` 逐字比，两者相同才算一份文件驱动两边。
+   */
+  url: string | null
 }
 
-let state: OcclusionState = { status: 'idle', stats: null, ms: 0, error: null }
+let state: OcclusionState = { status: 'idle', stats: null, ms: 0, error: null, url: null }
 let adapter: LocalSceneAdapter | null = null
 let frame: SceneFrame | null = null
 let inflight: Promise<LocalSceneAdapter | null> | null = null
@@ -52,7 +57,7 @@ export function ensureOcclusion(
   if (adapter) return Promise.resolve(adapter)
   if (inflight) return inflight
 
-  state = { status: 'loading', stats: null, ms: 0, error: null }
+  state = { status: 'loading', stats: null, ms: 0, error: null, url }
   emit()
   const t0 = Date.now()
   const f = new SceneFrame(originLon, originLat)
@@ -71,14 +76,14 @@ export function ensureOcclusion(
       stats.buildings = a.buildingCount()
       adapter = a
       frame = f
-      state = { status: 'ready', stats, ms: Date.now() - t0, error: null }
+      state = { status: 'ready', stats, ms: Date.now() - t0, error: null, url }
       emit()
       return a
     })
     .catch((e: unknown) => {
       state = {
         status: 'error', stats: null, ms: Date.now() - t0,
-        error: e instanceof Error ? e.message : String(e),
+        error: e instanceof Error ? e.message : String(e), url,
       }
       emit()
       return null
@@ -98,7 +103,7 @@ export function occlusionNote(): string {
 
 /** 只给单测用：把 store 清回从没取过的状态。 */
 export function resetOcclusionForTest(): void {
-  state = { status: 'idle', stats: null, ms: 0, error: null }
+  state = { status: 'idle', stats: null, ms: 0, error: null, url: null }
   adapter = null
   frame = null
   inflight = null

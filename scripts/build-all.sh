@@ -71,6 +71,20 @@ if [ -n "$bad_legacy" ]; then
 fi
 echo "常数策略检查通过：legacy 常数没有渗进新代码。"
 
+echo "=== 渲染—物理同源守卫（铁律 11，D4 / D-076）==="
+# 遮挡这一侧（web/src/scene/occlusion/ 与 geo/）**不认识地图**：不引 maplibre、不查渲染要素、
+# 不碰瓦片源。这样「瓦片 buildings 层永不进遮挡计算」（铁律 11、D-002）是结构上成立的，
+# 而不是「目前碰巧没人这么写」。要同时读地图与桶网格的胶水放在 web/src/scene/sameSourceProbe.ts，
+# 那是开发者模式的核对命令，不参与任何物理计算。
+bad_render=$(grep -rn "maplibre\|queryRenderedFeatures\|getStyle\|source-layer" \
+  "$root/web/src/scene/occlusion" "$root/geo/include" "$root/geo/src" 2>/dev/null || true)
+if [ -n "$bad_render" ]; then
+  echo "$bad_render"
+  echo "错误：遮挡侧不得引用地图渲染（铁律 11：同源指同一份数据，不是同一份内存）。" >&2
+  exit 1
+fi
+echo "同源守卫通过：遮挡侧没有引用地图渲染。"
+
 printf '=== 路径检查 ===\n'
 sh scripts/check-paths.sh
 
