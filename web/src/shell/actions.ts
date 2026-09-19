@@ -3,10 +3,14 @@
 import {
   listDiagrams, getDiagram, putDiagram, putScenario, cancelTask, createTask, getComponents, getEvents, getHealth, getScenario, listScenarios, listTasks } from '../api/client.js'
 import { idempotencyKey } from '../api/hash.js'
+import { isCatalog, type Catalog } from '../api/catalog.js'
+import { compile, parseChain, switchMode } from '../chain/compile.js'
+import type { ChainState } from '../chain/model.js'
+import { parse as parseDoc, serialize } from '../diagram/doc.js'
 import { listScenes, loadScene } from '../scene/scenePackage.js'
 import { TERMINAL } from '../state/reducer.js'
 import type { StoreApi } from '../state/store.js'
-import type { ScenarioSummary, TaskRecord } from '../state/types.js'
+import type { ScenarioDoc, ScenarioSummary, TaskRecord } from '../state/types.js'
 import { signalBuffer } from '../signal/buffer.js'
 
 export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<void> {
@@ -248,4 +252,54 @@ export async function stopTask(store: StoreApi): Promise<void> {
   } catch (e) {
     dispatch({ type: 'ui/toast', kind: 'error', text: `取消失败：${(e as Error).message}` })
   }
+}
+
+/**
+ * 把数据中心里选中的片段送到框图页（09 §7.3 的动作「用于回放」，U-4 / D-075）。
+ *
+ * 09 写的是「写入当前框图**选中的回放节点**，没有回放节点就提示先放一个回放源」——那是自由画布
+ * 时代的说法，D-060 之后框图页只有固定链路，没有「选中的节点」这回事。现在按**信号源模式**分派：
+ *
+ *   实测回放 → 写辐射源槽位的 `data_id`
+ *   混合增强 → 写背景片段 `backgroundDataId`
+ *   全合成   → 按钮说明它会把模式切成「实测回放」，点了才切（换模式有后果，不静默做）
+ *
+ * `dryRun` 只回「这一下会做什么」，给按钮的文案与禁用状态用——同一套判断只写一遍。
+ * 框图解不成典型链路时**不硬改用户的文档**，按钮禁用并说明缘由（铁律 15、D-060 ⑤）。
+ */
+export function sendDataIdToChain(
+  store: StoreApi, dataId: string, opts: { dryRun?: boolean } = {},
+): { ok: boolean; label: string; note: string } {
+  const s = store.getState()
+  const parsed = parseDoc(s.diagram.text)
+  const chain = parsed.ok ? parseChain(parsed.doc) : null
+  if (!chain) {
+    return { ok: false, label: '用于回放', note: '当前框图不是典型链路，改不了；先在框图页新建一条' }
+  }
+  const catalog = isCatalog(s.components.catalog) ? s.components.catalog : null
+  const scenarioDoc = s.scene.scenario.doc
+  if (chain.mode === 'mixed') {
+    if (opts.dryRun) return { ok: true, label: '用作背景', note: '写入混合增强链的背景片段并切到框图页' }
+    commitChain(store, { ...chain, backgroundDataId: dataId }, catalog, scenarioDoc, '选背景片段')
+    return { ok: true, label: '用作背景', note: '' }
+  }
+  if (chain.mode === 'replay') {
+    if (opts.dryRun) return { ok: true, label: '用于回放', note: '写入辐射源并切到框图页' }
+    const tx = { ...chain.slots.tx, params: { ...chain.slots.tx.params, data_id: dataId } }
+    commitChain(store, { ...chain, slots: { ...chain.slots, tx } }, catalog, scenarioDoc, '选回放片段')
+    return { ok: true, label: '用于回放', note: '' }
+  }
+  // 全合成：换模式会把场景引用一起清掉（switchMode 的既有行为），所以要说在前面
+  if (opts.dryRun) return { ok: true, label: '用于回放', note: '当前是全合成模式；点它会把模式切成「实测回放」，那条链不绑场景' }
+  const next = switchMode(chain, 'replay')
+  const tx = { ...next.slots.tx, params: { ...next.slots.tx.params, data_id: dataId } }
+  commitChain(store, { ...next, slots: { ...next.slots, tx } }, catalog, scenarioDoc, '换成实测回放并选片段')
+  return { ok: true, label: '用于回放', note: '' }
+}
+
+/** 编译回框图并落进 store，然后切到框图页。路数与 ChainView 的 commit 完全一致。 */
+function commitChain(store: StoreApi, chain: ChainState, catalog: Catalog | null, scenarioDoc: ScenarioDoc | null, label: string): void {
+  const { doc } = compile(chain, catalog, scenarioDoc)
+  store.dispatch({ type: 'diagram/setDoc', text: serialize(doc, catalog), label })
+  store.dispatch({ type: 'ui/navigate', view: 'diagram' })
 }

@@ -1,6 +1,6 @@
 // 结果视图（09 §7.1，10 报告 §5.7）：信号 / 检测识别 / 评价 / 任务四页签。
 // 信号页是 U-3（频谱、瀑布、包络）；检测识别页自 C-9 起是时间线三行 + 检测列表（突发 / 帧）+ 识别列表；
-// 评价页是 C-9 新增的指标卡、混淆矩阵与 ROC；任务页留 U-4。
+// 评价页是 C-9 新增的指标卡、混淆矩阵与 ROC；任务页是 U-4 的任务列表与摘要（D-075）。
 
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { fmtFactor } from '../shell/format.js'
@@ -11,6 +11,9 @@ import { tapLabel } from '../chain/model.js'
 import type { ResultsTab } from '../state/types.js'
 import { DetectionSummary } from './DetectionsPanel.js'
 import { DetectionView } from './DetectionView.js'
+import { TaskList } from './TaskList.js'
+import { TaskSummary } from './TaskSummary.js'
+import { useTaskList } from './taskListStore.js'
 import { EvaluationAside, EvaluationSummary, EvaluationView } from './EvaluationView.js'
 import { useDetections } from './detectionStore.js'
 import { useRecognitions } from './recognitionStore.js'
@@ -33,6 +36,8 @@ export function ResultsView() {
   useMetrics(s.task.id, s.task.runState, s.ui.view === 'results')
   // 真值段（C-5 的产物）：检测识别页签时间线的第一行（C-9）
   useTruth(s.task.id, s.task.runState, s.ui.view === 'results')
+  // 任务列表（U-4）：只在任务页签可见时取，本页里还有在跑的才接着轮询
+  useTaskList(s.ui.view === 'results' && s.ui.resultsTab === 'tasks', s.task.id, s.task.runState)
   return (
     <ColumnLayout
       left={<>
@@ -85,14 +90,14 @@ export function ResultsView() {
           {s.ui.resultsTab === 'signal' && <SignalView />}
           {s.ui.resultsTab === 'detections' && <DetectionView />}
           {s.ui.resultsTab === 'evaluation' && <EvaluationView />}
-          {s.ui.resultsTab === 'tasks' && <div className="placeholder">任务列表（U-4 启用）</div>}
+          {s.ui.resultsTab === 'tasks' && <TaskList />}
         </div>
       }
       right={
         s.ui.resultsTab === 'signal' ? <InstrumentPanel />
           : s.ui.resultsTab === 'detections' ? <DetectionSummary />
           : s.ui.resultsTab === 'evaluation' ? <><EvaluationSummary /><EvaluationAside /></>
-          : <div className="group placeholder">（U-4 启用）</div>
+          : <TaskSummary />
       }
     />
   )

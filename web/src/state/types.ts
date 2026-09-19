@@ -83,6 +83,16 @@ export interface TaskRecord {
   /** 评价摘要（C-5）：服务端终态后从 metrics.json 读的四个数，每节一行；没有评价器的任务没有 */
   metrics_summary?: Array<{ node_id: string; site_id?: string; truth_source: string
     pd: number | null; pfa: number | null; f1: number | null; accuracy: number | null; state: string }>
+  /* 以下几项服务端一直在发（docs/display-products.md §1.1），此前前端没人用所以没声明；
+     任务列表的摘要栏要它们（U-4，D-075）。哈希与引擎版本属溯源，只在 ?dev=1 显示（D-039、09 §9）。 */
+  diagram_sha256?: string
+  scenario_sha256?: string
+  engine_version?: string
+  seed_source?: string
+  started_utc?: string
+  ended_utc?: string
+  exit_code?: number | null
+  cancel_requested?: boolean
 }
 
 /** WebSocket 文本帧与引擎 stdout 事件同构（docs/api-versions.md §4） */

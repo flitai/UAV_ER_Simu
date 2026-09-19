@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { listDatasets, type DatasetRow } from '../api/client.js'
 import { formatEng } from '../diagram/format.js'
+import { datasetsNote } from './datasetRows.js'
 
 /** 一行录音在下拉里怎么写。机型摆前面——那是挑片段时唯一真正在看的东西 */
 export function rowText(r: DatasetRow): string {
@@ -92,13 +93,8 @@ export function DataIdField(p: { value: string; onChange: (v: string | undefined
         {!known && p.value && <option value={p.value}>{p.value}（不在清单里）</option>}
         {options.map((r) => <option key={r.data_id} value={r.data_id}>{rowText(r)}</option>)}
       </select>
-      <div className="data-pick-note" data-datasets-note>
-        {err
-          ? `数据清单取不到：${err}`
-          : truncated
-            ? `共 ${total} 段 · 匹配 ${matched} 段 · 列出 ${options.length} 段`
-            : `共 ${total} 段 · 匹配 ${matched} 段`}
-      </div>
+      {/* 这句话与数据中心页脚共用同一个实现（datasetRows.datasetsNote）：一个口径一处 */}
+      <div className="data-pick-note" data-datasets-note>{datasetsNote(total, matched, options.length, truncated, err)}</div>
       {picked && detailText(picked) && (
         <div className="data-pick-note" data-datasets-detail>{detailText(picked)}</div>
       )}

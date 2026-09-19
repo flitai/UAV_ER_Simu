@@ -21,9 +21,24 @@ export async function getComponents(base = ''): Promise<{ ok: true; catalog: unk
 }
 
 export async function listTasks(limit = 1, base = ''): Promise<TaskRecord[]> {
-  const r = await fetch(`${base}/api/v1/tasks?limit=${limit}`)
+  return (await listTaskPage({ limit }, base)).tasks
+}
+
+export interface TaskPage { tasks: TaskRecord[]; total: number; offset: number; limit: number }
+
+/**
+ * 一页任务加**真实总数**（U-4，D-075）。盘上任务可能有上千个，一页取不完；
+ * 没有 total 的话页脚只能写「这里有一些」，那不是一回事（D-056 ② 的同一条口径）。
+ */
+export async function listTaskPage(opts: { limit?: number; offset?: number } = {}, base = ''): Promise<TaskPage> {
+  const p = new URLSearchParams()
+  p.set('limit', String(opts.limit ?? 100))
+  if (opts.offset) p.set('offset', String(opts.offset))
+  const r = await fetch(`${base}/api/v1/tasks?${p}`)
   if (!r.ok) throw new Error(`tasks HTTP ${r.status}`)
-  return (await json<{ tasks: TaskRecord[] }>(r)).tasks
+  const b = await json<Partial<TaskPage>>(r)
+  const tasks = Array.isArray(b.tasks) ? b.tasks : []
+  return { tasks, total: Number(b.total) || tasks.length, offset: Number(b.offset) || 0, limit: Number(b.limit) || tasks.length }
 }
 
 export async function getTask(id: string, base = ''): Promise<TaskRecord | null> {
@@ -176,6 +191,20 @@ export interface DatasetList {
   matched: number
   truncated: boolean
   items: DatasetRow[]
+  /** 各维取值的条数，**在全量上算**（U-4，D-075）：批次 / 机型 / 视距 / 划分 / 验收集 */
+  facets: Record<string, Record<string, number>>
+}
+
+/** 单条片段的详情（U-4，D-075）。`detail_level === 'index'` 时 `manifest` 整块不在。 */
+export interface DatasetDetail {
+  data_id: string
+  kind: string
+  batch: string
+  holdout: boolean
+  detail_level: 'index' | 'manifest'
+  index: Record<string, unknown>
+  calibration?: Record<string, unknown>
+  manifest?: Record<string, unknown>
 }
 
 /**
@@ -184,20 +213,36 @@ export interface DatasetList {
  * `dataId` 精确查一条：框图里已经填着的那个可能不在抽样里，也得能显示出来。
  */
 export async function listDatasets(
-  opts: { q?: string; dataId?: string } = {}, base = '',
+  opts: { q?: string; dataId?: string; batch?: string; className?: string; holdout?: boolean; limit?: number } = {},
+  base = '',
 ): Promise<DatasetList> {
   const p = new URLSearchParams()
   if (opts.dataId) p.set('data_id', opts.dataId)
-  else if (opts.q) p.set('q', opts.q)
+  else {
+    if (opts.q) p.set('q', opts.q)
+    if (opts.batch) p.set('batch', opts.batch)
+    if (opts.className) p.set('class', opts.className)
+    if (opts.holdout !== undefined) p.set('holdout', String(opts.holdout))
+    if (opts.limit) p.set('limit', String(opts.limit))
+  }
   const r = await fetch(`${base}/api/v1/datasets${p.size ? `?${p}` : ''}`)
   if (!r.ok) throw new Error(`GET /api/v1/datasets ${r.status}`)
-  const b = (await r.json()) as DatasetList
+  const b = (await r.json()) as Partial<DatasetList>
   return {
     total: Number(b.total) || 0,
     matched: Number(b.matched) || 0,
     truncated: !!b.truncated,
     items: Array.isArray(b.items) ? b.items : [],
+    facets: b.facets && typeof b.facets === 'object' ? b.facets : {},
   }
+}
+
+/** 单条详情；不存在回 null（索引里没有这条），不抛。 */
+export async function getDataset(dataId: string, base = ''): Promise<DatasetDetail | null> {
+  const r = await fetch(`${base}/api/v1/datasets/${encodeURIComponent(dataId)}`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`GET /api/v1/datasets/{id} ${r.status}`)
+  return (await r.json()) as DatasetDetail
 }
 
 export type PutScenarioResult =

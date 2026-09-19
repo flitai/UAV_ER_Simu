@@ -80,3 +80,37 @@ export function parseSi(text: string): number | null {
   const mul: Record<string, number> = { '': 1, k: 1e3, K: 1e3, M: 1e6, G: 1e9, m: 1e-3, u: 1e-6, 'µ': 1e-6, n: 1e-9 }
   return v * (mul[m[2]] ?? 1)
 }
+
+/**
+ * ISO 时刻 → 本地时刻（U-4，D-075）。`timeZone` 可注入只为让单测能钉住一个时区——
+ * 不注入的话这个函数的结果跟着跑测试那台机器的时区走，换台机器就红。
+ * 解析不出来返回「—」，不拿当下时刻顶替（铁律 15）。
+ */
+export function fmtInstant(iso: string | null | undefined, opts: { timeZone?: string } = {}): string {
+  if (!iso) return '—'
+  const t = Date.parse(iso)
+  if (!Number.isFinite(t)) return '—'
+  const d = new Date(t)
+  const p = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false, timeZone: opts.timeZone,
+  }).formatToParts(d)
+  const g = (k: Intl.DateTimeFormatPartTypes) => p.find((x) => x.type === k)?.value ?? '00'
+  return `${g('year')}-${g('month')}-${g('day')} ${g('hour')}:${g('minute')}:${g('second')}`
+}
+
+/** ISO 时刻 → 「3 分钟前」。`now` 可注入。未来时刻按「刚刚」，不写负数。 */
+export function fmtAgo(iso: string | null | undefined, now: number = Date.now()): string {
+  if (!iso) return '—'
+  const t = Date.parse(iso)
+  if (!Number.isFinite(t)) return '—'
+  const s = Math.floor((now - t) / 1000)
+  if (s < 60) return '刚刚'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} 分钟前`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} 小时前`
+  const d = Math.floor(h / 24)
+  return d < 30 ? `${d} 天前` : `${Math.floor(d / 30)} 个月前`
+}

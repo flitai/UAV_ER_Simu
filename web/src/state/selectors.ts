@@ -64,6 +64,14 @@ export interface ProbeExtras {
   signalView?: SignalViewState | null
   /** 开发者模式的长任务计数（PerformanceObserver longtask） */
   longTasks?: { count: number; maxMs: number } | null
+  /** 任务列表（U-4，D-075）：只出计数与状态，行内容靠 DOM 断言。新键一律可选，否则既有调用点全红 */
+  taskList?: { status: string; total: number; offset: number; shown: number; selected: string | null; running: number; error: string | null } | null
+  /** 数据中心（U-4，D-075）：同上，只出计数、筛选与选中 */
+  dataCenter?: {
+    status: string; total: number; matched: number; listed: number; truncated: boolean
+    q: string; batch: string | null; className: string | null; holdout: boolean | null
+    selected: string | null; detailStatus: string; detailLevel: string | null; error: string | null
+  } | null
   /** 态势快照（切片 ②）：实体位置与链路读数，供 e2e 与黄金航迹对拍 */
   entities: Array<{ id: string; t_s: number; lon: number; lat: number; alt_m: number; heading_deg: number; speed_mps: number; tx_on: boolean }>
   links: Array<{ id: string; t_s: number; los: boolean; distance_m: number; pathLoss_dB: number; doppler_Hz: number }>
@@ -267,6 +275,10 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       detections: x.detections ?? null, recognitions: x.recognitions ?? null, metrics: x.metrics ?? null,
       truth: x.truth ?? null, timeline3: x.timeline3 ?? null,
     },
+    // 任务列表（U-4）：与 results 并列而不是塞进它——results 里那几项是**本次运行的产物**，
+    // 任务列表是别的任务的清单，不是产物
+    taskList: x.taskList ?? null,
+    dataCenter: x.dataCenter ?? null,
     perf: s.ui.devMode ? { longTasks: x.longTasks ?? null } : null,
     badges: { noScene: !s.scene.summary },
     mapInstanceId: x.mapInstanceId,

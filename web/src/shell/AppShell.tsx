@@ -19,6 +19,8 @@ import { probeRecognitions, recognitionStore } from '../results/recognitionStore
 import { metricsStore, probeMetrics } from '../results/metricsStore.js'
 import { probeTruth, truthStore, visibleTruth } from '../results/truthStore.js'
 import { probeTimeline3, timeline3 } from '../results/timeline3.js'
+import { probeTaskList, taskListStore } from '../results/taskListStore.js'
+import { datasetStore, probeDataCenter } from '../data/datasetStore.js'
 import { focusSite, visibleSegments } from '../results/detectionStore.js'
 import { DataCenter } from '../data/DataCenter.js'
 import { peakBinOf, signalBuffer } from '../signal/buffer.js'
@@ -134,6 +136,8 @@ export function AppShell() {
           intrusion_m: r?.intrusion_m ?? null,
         }
       })(),
+      taskList: probeTaskList(taskListStore.get()),
+      dataCenter: probeDataCenter(datasetStore.get()),
       detections: probeDetections(detectionStore.get()),
       recognitions: probeRecognitions(recognitionStore.get()),
       metrics: probeMetrics(metricsStore.get()),

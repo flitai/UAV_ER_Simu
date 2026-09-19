@@ -15,7 +15,10 @@ import { saveDiagram, saveScenario } from '../shell/actions.js'
 import { isCatalog, findComponent, type Catalog, type ParamSpec } from '../api/catalog.js'
 import { parse as parseDoc, serialize, type ParamValue } from '../diagram/doc.js'
 import { Field, range } from '../diagram/Field.js'
+import { DataIdField } from '../data/DataIdField.js'
+import { getDataset } from '../api/client.js'
 import { formatEng } from '../diagram/format.js'
+import { fmtHz } from '../shell/format.js'
 import { emitters as sceneEmitters, setPath, sites as sceneSites, type Obj } from '../scene/editor/scenarioOps.js'
 import { fieldsFor, modelOf, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
 import { paramLabel, paramTitle } from './paramLabels.js'
@@ -441,6 +444,48 @@ function MultiPick(p: {
   )
 }
 
+/**
+ * 背景片段挑单 + 一行相容性事实（U-4 顺带补，D-075）。
+ *
+ * `AddMixer` 要求两路的采样率与中心频率一致（`models/adc-ddc/README.md` §8.3），对不上就拒绝相加。
+ * 引擎的报错很准，但它发生在**提交之后**——会留下一个失败任务。这里在提交前把两边的数摆出来。
+ *
+ * **只摆事实**：写清背景是多少、站点是多少，不替用户判断该改哪一头（D-039）。
+ * 逐产物清单不在本机时采样率读不到，那就照说读不到，不猜（铁律 15）。
+ */
+function BackgroundPick(p: { value: string | null; fsRf: number; fRx: number; onChange: (v: string | null) => void }) {
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+  useEffect(() => {
+    if (!p.value) { setNote(null); return }
+    let alive = true
+    void getDataset(p.value).then((d) => {
+      if (!alive) return
+      if (!d) { setNote({ ok: false, text: '这条不在数据索引里' }); return }
+      const sampling = (d.manifest?.sampling ?? {}) as Record<string, unknown>
+      const freq = (d.manifest?.frequency ?? {}) as Record<string, unknown>
+      const fs = typeof sampling.sample_rate_Hz === 'number' ? sampling.sample_rate_Hz : null
+      const raw = freq.center_frequency_Hz ?? d.index.center_frequency_Hz
+      const fc = typeof raw === 'number' ? raw : null
+      if (fs === null) { setNote({ ok: true, text: '本机没有这条的逐产物清单，采样率对不对得上要等引擎判' }); return }
+      // 只点出**真正对不上的那一项**：两边都写出来的话，2.4410 GHz 与 2.4400 GHz 在粗一点的
+      // 格式下会印成同一个数，那句话读起来自相矛盾（第一版就是这样）
+      const bad: string[] = []
+      if (fs !== p.fsRf) bad.push(`采样率 ${fmtHz(fs)} ≠ 站点 ${fmtHz(p.fsRf)}`)
+      if (fc !== p.fRx) bad.push(`中心频率 ${fmtHz(fc ?? 0)} ≠ 站点 ${fmtHz(p.fRx)}`)
+      setNote(bad.length === 0
+        ? { ok: true, text: `与站点一致：${fmtHz(fs)} / ${fmtHz(fc ?? 0)}` }
+        : { ok: false, text: `${bad.join('，')}——两路必须一致，否则相加会被拒` })
+    }).catch(() => { if (alive) setNote(null) })
+    return () => { alive = false }
+  }, [p.value, p.fsRf, p.fRx])
+  return (
+    <>
+      <DataIdField value={p.value ?? ''} onChange={(v) => p.onChange(v ?? null)} />
+      {note && <div className={note.ok ? 'data-pick-note' : 'pp-warn'} data-background-note data-ok={note.ok ? '1' : '0'}>{note.text}</div>}
+    </>
+  )
+}
+
 function ExperimentSetup(p: SetupProps) {
   const c = p.chain
   return (
@@ -467,6 +512,19 @@ function ExperimentSetup(p: SetupProps) {
             <MultiPick label="目标" kind="emitter" all={p.emitters} picked={c.emitterIds}
               onChange={(v) => p.onChange({ ...c, emitterIds: v }, '选目标')} />
           </>
+        )}
+        {/* 背景片段（混合增强）。此前**没有任何界面入口**：格式、编译、评价器都接好了，
+            `plan.ts` 的「标度与单位一致」也在检查它，就是没处填——于是混合增强这条链
+            只有 `_gen.ts` 夹具跑得起来，界面上提交不了（2026-09-19 核实，U-4 顺带补，D-075）。
+            用的是辐射源那边同一个挑单组件，一个口径一处。 */}
+        {c.mode === 'mixed' && (
+          <div className="form-row pp-line" data-form="background-data">
+            <span className="form-label">背景片段</span>
+            <span className="form-value">
+              <BackgroundPick value={c.backgroundDataId} fsRf={p.plan.fs_rf} fRx={p.plan.f_rx}
+                onChange={(v) => p.onChange({ ...c, backgroundDataId: v }, '选背景片段')} />
+            </span>
+          </div>
         )}
         <label className="form-row pp-line"><span className="form-label">时长</span>
           <span className="form-value"><input className="form-input" data-field="duration_s" defaultValue={String(c.run.duration_s)}
