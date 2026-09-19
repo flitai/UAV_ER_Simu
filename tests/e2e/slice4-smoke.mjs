@@ -8,6 +8,12 @@
 //
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
 //     node tests/e2e/slice4-smoke.mjs [--url http://127.0.0.1:8080/]
+//
+// **每次导航都带 `?scenario=demo-01`**（2026-09-19 补）。本文件的物理判据（S1 对链路预算、
+// S2 底噪、检出时刻、真值那一行）全都按 demo-01 的几何算，而应用启动时会**采用盘上最近的一个任务
+// 并跟着载入它的场景**（D-061 ⑨）——于是手工跑过一次 demo-02 之后，这里会莫名其妙地
+// 在 S1 上差 9 dB。`?scenario=` 这个参数本来就是为此留的（actions.ts 的 bootstrap 里写着
+// 「端到端也靠它不受盘上任务历史影响」），只是这个文件一直没用上。
 
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -66,7 +72,7 @@ try {
   page = await Page.open(chrome.port, 'about:blank')
   await page.send('Runtime.enable')
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n')[0]))
-  await page.send('Page.navigate', { url: `${BASE}#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
   await page.waitFor((s) => s.ready && s.app?.view === 'diagram', { label: '框图页', timeoutMs: 90000 })
   await sleep(800)
 
@@ -448,7 +454,7 @@ try {
   check('本次运行没有削顶（满量程留了余量）', idx.clipped_samples === 0, String(idx.clipped_samples))
 
   // ---------- 结果页：观测点分得开、切得动，默认仍是主产品 S4 ----------
-  await page.send('Page.navigate', { url: `${BASE}#/results` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/results` })
   await page.waitFor((s) => s.ready && s.app?.view === 'results', { label: '结果页', timeoutMs: 60000 })
   await sleep(1200)
   const opTabs = await evalJson(page, "Array.from(document.querySelectorAll('[data-op-tab]')).map((e) => e.textContent)")
@@ -669,7 +675,7 @@ try {
   check('再按空格暂停', st.app.timeline.playing === false)
 
   await page.evaluate("(document.querySelector('.col.left .rail').click(), true)")
-  await page.send('Page.navigate', { url: `${BASE}#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
   await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '回框图页', timeoutMs: 60000 })
   await sleep(600)
 
@@ -705,7 +711,7 @@ try {
   }
 
   // 刷新后仍然回到典型链路视图，且载入的是刚存的那份
-  await page.send('Page.navigate', { url: `${BASE}#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
   st = await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '刷新后仍是典型链路', timeoutMs: 90000 })
   check('刷新后载入已保存的框图，仍在典型链路视图', st.app.chain.template === 'chain-v1')
 
@@ -717,7 +723,7 @@ try {
   // 用户 2026-09-10：「自由画布不重要，用户操作起来也很难控制，有点华而不实」。
   // 这里守三件事：旧地址不把人甩到别的页、页面上不再有画布入口、
   // 以及解不成典型链路的框图**不被硬解也不被改写**（铁律 15）。
-  await page.send('Page.navigate', { url: `${BASE}#/diagram/canvas` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram/canvas` })
   st = await page.waitFor((s) => s.ready && s.app?.view === 'diagram', { label: '旧画布地址', timeoutMs: 90000 })
   check('收藏夹里的旧画布地址仍落在框图页，不掉到默认的场景页', st.app.view === 'diagram')
   check('地址被规范回 #/diagram', (await page.evaluate('location.hash')) === '#/diagram',
@@ -741,7 +747,7 @@ try {
 
   // 只改 hash 不会重载页面（浏览器视之为同文档导航），而「载入最近保存的框图」是启动时那一次的事。
   // 加一个一次性查询参数把它变成真正的导航——先改 hash 再 reload 会在 hash 生效前重载旧地址。
-  await page.send('Page.navigate', { url: `${BASE}?_reload=${Date.now()}#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/diagram` })
   st = await page.waitFor((s) => s.ready && s.app?.chain?.template === null,
                           { label: '载入手写框图', timeoutMs: 90000 })
   const foreign = await evalJson(page, `(() => {
@@ -761,7 +767,7 @@ try {
   const del2 = await page.evaluateAsync(
     `fetch('/api/v1/diagrams/${handmade.diagram_id}', { method: 'DELETE' }).then(r => r.status)`)
   check('测试不留副作用：手写框图已删除', del2 === 200, String(del2))
-  await page.send('Page.navigate', { url: `${BASE}?_reload=${Date.now()}#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/diagram` })
   st = await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1',
                           { label: '回到内置缺省典型链路', timeoutMs: 90000 })
 
@@ -867,9 +873,135 @@ try {
   const fs = await page.evaluate("document.querySelector('[data-form=slot] [data-field=full_scale_dBm]')?.value ?? ''")
   const pend = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
   check('转一圈回来 ADC 满量程还在，不用重填（D-055）', fs === '-20' && pend === '', `满量程 ${fs || '空'}；${pend || '无待填'}`)
+  // ---------- ④a 任务列表（U-4，D-075）----------
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/results/tasks` })
+  st = await page.waitFor((s) => s.app?.resultsTab === 'tasks' && s.app?.taskList?.status === 'ok',
+    { label: '任务页签', timeoutMs: 40000 })
+  const tl = st.app.taskList
+  const tNote = await page.evaluate("document.querySelector('[data-task-note]')?.textContent ?? ''")
+  const tRows = await page.evaluate("[...document.querySelectorAll('[data-task-row]')].map((e) => e.dataset.taskRow)")
+  check('任务页签列出一页任务，页脚把总数照实写出来（不假装列全，D-056 ②、D-068 ③ 同一口径）',
+    tl.shown > 0 && tl.total >= tl.shown && tRows.length === tl.shown && tNote.includes(`共 ${tl.total} 个任务`),
+    `列出 ${tl.shown} / 共 ${tl.total}；页脚「${tNote}」`)
+  check('占位没了', !(await page.evaluate("document.body.textContent.includes('U-4 启用')")), '')
+
+  // 点一行 → 右栏摘要；选中的**就是当前任务**时不重复左栏已有的种子 / 时长 / 实时因子 / 观测点数（D-062）
+  const curId = st.app.context.taskId
+  await page.evaluate(`(document.querySelector('[data-task-row="${curId}"]')?.click(), true)`)
+  st = await page.waitFor((s) => s.app?.taskList?.selected === curId, { label: '选中当前任务', timeoutMs: 15000 })
+  const sumKeys = await page.evaluate("[...document.querySelectorAll('[data-summary-row]')].map((e) => e.dataset.summaryRow)")
+  check('选中当前任务时右栏不重复左栏已有的四项（一个事实一处，D-062）',
+    sumKeys.includes('scenario') && !sumKeys.includes('seed') && !sumKeys.includes('wall') && !sumKeys.includes('taps'),
+    sumKeys.join(','))
+  check('哈希与引擎版本默认不出现（它们是溯源，09 §9 归 ?dev=1；D-039）',
+    !sumKeys.includes('diagram_sha256') && !sumKeys.includes('engine')
+      && (await page.evaluate("document.querySelectorAll('[data-task-summary] [data-dev]').length")) === 0, '')
+
+  // 采用另一行：走的是既有的 adoptTask（会连场景一起切，D-061 ⑨），不是新写一条路径
+  const other = tRows.find((id) => id !== curId)
+  if (other) {
+    await page.evaluate(`(document.querySelector('[data-task-row="${other}"] [data-action=adopt-task]')?.click(), true)`)
+    st = await page.waitFor((s) => s.app?.context?.taskId === other, { label: '采用另一个任务', timeoutMs: 30000 })
+    check('从任务列表采用另一个任务，三视图跟着切过去', st.app.context.taskId === other, `${curId} → ${other}`)
+  } else {
+    check('从任务列表采用另一个任务', false, '盘上只有一个任务，这条验不了（不当作通过）')
+  }
+
+  // ---------- ④b 数据中心（U-4，D-075）----------
+  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/data` })
+  st = await page.waitFor((s) => s.app?.view === 'data' && s.app?.dataCenter?.status === 'ok',
+    { label: '数据中心', timeoutMs: 40000 })
+  const dc = st.app.dataCenter
+  // 批索引入 git（.gitignore 放行 index.manifest.json），所以任何一份克隆上列表都是全量的；
+  // 只有**详情**会因为逐产物清单不在盘上而降到 index 档
+  const dNote = await page.evaluate("document.querySelector('[data-data-center] [data-datasets-note]')?.textContent ?? ''")
+  check('数据中心列出实测索引，共多少 / 匹配多少 / 列出多少三个数照实写（D-056 ②）',
+    dc.total > 0 && dc.listed > 0 && dNote.includes(`共 ${dc.total} 段`) && dNote.includes(`匹配 ${dc.matched} 段`),
+    `共 ${dc.total} · 列出 ${dc.listed}；「${dNote}」`)
+
+  // 分面在**全量**上算，不是在列出来的那几条上算（不然每个机型都会显示成 12 条）
+  const facet = await page.evaluate(`(() => {
+    const b = document.querySelector('[data-field="ds-class"]')
+    return { n: document.querySelectorAll('[data-field="ds-class"]').length,
+      first: b?.dataset.value ?? '', count: Number(b?.querySelector('.ds-facet-n')?.textContent ?? '0') }
+  })()`)
+  check('左栏机型分面带全量计数（不是这一页的计数）', facet.n > 1 && facet.count > dc.listed,
+    `${facet.n} 个机型，「${facet.first}」计数 ${facet.count}，本页只列了 ${dc.listed}`)
+
+  await page.evaluate(`(document.querySelector('[data-field="ds-class"]').click(), true)`)
+  st = await page.waitFor((s) => s.app?.dataCenter?.className && s.app.dataCenter.matched < dc.total,
+    { label: '机型筛生效', timeoutMs: 20000 })
+  check('点名机型后不再分组抽样，匹配多少就列多少（抽样是为了看全貌，筛完了再藏就没道理）',
+    st.app.dataCenter.matched === facet.count && st.app.dataCenter.listed === st.app.dataCenter.matched
+      && st.app.dataCenter.truncated === false,
+    `匹配 ${st.app.dataCenter.matched}，列出 ${st.app.dataCenter.listed}`)
+
+  await page.evaluate(`(document.querySelector('[data-dataset-row]').click(), true)`)
+  st = await page.waitFor((s) => s.app?.dataCenter?.detailStatus === 'ok', { label: '片段详情', timeoutMs: 20000 })
+  const dsDetail = await page.evaluate(`(() => {
+    const el = document.querySelector('[data-dataset-detail]')
+    return { level: el?.dataset.detailLevel ?? '',
+      keys: [...document.querySelectorAll('[data-detail-row]')].map((e) => e.dataset.detailRow),
+      truth: [...document.querySelectorAll('[data-truth-row]')].map((e) => e.dataset.truthRow),
+      dev: document.querySelectorAll('[data-dataset-detail] [data-dev]').length }
+  })()`)
+  const hasFs = dsDetail.keys.includes('fs') && dsDetail.keys.includes('duration')
+  check('右栏出片段详情：index 档给索引里那几项，manifest 档另给采样率与片长',
+    dsDetail.level === 'manifest' ? hasFs : dsDetail.level === 'index',
+    `档位 ${dsDetail.level}，字段 ${dsDetail.keys.join(',')}；真值 ${dsDetail.truth.join(',')}`)
+  if (dsDetail.level === 'index') {
+    check('（本机没有逐产物清单，采样率与片长这一档验不了——明说跳过，不当作通过）', false, '缺 data/iq/measured/*/*.manifest.json')
+  }
+
+  // **必须用 textContent 不能用 innerText**：窄窗下侧栏是 hidden 的（reducer.ts 按 innerWidth < 1920 自动收），
+  // innerText 看不见隐藏子树，那样这条断言在任何情况下都会通过——等于没验（2026-09-19 实际踩到）
+  const leak = await page.evaluate(`(() => {
+    const t = document.body.textContent
+    return { paper: t.includes('取自论文'), est: t.includes('估算'), dev: document.querySelectorAll('[data-dev]').length }
+  })()`)
+  check('默认界面不解释数据来源与估算，也没有任何溯源入口（D-042b、D-039）',
+    !leak.paper && !leak.est && leak.dev === 0 && dsDetail.dev === 0, JSON.stringify(leak))
+
+  // 「用于回放」：按模式写进框图并切过去（09 §7.3 的动作，D-060 之后按模式分派）
+  const btn = await page.evaluate(`(() => { const b = document.querySelector('[data-action=use-for-replay]')
+    return { label: b?.textContent ?? '', note: document.querySelector('[data-replay-note]')?.textContent ?? '' } })()`)
+  check('全合成模式下按钮把「会换成实测回放」说在前面（换模式有后果，不静默做）',
+    btn.label.includes('用于回放') && btn.note.includes('实测回放'), `「${btn.label}」「${btn.note}」`)
+  const pickedId = st.app.dataCenter.selected
+  await page.evaluate(`(document.querySelector('[data-action=use-for-replay]').click(), true)`)
+  st = await page.waitFor((s) => s.app?.view === 'diagram' && s.app?.chain?.mode === 'replay',
+    { label: '送到框图页', timeoutMs: 20000 })
+  const wrote = await page.evaluate(`(() => { const el = document.querySelector('[data-form=slot] [data-field=data_id]')
+    document.querySelector('[data-slot=tx]')?.click(); return true })()`)
+  await sleep(250)
+  const txId = await page.evaluate("document.querySelector('[data-form=slot] [data-field=data_id]')?.value ?? ''")
+  check('「用于回放」把 data_id 写进辐射源并落在框图页', txId === pickedId, `${txId || '空'} 对 ${pickedId}`)
+
+  // ---------- ④c 混合增强的背景片段（U-4 顺带补，D-075）----------
+  await page.evaluate(`(() => { const el = document.querySelector('[data-form=chain-setup] [data-field=mode]');
+    Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(el, 'mixed');
+    el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(600)
+  const bgBefore = await page.evaluate(`(() => ({
+    picker: !!document.querySelector('[data-form=background-data] select'),
+    scale: document.querySelector('[data-check=scale]')?.dataset.ok ?? '' }))()`)
+  check('混合增强模式有背景片段挑单（此前界面上根本没有入口，这条链只能靠夹具跑）',
+    bgBefore.picker && bgBefore.scale === '0', JSON.stringify(bgBefore))
+  await page.evaluate(`(() => { const sel = document.querySelector('[data-form=background-data] select')
+    const opt = [...sel.options].find((o) => o.value)
+    Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(sel, opt.value)
+    sel.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await sleep(900)
+  const bgAfter = await page.evaluate(`(() => ({
+    scale: document.querySelector('[data-check=scale]')?.dataset.ok ?? '',
+    note: document.querySelector('[data-background-note]')?.textContent ?? '',
+    noteOk: document.querySelector('[data-background-note]')?.dataset.ok ?? '' }))()`)
+  check('选了背景之后「标度与单位一致」转绿，且相容性在提交前就说清（AddMixer 要求两路采样率与中心频率一致）',
+    bgAfter.scale === '1' && bgAfter.note.length > 0, `检查 ${bgAfter.scale}，相容性「${bgAfter.note}」`)
+
   // ---------- ③f `?dev=1` 下 ROC 叠解析预测（C-9 的验收项）----------
   // 开发者模式是一次真导航（查询参数不是 hash），放在最后做，不打扰前面的信号页步骤
-  await page.send('Page.navigate', { url: `${BASE}?dev=1#/results/evaluation` })
+  await page.send('Page.navigate', { url: `${BASE}?dev=1&scenario=demo-01#/results/evaluation` })
   st = await page.waitFor((s) => s.app?.resultsTab === 'evaluation' && s.app?.results?.metrics?.status === 'final',
     { label: '开发者模式的评价页签', timeoutMs: 40000 })
   // 重新导航会重新采用「最近一个任务」，未必还是上面那一个（slice4 一路跑了好几次），所以按当前采用的任务取索引
@@ -886,6 +1018,29 @@ try {
     `任务 ${devTask}，M ${devM}，family「${dr.family}」，图例「${dr.legend}」`)
   check('引擎给出 m_bins，且随检测频段走（缺省链 ±225 kHz / nfft 1024 / 500 kS/s → 921；窄带那条链只有个位数）',
     dIdx.nodes.det.m_bins === 921 && devM >= 1, `缺省链 ${dIdx.nodes.det.m_bins}，当前链 ${devM}`)
+
+  // ---------- ④d `?dev=1` 下数据中心才出质检原因与标定来源（U-4，D-075）----------
+  await page.send('Page.navigate', { url: `${BASE}?dev=1&scenario=demo-01#/data` })
+  st = await page.waitFor((s) => s.app?.view === 'data' && s.app?.dataCenter?.status === 'ok',
+    { label: '开发者模式的数据中心', timeoutMs: 40000 })
+  await page.evaluate(`(document.querySelector('[data-dataset-row]').click(), true)`)
+  st = await page.waitFor((s) => s.app?.dataCenter?.detailStatus === 'ok', { label: '片段详情（dev）', timeoutMs: 20000 })
+  const devDs = await page.evaluate(`(() => {
+    const keys = [...document.querySelectorAll('[data-detail-row]')].map((e) => e.dataset.detailRow)
+    const inDev = [...document.querySelectorAll('[data-dataset-detail] [data-dev]')].map((e) => e.dataset.detailRow)
+    return { level: document.querySelector('[data-dataset-detail]')?.dataset.detailLevel ?? '', keys, inDev,
+      paperOutsideDev: [...document.querySelectorAll('[data-dataset-detail] [data-detail-row]')]
+        .filter((e) => !e.hasAttribute('data-dev')).some((e) => e.textContent.includes('论文')) }
+  })()`)
+  if (devDs.level === 'manifest') {
+    check('`?dev=1` 下才出质检原因、八项质检、标定来源与溯源，且它们只在 [data-dev] 里（D-042b、D-047 ④、D-039）',
+      devDs.keys.includes('quality_reasons') && devDs.inDev.includes('quality_reasons')
+        && devDs.inDev.includes('calibration_source') && devDs.inDev.includes('model_trace')
+        && !devDs.paperOutsideDev,
+      `dev 行 ${devDs.inDev.join(',')}`)
+  } else {
+    check('（本机没有逐产物清单，质检原因这一档验不了——明说跳过，不当作通过）', false, `档位 ${devDs.level}`)
+  }
 
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 } catch (e) {

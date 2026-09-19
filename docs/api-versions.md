@@ -50,7 +50,7 @@
 |---|---|---|---|
 | GET/HEAD | `/api/v1/components` | 组件目录原文 + `generated_at` | 缓存 `cuav_run --catalog` 的输出（进程内取一次），`generated_at` 是服务端取得时间（`docs/component-catalog.md` §2）；引擎二进制缺失 503 `engine_unavailable` |
 | POST | `/api/v1/tasks` | 201 任务摘要（`task.json` 内容，含 `task_id`、`run_state = queued`、`result`） | 请求体 = 框图 JSON（`application/json`，≤ 1 MB）；请求头 `Idempotency-Key` 可选：同键同框图 200 返回同一任务，同键不同框图 409 `idempotency_conflict`。提交流程与失败码见下 |
-| GET/HEAD | `/api/v1/tasks?limit=N` | `{tasks: [...]}` | 按 `created_utc` 降序；`limit` 缺省 100、上限 1000 |
+| GET/HEAD | `/api/v1/tasks?limit=N&offset=M` | `{tasks: [...], total, offset, limit}` | 按 `created_utc` 降序；`limit` 缺省 100、上限 1000；`offset` 缺省 0，负数或非整数按 0，越界返回空数组但 `total` 照实（U-4，D-075）。`total` 是盘上能认出 `task_id` 的任务总数——一页取不完时界面靠它才写得出「共 N 个」，没有它只能写「这里有一些」，那不是一回事（同 D-056 ② 的口径） |
 | GET/HEAD | `/api/v1/tasks/{id}` | 任务摘要 | 不存在 404 |
 | POST | `/api/v1/tasks/{id}/cancel` | 任务摘要 | 排队中立即 `cancelled`；运行中先 SIGTERM、3 s 后 SIGKILL（Windows 都是 TerminateProcess），进程退出后 `cancelled / not_applicable`；已结束 409 `task_finished`；不存在 404 |
 | GET/HEAD | `/api/v1/tasks/{id}/events?since=N&limit=M` | `{task_id, since, events[], last_seq, run_state}` | 按序号补取（B-6，D-044）：返回 `seq > since` 的事件，升序、无缺号，最多 `limit` 条（缺省 1000、上限 5000）；`since` 缺省 0，非整数或负数 400 `bad_request`；不存在 404。缓冲内直接切片，缓冲外顺序读 `events.jsonl` 并经同一脱敏入口；服务端补发的终态在服务重启后按 `task.json` 合成。**这里的 `product_row` 永远是文本（无数据）**，行数据走第 4 节的二进制帧或 B-7 端点。空数组表示暂无新事件；「追平」的判据是空批次，不是不足 `limit` |
@@ -158,7 +158,10 @@
 | GET | `/api/v1/results/{task}/{features\|recognitions\|truth}?t0&t1&stride` | JSON 数组，与 `track` / `links` / `detections` 共用同一个时间窗读取器；`features` 与 `recognitions` 按「节点 + `segment_id`」抽稀；`truth`（C-5，生产者 `Evaluator`，2026-09-14）按「评价器节点 + `emitter_id`」抽稀，可按 `site_id / node_id / emitter_id / label` 过滤，行格式见 `docs/display-products.md` §5.4 |
 | GET | `/api/v1/results/{task}/metrics` | `metrics.json` 整文件（`cuav-metrics/1`；顶层 `{schema_version, task_id, sites[], localization}`，`sites[]` 每个评价器一节即按站分节（D-053），节的内容见 `docs/display-products.md` §5.5；`localization` 预留给 L-9）。一次运行一份，不按视窗抽；就绪语义同 JSONL 端点：运行中缺文件回 409，终态缺文件回 404。服务端在引擎退出后读它填 `task.json.metrics_summary`（C-5） |
 
-### 3.1d 实测数据清单（2026-09-09，D-056）
+### 3.1e 实测数据清单与单条详情（列表 2026-09-09 / D-056；详情 2026-09-19 / U-4 / D-075）
+
+> **本节 2026-09-19 由 3.1d 改号**：与上面的「3.1d 框图读写与评价结果」撞号了。
+> `server/src/diagrams.ts` 的头注与 10 报告引的都是**那一节**，所以改的是这一节（先例 D-027b、D-042b）。
 
 框图里对实测数据的引用只写 `data_id`（D-037），但用户得有办法知道**有哪些片段可选**。
 在此之前没有任何接口把清单给出去，回放模式只能手敲标识（2026-09-09 用户实测撞到）。
@@ -166,11 +169,14 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/v1/datasets?q=&data_id=` | 实测数据片段的摘要清单 |
+| GET/HEAD | `/api/v1/datasets?q=&data_id=&batch=&class=&holdout=&limit=` | 实测数据片段的摘要清单 |
+| GET/HEAD | `/api/v1/datasets/{data_id}` | 单条详情（U-4） |
 
-响应 `{schema_version: "cuav-datasets/1", total, matched, truncated, items[]}`。
+列表响应 `{schema_version: "cuav-datasets/1", total, matched, truncated, facets, items[]}`。
 `items[]` 每条：`data_id / kind / batch / holdout` 加可选的
 `class_name / visibility / distance_text / split / center_frequency_Hz / sample_count / quality`。
+`facets` 是各维取值的条数（`batch / class_name / visibility / split / holdout`），**在全量上算**——
+在列出来的那几条上算会给出一个自洽却错误的画面：抽样每组只留 12 条，分面就会说每个机型都只有 12 条。
 
 四条约定：
 
@@ -183,15 +189,65 @@
 4. `data_id` 精确查一条：框图里已经填着的那个未必落在抽样里，界面要能把它显示出来，
    不能因为没列到就当它不存在。
 
+**U-4 加的四个过滤参数**（不给时行为与 2026-09-09 那一版逐字节相同）：`batch`、`class`（精确匹配
+`class_name`）、`holdout=true|false`、`limit`（缺省 400、上限 2000）。一条规则：**给了 `class`
+就不再分组抽样**——分组是为了看全貌，用户已经点名一个机型之后再抽样，等于把他刚筛出来的东西
+又藏起来；其余情形仍是每组 ≤ 12、总计 ≤ `limit`。
+
 **两批数据的真值字段不一样**（DroneRFb 有视距与精确距离，DroneRFa 只有频段状态与距离区间），
 所以 `distance_text` 是一段文字而不是数值：有精确值给 `10 m`，只有区间给 `20–40 m`，
 都没有就不给这个键——缺的就是缺的，不编一个精确值出来。
 
+#### 单条详情 `GET /api/v1/datasets/{data_id}`（U-4，D-075）
+
+**分两档**，档位写在响应的 `detail_level` 里：
+
+| 档 | 数据从哪来 | 有什么 |
+|---|---|---|
+| `index` | 批索引 `index.manifest.json`（**入 git**，`.gitignore` 放行了它） | 通道、中心频率、样点数、段数、内容哈希、四态、真值摘要，加该数据集的标定常数 |
+| `manifest` | 再加逐产物清单 `<data_id>.manifest.json`（**不入 git**，`tools/iq_convert.py` 确定性重生成） | 采样率与**片长**、有效带宽、时间基准与连续性、天线、八项质检明细与原因、溯源六件套、`field_sources`、摸底统计 |
+
+于是**任何一份克隆上列表都是全量的**（4714 段），只有详情会浅一档。批索引里没有采样率，
+所以 `index` 档算不出片长——键整个缺席，界面写「—」，不拿别的数顶替（铁律 15）。
+
+```
+{ schema_version: "cuav-dataset/1", data_id, kind, batch, holdout,
+  detail_level: "index" | "manifest",
+  index: { dataset, channel_id, center_frequency_Hz, sample_count, segments, content_sha256, quality,
+           truth: { class_code?, class_name?, split?, visibility?, individual?,
+                    distance_m?, distance_range_m?, distance_bin?, band_state? } },
+  calibration?: { full_scale_dBm, source, status, estimated_utc },
+  manifest?: { sampling{sample_format, sample_rate_Hz, sample_count, byte_order, iq_layout, duration_s},
+               frequency{center_frequency_Hz, effective_bandwidth_Hz},
+               time{time_basis, start_time, continuity}, channel{station_id, channel_id, antenna},
+               power{absolute_power, gain_dB, agc, full_scale, scale},
+               quality{status, checks, reasons}, model_trace{...}, origin{kind, dataset},
+               field_sources{...}, survey{...}, segments{count, sample_count} } }
+```
+
+失败：`400 bad_data_id`（不合 `SAFE_NAME`）/ `404 not_found` / `405 allow: GET, HEAD` /
+`500 dataset_read`。**清单不在盘上 → `index` 档（正常路径）；在盘上却读不动 → 500，不悄悄降回
+`index` 档**——那会把「文件坏了」显示成「这台机器没数据」。
+
+**响应是白名单，一键一键挑出来的。** 它读的那两份文件里合法地带着不能发给浏览器的东西，
+铁律 17 允许它们留在数据里存档，但留档不等于可以转发：
+
+| 不给 | 实际内容 |
+|---|---|
+| `identity.producer`、`origin.conversion.tool`、`survey.tool` | `tools/iq_convert.py 0.1.0` 这类仓库相对路径 |
+| `power.reason` | 「…按 `scripts/ds8_calibration.py` 重估替换」 |
+| `power.calibration.note` / `.table` | 反推过程长句 / `data/iq/measured/calibration.json` |
+| `origin.source_file` / `source_sha256` / `doi` | 外部源文件名与出处（`origin` 只放 `kind` 与 `dataset`）|
+| `truth.original_name` | 外部数据集的切片名 |
+| `segments[].file` / `.sha256` | 文件名（只出 `{count, sample_count}`）|
+| `permission.*` | 溯源，界面不展示（D-039 ②）|
+
+`server/src/datasets.test.ts` 里有一条断言逐个盯着这些子串，**夹具也故意把它们都造了进去**——
+不造的话那条断言会在什么都没挡住的情况下通过。
+
 ### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b，G-4 的场景端点已于 2026-09-06 实现并移入 3.1c）
 
-| 方法 | 路径 | 说明 | 步骤 |
-|---|---|---|---|
-| GET | `/api/v1/datasets/{data_id}` | 单条索引详情（非路径字段）与真值摘要 | U-4（列表端点已先行实现，见 3.1d）|
+**本表已空**：`/api/v1/datasets/{data_id}` 已于 2026-09-19 由 U-4 实现并移入 3.1e。
 
 项目管理、审计日志、分片上传、模型包留 P2。参考实现 `C-UAV Model Demo/emcore/` 的 `emsvc`
 五个端点（`/api/v1/{health, models/catalog, radar/detect, signal/detect, los/check}`）只作命名参考。
@@ -318,6 +374,6 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 ## 6. 待写清单
 
 - [ ] 第 1 节 版本策略
-- [~] 第 3 节 端点清单：3.1a 已实现（B-5、B-6）、3.1b 已实现（B-7）；3.3 已冻结，待 G-4 / U-4 实现
+- [x] 第 3 节 端点清单：3.1a（B-5、B-6）、3.1b（B-7）、3.1c（G-4）、3.1d（C-6）、3.1e（D-056 + U-4）均已实现；3.3 已清空
 - [x] 第 4 节 WebSocket 事件：已冻结并由 B-6 实现（4.0 实现约定，2026-09-05）
 - [ ] 鉴权与审计（P2 阶段）
