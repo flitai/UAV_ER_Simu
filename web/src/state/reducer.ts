@@ -113,7 +113,14 @@ function fromRecord(rec: TaskRecord, prev: AppState['task']): AppState['task'] {
   }
 }
 
+/**
+ * 同一句话已经摆在屏上就不再叠一条（2026-09-19 用户实测：保存失败的那句话叠了四条，
+ * 把地图糊掉了一半）。失败的提示是 sticky 的，不自己消失，而重试一次就多一条——
+ * 四条一模一样的话并不比一条多说明任何事情。
+ * **不合并计数**：那要给 toast 加状态，而它本来就是「看一眼就过去」的东西。
+ */
 function toast(s: AppState, kind: LogLine['level'], text: string, sticky = false): AppState {
+  if (s.ui.toasts.some((t) => t.kind === kind && t.text === text)) return s
   return { ...s, ui: { ...s.ui, toasts: [...s.ui.toasts, { id: s.ui.nextId, kind, text, sticky }], nextId: s.ui.nextId + 1 } }
 }
 

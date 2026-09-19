@@ -11,6 +11,26 @@ import { chordDistanceM, type Lla, type Waypoint } from './preview.js'
 
 export type Obj = Record<string, unknown>
 
+/**
+ * 新航点的缺省速度（m/s）。
+ *
+ * **必须为正**：schema 是 `exclusiveMinimum: 0`，引擎 `scenario_json.cpp` 也调 `positive()`，
+ * 所以 0 的航点存不进去——服务端 `PUT` 会起 `cuav_run --scenario-track` 校验，直接被拒。
+ * 2026-09-19 用户实测撞到：布一个目标、画几个航点，保存报
+ * 「`routes[2].waypoints[0]` 的 `speed_mps` 必须为正」。根子是 `addEmitter` 当初给首个航点写了 0，
+ * 而后续航点「继承上一个的速度」，于是一路传下去。
+ */
+export const DEFAULT_SPEED_MPS = 15
+
+/**
+ * 沿用上一个航点的速度。**非正的不算数**——`typeof x === 'number'` 对 0 为真，
+ * 原来的 `?? 15` 式兜底因此从不触发，一个坏值会顺着整条航线传下去。
+ */
+function speedFrom(prev: Obj | undefined): number {
+  const v = prev?.speed_mps
+  return typeof v === 'number' && v > 0 ? v : DEFAULT_SPEED_MPS
+}
+
 function clone(doc: ScenarioDoc): ScenarioDoc {
   return JSON.parse(JSON.stringify(doc)) as ScenarioDoc
 }
@@ -185,7 +205,7 @@ export function addEmitter(doc: ScenarioDoc, lon: number, lat: number): { doc: S
     emission: clone(em) as Obj,
   })
   const rs = (d.routes ??= []) as Obj[]
-  rs.push({ emitter_id: id, waypoints: [{ position: { lon: round6(lon), lat: round6(lat), alt_m: alt }, speed_mps: 0 }] })
+  rs.push({ emitter_id: id, waypoints: [{ position: { lon: round6(lon), lat: round6(lat), alt_m: alt }, speed_mps: DEFAULT_SPEED_MPS }] })
   return { doc: d, id }
 }
 
@@ -252,8 +272,7 @@ export function addWaypoint(doc: ScenarioDoc, emitterId: string, lon: number, la
   const prev = wps[wps.length - 1] as Obj | undefined
   const prevPos = posOf(prev)
   const alt = prevPos ? prevPos.alt_m : 100
-  const speed = typeof prev?.speed_mps === 'number' ? prev.speed_mps : 15
-  wps.push({ position: { lon: round6(lon), lat: round6(lat), alt_m: alt }, speed_mps: speed })
+  wps.push({ position: { lon: round6(lon), lat: round6(lat), alt_m: alt }, speed_mps: speedFrom(prev) })
   if (wps.length === 1) {
     const e = emitters(d).find((x) => x.id === emitterId)
     if (e) e.position = { lon: round6(lon), lat: round6(lat), alt_m: alt }
@@ -272,7 +291,7 @@ export function insertWaypoint(doc: ScenarioDoc, emitterId: string, index: numbe
   const pb = posOf(b)!
   wps.splice(index + 1, 0, {
     position: { lon: round6((pa.lon + pb.lon) / 2), lat: round6((pa.lat + pb.lat) / 2), alt_m: (pa.alt_m + pb.alt_m) / 2 },
-    speed_mps: typeof a.speed_mps === 'number' ? a.speed_mps : 15,
+    speed_mps: speedFrom(a),
   })
   return d
 }

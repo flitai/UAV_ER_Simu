@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import type { ScenarioDoc } from '../../state/types.js'
-import { activities, addActivity, addEmitter, addSite, addZone, emitters, hopSequenceMHz, moveEmitter, moveZone, posOf, removeEmitter, removeZone, routeOf, setHopArgs, setPath, sites, splitLinkId, zoneOf, zones } from './scenarioOps.js'
+import { activities, addActivity, addEmitter, addSite, addWaypoint, addZone, DEFAULT_SPEED_MPS, emitters, hopSequenceMHz, insertWaypoint, moveEmitter, moveZone, posOf, removeEmitter, removeZone, routeOf, setHopArgs, setPath, sites, splitLinkId, zoneOf, zones } from './scenarioOps.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 function demo(): ScenarioDoc {
@@ -166,4 +166,51 @@ test('跳频活动：新建带 args、序列按 MHz 文本改写、与单值互�
   const kept = setHopArgs(edited, idx, '', undefined)
   assert.deepEqual((activities(kept)[idx]!.args as Record<string, unknown>).sequence,
                    [2439500000, 2442250000, 2441000000])
+})
+
+/**
+ * 2026-09-19 用户实测：布一个目标、画几个航点，保存报
+ * 「场景保存失败 [scenario] routes[2].waypoints[0] 的 speed_mps 必须为正」。
+ *
+ * 根子有两处，都在这里钉住：`addEmitter` 给首个航点写的是 0（schema `exclusiveMinimum: 0`、
+ * 引擎 `positive()` 都不收），而 `addWaypoint` / `insertWaypoint` 的「沿用上一个航点的速度」
+ * 用的是 `typeof x === 'number'`——**对 0 为真**，于是那个 0 顺着整条航线传下去，
+ * 写在旁边的 `?? 15` 兜底一次也没触发过。
+ */
+test('编辑出来的每一个航点速度都为正（存得进去），非正的上一段不当作可沿用的值', () => {
+  const doc = demo()
+  const r = addEmitter(doc, 116.41, 39.99)
+  let d = r.doc
+  d = addWaypoint(d, r.id, 116.42, 39.995)
+  d = addWaypoint(d, r.id, 116.43, 40.0)
+  d = insertWaypoint(d, r.id, 0)
+
+  const wps = (routeOf(d, r.id)!.waypoints as Array<{ speed_mps: number }>)
+  assert.equal(wps.length, 4)
+  for (const [i, w] of wps.entries()) {
+    assert.ok(typeof w.speed_mps === 'number' && w.speed_mps > 0,
+      `航点 ${i} 的 speed_mps 必须为正，实得 ${w.speed_mps}`)
+  }
+  assert.equal(wps[0].speed_mps, DEFAULT_SPEED_MPS, '布目标时那一个也要是正数，不是 0')
+
+  // 全场景扫一遍：别的航线也不许被带坏
+  for (const route of (d.routes as Array<{ emitter_id: string; waypoints: Array<{ speed_mps: number }> }>)) {
+    for (const [i, w] of route.waypoints.entries()) {
+      assert.ok(w.speed_mps > 0, `${route.emitter_id} 的航点 ${i} 速度非正：${w.speed_mps}`)
+    }
+  }
+})
+
+test('沿用速度：上一个是正数就跟着它，是 0 或负数就退回缺省而不是照抄', () => {
+  const doc = demo()
+  const r = addEmitter(doc, 116.41, 39.99)
+  let d = setPath(r.doc, `routes.${(r.doc.routes as unknown[]).length - 1}.waypoints.0.speed_mps`, 7)
+  d = addWaypoint(d, r.id, 116.42, 39.995)
+  let wps = (routeOf(d, r.id)!.waypoints as Array<{ speed_mps: number }>)
+  assert.equal(wps[1].speed_mps, 7, '正常值要沿用，不能每段都跳回缺省')
+
+  d = setPath(d, `routes.${(d.routes as unknown[]).length - 1}.waypoints.1.speed_mps`, 0)
+  d = addWaypoint(d, r.id, 116.43, 40.0)
+  wps = (routeOf(d, r.id)!.waypoints as Array<{ speed_mps: number }>)
+  assert.equal(wps[2].speed_mps, DEFAULT_SPEED_MPS, '上一段是 0（存不进去的值）就不该照抄')
 })

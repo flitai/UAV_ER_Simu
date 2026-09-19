@@ -142,3 +142,18 @@ test('task/adopt：采用已结束的任务直接进回看（没有实时行可�
   const running = reducer(s0(), { type: 'task/adopt', record: { ...rec(), run_state: 'running', last_seq: 5 } })
   assert.equal(running.signal.follow, true)
 })
+
+test('同一句提示不叠第二条（2026-09-19 用户实测：保存失败那句叠了四条）', () => {
+  let s = s0()
+  const fail = { type: 'ui/toast', kind: 'error', text: '场景保存失败 [scenario] speed_mps 必须为正', sticky: true } as const
+  s = reducer(s, fail)
+  s = reducer(s, fail)
+  s = reducer(s, fail)
+  assert.equal(s.ui.toasts.length, 1, '重试几次就叠几条，四条一样的话并不比一条多说明什么')
+  // 不同的话照样进来；原来那条消掉之后同一句话还能再出现
+  s = reducer(s, { type: 'ui/toast', kind: 'error', text: '另一件事失败了', sticky: true })
+  assert.equal(s.ui.toasts.length, 2)
+  s = reducer(s, { type: 'ui/toastDismiss', id: s.ui.toasts[0].id })
+  s = reducer(s, fail)
+  assert.equal(s.ui.toasts.length, 2, '关掉之后同一句话要能再提醒一次')
+})
