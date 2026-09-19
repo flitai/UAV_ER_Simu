@@ -158,7 +158,7 @@ add_test(NAME cuav_run_run_slice1
 # 切片 ② 的场景绑定链路：航迹预览、只校验、运行（产品与 track/links 写到构建目录）
 add_test(NAME cuav_run_scenario_track
   COMMAND cuav_run --scenario-track
-          "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json"
           --track-rate 2 --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")
 add_test(NAME cuav_run_validate_slice4_detect
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_detect.json")
@@ -170,29 +170,29 @@ add_test(NAME cuav_run_validate_slice4_recognize
 add_test(NAME cuav_run_validate_slice4_evaluate
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_evaluate.json"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
-# C-5：缺省典型链路（demo-01）加绑站的评价器，跑 6 s，产品目录里应有 truth.jsonl 与 metrics.json
+# C-5：缺省典型链路（golden-01）加绑站的评价器，跑 6 s，产品目录里应有 truth.jsonl 与 metrics.json
 add_test(NAME cuav_run_run_slice4_evaluate_scene
   COMMAND cuav_run --run "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice4_evaluate_scene.json"
           --out "${CMAKE_CURRENT_BINARY_DIR}/runs/slice4-evaluate-scene"
-          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 # M-2（D-070）：宽带链启用 DDC —— 10 MS/s 选出 2438.5 MHz 的图传、抽取 2 倍到 5 MS/s
 add_test(NAME cuav_run_validate_demo02_ddc
-  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-demo-02-ddc.json"
-          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-golden-02-ddc.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 # M-3（D-071）：同一条宽带链启用信道化 —— 10 MS/s 切成 4 条 2.5 MHz 子信道、取零频那一路
 add_test(NAME cuav_run_validate_demo02_chan
-  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-demo-02-chan.json"
-          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-golden-02-chan.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 # C-10：三级 DSP 全开 —— 接收滤波 → DDC → 信道化，10 → 5 → 2.5 MS/s
 add_test(NAME cuav_run_validate_demo02_dsp
-  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-demo-02-dsp.json"
-          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json"
+  COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-golden-02-dsp.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 # C-11：三种信号源模式各一份回归夹具。**只有全合成这一份进 ctest** ——
@@ -200,15 +200,15 @@ add_test(NAME cuav_run_validate_demo02_dsp
 # 它们由 tests/regression/standard_cases.py 跑，缺数据时那个脚本自己明说跳过。
 add_test(NAME cuav_run_validate_chain_synthetic
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/../tests/regression/diagrams/chain-synthetic.json"
-          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene"
           --library-root "${CMAKE_CURRENT_SOURCE_DIR}/../models/recognition")
 add_test(NAME cuav_run_validate_slice2
   COMMAND cuav_run --validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
-          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")
 add_test(NAME cuav_run_run_slice2
   COMMAND cuav_run --run "${CMAKE_CURRENT_SOURCE_DIR}/tests/diagrams/slice2_scenario_link.json"
           --out "${CMAKE_CURRENT_BINARY_DIR}/runs/slice2"
-          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+          --scenario "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json"
           --scene-root "${CMAKE_CURRENT_SOURCE_DIR}/../data/scene")

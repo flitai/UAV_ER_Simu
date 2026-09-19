@@ -62,6 +62,8 @@ function summarize(id: string, aoi: string, doc: Record<string, unknown>): Recor
     duration_s: typeof time.duration_s === 'number' ? time.duration_s : null,
     sites: sites.length,
     emitters: emitters.length,
+    // 界面据此标「基准 · 只读」并把保存按钮换成「另存为」（用户 2026-09-19）
+    readonly: isGoldenScenario(id),
   }
 }
 
@@ -139,12 +141,35 @@ async function getScenario(deps: ScenarioDeps, res: ServerResponse, id: string):
   }
 }
 
+/**
+ * 基准场景的判据：**标识以 `golden-` 开头**（用户 2026-09-19 定的命名约定）。
+ *
+ * 规则放在名字上而不是另立一份名单，是因为名单会漏——加一个基准场景却忘了登记，
+ * 它就又变成可写的了。名字是跟着文件走的，改不了也漏不掉。
+ */
+export function isGoldenScenario(id: string): boolean {
+  return id.startsWith('golden-')
+}
+
 async function putScenario(
   deps: ScenarioDeps,
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
 ): Promise<void> {
+  // **基准场景只读**（用户 2026-09-19 拍板）。它们的字节被黄金基准钉着——航迹基准、
+  // 回归夹具的 `scenario_ref.sha256`、界面缺省链的文本都对着它算；在场景页随手改一下
+  // 就会把这一串弄不一致，而自动保存（D-054 ⑥）连问都不问。
+  //
+  // 界面上也拦（下拉里标「基准 · 只读」、保存按钮变「另存为」），但**界面拦不住手写的请求**，
+  // 所以这里是真闸——与 D-058 ② 「界面置灰 + 引擎也拒」同一条路数。
+  if (isGoldenScenario(id)) {
+    sendJson(res, 409, {
+      error: 'scenario_readonly',
+      message: `${id} 是基准场景，只读：它的哈希被黄金基准与回归夹具钉着。改它请「另存为」一个新标识（新标识不能以 golden- 开头）`,
+    })
+    return
+  }
   let text: string
   try {
     text = await readBody(req)

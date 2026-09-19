@@ -716,7 +716,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
 // --scenario-track：只跑运动学，输出 entity 事件流。
 //
 // 不建产品目录、不发 progress、不按墙钟节流，所以 stdout **逐字节可复现**——
-// 它因此既是黄金基准 tests/golden/scenario-track-demo-01.json 的生成器，
+// 它因此既是黄金基准 tests/golden/scenario-track-golden-01.json 的生成器，
 // 也是应用服务 PUT /api/v1/scenarios/{id} 的语义校验器（只看退出码：0 通过，2 不合法）。
 int do_scenario_track(const Options& opt, std::ostream& events, std::ostream& diag) {
     EventSink sink(events);

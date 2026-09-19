@@ -46,8 +46,8 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TABLE_REL = os.path.join("models", "receiver", "fir_rx_v1.json")
 
 VERSION = "rx_v1"
-# 相对通带档位。0.8 是本项目所有示例场景的实际取值（demo-01/03 是 400 kHz / 500 kS/s，
-# demo-02 是 8 MHz / 10 MS/s，都正好 0.8）。不设 0.9 及以上：过渡带会顶到奈奎斯特。
+# 相对通带档位。0.8 是本项目所有示例场景的实际取值（golden-01/03 是 400 kHz / 500 kS/s，
+# golden-02 是 8 MHz / 10 MS/s，都正好 0.8）。不设 0.9 及以上：过渡带会顶到奈奎斯特。
 BW_RELS = (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
 
 TRANSITION_REL = 0.05            # 过渡带宽，相对输入采样率；各档同宽

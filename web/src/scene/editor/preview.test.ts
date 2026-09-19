@@ -31,8 +31,8 @@ function readJson(rel: string): Record<string, unknown> {
 }
 
 test('航迹预览与 cuav_run --scenario-track 的黄金基准逐时刻一致（≤ 1e-6 度）', () => {
-  const golden = readJson('tests/golden/scenario-track-demo-01.json')
-  const scenario = readJson('data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json')
+  const golden = readJson('tests/golden/scenario-track-golden-01.json')
+  const scenario = readJson('data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json')
   const tol = (golden.tolerance as Record<string, number>).position_deg
   const tolAlt = (golden.tolerance as Record<string, number>).alt_m
 
@@ -68,8 +68,8 @@ test('航迹预览与 cuav_run --scenario-track 的黄金基准逐时刻一致�
 })
 
 test('航迹预览：航向与速度也与基准一致', () => {
-  const golden = readJson('tests/golden/scenario-track-demo-01.json')
-  const scenario = readJson('data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json')
+  const golden = readJson('tests/golden/scenario-track-golden-01.json')
+  const scenario = readJson('data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json')
   const route = (scenario.routes as Array<Record<string, unknown>>)[0]
   const preview = new RoutePreview(route.waypoints as Waypoint[], route.loop === true)
   for (const s of golden.samples as GoldenSample[]) {

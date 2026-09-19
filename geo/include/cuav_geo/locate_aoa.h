@@ -36,7 +36,7 @@ struct AoaPlaneSolution {
     double max_spread_deg;
     // **最小两两交会角**（把测向线当无向直线，折到 [0, 90]）。emcore 只算最大张角，
     // 于是「两条近乎平行的线 + 一条好线」会被判成 good——最大张角看不见那一对近简并的线。
-    // demo-03 上实测：uav-1 有两站真方位差 3.2°，最大张角却有 51–90°，
+    // golden-03 上实测：uav-1 有两站真方位差 3.2°，最大张角却有 51–90°，
     // 被判 good 的那批 2σ 椭圆覆盖率只有 45%（理论 86.5%）。这个量是新加的，不改既有分级。
     double min_crossing_deg;
     std::vector<double> residuals_deg;   // 各站方位残差（输入站序），折返到 (−180, 180]

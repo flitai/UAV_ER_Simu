@@ -9,12 +9,13 @@
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
 //     node tests/e2e/slice4-smoke.mjs [--url http://127.0.0.1:8080/]
 //
-// **每次导航都带 `?scenario=demo-01`**（2026-09-19 补）。本文件的物理判据（S1 对链路预算、
-// S2 底噪、检出时刻、真值那一行）全都按 demo-01 的几何算，而应用启动时会**采用盘上最近的一个任务
-// 并跟着载入它的场景**（D-061 ⑨）——于是手工跑过一次 demo-02 之后，这里会莫名其妙地
+// **每次导航都带 `?scenario=golden-01`**（2026-09-19 补）。本文件的物理判据（S1 对链路预算、
+// S2 底噪、检出时刻、真值那一行）全都按 golden-01 的几何算，而应用启动时会**采用盘上最近的一个任务
+// 并跟着载入它的场景**（D-061 ⑨）——于是手工跑过一次 golden-02 之后，这里会莫名其妙地
 // 在 S1 上差 9 dB。`?scenario=` 这个参数本来就是为此留的（actions.ts 的 bootstrap 里写着
 // 「端到端也靠它不受盘上任务历史影响」），只是这个文件一直没用上。
 
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -27,6 +28,7 @@ const BASE = (args.url ?? 'http://127.0.0.1:8080/').replace(/\/?$/, '/')
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 const checks = []
+const GOLDEN01_SHA = JSON.parse(readFileSync(join(ROOT, 'tests/golden/scenario-track-golden-01.json'), 'utf8')).scenario_sha256
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }) }
 // 页面里的同步表达式用 evaluate；带 fetch 的异步表达式必须用 evaluateAsync
 // （evaluate 会把表达式塞进 JSON.stringify(...)，里面写 await 是语法错）
@@ -72,7 +74,7 @@ try {
   page = await Page.open(chrome.port, 'about:blank')
   await page.send('Runtime.enable')
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n')[0]))
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/diagram` })
   await page.waitFor((s) => s.ready && s.app?.view === 'diagram', { label: '框图页', timeoutMs: 90000 })
   await sleep(800)
 
@@ -80,8 +82,8 @@ try {
   let st = await page.waitFor((s) => s.app?.chain?.template === 'chain-v1', { label: '典型链路载入' })
   check('框图页是典型链路视图（自由画布已删，D-060）', st.app.chain.template === 'chain-v1',
     `template ${st.app.chain.template}`)
-  check('缺省是全合成模式并绑定 demo-01 的单站单机', st.app.chain.mode === 'synthetic'
-    && st.app.chain.scenarioId === 'demo-01' && st.app.chain.siteId === 'site-1' && st.app.chain.emitterId === 'uav-1',
+  check('缺省是全合成模式并绑定 golden-01 的单站单机', st.app.chain.mode === 'synthetic'
+    && st.app.chain.scenarioId === 'golden-01' && st.app.chain.siteId === 'site-1' && st.app.chain.emitterId === 'uav-1',
     `${st.app.chain.mode} / ${st.app.chain.scenarioId} / ${st.app.chain.siteId} / ${st.app.chain.emitterId}`)
 
   const cards = await evalJson(page, "Array.from(document.querySelectorAll('[data-slot]')).map(e => e.dataset.slot)")
@@ -249,12 +251,23 @@ try {
   await page.evaluate(setInput(sceneField, '4'))
   const sceneDirty = await page.waitFor((s) => s.app?.scene?.dirty === true, { label: '改场景字段后置脏' })
   check('改场景设备参数标的是场景脏，不是框图脏', sceneDirty.app.scene.dirty === true)
-  // 自动保存：不点任何按钮，等它自己存下去（D-054）
-  const autoSaved = await page.waitFor((s) => s.app?.scene?.dirty === false, { label: '场景自动保存', timeoutMs: 30000 })
-  check('改完自动存场景，不用点保存', autoSaved.app.scene.dirty === false)
-  // 存回原值，不给后面的断言与仓库留副作用
+  // **基准场景只读**（用户 2026-09-19）：这一页改的设备参数长在场景文件里（D-054 ⑤），
+  // 所以这里的自动保存（D-054 ⑥）对基准场景不生效——改动不会落盘，但**必须说出来**，
+  // 不能默默丢掉用户的输入（铁律 15）。自动保存本身改在工作副本上验（`slice2-smoke`）。
+  await sleep(1500)   // 等过自动保存的去抖窗口（800 ms）
+  const roState = await page.evaluate(`(() => ({
+    dirty: window.__probe().app.scene.dirty,
+    note: !!document.querySelector('[data-chain-scenario-readonly]'),
+    toast: [...document.querySelectorAll('.toast')].some((e) => e.textContent.includes('基准场景只读')),
+  }))()`)
+  check('基准场景上改设备参数不落盘，而且把「没保存」说出来（用户 2026-09-19：基准只读，改动只能另存为）',
+    roState.dirty === true && roState.note && roState.toast, JSON.stringify(roState))
+  const goldenUntouched = await page.evaluateAsync(
+    "fetch('/api/v1/scenarios/golden-01').then(r => r.headers.get('x-cuav-sha256'))")
+  check('基准场景的字节没被动过', goldenUntouched === GOLDEN01_SHA, `${String(goldenUntouched).slice(0, 8)}…`)
+  // 改回原值：文档回到原样，后面的断言不受影响（本来也没落盘）
   await page.evaluate(setInput(sceneField, '6'))
-  await page.waitFor((s) => s.app?.scene?.dirty === false, { label: '场景存回原值', timeoutMs: 30000 })
+  await sleep(300)
 
   // 传播信道不随实体选择变化（用户明确要求）
   await page.evaluate("(document.querySelector('[data-slot=ch]').click(), true)")
@@ -429,7 +442,7 @@ try {
   const links = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/links?t0=4&t1=4.2').then(r => r.json())`)
   check('链路读数可取（G-2 的 links.jsonl）', Array.isArray(links) && links.length > 0, `${links?.length ?? 0} 条`)
   const lk = links[0]
-  // 场景 demo-01：tx_power 27 dBm、发射天线 2 dBi、接收天线 3 dBi
+  // 场景 golden-01：tx_power 27 dBm、发射天线 2 dBi、接收天线 3 dBi
   const wantS1 = 27 + 2 + 3 - lk.path_loss_dB
   const s1 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/s1/spectrum?t0=4&t1=4.05&px=1024&py=1&stat=max')
     .then(async (r) => { const b = new Float32Array(await r.arrayBuffer()); let m = -Infinity;
@@ -454,7 +467,7 @@ try {
   check('本次运行没有削顶（满量程留了余量）', idx.clipped_samples === 0, String(idx.clipped_samples))
 
   // ---------- 结果页：观测点分得开、切得动，默认仍是主产品 S4 ----------
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/results` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/results` })
   await page.waitFor((s) => s.ready && s.app?.view === 'results', { label: '结果页', timeoutMs: 60000 })
   await sleep(1200)
   const opTabs = await evalJson(page, "Array.from(document.querySelectorAll('[data-op-tab]')).map((e) => e.textContent)")
@@ -481,7 +494,7 @@ try {
   check('勾上的中间观测点读数确实不同（S2 − S1 = 前端增益 20 dB）',
     near(twoOps.s2 - twoOps.s1, 20, 1.5), `S1 ${twoOps.s1.toFixed(2)} dBm，S2 ${twoOps.s2.toFixed(2)} dBm，差 ${(twoOps.s2 - twoOps.s1).toFixed(2)} dB`)
 
-  // ---------- ③b 检测（C-3，D-063）：demo-01 的无人机 3 s 开机，滑动噪声估计在此前攒到干净参考，之后持续检出 ----------
+  // ---------- ③b 检测（C-3，D-063）：golden-01 的无人机 3 s 开机，滑动噪声估计在此前攒到干净参考，之后持续检出 ----------
   const det = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections?hit=true').then(r => r.json())`)
   check('detections.jsonl 有命中行，且每行带节点名与站点标识（D-053）',
     Array.isArray(det) && det.length > 0 && det.every((r) => r.node_id === 'det' && r.site_id === 'site-1'), `${det?.length ?? 0} 行`)
@@ -516,7 +529,7 @@ try {
   const fL = feat.find((r) => r.segment_id === longest.id)
   const rL = rec.find((r) => r.segment_id === longest.id)
   check('最长段的特征：带宽只有几个 bin、占空比 1、质量 full（单音持续到结束）',
-    // demo-01 的单音在站中心之上 48828.125 Hz（场景 waveform.offset_Hz），质心应落在它的一个 bin（488 Hz）内
+    // golden-01 的单音在站中心之上 48828.125 Hz（场景 waveform.offset_Hz），质心应落在它的一个 bin（488 Hz）内
     fL && fL.bandwidth_Hz < 5e3 && fL.duty === 1 && fL.quality === 'full' && Math.abs(fL.center_Hz - (2440.5e6 + 48828.125)) < 1e3,
     fL ? `带宽 ${fL.bandwidth_Hz} Hz，质心 ${(fL.center_Hz / 1e6).toFixed(4)} MHz，平坦度 ${fL.spectral_flatness?.toFixed?.(3)}，${fL.quality}` : '无')
   check('最长段判为 cw_beacon 且过接受门限（10 报告附录 D 的波形映射：tone → cw_beacon）',
@@ -525,7 +538,7 @@ try {
 
   // ---------- ③d 真值与评价（C-5）：truth.jsonl 一行、metrics.json 一节、task.json 的摘要与之相等 ----------
   const truth = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/truth').then(r => r.json())`)
-  check('truth.jsonl 一行：demo-01 的 uav-1 自 3 s 起发单音，频段内，类别 cw_beacon，带评价器节点与站点',
+  check('truth.jsonl 一行：golden-01 的 uav-1 自 3 s 起发单音，频段内，类别 cw_beacon，带评价器节点与站点',
     Array.isArray(truth) && truth.length === 1 && truth[0].node_id === 'eval' && truth[0].site_id === 'site-1'
     && truth[0].emitter_id === 'uav-1' && truth[0].label === 'cw_beacon' && truth[0].in_band === true && near(truth[0].t_s, 3, 1e-9),
     JSON.stringify(truth?.[0] ?? truth).slice(0, 160))
@@ -633,7 +646,7 @@ try {
   check('混淆矩阵维度随 labels 走（不硬编码 5×5），per_class 比 labels 少一项（没有 unknown）',
     ev.cmN === sec.recognition.labels.length && ev.perClass === sec.recognition.labels.length - 1,
     `${ev.cmN} × ${ev.cmN}，per_class ${ev.perClass} / labels ${sec.recognition.labels.length}`)
-  check('ROC 画出可用点并标工作点；demo-01 有 H0 帧，所以不落到「Pfa —」那一支',
+  check('ROC 画出可用点并标工作点；golden-01 有 H0 帧，所以不落到「Pfa —」那一支',
     ev.rocPoints === sec.roc.points.filter((p) => typeof p.pfa === 'number' && typeof p.pd === 'number').length
     && ev.rocPoints > 0 && ev.rocNote === '', `${ev.rocPoints} 点，note「${ev.rocNote}」`)
   check('解析曲线族只在 `?dev=1` 出现（界面不展示内部诊断，D-039）', ev.rocFamily === '', `family「${ev.rocFamily}」`)
@@ -675,7 +688,7 @@ try {
   check('再按空格暂停', st.app.timeline.playing === false)
 
   await page.evaluate("(document.querySelector('.col.left .rail').click(), true)")
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/diagram` })
   await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '回框图页', timeoutMs: 60000 })
   await sleep(600)
 
@@ -711,7 +724,7 @@ try {
   }
 
   // 刷新后仍然回到典型链路视图，且载入的是刚存的那份
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/diagram` })
   st = await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1', { label: '刷新后仍是典型链路', timeoutMs: 90000 })
   check('刷新后载入已保存的框图，仍在典型链路视图', st.app.chain.template === 'chain-v1')
 
@@ -723,7 +736,7 @@ try {
   // 用户 2026-09-10：「自由画布不重要，用户操作起来也很难控制，有点华而不实」。
   // 这里守三件事：旧地址不把人甩到别的页、页面上不再有画布入口、
   // 以及解不成典型链路的框图**不被硬解也不被改写**（铁律 15）。
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram/canvas` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/diagram/canvas` })
   st = await page.waitFor((s) => s.ready && s.app?.view === 'diagram', { label: '旧画布地址', timeoutMs: 90000 })
   check('收藏夹里的旧画布地址仍落在框图页，不掉到默认的场景页', st.app.view === 'diagram')
   check('地址被规范回 #/diagram', (await page.evaluate('location.hash')) === '#/diagram',
@@ -747,7 +760,7 @@ try {
 
   // 只改 hash 不会重载页面（浏览器视之为同文档导航），而「载入最近保存的框图」是启动时那一次的事。
   // 加一个一次性查询参数把它变成真正的导航——先改 hash 再 reload 会在 hash 生效前重载旧地址。
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01&_reload=${Date.now()}#/diagram` })
   st = await page.waitFor((s) => s.ready && s.app?.chain?.template === null,
                           { label: '载入手写框图', timeoutMs: 90000 })
   const foreign = await evalJson(page, `(() => {
@@ -767,7 +780,7 @@ try {
   const del2 = await page.evaluateAsync(
     `fetch('/api/v1/diagrams/${handmade.diagram_id}', { method: 'DELETE' }).then(r => r.status)`)
   check('测试不留副作用：手写框图已删除', del2 === 200, String(del2))
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/diagram` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01&_reload=${Date.now()}#/diagram` })
   st = await page.waitFor((s) => s.ready && s.app?.chain?.template === 'chain-v1',
                           { label: '回到内置缺省典型链路', timeoutMs: 90000 })
 
@@ -863,7 +876,7 @@ try {
   const rb = await page.waitFor((s) => s.app?.chain?.mode === 'synthetic'
     && (s.app?.chain?.emitterIds ?? []).length > 0, { label: '切回后场景认回来' })
   check('切回全合成后场景与目标自动认回来，不停在「先选场景」',
-    rb.app.chain.scenarioId === 'demo-01' && rb.app.chain.emitterIds.includes('uav-1'),
+    rb.app.chain.scenarioId === 'golden-01' && rb.app.chain.emitterIds.includes('uav-1'),
     `${rb.app.chain.scenarioId} / ${rb.app.chain.emitterIds.join()}`)
 
   // 前端参数要活着回来（D-055）：回放模式下这六个环节不变成节点，
@@ -874,7 +887,7 @@ try {
   const pend = await page.evaluate("document.querySelector('[data-form=slot] [data-pending]')?.textContent ?? ''")
   check('转一圈回来 ADC 满量程还在，不用重填（D-055）', fs === '-20' && pend === '', `满量程 ${fs || '空'}；${pend || '无待填'}`)
   // ---------- ④a 任务列表（U-4，D-075）----------
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/results/tasks` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01&_reload=${Date.now()}#/results/tasks` })
   st = await page.waitFor((s) => s.app?.resultsTab === 'tasks' && s.app?.taskList?.status === 'ok',
     { label: '任务页签', timeoutMs: 40000 })
   const tl = st.app.taskList
@@ -908,7 +921,7 @@ try {
   }
 
   // ---------- ④b 数据中心（U-4，D-075）----------
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01&_reload=${Date.now()}#/data` })
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01&_reload=${Date.now()}#/data` })
   st = await page.waitFor((s) => s.app?.view === 'data' && s.app?.dataCenter?.status === 'ok',
     { label: '数据中心', timeoutMs: 40000 })
   const dc = st.app.dataCenter
@@ -1001,7 +1014,7 @@ try {
 
   // ---------- ③f `?dev=1` 下 ROC 叠解析预测（C-9 的验收项）----------
   // 开发者模式是一次真导航（查询参数不是 hash），放在最后做，不打扰前面的信号页步骤
-  await page.send('Page.navigate', { url: `${BASE}?dev=1&scenario=demo-01#/results/evaluation` })
+  await page.send('Page.navigate', { url: `${BASE}?dev=1&scenario=golden-01#/results/evaluation` })
   st = await page.waitFor((s) => s.app?.resultsTab === 'evaluation' && s.app?.results?.metrics?.status === 'final',
     { label: '开发者模式的评价页签', timeoutMs: 40000 })
   // 重新导航会重新采用「最近一个任务」，未必还是上面那一个（slice4 一路跑了好几次），所以按当前采用的任务取索引
@@ -1020,7 +1033,7 @@ try {
     dIdx.nodes.det.m_bins === 921 && devM >= 1, `缺省链 ${dIdx.nodes.det.m_bins}，当前链 ${devM}`)
 
   // ---------- ④d `?dev=1` 下数据中心才出质检原因与标定来源（U-4，D-075）----------
-  await page.send('Page.navigate', { url: `${BASE}?dev=1&scenario=demo-01#/data` })
+  await page.send('Page.navigate', { url: `${BASE}?dev=1&scenario=golden-01#/data` })
   st = await page.waitFor((s) => s.app?.view === 'data' && s.app?.dataCenter?.status === 'ok',
     { label: '开发者模式的数据中心', timeoutMs: 40000 })
   await page.evaluate(`(document.querySelector('[data-dataset-row]').click(), true)`)

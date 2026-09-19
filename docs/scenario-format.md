@@ -96,7 +96,7 @@
 5. 航向 = 当前段的真北顺时针方位（铁律 1）；速度单位 m/s；只有 1 个航点即静止。
 
 **两处对 em-demo 的有意偏离**（实现在 `geo/src/kinematics.cpp` 与 `web/src/scene/editor/preview.ts`，
-两侧同式，由 `tests/golden/scenario-track-demo-01.json` 对拍，见 08 报告 §9）：
+两侧同式，由 `tests/golden/scenario-track-golden-01.json` 对拍，见 08 报告 §9）：
 
 - **段长用 ECEF 弦长**，不用 em-demo 的球面半正矢（R = 6371000）。两者在 2 km 段上差约 0.5%，
   即 10 米，远超航迹对拍 1e-6 度（约 0.1 米）的容差；弦长闭式无迭代，C++ 与浏览器能逐位一致。
@@ -131,7 +131,7 @@
   跳出奈奎斯特不会有任何征兆、只会静默混叠。三处同一口径校验：`Scenario::cross_check`、
   `SceneEmitterSource::configure`、前端频率计划的「目标不跨频带边缘」。
 - **参数帧（10–100 Hz）与航迹事件里的 `tx_center_Hz` / `center_Hz` 是这一刻的瞬时频点，
-  不是跳频序列**。跳频停留在毫秒量级时帧根本采不到它（`demo-02` 的 2 Hz 航迹基准里
+  不是跳频序列**。跳频停留在毫秒量级时帧根本采不到它（`golden-02` 的 2 Hz 航迹基准里
   `uav-2` 的频点恒为序列首项）。要看真实的跳频图案得看瀑布或 `truth.jsonl`。
 
 场景编辑器在活动列表里提供 `+ hop`（新建时带一组以该源中心频率为基准的缺省序列），
@@ -200,7 +200,7 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
 ```json
 {
   "schema_version": "cuav-scenario/1",
-  "scenario_id": "demo-01",
+  "scenario_id": "golden-01",
   "name": "亚运村上空单机直飞",
   "synthetic": true,
   "aoi": { "id": "beijing-yayuncun", "manifest_sha256": "<manifest.json 的 sha256>" },
@@ -238,7 +238,7 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
 
 ## 9. 待写
 
-- [x] 示例文件 `data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json` 与 schema 的一致性测试
+- [x] 示例文件 `data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json` 与 schema 的一致性测试
       （2026-09-06，`tests/unit/test_scenario_example.py` 八项：schema、清单哈希、跨引用、航线时长覆盖仿真时长、
       全部位置落在观测区域内）
 - [ ] 多站、阵列与设备字段（05 P0，只作命名预留）

@@ -5,6 +5,7 @@
 // 开发者模式才有的「按高度来源分色」留在弹层里（D-042b：界面不解释估算高度）。
 
 import { useAppState, useDispatch } from '../state/store.js'
+import { isReadonlyScenario } from './readonly.js'
 import type { SceneTool } from '../state/types.js'
 
 export interface MapToolbarProps {
@@ -32,6 +33,8 @@ export interface MapToolbarProps {
   editMode: boolean
   onEditMode: (on: boolean) => void
   onSave: () => void
+  /** 基准场景只读时用它（用户 2026-09-19）：另存为一个新标识 */
+  onSaveAs: () => void
   saving: boolean
 }
 
@@ -44,6 +47,7 @@ const EDIT_TOOLS: Array<{ id: SceneTool; label: string; hint: string }> = [
 ]
 
 export function MapToolbar(p: MapToolbarProps) {
+  const ro = isReadonlyScenario(useAppState())
   const s = useAppState()
   const dispatch = useDispatch()
   const open = s.ui.popover === 'layers'
@@ -107,8 +111,17 @@ export function MapToolbar(p: MapToolbarProps) {
           </>
         )}
       </div>
-      <button type="button" data-act="save-scenario" disabled={!s.scene.dirty || p.saving}
-              onClick={p.onSave}>{p.saving ? '保存中…' : '保存场景'}</button>
+      {/* 基准场景只读（用户 2026-09-19）：按钮直接换成「另存为」，不给一个按下去必然失败的「保存」。
+          它**不需要 dirty**——没改动也能另存一份出来当自己的起点。 */}
+      {ro
+        ? (
+          <button type="button" data-act="save-scenario-as" disabled={p.saving} title="基准场景只读；另存为一个新标识后就能自由编辑"
+                  onClick={p.onSaveAs}>{p.saving ? '保存中…' : '另存为…'}</button>
+        )
+        : (
+          <button type="button" data-act="save-scenario" disabled={!s.scene.dirty || p.saving}
+                  onClick={p.onSave}>{p.saving ? '保存中…' : '保存场景'}</button>
+        )}
     </div>
   )
 }

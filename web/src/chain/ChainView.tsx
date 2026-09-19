@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { useAppState, useDispatch, useStore } from '../state/store.js'
 import { saveDiagram, saveScenario } from '../shell/actions.js'
+import { isReadonlyScenario } from '../scene/readonly.js'
 import { isCatalog, findComponent, type Catalog, type ParamSpec } from '../api/catalog.js'
 import { parse as parseDoc, serialize, type ParamValue } from '../diagram/doc.js'
 import { Field, range } from '../diagram/Field.js'
@@ -78,7 +79,7 @@ function useSceneSync(
   // 判据必须同时看 id **与载入状态**：`scene/scenarioLoading` 会立刻把 scene.scenario.id 改成
   // 新场景，而 doc 要等请求回来才换。只看 id 的话，在 loading 那一帧闸门就放行了，
   // 效应会拿旧场景的站源列表把选择填上；旧场景的 id 恰好在新场景里也存在时
-  // （demo-01 的 site-1 / uav-1 在 demo-03 里都有），之后就再也不会重填——
+  // （golden-01 的 site-1 / uav-1 在 golden-03 里都有），之后就再也不会重填——
   // 切到三站场景只勾中一个站。这是切片 ⑥b 实测撞到的。
   const sceneLoaded = s.scene.scenario.status === 'ok' && !!s.scene.scenario.id
   const sceneInSync = !!chain && !!chain.scenario
@@ -133,7 +134,20 @@ const AUTOSAVE_MS = 800
 function useScenarioAutosave(store: ReturnType<typeof useStore>, dirty: boolean): void {
   useEffect(() => {
     if (!dirty) return
-    const t = setTimeout(() => { void saveScenario(store) }, AUTOSAVE_MS)
+    const t = setTimeout(() => {
+      // 基准场景只读（用户 2026-09-19）：**改动不会保存，这件事必须说出来**。
+      // 框图页上改的天线增益、噪声系数、采样率都长在场景文件里（D-054 ⑤），
+      // 所以这条规则在这一页同样生效；默默不存等于把用户的输入丢了（铁律 15）。
+      // 提示只出一条——同一句话不叠（reducer 的 toast 去重）。
+      if (isReadonlyScenario(store.getState())) {
+        store.dispatch({
+          type: 'ui/toast', kind: 'warn', sticky: true,
+          text: '基准场景只读：这处改动没有保存。要留下它，请到场景页「另存为」一份再改',
+        })
+        return
+      }
+      void saveScenario(store)
+    }, AUTOSAVE_MS)
     return () => clearTimeout(t)
   }, [dirty, store])
 }
@@ -288,6 +302,7 @@ export function ChainView() {
             sites={siteIdList}
             emitters={emitterIdList}
             error={errBySlot.get('__setup') ?? null}
+            scenarioReadonly={isReadonlyScenario(s)}
             onChange={commit}
           />
         }
@@ -408,6 +423,8 @@ interface SetupProps {
   sites: string[]
   emitters: string[]
   error: string | null
+  /** 当前场景是基准场景（只读）：设备参数改了也存不下去，得说出来 */
+  scenarioReadonly: boolean
   onChange: (next: ChainState, label: string) => void
 }
 
@@ -498,6 +515,12 @@ function ExperimentSetup(p: SetupProps) {
             {MODES.map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
           </select></span>
         </label>
+        {c.mode !== 'replay' && p.scenarioReadonly && (
+          <div className="muted ds-note" data-chain-scenario-readonly>
+            基准场景只读：这一页改的设备参数（天线增益 / 噪声系数 / 采样率）长在场景文件里，不会被保存。
+            要留下改动，请到场景页「另存为」一份。
+          </div>
+        )}
         {c.mode !== 'replay' && (
           <>
             {/* 场景在场景页选（2026-09-13 用户定）：这里只写当前跟着的是哪一份，不给第二个入口（D-057 同理） */}

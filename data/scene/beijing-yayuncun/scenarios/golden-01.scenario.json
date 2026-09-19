@@ -1,6 +1,6 @@
 {
   "schema_version": "cuav-scenario/1",
-  "scenario_id": "demo-01",
+  "scenario_id": "golden-01",
   "name": "亚运村上空单机过顶后远去",
   "synthetic": true,
   "aoi": {

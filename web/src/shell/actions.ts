@@ -12,6 +12,7 @@ import { TERMINAL } from '../state/reducer.js'
 import type { StoreApi } from '../state/store.js'
 import type { ScenarioDoc, ScenarioSummary, TaskRecord } from '../state/types.js'
 import { signalBuffer } from '../signal/buffer.js'
+import { checkSaveAsId, isReadonlyScenario } from '../scene/readonly.js'
 
 export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<void> {
   const { dispatch } = store
@@ -34,7 +35,7 @@ export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<
   })())
   jobs.push((async () => {
     // 场景与最近任务是**一个**作业：先采用最近任务（它带着自己的场景），再决定缺省场景。
-    // 原来两路并发、场景恒取清单第一项，刷新后就会出现「任务是 demo-03、场景页是 demo-01」，
+    // 原来两路并发、场景恒取清单第一项，刷新后就会出现「任务是 golden-03、场景页是 golden-01」，
     // 地图上只剩 site-1 的测向线（13 报告 §6.1，D-061）。
     // 地址栏 `?scenario=` 点名要开哪个场景（与 `?aoi=` 同法）：优先于最近任务的场景，
     // 演示时可以直接把人带到某个场景，端到端也靠它不受盘上任务历史影响。
@@ -57,7 +58,7 @@ export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<
     // 没有任务、旧记录没有 scenario_id、或它的场景已不存在：退到清单第一项。
     // 判据用**载入函数的返回值**，不读 store：getState() 给的是上一次渲染的状态，刚 dispatch 完
     // 还没重渲染那一瞬读到的仍是「载入中」，兜底就会把点名的场景换成清单第一项——
-    // `?scenario=demo-03` 打开后落在 demo-01，2026-09-13 实测（此前 slice8 在框图页多选一次盖住了它）。
+    // `?scenario=golden-03` 打开后落在 golden-01，2026-09-13 实测（此前 slice8 在框图页多选一次盖住了它）。
     if (!loaded && store.getState().scene.scenario.status !== 'ok' && list.length) await loadScenarioInto(store, list[0]!.scenario_id, alive)
   })())
   jobs.push((async () => {
@@ -222,6 +223,9 @@ export async function saveScenario(store: StoreApi): Promise<boolean> {
   const doc = s.scene.scenario.doc
   const id = s.scene.scenario.id
   if (!doc || !id || scenarioSaveInFlight) return false
+  // 基准场景只读（用户 2026-09-19）：**连试都不试**。服务端会拒（409 scenario_readonly），
+  // 但自动保存每次改动都来一趟，那会变成一串红提示；这里直接不走，由界面引到「另存为」。
+  if (isReadonlyScenario(s)) return false
   scenarioSaveInFlight = true
   try {
     const r = await putScenario(id, doc)
@@ -302,4 +306,40 @@ function commitChain(store: StoreApi, chain: ChainState, catalog: Catalog | null
   const { doc } = compile(chain, catalog, scenarioDoc)
   store.dispatch({ type: 'diagram/setDoc', text: serialize(doc, catalog), label })
   store.dispatch({ type: 'ui/navigate', view: 'diagram' })
+}
+
+/**
+ * 把当前场景另存为一个新标识（用户 2026-09-19：基准场景只读，改它只能另存为）。
+ *
+ * 写的是**新 id 的文件**，然后把界面切到那一份——此后自动保存照常。
+ * 框图里的 `scenario_ref` 由 `useSceneSync` 跟着换（它本来就在盯场景 id 与哈希）。
+ */
+export async function saveScenarioAs(store: StoreApi, rawId: string): Promise<boolean> {
+  const { dispatch, getState } = store
+  const s = getState()
+  const doc = s.scene.scenario.doc
+  if (!doc) return false
+  const check = checkSaveAsId(rawId, s.scene.scenario.list.map((x) => x.scenario_id))
+  if (!check.ok) {
+    dispatch({ type: 'ui/toast', kind: 'error', text: `另存为：${check.why}`, sticky: true })
+    return false
+  }
+  const next = { ...doc, scenario_id: check.id } as typeof doc
+  let r
+  try {
+    r = await putScenario(check.id, next)
+  } catch (e) {
+    dispatch({ type: 'ui/toast', kind: 'error', text: `另存为失败：${(e as Error).message}`, sticky: true })
+    return false
+  }
+  if (!r.ok) {
+    dispatch({ type: 'ui/toast', kind: 'error', text: `另存为失败 [${r.code}] ${r.message}`, sticky: true })
+    return false
+  }
+  dispatch({ type: 'scene/scenarioLoaded', id: check.id, doc: next, sha256: r.sha256 })
+  try {
+    dispatch({ type: 'scene/scenarioList', list: await listScenarios() })
+  } catch { /* 清单取不到不影响已经存好的那一份 */ }
+  dispatch({ type: 'ui/toast', kind: 'info', text: `已另存为 ${check.id}（${r.bytes} 字节），后续改动会自动保存` })
+  return true
 }

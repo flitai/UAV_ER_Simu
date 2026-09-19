@@ -1,7 +1,7 @@
-// C-8「宽带场景 demo-02 与 G-6 活动时间线」的端到端验收（06 备忘录 §9C G-6、§9G C-8；决策 D-069）。
+// C-8「宽带场景 golden-02 与 G-6 活动时间线」的端到端验收（06 备忘录 §9C G-6、§9G C-8；决策 D-069）。
 //
 // 验的是「活动时间线真的驱动了波形，而且在界面上读得出来」：
-//   ① 场景页切到 demo-02（10 MS/s / 8 MHz / 两个源），框图跟着走，跑 6 s；
+//   ① 场景页切到 golden-02（10 MS/s / 8 MHz / 两个源），框图跟着走，跑 6 s；
 //   ② 结果页「检测识别」：时间线三行画出来，识别列表里出现 rc_hopping —— 这一类自 C-4 起
 //      就欠着验收，因为此前全仓没有任何场景带 hop（models/recognition/README.md §4）；
 //   ③ 识别行与 metrics.json 对得上，准确率 ≥ 0.9（10 报告 §8 的 ④b 判据）；
@@ -10,7 +10,7 @@
 //   ⑤ 场景页能建并改跳频活动（G-6 的界面最小集），改完即脏、可保存；
 //   ⑥ 同种子重跑，产品文件逐字节相同（铁律 9）。
 //
-// 跑序接在 slice8 之后（slice4 依赖「最近一个任务」是缺省链，本文件会换成 demo-02，故放末位）。
+// 跑序接在 slice8 之后（slice4 依赖「最近一个任务」是缺省链，本文件会换成 golden-02，故放末位）。
 //
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
 //     node tests/e2e/slice9-smoke.mjs [--url http://127.0.0.1:8080/]
@@ -40,7 +40,7 @@ const setInput = (sel, value) => `(() => {
 
 // 场景文件的基准哈希取自航迹黄金基准 —— 端到端改完场景必须原样改回（slice2 立的纪律）
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
-const trackSha = JSON.parse(readFileSync(join(ROOT, 'tests/golden/scenario-track-demo-02.json'), 'utf8')).scenario_sha256
+const trackSha = JSON.parse(readFileSync(join(ROOT, 'tests/golden/scenario-track-golden-02.json'), 'utf8')).scenario_sha256
 
 let chrome, page, dir
 const pageErrors = []
@@ -52,14 +52,14 @@ try {
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n')[0]))
 
   // ---------- ① 宽带场景跑一遍 ----------
-  trace('进入 ① demo-02 宽带链')
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-02#/diagram` })
+  trace('进入 ① golden-02 宽带链')
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-02#/diagram` })
   await page.waitFor((s) => s.ready && s.app?.view === 'diagram' && s.app?.chain?.template === 'chain-v1', { label: '框图页', timeoutMs: 90000 })
-  let st = await page.waitFor((s) => s.app?.chain?.scenarioId === 'demo-02', { label: '框图跟着 demo-02', timeoutMs: 30000 })
+  let st = await page.waitFor((s) => s.app?.chain?.scenarioId === 'golden-02', { label: '框图跟着 golden-02', timeoutMs: 30000 })
   await sleep(800)
   st = await page.waitFor((s) => (s.app?.chain?.emitterIds ?? []).length === 2 && (s.app?.chain?.siteIds ?? []).length === 1,
     { label: '单站两源进状态', timeoutMs: 20000 })
-  check('demo-02 是单站两源的宽带场景', st.app.chain.siteIds.length === 1 && st.app.chain.emitterIds.length === 2,
+  check('golden-02 是单站两源的宽带场景', st.app.chain.siteIds.length === 1 && st.app.chain.emitterIds.length === 2,
     `站 ${JSON.stringify(st.app.chain.siteIds)} 源 ${JSON.stringify(st.app.chain.emitterIds)}`)
 
   // DOM 写的是 data-ok="1|0"（ChainView.tsx:496），不是 data-check-ok="true|false"：
@@ -148,7 +148,7 @@ try {
   trace('进入 ⑤ 场景页改跳频')
   await page.evaluate("(window.location.hash = '#/scene', true)")
   await page.waitFor((s) => s.app?.view === 'scene', { label: '场景页' })
-  await page.waitFor((s) => s.app?.scene?.scenarioId === 'demo-02', { label: '场景页在 demo-02', timeoutMs: 30000 })
+  await page.waitFor((s) => s.app?.scene?.scenarioId === 'golden-02', { label: '场景页在 golden-02', timeoutMs: 30000 })
   // 选中跳频源 → 展开活动折叠块 → 点中那条 hop
   const picked = await page.evaluate("(() => { const b = document.querySelector('[data-tree-emitter=\"uav-2\"]'); if (b) b.click(); return !!b })()")
   check('左栏对象树里点得到跳频源 uav-2', picked === true)
@@ -182,7 +182,7 @@ try {
   // 这一条是 slice2 立下的纪律：端到端不留副作用。
   await page.evaluate(setInput('[data-field=hop-sequence]', originalSeq))
   await sleep(1600)                                     // 等去抖的自动保存落盘
-  const restored = await page.evaluateAsync(`fetch('/api/v1/scenarios/demo-02').then(r => r.headers.get('X-CUAV-Sha256'))`)
+  const restored = await page.evaluateAsync(`fetch('/api/v1/scenarios/golden-02').then(r => r.headers.get('X-CUAV-Sha256'))`)
   check('测试不留副作用：跳频点已改回，场景文件哈希与航迹基准一致',
     restored === trackSha, `${String(restored).slice(0, 8)}… vs 基准 ${String(trackSha).slice(0, 8)}…`)
   await page.evaluate("(window.location.hash = '#/results', true)")

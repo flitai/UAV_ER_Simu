@@ -1,6 +1,6 @@
 // 场景编辑操作的单测（G-4；D-053 的「布目标」）。
 //
-// 对着**真场景** demo-01 跑：产出的文档必须仍然是引擎认得的那一份，
+// 对着**真场景** golden-01 跑：产出的文档必须仍然是引擎认得的那一份，
 // 用桩数据测这层没有意义——`addEmitter` 最容易出的错正是「漏了航线」这类跨引用问题。
 
 import { test } from 'node:test'
@@ -15,7 +15,7 @@ import { activities, addActivity, addEmitter, addSite, addWaypoint, addZone, DEF
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 function demo(): ScenarioDoc {
   return JSON.parse(
-    readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'), 'utf8'),
+    readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json'), 'utf8'),
   ) as ScenarioDoc
 }
 
@@ -88,7 +88,7 @@ test('setPath：改既有字段，其余部分一字不动', () => {
 
 test('setPath：中间对象缺席时建出来——站钟与设备型号本来就不存在（D-054）', () => {
   const doc = demo()
-  assert.equal(sites(doc)[0]!.clock, undefined)   // demo-01 的站没有 clock
+  assert.equal(sites(doc)[0]!.clock, undefined)   // golden-01 的站没有 clock
   const next = setPath(doc, 'sites.0.clock.sync_sigma_ns', 3)
   assert.deepEqual(sites(next)[0]!.clock, { sync_sigma_ns: 3 })
   // 顶层的可选标量字段同理
@@ -113,7 +113,7 @@ test('链路标识按已知的站与源精确拆分：site-1-uav-1 是 site-1 �
 })
 
 test('告警区：布区 / 移动 / 删除是纯函数，删空后键一起消失；进圈判定按弦长与限高（D-061）', () => {
-  const doc = demo()   // demo-01 没有 zones
+  const doc = demo()   // golden-01 没有 zones
   assert.equal(zones(doc).length, 0)
   const r = addZone(doc, 116.41, 39.99)
   assert.equal(zones(doc).length, 0, '入参不变')

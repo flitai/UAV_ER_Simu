@@ -8,7 +8,7 @@
 //      发射功率 + 两端天线增益 − 路损、信噪比等于电平 − (−174 + nf + 10·log10 fs)（13 §3.2）；
 //   ③ 测向行与 bearings 端点的最后一行相等，定位行与 positions 端点相等；
 //   ④ 点目标行即选中该辐射源，表单叠在栈顶，「返回卡片」清掉选中；
-//   ⑤ 刷新后场景跟着最近任务（demo-03），不落到清单第一项（13 §6.1）；链路线渲染出要素（13 §6.2）。
+//   ⑤ 刷新后场景跟着最近任务（golden-03），不落到清单第一项（13 §6.1）；链路线渲染出要素（13 §6.2）。
 // V-2（告警区与叠加加重）：
 //   ⑥ 场景里有告警区 z-east，地图上画出圈与高度立柱，十三个态势图层齐全；跑 70 s 后 uav-2 在圈内
 //      （13 报告 §4.3 的几何判定）：卡片带徽标、列表行带徽标、图标换红环变体，其余两架不在；
@@ -78,14 +78,14 @@ try {
   await page.send('Runtime.enable')
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n')[0]))
 
-  // ---------- ① 在框图页把 demo-03 三站三源跑一遍（测向与多站定位都开） ----------
-  trace('进入 ① 在框图页把 demo-03 三站三源跑一遍（测向与多站定位都开）')
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-03#/diagram` })
+  // ---------- ① 在框图页把 golden-03 三站三源跑一遍（测向与多站定位都开） ----------
+  trace('进入 ① 在框图页把 golden-03 三站三源跑一遍（测向与多站定位都开）')
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-03#/diagram` })
   trace('已发 Page.navigate')
   await page.waitFor((s) => s.ready && s.app?.view === 'diagram' && s.app?.chain?.template === 'chain-v1', { label: '框图页', timeoutMs: 90000 })
   trace('过了 框图页')
-  // 地址带 ?scenario=demo-03 已把场景页切到 demo-03，框图跟着走（2026-09-13），不再需要在框图页选
-  await page.waitFor((s) => s.app?.chain?.scenarioId === 'demo-03', { label: '框图跟着 demo-03', timeoutMs: 30000 })
+  // 地址带 ?scenario=golden-03 已把场景页切到 golden-03，框图跟着走（2026-09-13），不再需要在框图页选
+  await page.waitFor((s) => s.app?.chain?.scenarioId === 'golden-03', { label: '框图跟着 golden-03', timeoutMs: 30000 })
   await sleep(800)
   await waitDom(page, "document.querySelectorAll('[data-multi=site] input').length", 3)
   await waitDom(page,
@@ -111,7 +111,7 @@ try {
   const taskId = st.app.context.taskId
   st = await page.waitFor((s) => ['finished', 'failed', 'cancelled'].includes(s.app?.task?.runState), { label: '任务结束', timeoutMs: 300000 })
   trace('过了 任务结束')
-  check('demo-03 三站三源任务跑完（70 s）', st.app.task.runState === 'finished', `${taskId} ${st.app.task.runState} / ${st.app.task.result}`)
+  check('golden-03 三站三源任务跑完（70 s）', st.app.task.runState === 'finished', `${taskId} ${st.app.task.runState} / ${st.app.task.result}`)
 
   // ---------- ② 场景页：右栏不点选就有卡 ----------
   trace('进入 ② 场景页：右栏不点选就有卡')
@@ -159,7 +159,7 @@ try {
   const bearings = await tail('bearings')
   const positions = await tail('positions')
   trace(`取回末尾 links ${links.length} / bearings ${bearings.length} / positions ${positions.length}`)
-  const scn = (await page.evaluateAsync("fetch('/api/v1/scenarios/demo-03').then(r => r.json())"))
+  const scn = (await page.evaluateAsync("fetch('/api/v1/scenarios/golden-03').then(r => r.json())"))
   const lastLink = lastByKey(links, (r) => r.link_id)
   const lastBearing = lastByKey(bearings, (r) => r.link_id)
   const lastPos = lastByKey(positions, (r) => `${r.emitter_id}:${r.method}`)
@@ -295,7 +295,7 @@ try {
   trace('已发 Page.navigate')
   st = await page.waitFor((s) => s.ready && s.loaded && s.app?.scene?.status === 'ok' && !!s.app?.context?.taskId, { label: '刷新后就绪', timeoutMs: 120000 })
   trace('过了 刷新后就绪')
-  check('刷新后场景跟着最近任务（demo-03），不落到清单第一项', st.app.scene.scenarioId === 'demo-03' && st.app.context.taskId === taskId,
+  check('刷新后场景跟着最近任务（golden-03），不落到清单第一项', st.app.scene.scenarioId === 'golden-03' && st.app.context.taskId === taskId,
     `${st.app.scene.scenarioId} / ${st.app.context.taskId}`)
   st = await page.waitFor((s) => (s.app?.cards ?? []).length === 3 && s.app.cards.every((c) => c.sites.every((r) => r.source === 'link')), { label: '刷新后卡片重算', timeoutMs: 30000 })
   trace('过了 刷新后卡片重算')

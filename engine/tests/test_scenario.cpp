@@ -23,7 +23,7 @@ namespace {
 // CUAV_SOURCE_DIR 是 engine/，仓库根在它的上一级。
 std::string repo(const std::string& rel) { return std::string(CUAV_SOURCE_DIR) + "/../" + rel; }
 
-const char* kDemo = "data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json";
+const char* kDemo = "data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json";
 
 nlohmann::json demo_json() {
     std::ifstream f(repo(kDemo).c_str(), std::ios::binary);
@@ -71,7 +71,7 @@ TEST_CASE("场景：示例文件读得通、跨引用校验过、哈希算的是
     LoadedScenario s;
     std::string err;
     REQUIRE_MESSAGE(load_scenario_file(repo(kDemo), s, err), err);
-    CHECK(s.scenario.scenario_id == "demo-01");
+    CHECK(s.scenario.scenario_id == "golden-01");
     CHECK(s.scenario.synthetic);
     CHECK(s.scenario.sites.size() == 1);
     CHECK(s.scenario.emitters.size() == 1);
@@ -319,8 +319,8 @@ TEST_CASE("链路帧：路损与多普勒符合示例场景的手算值，过顶
     CHECK(lf.frame(30 * 20).doppler_Hz < 0.0);
 }
 
-TEST_CASE("航迹黄金基准：同一时刻的位置与 tests/golden/scenario-track-demo-01.json 相符") {
-    std::ifstream gf(repo("tests/golden/scenario-track-demo-01.json").c_str(), std::ios::binary);
+TEST_CASE("航迹黄金基准：同一时刻的位置与 tests/golden/scenario-track-golden-01.json 相符") {
+    std::ifstream gf(repo("tests/golden/scenario-track-golden-01.json").c_str(), std::ios::binary);
     REQUIRE(gf.good());
     std::stringstream ss;
     ss << gf.rdbuf();
@@ -354,8 +354,8 @@ TEST_CASE("航迹黄金基准：同一时刻的位置与 tests/golden/scenario-t
 }
 
 
-TEST_CASE("航迹黄金基准：demo-03 三源三站与 tests/golden/scenario-track-demo-03.json 相符（D-053）") {
-    std::ifstream gf(repo("tests/golden/scenario-track-demo-03.json").c_str(), std::ios::binary);
+TEST_CASE("航迹黄金基准：golden-03 三源三站与 tests/golden/scenario-track-golden-03.json 相符（D-053）") {
+    std::ifstream gf(repo("tests/golden/scenario-track-golden-03.json").c_str(), std::ios::binary);
     REQUIRE(gf.good());
     std::stringstream ss;
     ss << gf.rdbuf();
@@ -364,7 +364,7 @@ TEST_CASE("航迹黄金基准：demo-03 三源三站与 tests/golden/scenario-tr
 
     LoadedScenario s;
     std::string err;
-    REQUIRE(load_scenario_file(repo("data/scene/beijing-yayuncun/scenarios/demo-03.scenario.json"), s, err));
+    REQUIRE(load_scenario_file(repo("data/scene/beijing-yayuncun/scenarios/golden-03.scenario.json"), s, err));
     CHECK(g["scenario_sha256"].get<std::string>() == s.sha256);
     REQUIRE(s.scenario.sites.size() == 3);
     REQUIRE(s.scenario.emitters.size() == 3);
@@ -406,7 +406,7 @@ TEST_CASE("航迹黄金基准：demo-03 三源三站与 tests/golden/scenario-tr
         }
     }
     CHECK(checked == g["sample_count"].get<std::size_t>());
-    MESSAGE("demo-03 航迹黄金基准逐点对拍：" << checked << " 个样点（三个源），容差 " << tol_deg << " 度");
+    MESSAGE("golden-03 航迹黄金基准逐点对拍：" << checked << " 个样点（三个源），容差 " << tol_deg << " 度");
 }
 
 // ------------------------------------------------- C-1 新增字段（D-051）
@@ -566,7 +566,7 @@ TEST_CASE("链路帧：离开角与到达角各算各的，不是互为反方位
     CHECK(f.aod_elevation_deg != doctest::Approx(-f.elevation_deg).epsilon(1e-9));
 
     // 发射活动与航向随帧走（供评价器取真值、供天线随航向指向）
-    CHECK(lf.frame(0).tx_on == false);            // demo-01 在 t = 3 s 才 tx_on
+    CHECK(lf.frame(0).tx_on == false);            // golden-01 在 t = 3 s 才 tx_on
     CHECK(lf.frame(10 * 20).tx_on == true);
     CHECK(lf.frame(0).heading_deg >= 0.0);
     CHECK(lf.frame(0).center_Hz == doctest::Approx(2440500000.0));
@@ -660,7 +660,7 @@ TEST_CASE("活动时间线（样点域）：停留序列按整数循环，子段
     const geo::ActivitySchedule::Segment seg = sch.segment_at(n0 + 50000);
     CHECK(seg.begin == n0 + 50000);
     CHECK(seg.end == n0 + 100000);
-    CHECK_FALSE(seg.tx_on);                        // demo-01 的 tx_on 在 t = 3 s，此刻（约 1.005 s）还没开
+    CHECK_FALSE(seg.tx_on);                        // golden-01 的 tx_on 在 t = 3 s，此刻（约 1.005 s）还没开
     CHECK(seg.center_Hz == doctest::Approx(2.4400e9));
 }
 
@@ -669,7 +669,7 @@ TEST_CASE("活动时间线（样点域）：与 EmitterRuntime 的双精度版�
     std::string err;
     REQUIRE(load_scenario_file(repo(kDemo), s, err));
 
-    geo::Scenario sc = s.scenario;                 // demo-01 自带 tx_on@3 s
+    geo::Scenario sc = s.scenario;                 // golden-01 自带 tx_on@3 s
     geo::Activity h;
     h.emitter_id = "uav-1";
     h.t_s = 2.0;
@@ -789,12 +789,12 @@ TEST_CASE("场景：铁律 4 的闸覆盖跳频点——序列里有一跳出界
     LoadedScenario s;
     std::string err;
     REQUIRE(load_scenario_file(repo(kDemo), s, err));
-    // demo-01：站点 fs 500 kHz、center 2440.5 MHz，辐射源 bw 400 kHz、频偏 48828.125 Hz。
+    // golden-01：站点 fs 500 kHz、center 2440.5 MHz，辐射源 bw 400 kHz、频偏 48828.125 Hz。
     // 基频过得了闸（48828 + 200000 < 250000），把一个跳频点推到 100 kHz 外就过不了。
     geo::Scenario sc = s.scenario;
     geo::Activity h;
     h.emitter_id = "uav-1";
-    h.t_s = 70.0;                                  // 排在 demo-01 最后一条活动（t = 68）之后
+    h.t_s = 70.0;                                  // 排在 golden-01 最后一条活动（t = 68）之后
     h.event = geo::ActivityEvent::Hop;
     h.sequence.push_back(2.4405e9);                // 这一跳没问题
     h.sequence.push_back(2.4406e9);                // 这一跳把 |Δf| 推到 148828 Hz，加半带宽越界
@@ -816,14 +816,14 @@ TEST_CASE("场景：铁律 4 的闸覆盖跳频点——序列里有一跳出界
                 "违反 |Δf| + B/2 < Fs/2（铁律 4）");
 }
 
-TEST_CASE("航迹黄金基准：demo-02 宽带双源与 tests/golden/scenario-track-demo-02.json 相符（C-8）") {
-    std::ifstream gf(repo("tests/golden/scenario-track-demo-02.json").c_str(), std::ios::binary);
+TEST_CASE("航迹黄金基准：golden-02 宽带双源与 tests/golden/scenario-track-golden-02.json 相符（C-8）") {
+    std::ifstream gf(repo("tests/golden/scenario-track-golden-02.json").c_str(), std::ios::binary);
     REQUIRE(gf.good());
     std::stringstream ss;
     ss << gf.rdbuf();
     nlohmann::json g = nlohmann::json::parse(ss.str());
 
-    const char* kDemo02 = "data/scene/beijing-yayuncun/scenarios/demo-02.scenario.json";
+    const char* kDemo02 = "data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json";
     LoadedScenario s;
     std::string err;
     REQUIRE(load_scenario_file(repo(kDemo02), s, err));
@@ -940,8 +940,8 @@ TEST_CASE("多速率：评价器在窄带 fs 下重建的活动时间线，与�
         }
     }
 
-    SUBCASE("demo-02 实际用的 10 ms 停留：在本期夹具的 D = 2 下落差恒为零") {
-        // 本期 chain-demo-02-ddc 的参数正好落在没有落差的那一档：dwell 0.01 s 在 5 MS/s 下
+    SUBCASE("golden-02 实际用的 10 ms 停留：在本期夹具的 D = 2 下落差恒为零") {
+        // 本期 chain-golden-02-ddc 的参数正好落在没有落差的那一档：dwell 0.01 s 在 5 MS/s 下
         // 是 50000 整样点。所以上面那条累积落差对本期的演示夹具是零影响——但不能因此不管它，
         // 换个非整的 dwell 就会踩到（这一条与上一条一起写进模型卡）。
         geo::Scenario sc = s.scenario;

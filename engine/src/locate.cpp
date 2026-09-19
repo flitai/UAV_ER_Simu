@@ -284,7 +284,7 @@ Step DirectionFinder::process(PortMap& in, PortMap& out, std::string& err) {
         //   ③ 两者电平差小于 mixture_separation_dB——功率接近时测向才会指向能量质心，
         //      差得远时弱信号只是被淹没，不是"指偏"。
         // 第 ③ 条第一版写成了「对方 ≥ 本方 − separation 且 对方 ≥ 本方」，
-        // 化简后就是「对方更强」，那道闸等于没有：demo-03 上 1800 行里报了 1200 行混叠，
+        // 化简后就是「对方更强」，那道闸等于没有：golden-03 上 1800 行里报了 1200 行混叠，
         // 连相差 15 dB 的突发源都算了进去。
         const double bw_i = tx_bw_Hz_.count(f.emitter_id) ? tx_bw_Hz_[f.emitter_id] : 0.0;
         const bool in_rx_i = std::fabs(f.tx_center_Hz - rx_center_Hz_) < bandwidth_Hz_ / 2.0;
@@ -848,7 +848,7 @@ void MultiSiteLocator::solve_group(double t_s, const std::string& emitter_id,
     // 几何退化与混叠都降级但仍给解——「有解但别太当真」比没有解更有用。
     // 判据用**最小两两交会角**而不是最大张角：参数名本来就叫 min_crossing_angle，
     // 而最大张角看不见「两条近乎平行的线 + 一条好线」这种近简并配置
-    // （demo-03 上实测过：那种配置的 2σ 椭圆覆盖率只有 45%，却被最大张角判成 good）。
+    // （golden-03 上实测过：那种配置的 2σ 椭圆覆盖率只有 45%，却被最大张角判成 good）。
     r.min_crossing_angle_deg = s.min_crossing_deg;
     if (s.min_crossing_deg < min_crossing_angle_deg_) {
         r.state = State::Degraded;

@@ -33,7 +33,7 @@ std::string recognize_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/
 std::string library_root() { return std::string(CUAV_SOURCE_DIR) + "/../models/recognition"; }
 std::string evaluate_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_evaluate.json"; }
 std::string evaluate_scene_fixture() { return std::string(CUAV_SOURCE_DIR) + "/tests/diagrams/slice4_evaluate_scene.json"; }
-std::string demo01_scenario() { return std::string(CUAV_SOURCE_DIR) + "/../data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"; }
+std::string golden01_scenario() { return std::string(CUAV_SOURCE_DIR) + "/../data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json"; }
 std::string scene_root() { return std::string(CUAV_SOURCE_DIR) + "/../data/scene"; }
 
 struct Result {
@@ -523,11 +523,11 @@ TEST_CASE("cuav_run：--library-root 只与 --validate / --run 搭配") {
 
 TEST_CASE("cuav_run --run：带评价器的场景框图落 truth.jsonl 一行与 metrics.json 一节；识别行到得了评价器；task.state 带 truth_rows / evaluations（C-5）") {
     const std::string out = temp_root() + "/run_evaluate_scene";
-    Result r = run_cli({"--run", evaluate_scene_fixture(), "--out", out, "--scenario", demo01_scenario(),
+    Result r = run_cli({"--run", evaluate_scene_fixture(), "--out", out, "--scenario", golden01_scenario(),
                         "--scene-root", scene_root(), "--library-root", library_root()});
     REQUIRE_MESSAGE(r.code == ExitOk, r.diag);
 
-    // truth.jsonl：demo-01 的 uav-1 自 3 s 起发单音直到 6 s 结束，一行、频段内、cw_beacon
+    // truth.jsonl：golden-01 的 uav-1 自 3 s 起发单音直到 6 s 结束，一行、频段内、cw_beacon
     const std::string text = read_file(out + "/truth.jsonl");
     REQUIRE(!text.empty());
     CHECK(text[text.size() - 1] == '\n');

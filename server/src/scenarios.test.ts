@@ -181,3 +181,37 @@ test('引擎挡下语义错误：坏场景不落盘，临时文件也不留下',
   assert.ok(!files.includes('unit-05.scenario.json'))
   assert.ok(!files.some((f) => f.endsWith('.tmp')), `临时文件没清干净：${files.join(', ')}`)
 })
+
+test('基准场景只读：PUT 被拒，报文说清怎么办（用户 2026-09-19 拍板）', async () => {
+  // 先把一份基准场景直接落到盘上（绕开端点），再试着经端点改它
+  const dir = join(root, 'data', 'scene', 'test-aoi', 'scenarios')
+  await fsp.mkdir(dir, { recursive: true })
+  const doc = demoScenario('golden-test')
+  const bytes = JSON.stringify(doc, null, 2) + '\n'
+  await fsp.writeFile(join(dir, 'golden-test.scenario.json'), bytes, 'utf8')
+
+  const changed = { ...doc, name: '被改过的名字' }
+  const r = await fetch(`${base}/api/v1/scenarios/golden-test`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(changed),
+  })
+  assert.equal(r.status, 409)
+  const b = (await r.json()) as { error: string; message: string }
+  assert.equal(b.error, 'scenario_readonly')
+  assert.match(b.message, /另存为/, '拒绝要说得出下一步怎么办')
+  // 界面拦不住手写的请求，所以这条闸在服务端：盘上的字节必须一个没动
+  assert.equal(await fsp.readFile(join(dir, 'golden-test.scenario.json'), 'utf8'), bytes)
+
+  // 另存为一个不以 golden- 开头的标识：照常写得进去
+  const saveAs = { ...doc, scenario_id: 'my-01' }
+  const r2 = await fetch(`${base}/api/v1/scenarios/my-01`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(saveAs),
+  })
+  assert.equal(r2.status, 200)
+})
+
+test('清单里标出哪些是基准场景', async () => {
+  const b = (await (await fetch(`${base}/api/v1/scenarios`)).json()) as { scenarios: Array<{ scenario_id: string; readonly: boolean }> }
+  const byId = new Map(b.scenarios.map((x) => [x.scenario_id, x.readonly]))
+  assert.equal(byId.get('golden-test'), true, 'golden- 开头的标为只读')
+  assert.equal(byId.get('my-01'), false, '自己另存的可写')
+})

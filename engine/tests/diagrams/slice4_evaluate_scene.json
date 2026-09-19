@@ -1,17 +1,17 @@
 {
   "schema_version": "cuav-diagram/1",
   "diagram_id": "slice4-evaluate-scene",
-  "name": "典型链路（demo-01）到真值与评价（C-5）",
+  "name": "典型链路（golden-01）到真值与评价（C-5）",
   "scenario_ref": {
-    "scenario_id": "demo-01",
-    "sha256": "72b8e8d0c3ac7df5a036263fdb29354661df7fba77a89e07e1d5087a0767b839"
+    "scenario_id": "golden-01",
+    "sha256": "35a6e3cf9671cbb2493afcfb9cc54cae65575210280d235bc671761903daa0d4"
   },
   "nodes": [
     {
       "id": "scn",
       "type": "ScenarioSource",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "site_id": "site-1"
       },
       "params": {
@@ -23,7 +23,7 @@
       "id": "tx",
       "type": "SceneEmitterSource",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "entity_id": "uav-1"
       },
       "params": {
@@ -45,7 +45,7 @@
       "id": "ch",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "entity_id": "uav-1"
       },
       "params": {
@@ -79,7 +79,7 @@
       "id": "det",
       "type": "EnergyDetector",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "site_id": "site-1"
       },
       "params": {
@@ -92,7 +92,7 @@
       "id": "feat",
       "type": "FeatureExtractor",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "site_id": "site-1"
       },
       "params": {}
@@ -101,7 +101,7 @@
       "id": "rec",
       "type": "TemplateClassifier",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "site_id": "site-1"
       },
       "params": {}
@@ -110,7 +110,7 @@
       "id": "eval",
       "type": "Evaluator",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "site_id": "site-1"
       },
       "params": {}

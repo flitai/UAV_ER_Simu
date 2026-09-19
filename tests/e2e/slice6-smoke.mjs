@@ -55,9 +55,9 @@ try {
   page = await Page.open(chrome.port, 'about:blank')
   await page.send('Runtime.enable')
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n')[0]))
-  // 框图跟着场景页当前场景走（D-065）：盘上最近一次任务可能是三站场景，点名 demo-01 才有「缺省 1 站 1 源」的前提
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/diagram` })
-  await page.waitFor((s) => s.ready && s.app?.view === 'diagram' && s.app?.chain?.scenarioId === 'demo-01', { label: '框图页', timeoutMs: 90000 })
+  // 框图跟着场景页当前场景走（D-065）：盘上最近一次任务可能是三站场景，点名 golden-01 才有「缺省 1 站 1 源」的前提
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/diagram` })
+  await page.waitFor((s) => s.ready && s.app?.view === 'diagram' && s.app?.chain?.scenarioId === 'golden-01', { label: '框图页', timeoutMs: 90000 })
   await sleep(800)
 
   // ---------- ① 缺省仍是单源单站，退化路径没被破坏 ----------
@@ -70,19 +70,19 @@ try {
   const noBadge = await evalJson(page, "document.querySelectorAll('[data-slot-count]').length")
   check('单源单站时不显示实例角标（画面与多站之前一模一样）', noBadge === 0, `${noBadge} 个角标`)
 
-  // ---------- ② 在场景页切到 demo-03（场景只在场景页选，框图跟着走，2026-09-13）：三站三源，缺省全选 ----------
+  // ---------- ② 在场景页切到 golden-03（场景只在场景页选，框图跟着走，2026-09-13）：三站三源，缺省全选 ----------
   await page.send('Page.navigate', { url: `${BASE}#/scene` })
   await page.waitFor((s) => s.app?.view === 'scene', { label: '场景页', timeoutMs: 60000 })
   await sleep(600)
-  await page.evaluate(setSelect('[data-form=scene-pick] [data-field=scenario]', 'demo-03'))
-  st = await page.waitFor((s) => s.app?.scene?.scenarioId === 'demo-03' && s.app?.scene?.status === 'ok', { label: '场景页切到 demo-03', timeoutMs: 30000 })
+  await page.evaluate(setSelect('[data-form=scene-pick] [data-field=scenario]', 'golden-03'))
+  st = await page.waitFor((s) => s.app?.scene?.scenarioId === 'golden-03' && s.app?.scene?.status === 'ok', { label: '场景页切到 golden-03', timeoutMs: 30000 })
   await page.send('Page.navigate', { url: `${BASE}#/diagram` })
-  st = await page.waitFor((s) => s.app?.view === 'diagram' && s.app?.chain?.scenarioId === 'demo-03', { label: '框图页跟着场景页', timeoutMs: 30000 })
-  check('场景在场景页选，框图页跟着切到 demo-03', st.app.chain.scenarioId === 'demo-03', st.app.chain.scenarioId)
+  st = await page.waitFor((s) => s.app?.view === 'diagram' && s.app?.chain?.scenarioId === 'golden-03', { label: '框图页跟着场景页', timeoutMs: 30000 })
+  check('场景在场景页选，框图页跟着切到 golden-03', st.app.chain.scenarioId === 'golden-03', st.app.chain.scenarioId)
   await sleep(800)
   const nSite = await waitDom(page, "document.querySelectorAll('[data-multi=site] input').length", 3)
   const nEm = await waitDom(page, "document.querySelectorAll('[data-multi=emitter] input').length", 3)
-  check('切到 demo-03 后站与源各有三个复选框', nSite === 3 && nEm === 3, `站 ${nSite} / 源 ${nEm}`)
+  check('切到 golden-03 后站与源各有三个复选框', nSite === 3 && nEm === 3, `站 ${nSite} / 源 ${nEm}`)
   const allChecked = await waitDom(page,
     "Array.from(document.querySelectorAll('[data-multi=site] input, [data-multi=emitter] input')).every(e => e.checked)", true)
   check('选场景后缺省全选（不用逐个去勾）', allChecked === true)
@@ -101,7 +101,7 @@ try {
   check('中栏「当前链路」两个下拉各列出 3 个参与的实例', picks.length === 2 && picks[0] === 3 && picks[1] === 3, picks.join('/'))
 
   // ---------- ③b 逐实体与按型号配参数（D-054）----------
-  // 三个站在 demo-03 里都没写型号，先给 site-3 标一个，才能看出「同型号」这一档的边界
+  // 三个站在 golden-03 里都没写型号，先给 site-3 标一个，才能看出「同型号」这一档的边界
   await page.evaluate("(document.querySelector('[data-slot=rx_fe]').click(), true)")
   await sleep(250)
   const focusSite = async (id) => {
@@ -112,7 +112,10 @@ try {
   }
   await focusSite('site-3')
   await page.evaluate(setInput('[data-form=entity-device] [data-field="sites.2.equipment_model"]', '窄带站-B'))
-  await page.waitFor((x) => x.app?.scene?.dirty === false, { label: 'site-3 型号已存', timeoutMs: 30000 })
+  // 基准场景只读（用户 2026-09-19）：改动留在内存里、不落盘，所以这里等的是「改进去了」
+  // 而不是「存下去了」。落盘那条在工作副本上验（`slice2-smoke`）。
+  await sleep(1200)
+  await page.waitFor((x) => x.app?.scene?.dirty === true, { label: 'site-3 型号已改（基准只读，不落盘）', timeoutMs: 15000 })
   const modelText = await page.evaluate(
     "document.querySelector('[data-field=focus-site]')?.selectedOptions[0]?.textContent ?? ''")
   check('设备型号可在本页设定，选择框上随即写出来', String(modelText).includes('窄带站-B'), String(modelText))
@@ -174,7 +177,7 @@ try {
   await sleep(200)
   await focusSite('site-3')
   await page.evaluate(setInput('[data-form=entity-device] [data-field="sites.2.equipment_model"]', ''))
-  await page.waitFor((x) => x.app?.scene?.dirty === false, { label: 'site-3 型号已清', timeoutMs: 30000 })
+  await sleep(600)   // 基准只读：改回去也只在内存里，盘上本来就没被动过
   await focusSite('site-1')
 
   // 版式：十一个环节按每行四张、蛇形排成 4 + 4 + 3，不横向溢出，仍在中栏里纵向居中
@@ -271,7 +274,7 @@ try {
   const one = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/bearings?site_id=site-2').then(r => r.json())`)
   check('测向端点支持按站过滤', one.length > 0 && one.every((b) => b.site_id === 'site-2'), `${one.length} 行`)
 
-  // ---------- ⑤b 检测（C-3，D-063）：每站一个检测器各写自己的行；不断言命中——demo-03 三机从 t = 0 持续发射，
+  // ---------- ⑤b 检测（C-3，D-063）：每站一个检测器各写自己的行；不断言命中——golden-03 三机从 t = 0 持续发射，
   // 滑动噪声估计从第一帧起就含信号，会被吸收（模型卡里的已知行为），这里只验身份与端点 ----------
   const det6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections?stride=50').then(r => r.json())`)
   const detNodes = [...new Set(det6.map((r) => r.node_id))].sort()
@@ -280,7 +283,7 @@ try {
     det6.length > 0 && det6.every((r) => r.node_id === `det__${r.site_id}`), `${det6.length} 行`)
   const det2 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/detections?site_id=site-2&stride=50').then(r => r.json())`)
   check('检测端点支持按站过滤', det2.length > 0 && det2.every((r) => r.site_id === 'site-2'), `${det2.length} 行`)
-  // 特征与识别按站各一份（C-4）：有几段就有几行，行的节点名与站一致；demo-03 里被吸收的站没有段也就没有行
+  // 特征与识别按站各一份（C-4）：有几段就有几行，行的节点名与站一致；golden-03 里被吸收的站没有段也就没有行
   const rec6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/recognitions').then(r => r.json())`)
   const feat6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/features').then(r => r.json())`)
   check('recognitions.jsonl / features.jsonl 每行的节点名按站实例化（rec__<site> / feat__<site>），两者同节拍',
@@ -293,7 +296,7 @@ try {
     && idxNodes.every((k) => dIdx6.nodes[k].site_id === k.slice(5) && dIdx6.nodes[k].trace?.model_id === 'EnergyDetector'),
     idxNodes.map((k) => `${k}:${dIdx6.nodes[k].hits}/${dIdx6.nodes[k].frames}`).join(' '))
 
-  // ---------- ⑤b 真值与评价（C-5）：每站一个评价器，只验结构——demo-03 两站从 t=0 起的持续发射被滑动删截的环吸收，Pd 不是本切片的判据 ----------
+  // ---------- ⑤b 真值与评价（C-5）：每站一个评价器，只验结构——golden-03 两站从 t=0 起的持续发射被滑动删截的环吸收，Pd 不是本切片的判据 ----------
   const truth6 = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/truth').then(r => r.json())`)
   const tNodes = [...new Set((truth6 ?? []).map((r) => r.node_id))].sort()
   // 本套任务只跑 20 s（上面把时长改成了 20）：uav-2 在 30 s 关机之前任务就结束，每站一段 [0, 20)；uav-3 周期 0.5 s → 40 个导通窗
@@ -396,7 +399,7 @@ try {
     if (!plByLink.has(l.link_id)) plByLink.set(l.link_id, [])
     plByLink.get(l.link_id).push(l.path_loss_dB)
   }
-  // demo-03：tx_power 27 / 24 / 20 dBm，接收天线 3 dBi；uav-3 是 20% 占空比的突发。
+  // golden-03：tx_power 27 / 24 / 20 dBm，接收天线 3 dBi；uav-3 是 20% 占空比的突发。
   // 发射天线增益**逐源取场景值**（D-054）：uav-3 是竞速机，场景里写的是 0 dBi 而不是 2。
   // 在 D-054 之前典型链路强制三架机共用一个 2 dBi，这里也就跟着写死了 2——
   // 那时候实测与预算能对上，只是两边错得一样。
@@ -520,7 +523,7 @@ try {
   check('时差解写明了参考站（信噪比最高的那一站）',
     tpos.every((p) => typeof p.reference_site === 'string' && p.participating_sites.includes(p.reference_site)),
     `参考站 ${[...new Set(tpos.map((p) => p.reference_site))].sort().join('/')}`)
-  check('demo-03 的站钟不完美，因此没有一行是 TQ-1（site-2 5 ns、site-3 10 ns 保持态）',
+  check('golden-03 的站钟不完美，因此没有一行是 TQ-1（site-2 5 ns、site-3 10 ns 保持态）',
     tpos.every((p) => p.time_quality !== 'TQ-1'), [...new Set(tpos.map((p) => p.time_quality))].join('/'))
 
   // 时差定位在 2.2 km 基线、纳秒级站钟下应当比交叉定位准两个量级

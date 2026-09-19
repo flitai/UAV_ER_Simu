@@ -6,6 +6,6 @@ export interface Example { id: string; name: string; text: string }
 
 export const EXAMPLES: Example[] = [
   { id: 'slice1', name: '单音加噪声到功率谱（合成链）', text: SLICE1_TEXT },
-  { id: 'slice2', name: '场景绑定链路到功率谱（demo-01 亚运村）', text: SLICE2_TEXT },
+  { id: 'slice2', name: '场景绑定链路到功率谱（golden-01 亚运村）', text: SLICE2_TEXT },
   { id: 'replay', name: '实测片段回放到功率谱（dronerfb_0_CH0_S4）', text: REPLAY_TEXT },
 ]

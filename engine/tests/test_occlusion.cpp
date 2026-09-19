@@ -243,7 +243,7 @@ struct E3Fixture {
 
     E3Fixture() : origin(116.405, 39.99, 0.0) {
         frame = SceneFrame(origin);
-        site = Lla(116.405, 39.99, 30.0);          // 站点天线 30 m，与 demo-01 同
+        site = Lla(116.405, 39.99, 30.0);          // 站点天线 30 m，与 golden-01 同
     }
 
     // 把目标放到正东约 d 米处、离地 h 米。返回实际投影出来的东向距离。
@@ -405,8 +405,8 @@ TEST_CASE("D3-5：刀口损耗只进 extra_loss_dB，且只在 E3 档计入") {
 TEST_CASE("D3-5：E3 而没有地图 → needs_scene_map 为真，不静默按自由空间算") {
     Scenario s;
     std::string err;
-    // 借 demo-01 来搭一条真链路；缺数据包时跳过（场景文件在 data/ 下，不入 git）
-    const std::string path = repo_path("data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json");
+    // 借 golden-01 来搭一条真链路；缺数据包时跳过（场景文件在 data/ 下，不入 git）
+    const std::string path = repo_path("data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json");
     std::ifstream probe(path.c_str());
     if (!probe.good()) {
         MESSAGE("跳过：示例场景不在盘上");

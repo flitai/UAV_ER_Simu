@@ -239,6 +239,12 @@ export type ScenarioDoc = Record<string, unknown>
 
 export interface ScenarioSummary {
   scenario_id: string
+  /**
+   * 基准场景：只读（用户 2026-09-19）。它们的字节被黄金基准与回归夹具钉着，
+   * 在界面上随手改一下就会把一串东西弄不一致。判据是标识以 `golden-` 开头，
+   * 服务端一处定义（`server/src/scenarios.ts` 的 `isGoldenScenario`）并在 PUT 上真拒。
+   */
+  readonly?: boolean
   aoi: string
   name: string
   duration_s: number | null

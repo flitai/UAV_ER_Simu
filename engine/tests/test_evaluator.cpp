@@ -83,7 +83,7 @@ struct DetStub : IComponent {
     ComponentStatus status() const override { return ComponentStatus(); }
 };
 
-// 识别行桩：单输入（吃检测行），对每个段在段收口时出一行；最后一段只在 flush() 出——正是 demo-01 那种「唯一一段持续到结束」
+// 识别行桩：单输入（吃检测行），对每个段在段收口时出一行；最后一段只在 flush() 出——正是 golden-01 那种「唯一一段持续到结束」
 struct RecStub : IComponent {
     std::string label;
     std::int64_t open = -1;

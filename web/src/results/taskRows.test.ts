@@ -8,9 +8,9 @@ const base: TaskRecord = {
   seed: 20260907, run_state: 'finished', result: 'valid', reasons: [],
   created_utc: '2026-09-18T12:17:06Z', wall_s: 14.772872875, realtime_factor: 0.4061498430785082,
   observation_points: [{ op_id: 's4', node: 'adc', port: 'out', products: ['spectrum'] }],
-  data_refs: [], warnings: [], last_seq: 74115, scenario_id: 'demo-02',
+  data_refs: [], warnings: [], last_seq: 74115, scenario_id: 'golden-02',
   diagram_sha256: 'fcd9e8004e4e0f98dbd79dcc72648908de7a4306cbfaf5c46f3576146e413259',
-  scenario_sha256: '46dbc3f254e1ff9ec50962cc30c98b51eeadbf7565b723993b15848c1a615027',
+  scenario_sha256: '8e6236d3c2126e2eb347ee06677d7158ad85ad8a4367ca58e3f221569bc5bc82',
   engine_version: '0.1.0', seed_source: 'diagram',
   started_utc: '2026-09-18T12:17:06Z', ended_utc: '2026-09-18T12:17:20Z', exit_code: 0,
 }
@@ -18,7 +18,7 @@ const base: TaskRecord = {
 test('taskRow：时刻、墙钟与实时因子合一列、评价按站数选写法', () => {
   const r = taskRow(base, { timeZone: 'UTC' })
   assert.equal(r.when, '2026-09-18 12:17:06')
-  assert.equal(r.scenarioId, 'demo-02')
+  assert.equal(r.scenarioId, 'golden-02')
   assert.equal(r.wall, '14.773 s ×0.4')
   assert.equal(r.metrics, '—', '没有评价器的任务不编一个数出来')
   assert.equal(r.holdout, false)

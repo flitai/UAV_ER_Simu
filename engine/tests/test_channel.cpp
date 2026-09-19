@@ -27,8 +27,8 @@ namespace {
 #define CUAV_SOURCE_DIR "."
 #endif
 std::string repo(const std::string& rel) { return std::string(CUAV_SOURCE_DIR) + "/../" + rel; }
-const char* kDemoRel = "data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json";
-std::string demo() { return repo(kDemoRel); }
+const char* kGoldenRel = "data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json";
+std::string demo() { return repo(kGoldenRel); }
 
 const double kPi = 3.14159265358979323846;
 
@@ -99,7 +99,7 @@ std::unique_ptr<SceneBoundChannel> make_channel(bool gain, bool doppler, const c
     num["max_delay_samples"] = static_cast<double>(max_delay);
     std::map<std::string, std::string> txt;
     txt["scenario_path"] = demo();
-    txt["scenario_id"] = "demo-01";
+    txt["scenario_id"] = "golden-01";
     txt["entity_id"] = "uav-1";
     txt["delay_mode"] = delay_mode;
     std::string err;
@@ -474,7 +474,7 @@ std::unique_ptr<ScenarioSource> make_scenario_source(double fs, std::uint64_t to
     num["report_rate_Hz"] = 10.0;
     std::map<std::string, std::string> txt;
     txt["scenario_path"] = demo();
-    txt["scenario_id"] = "demo-01";
+    txt["scenario_id"] = "golden-01";
     txt["site_id"] = "site-1";
     std::string err;
     REQUIRE_MESSAGE(s->configure(num, txt, err), err);
@@ -492,7 +492,7 @@ std::unique_ptr<SceneEmitterSource> make_emitter(double fs, std::uint64_t total,
     num["center_frequency_Hz"] = 2.4405e9;
     std::map<std::string, std::string> txt;
     txt["scenario_path"] = demo();
-    txt["scenario_id"] = "demo-01";
+    txt["scenario_id"] = "golden-01";
     txt["entity_id"] = "uav-1";
     std::string err;
     REQUIRE_MESSAGE(s->configure(num, txt, err), err);
@@ -677,7 +677,7 @@ TEST_CASE("装载器：场景注入的四道闸——无解析器、哈希不符
         LoadedDiagram d;
         DiagramError err;
         CHECK_MESSAGE(load_diagram(base, reg, nullptr, lo, d, err), err.message);
-        CHECK(d.scenario_id == "demo-01");
+        CHECK(d.scenario_id == "golden-01");
         CHECK(d.scenario_verified);
         CHECK(d.aoi_manifest_verified);
     }
@@ -764,7 +764,7 @@ std::unique_ptr<SceneEmitterSource> make_emitter_at_tx_power(double fs, std::uin
     num["emit_at_tx_power"] = 1.0;
     std::map<std::string, std::string> txt;
     txt["scenario_path"] = demo();
-    txt["scenario_id"] = "demo-01";
+    txt["scenario_id"] = "golden-01";
     txt["entity_id"] = "uav-1";
     std::string err;
     REQUIRE_MESSAGE(s->configure(num, txt, err), err);
@@ -780,7 +780,7 @@ std::unique_ptr<SceneBoundChannel> make_channel_mode(const char* gain_mode) {
     num["apply_doppler"] = 0.0;
     std::map<std::string, std::string> txt;
     txt["scenario_path"] = demo();
-    txt["scenario_id"] = "demo-01";
+    txt["scenario_id"] = "golden-01";
     txt["entity_id"] = "uav-1";
     txt["delay_mode"] = "off";
     txt["gain_mode"] = gain_mode;
@@ -794,7 +794,7 @@ std::unique_ptr<SceneBoundChannel> make_channel_mode(const char* gain_mode) {
 }  // namespace
 
 TEST_CASE("场景辐射源：emit_at_tx_power 让 S0 读到发射功率本身；缺省仍是单位功率") {
-    // demo-01 的 uav-1 发射功率是 27 dBm
+    // golden-01 的 uav-1 发射功率是 27 dBm
     std::unique_ptr<SceneEmitterSource> s = make_emitter_at_tx_power(500000.0, 500000 * 5, 500000);
     std::string err;
     std::vector<Complex> block4;
@@ -852,10 +852,10 @@ TEST_CASE("增益口径等价：辐射源 + 两个天线 + 纯路损信道，与
         AntennaGain tx, rx;
         std::map<std::string, double> gnum;
         std::map<std::string, std::string> gtxt;
-        gnum["gain_dBi"] = 2.0;                       // demo-01 的 emission.antenna_gain_dBi
+        gnum["gain_dBi"] = 2.0;                       // golden-01 的 emission.antenna_gain_dBi
         gtxt["role"] = "tx"; gtxt["pattern"] = "omni";
         REQUIRE_MESSAGE(tx.configure(gnum, gtxt, err), err);
-        gnum["gain_dBi"] = 3.0;                       // demo-01 的 site-1 antenna.gain_dBi
+        gnum["gain_dBi"] = 3.0;                       // golden-01 的 site-1 antenna.gain_dBi
         gtxt["role"] = "rx";
         REQUIRE_MESSAGE(rx.configure(gnum, gtxt, err), err);
         Xoshiro256pp rng(1);

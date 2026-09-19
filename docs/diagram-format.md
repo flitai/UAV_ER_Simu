@@ -232,7 +232,7 @@ ADC 满量程就悄没声地没了，再点运行报「缺必填参数」，而�
 { "schema_version": "cuav-resolved/1",
   "diagram_sha256": "<所配框图文件的 sha256，可选>",
   "data": { "dronerfb_0_CH0_S4": "data/iq/measured/dronerfb/dronerfb_0_CH0_S4.manifest.json" },
-  "scenarios": { "demo-01": "data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json" } }
+  "scenarios": { "golden-01": "data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json" } }
 ```
 
 `scenarios` 段可选（2026-09-06，D-049）：只有 `data` 的旧旁挂照样能用，场景解析器留空即可；

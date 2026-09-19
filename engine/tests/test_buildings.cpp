@@ -342,7 +342,7 @@ TEST_CASE("真实建筑集上的五条射线：本侧是真理源，浏览器 TS
 
 TEST_CASE("装载器注入 scene_root，且 E1 档下一个字节也不读建筑") {
     const std::string diag = repo("engine/tests/diagrams/slice2_scenario_link.json");
-    const std::string scen = repo("data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json");
+    const std::string scen = repo("data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json");
     if (!file_exists(diag) || !file_exists(scen)) {
         MESSAGE("跳过：夹具或示例场景不在盘上");
         return;
@@ -385,7 +385,7 @@ TEST_CASE("装载器注入 scene_root，且 E1 档下一个字节也不读建筑
 
 TEST_CASE("框图里自己写 scene_root 即拒：内部参数不进框图（D-037）") {
     const std::string diag = repo("engine/tests/diagrams/slice2_scenario_link.json");
-    const std::string scen = repo("data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json");
+    const std::string scen = repo("data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json");
     if (!file_exists(diag) || !file_exists(scen)) {
         MESSAGE("跳过：夹具或示例场景不在盘上");
         return;

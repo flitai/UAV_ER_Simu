@@ -54,7 +54,7 @@ function hasWaveformKey(k: string) {
  * 站点的设备参数。
  *
  * `clock` 一组自 D-053 就在场景格式里，但**界面上一直没有入口**，只能手改 JSON——
- * demo-03 那三组站钟就是这么写进去的。它们是站的时统指标，正是「电子设备参数」，
+ * golden-03 那三组站钟就是这么写进去的。它们是站的时统指标，正是「电子设备参数」，
  * 这次一并放出来。字段缺席时 `setPath` 会把 `clock` 建出来（D-054）。
  */
 export const SITE_DEVICE_FIELDS: readonly DeviceField[] = [

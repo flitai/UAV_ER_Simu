@@ -8,7 +8,7 @@
 //   ② 段时长 = 弦长 / 段起点航点速度，悬停接在到达之后；
 //   ③ state_at(t) 对绝对时刻二分定位后闭式插值，不做增量积分；
 //   ④ 段内经纬高各自线性。
-// 改这里必须同时改 geo/src/kinematics.cpp，并重跑 tests/golden/scenario-track-demo-01.json 的对拍。
+// 改这里必须同时改 geo/src/kinematics.cpp，并重跑 tests/golden/scenario-track-golden-01.json 的对拍。
 
 const A = 6378137.0
 const F = 1 / 298.257223563

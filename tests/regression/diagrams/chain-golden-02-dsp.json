@@ -1,17 +1,17 @@
 {
   "schema_version": "cuav-diagram/1",
-  "diagram_id": "chain-demo-02",
-  "name": "典型链路 · 全合成 · demo-02 宽带",
+  "diagram_id": "chain-golden-02-dsp",
+  "name": "典型链路 · 全合成 · golden-02 宽带 · 三级 DSP 全开",
   "scenario_ref": {
-    "scenario_id": "demo-02",
-    "sha256": "46dbc3f254e1ff9ec50962cc30c98b51eeadbf7565b723993b15848c1a615027"
+    "scenario_id": "golden-02",
+    "sha256": "8e6236d3c2126e2eb347ee06677d7158ad85ad8a4367ca58e3f221569bc5bc82"
   },
   "nodes": [
     {
       "id": "scn",
       "type": "ScenarioSource",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "site_id": "site-1"
       },
       "params": {
@@ -23,7 +23,7 @@
       "id": "tx__uav-1",
       "type": "SceneEmitterSource",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "entity_id": "uav-1"
       },
       "params": {
@@ -37,7 +37,7 @@
       "id": "tx__uav-2",
       "type": "SceneEmitterSource",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "entity_id": "uav-2"
       },
       "params": {
@@ -59,7 +59,7 @@
       "id": "ch__uav-1",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "entity_id": "uav-1"
       },
       "params": {
@@ -86,7 +86,7 @@
       "id": "ch__uav-2",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "entity_id": "uav-2"
       },
       "params": {
@@ -107,6 +107,13 @@
       "params": {}
     },
     {
+      "id": "rx_flt",
+      "type": "RxFilter",
+      "params": {
+        "bw_Hz": 8000000
+      }
+    },
+    {
       "id": "rx_fe",
       "type": "ReceiverFrontEnd",
       "params": {
@@ -122,15 +129,31 @@
       }
     },
     {
+      "id": "ddc",
+      "type": "DDC",
+      "params": {
+        "f_shift_Hz": -2500000,
+        "decim": 2
+      }
+    },
+    {
+      "id": "chan",
+      "type": "Channelizer",
+      "params": {
+        "channels": 2,
+        "select_channel": 1
+      }
+    },
+    {
       "id": "det",
       "type": "EnergyDetector",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "site_id": "site-1"
       },
       "params": {
-        "band_lo_Hz": -4500000,
-        "band_hi_Hz": 4500000,
+        "band_lo_Hz": -1125000,
+        "band_hi_Hz": 1125000,
         "noise_mode": "sliding"
       }
     },
@@ -138,7 +161,7 @@
       "id": "feat",
       "type": "FeatureExtractor",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "site_id": "site-1"
       },
       "params": {}
@@ -147,7 +170,7 @@
       "id": "rec",
       "type": "TemplateClassifier",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "site_id": "site-1"
       },
       "params": {}
@@ -156,7 +179,7 @@
       "id": "eval",
       "type": "Evaluator",
       "scene_binding": {
-        "scenario_id": "demo-02",
+        "scenario_id": "golden-02",
         "site_id": "site-1"
       },
       "params": {}
@@ -324,29 +347,29 @@
         "port": "out"
       },
       "to": {
-        "node": "rx_fe",
+        "node": "rx_flt",
         "port": "in"
       }
     },
     {
       "id": "e16",
       "from": {
-        "node": "rx_fe",
+        "node": "rx_flt",
         "port": "out"
       },
       "to": {
-        "node": "adc",
+        "node": "rx_fe",
         "port": "in"
       }
     },
     {
       "id": "e17",
       "from": {
-        "node": "adc",
+        "node": "rx_fe",
         "port": "out"
       },
       "to": {
-        "node": "det",
+        "node": "adc",
         "port": "in"
       }
     },
@@ -357,12 +380,45 @@
         "port": "out"
       },
       "to": {
+        "node": "ddc",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "ddc",
+        "port": "out"
+      },
+      "to": {
+        "node": "chan",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "chan",
+        "port": "out"
+      },
+      "to": {
+        "node": "det",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e21",
+      "from": {
+        "node": "chan",
+        "port": "out"
+      },
+      "to": {
         "node": "feat",
         "port": "iq"
       }
     },
     {
-      "id": "e19",
+      "id": "e22",
       "from": {
         "node": "det",
         "port": "out"
@@ -373,7 +429,7 @@
       }
     },
     {
-      "id": "e20",
+      "id": "e23",
       "from": {
         "node": "feat",
         "port": "out"
@@ -384,7 +440,7 @@
       }
     },
     {
-      "id": "e21",
+      "id": "e24",
       "from": {
         "node": "det",
         "port": "out"
@@ -395,7 +451,7 @@
       }
     },
     {
-      "id": "e22",
+      "id": "e25",
       "from": {
         "node": "rec",
         "port": "out"
@@ -406,7 +462,7 @@
       }
     },
     {
-      "id": "e23",
+      "id": "e26",
       "from": {
         "node": "scn",
         "port": "link:uav-1"
@@ -417,7 +473,7 @@
       }
     },
     {
-      "id": "e24",
+      "id": "e27",
       "from": {
         "node": "scn",
         "port": "link:uav-2"
@@ -430,9 +486,29 @@
   ],
   "observation_points": [
     {
+      "id": "s3",
+      "label": "S3 量化后",
+      "node": "adc",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
       "id": "s4",
       "label": "S4 主产品",
-      "node": "adc",
+      "node": "ddc",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
+      "id": "s5",
+      "label": "S5 子信道",
+      "node": "chan",
       "port": "out",
       "products": [
         "spectrum",

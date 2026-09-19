@@ -22,12 +22,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const BUILDINGS = join(ROOT, 'data/scene/beijing-yayuncun/buildings.geojson')
 
 const scenario = JSON.parse(
-  readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'), 'utf8'),
+  readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json'), 'utf8'),
 ) as ScenarioDoc
 
 function stateWith(doc: ScenarioDoc): AppState {
   const s = initialState(false, 1920, '')
-  return { ...s, scene: { ...s.scene, scenario: { ...s.scene.scenario, id: 'demo-01', doc } } }
+  return { ...s, scene: { ...s.scene, scenario: { ...s.scene.scenario, id: 'golden-01', doc } } }
 }
 
 test('探测输入：站取焦点站、频率取焦点目标的发射中心、高度取它此刻的离地高', () => {

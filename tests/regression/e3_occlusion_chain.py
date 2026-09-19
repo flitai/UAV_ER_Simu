@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """E3 建筑遮挡接进帧生产端之后的回归（D3-5，决策 D-074；07 报告 §1.5）。
 
-跑的是**保存下来的典型链路** `tests/regression/diagrams/chain-demo-01-e3.json`
-（由 `cd web && npx tsx src/chain/examples/_gen.ts demo-01-e3` 生成），
+跑的是**保存下来的典型链路** `tests/regression/diagrams/chain-golden-01-e3.json`
+（由 `cd web && npx tsx src/chain/examples/_gen.ts golden-01-e3` 生成），
 它与全合成那份逐参数相同，只把传播档位提到 E3。
 
 核五件事：
-  1. 视距由建筑几何给出，不再恒真——demo-01 起飞点在楼后，约 7 秒后过顶转视距；
+  1. 视距由建筑几何给出，不再恒真——golden-01 起飞点在楼后，约 7 秒后过顶转视距；
   2. 三段式的前两段走出来了：起飞被挡、过顶转视距（07 §1.5 的可见效果）；
   3. 恒等式 `path_loss_dB = free_space_dB + extra_loss_dB` 在 E3 下照旧成立；
   4. `included_loss_terms` 含 `diffraction`，且 `diffraction_dB` 与 `extra_loss_dB` 对得上；
@@ -29,8 +29,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 
-DIAGRAM = "tests/regression/diagrams/chain-demo-01-e3.json"
-SCENARIO = "data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json"
+DIAGRAM = "tests/regression/diagrams/chain-golden-01-e3.json"
+SCENARIO = "data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json"
 BUILDINGS = "data/scene/beijing-yayuncun/buildings.geojson"
 SCENE_ROOT = "data/scene"
 

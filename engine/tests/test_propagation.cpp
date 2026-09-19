@@ -365,7 +365,7 @@ TEST_CASE("城市经验是替代型主模型：城市档的路损明显高于自
 
 // ------------------------------------------------------------ 判据 7：地面双径 A1–A5
 
-TEST_CASE("A5 断点距离：demo-01 的收发高度下 d_bp 远大于观测区域尺度") {
+TEST_CASE("A5 断点距离：golden-01 的收发高度下 d_bp 远大于观测区域尺度") {
     PropagationConfig cfg = e2_base();
     cfg.primary = PrimaryModel::TwoRay;
     PropagationTerms t;
@@ -373,7 +373,7 @@ TEST_CASE("A5 断点距离：demo-01 的收发高度下 d_bp 远大于观测区�
     const double lambda = speed_of_light_mps() / 2.4405e9;
     check_rel(t.breakpoint_m, 4.0 * 50.0 * 30.0 / lambda, 1e-12, "d_bp");
     CHECK(t.breakpoint_m > 40000.0);
-    MESSAGE("demo-01 的 d_bp = " << t.breakpoint_m / 1000.0 << " km：20 km 的观测区域内恒在干涉区");
+    MESSAGE("golden-01 的 d_bp = " << t.breakpoint_m / 1000.0 << " km：20 km 的观测区域内恒在干涉区");
 }
 
 TEST_CASE("A3 粗糙面：σ_h 大到一定程度双径退化为自由空间") {

@@ -1,6 +1,6 @@
 // 典型链路编译与反解的单测（C-7，D-051）。
 //
-// 对着**真目录**（tests/golden/component-catalog.json）与**真场景**（demo-01）跑：
+// 对着**真目录**（tests/golden/component-catalog.json）与**真场景**（golden-01）跑：
 // 编译出的框图必须是引擎认得的那一份，用桩数据测这层没有意义。
 // 引擎那侧是否真的接受，由 tests/e2e/slice4-smoke.mjs 提交一次来证。
 
@@ -22,15 +22,15 @@ import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const cat = JSON.parse(readFileSync(join(ROOT, 'tests/golden/component-catalog.json'), 'utf8')) as Catalog
 const scenario = JSON.parse(
-  readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'), 'utf8'),
+  readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json'), 'utf8'),
 ) as ScenarioDoc
 /** 混合增强夹具的场景（C-11）：按实测背景片段配的 80 MS/s 短窗，缘由见它的 trace.notes。 */
 const mixedScenario = JSON.parse(
   readFileSync(join(ROOT, 'tests/regression/scenarios/mixed-wideband.scenario.json'), 'utf8'),
 ) as ScenarioDoc
-/** 三站三源，多站用例用它——demo-01 只有一个站，拿它测多站等于测了个假的。 */
+/** 三站三源，多站用例用它——golden-01 只有一个站，拿它测多站等于测了个假的。 */
 const scenario3 = JSON.parse(
-  readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-03.scenario.json'), 'utf8'),
+  readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-03.scenario.json'), 'utf8'),
 ) as ScenarioDoc
 
 /** 解一份必定合法的框图文本，省掉每处都写 if (!r.ok)。 */
@@ -41,20 +41,20 @@ function parseOk(text: string): DiagramDoc {
   return r.doc
 }
 
-/** demo-03 上的全合成链，可指定选几个站几个源。 */
+/** golden-03 上的全合成链，可指定选几个站几个源。 */
 function multi(siteIds: string[], emitterIds: string[]): ChainState {
   const c = synthetic()
   c.diagram_id = 'chain-multi'
-  c.scenario = { scenario_id: 'demo-03', sha256: 'b'.repeat(64) }
+  c.scenario = { scenario_id: 'golden-03', sha256: 'b'.repeat(64) }
   c.siteIds = siteIds
   c.emitterIds = emitterIds
   return c
 }
 
-/** demo-01 绑定齐全的全合成链。 */
+/** golden-01 绑定齐全的全合成链。 */
 function synthetic(): ChainState {
   const c = emptyChain('synthetic', 'chain-synthetic')
-  c.scenario = { scenario_id: 'demo-01', sha256: 'a'.repeat(64) }
+  c.scenario = { scenario_id: 'golden-01', sha256: 'a'.repeat(64) }
   c.siteIds = ['site-1']
   c.emitterIds = ['uav-1']
   c.run = { duration_s: 5, seed: 20260907 }
@@ -90,7 +90,7 @@ test('全合成：派生参数由频率计划填，用户不必填；场景带�
   const c = synthetic()
   const r = compile(c, cat, scenario)
   const tx = r.doc.nodes.find((n) => n.id === 'tx')!
-  // demo-01 的站点接收机是 500 kS/s、2440.5 MHz；时长 5 s → 2500000 样点
+  // golden-01 的站点接收机是 500 kS/s、2440.5 MHz；时长 5 s → 2500000 样点
   assert.equal(tx.params.sample_rate_Hz, 500000)
   assert.equal(tx.params.center_frequency_Hz, 2440500000)
   assert.equal(tx.params.total_samples, 2500000)
@@ -106,7 +106,7 @@ test('全合成：派生参数由频率计划填，用户不必填；场景带�
   // 典型链路的检测器模板固定滑动噪声估计、按站绑定场景（D-063）：
   // noise_mode 与目录缺省 probe 不同，所以一定写进框图；绑站只为给检测行注入 site_id
   assert.equal(det.params.noise_mode, 'sliding')
-  assert.deepEqual(det.scene_binding, { scenario_id: 'demo-01', site_id: 'site-1' })
+  assert.deepEqual(det.scene_binding, { scenario_id: 'golden-01', site_id: 'site-1' })
   // 反解不把模板固定值回写进用户状态，往返仍逐字节
   const back = parseChain(r.doc)!
   assert.equal(back.slots.det.params.noise_mode, undefined)
@@ -248,7 +248,7 @@ test('频率计划的 DDC 判据与 compile 同源：不在目录 / 旁路 / 回
   assert.equal(freqPlan(withDecim(synthetic()), scenario).decim, 4)
 })
 
-test('频率计划：demo-01 的派生量与六项检查', () => {
+test('频率计划：golden-01 的派生量与六项检查', () => {
   const c = synthetic()
   const p = freqPlan(c, scenario)
   assert.equal(p.fs_rf, 500000)
@@ -259,7 +259,7 @@ test('频率计划：demo-01 的派生量与六项检查', () => {
   assert.equal(p.fs_s4, 500000)
 
   const checks = planChecks(c, p, scenario)
-  // demo-01 的带宽 400 kHz + 保护带 25 kHz ≤ 500 kHz
+  // golden-01 的带宽 400 kHz + 保护带 25 kHz ≤ 500 kHz
   assert.equal(p.guard, 25000)
   assert.equal(checks.find((x) => x.id === 'bandwidth')!.ok, true)
   assert.equal(checks.find((x) => x.id === 'edge')!.ok, true)
@@ -418,10 +418,10 @@ test('多站：接收天线之后每环节一站一份，场景参数源也一�
   assert.ok(!ids.includes('sup__site-1'))
   // 信道同时绑源与站：它既要知道发射功率，又要知道接收端是谁
   const ch = r.doc.nodes.find((n) => n.id === 'ch__site-1')!
-  assert.deepEqual(ch.scene_binding, { scenario_id: 'demo-03', entity_id: 'uav-1', site_id: 'site-1' })
+  assert.deepEqual(ch.scene_binding, { scenario_id: 'golden-03', entity_id: 'uav-1', site_id: 'site-1' })
   // 辐射源只绑源：它一份波形扇出到全部站，绑站是错的（引擎也会拒，因为目录没声明 site_id）
   assert.deepEqual(r.doc.nodes.find((n) => n.id === 'tx')!.scene_binding,
-    { scenario_id: 'demo-03', entity_id: 'uav-1' })
+    { scenario_id: 'golden-03', entity_id: 'uav-1' })
 })
 
 test('特征提取的帧长与合并空隙从检测器派生（10 §4.3），改检测器两处同步；往返逐字节（C-4）', () => {
@@ -436,7 +436,7 @@ test('特征提取的帧长与合并空隙从检测器派生（10 §4.3），改
   assert.equal(feat.params.nfft, 512)
   assert.equal(feat.params.merge_gap_frames, 3)
   assert.equal(feat.params.noise_gate, 3)
-  assert.deepEqual(feat.scene_binding, { scenario_id: 'demo-01', site_id: 'site-1' })
+  assert.deepEqual(feat.scene_binding, { scenario_id: 'golden-01', site_id: 'site-1' })
   assert.equal(rec.type, 'TemplateClassifier')
   assert.equal(rec.params.accept_threshold, 0.55)
   assert.equal(rec.params.library_version, undefined, '缺省 v1 不写；库文件位置是内部参数，永远不进框图（D-037）')
@@ -460,7 +460,7 @@ test('评价器槽位：真值来源随模式、nfft 随检测器、data_id 随�
   const ev = r.doc.nodes.find((n) => n.id === 'eval')!
   assert.equal(ev.type, 'Evaluator')
   assert.deepEqual(ev.params, { match_overlap: 0.6, nfft: 512 })   // truth_source = scenario 是目录缺省，与其它缺省值一样不写
-  assert.deepEqual(ev.scene_binding, { scenario_id: 'demo-01', site_id: 'site-1' })
+  assert.deepEqual(ev.scene_binding, { scenario_id: 'golden-01', site_id: 'site-1' })
   const into = r.doc.edges.filter((e) => e.to.node === 'eval').map((e) => `${e.from.node}.${e.from.port}>${e.to.port}`).sort()
   assert.deepEqual(into, ['det.out>det', 'rec.out>rec', 'scn.link:uav-1>scene1'])
   assert.ok(r.activeSlots.includes('eval'))
@@ -978,7 +978,7 @@ function withSlot(base: ChainState, id: 'ddc' | 'chan', params: Record<string, n
 }
 
 test('过渡带检查的通带边缘来自冻结表的规格，不是写死的 0.4（C-10）', () => {
-  // demo-01 是 500 kS/s / 400 kHz 占用。decim = 2 → S4 = 250 kS/s，
+  // golden-01 是 500 kS/s / 400 kHz 占用。decim = 2 → S4 = 250 kS/s，
   // lp_v1 的通带边缘 0.4·250k = 100 kHz，而目标半带宽就有 200 kHz —— 装不下，必须报出来。
   const tight = withSlot(synthetic(), 'ddc', { decim: 2, f_shift_Hz: 0 })
   const t = planChecks(tight, freqPlan(tight, scenario, cat), scenario, cat)
@@ -1007,7 +1007,7 @@ test('信道化检查：旁路时不拦，启用后四件事一起看（C-10，D
   assert.equal(off.ok, true)
   assert.match(off.detail, /未参与计算/)
 
-  // demo-01 是 500 kS/s：切 4 条 → 每条 125 kS/s，可用子带 ±50 kHz，而目标半带宽 200 kHz。
+  // golden-01 是 500 kS/s：切 4 条 → 每条 125 kS/s，可用子带 ±50 kHz，而目标半带宽 200 kHz。
   // **装不下不算错**：选一路子信道本来就是有意的取舍（演示夹具选的正是「图传被压掉」那种配置），
   // 界面只把这件事写成说明，不替用户否掉一个合法配置（D-039）。
   const on = withSlot(synthetic(), 'chan', { channels: 4, select_channel: 2 })
@@ -1082,7 +1082,7 @@ test('接收滤波挂在前端卡片里，链上排在前端之前（C-10）', (
 test('接收滤波的通带由场景逐站带出，不是第二份真理源（C-10，D-054 的 FROM_SCENE）', () => {
   assert.deepEqual(fromSceneOf('rx_flt').map((f) => [f.name, f.from, f.rel]),
     [['bw_Hz', 'site', 'receiver.bw_Hz']])
-  // demo-01 的站点没写 receiver.bw_Hz，于是它照旧算「待填」——场景给不出值时不无条件放行（铁律 15）
+  // golden-01 的站点没写 receiver.bw_Hz，于是它照旧算「待填」——场景给不出值时不无条件放行（铁律 15）
   const on: ChainState = {
     ...synthetic(),
     slots: { ...synthetic().slots, rx_flt: { ...synthetic().slots.rx_flt, bypass: false } },
@@ -1097,7 +1097,7 @@ test('接收滤波的通带在提交前就查表（C-10）：引擎要到第一�
     ...synthetic(),
     slots: { ...synthetic().slots, rx_flt: { ...synthetic().slots.rx_flt, bypass: false, params } },
   })
-  // demo-01：400 kHz / 500 kS/s = 0.8，正在表里
+  // golden-01：400 kHz / 500 kS/s = 0.8，正在表里
   const good = on({})
   const p = freqPlan(good, scenario, cat)
   assert.equal(p.bw_rx, 400000, '通带由场景的 sites[].receiver.bw_Hz 带出')

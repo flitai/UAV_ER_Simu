@@ -3,15 +3,15 @@
   "diagram_id": "chain-3x3-aoa",
   "name": "三站三源 · 交叉定位",
   "scenario_ref": {
-    "scenario_id": "demo-03",
-    "sha256": "04d71717d3e297ccc92aa8f16d19f6cd13fa68024e5d4a3723dc8774948a2a28"
+    "scenario_id": "golden-03",
+    "sha256": "a792f1c474c0b8b944951e67aec87d201d8f43da8c1bc220e7b012893a2c1ca8"
   },
   "nodes": [
     {
       "id": "scn__site-1",
       "type": "ScenarioSource",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-1"
       },
       "params": {
@@ -23,7 +23,7 @@
       "id": "scn__site-2",
       "type": "ScenarioSource",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-2"
       },
       "params": {
@@ -36,7 +36,7 @@
       "id": "scn__site-3",
       "type": "ScenarioSource",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-3"
       },
       "params": {
@@ -49,7 +49,7 @@
       "id": "tx__uav-1",
       "type": "SceneEmitterSource",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-1"
       },
       "params": {
@@ -63,7 +63,7 @@
       "id": "tx__uav-2",
       "type": "SceneEmitterSource",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-2"
       },
       "params": {
@@ -77,7 +77,7 @@
       "id": "tx__uav-3",
       "type": "SceneEmitterSource",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-3"
       },
       "params": {
@@ -99,7 +99,7 @@
       "id": "ch__uav-1__site-1",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-1",
         "site_id": "site-1"
       },
@@ -127,7 +127,7 @@
       "id": "ch__uav-2__site-1",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-2",
         "site_id": "site-1"
       },
@@ -155,7 +155,7 @@
       "id": "ch__uav-3__site-1",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-3",
         "site_id": "site-1"
       },
@@ -195,7 +195,7 @@
       "id": "det__site-1",
       "type": "EnergyDetector",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-1"
       },
       "params": {
@@ -208,7 +208,7 @@
       "id": "feat__site-1",
       "type": "FeatureExtractor",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-1"
       },
       "params": {}
@@ -217,7 +217,7 @@
       "id": "rec__site-1",
       "type": "TemplateClassifier",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-1"
       },
       "params": {}
@@ -226,7 +226,7 @@
       "id": "eval__site-1",
       "type": "Evaluator",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-1"
       },
       "params": {}
@@ -235,7 +235,7 @@
       "id": "df__site-1",
       "type": "DirectionFinder",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-1"
       },
       "params": {}
@@ -252,7 +252,7 @@
       "id": "ch__uav-1__site-2",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-1",
         "site_id": "site-2"
       },
@@ -280,7 +280,7 @@
       "id": "ch__uav-2__site-2",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-2",
         "site_id": "site-2"
       },
@@ -308,7 +308,7 @@
       "id": "ch__uav-3__site-2",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-3",
         "site_id": "site-2"
       },
@@ -348,7 +348,7 @@
       "id": "det__site-2",
       "type": "EnergyDetector",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-2"
       },
       "params": {
@@ -361,7 +361,7 @@
       "id": "feat__site-2",
       "type": "FeatureExtractor",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-2"
       },
       "params": {}
@@ -370,7 +370,7 @@
       "id": "rec__site-2",
       "type": "TemplateClassifier",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-2"
       },
       "params": {}
@@ -379,7 +379,7 @@
       "id": "eval__site-2",
       "type": "Evaluator",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-2"
       },
       "params": {}
@@ -388,7 +388,7 @@
       "id": "df__site-2",
       "type": "DirectionFinder",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-2"
       },
       "params": {}
@@ -405,7 +405,7 @@
       "id": "ch__uav-1__site-3",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-1",
         "site_id": "site-3"
       },
@@ -433,7 +433,7 @@
       "id": "ch__uav-2__site-3",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-2",
         "site_id": "site-3"
       },
@@ -461,7 +461,7 @@
       "id": "ch__uav-3__site-3",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "entity_id": "uav-3",
         "site_id": "site-3"
       },
@@ -501,7 +501,7 @@
       "id": "det__site-3",
       "type": "EnergyDetector",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-3"
       },
       "params": {
@@ -514,7 +514,7 @@
       "id": "feat__site-3",
       "type": "FeatureExtractor",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-3"
       },
       "params": {}
@@ -523,7 +523,7 @@
       "id": "rec__site-3",
       "type": "TemplateClassifier",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-3"
       },
       "params": {}
@@ -532,7 +532,7 @@
       "id": "eval__site-3",
       "type": "Evaluator",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-3"
       },
       "params": {}
@@ -541,7 +541,7 @@
       "id": "df__site-3",
       "type": "DirectionFinder",
       "scene_binding": {
-        "scenario_id": "demo-03",
+        "scenario_id": "golden-03",
         "site_id": "site-3"
       },
       "params": {}

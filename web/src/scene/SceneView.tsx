@@ -29,7 +29,7 @@ import { losProbeStore, probeInputAt, runLosProbe } from './losProbe.js'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { cursorStore } from '../shell/cursorStore.js'
 import { useAppState, useStore } from '../state/store.js'
-import { saveScenario } from '../shell/actions.js'
+import { saveScenario, saveScenarioAs } from '../shell/actions.js'
 import { mountSituation, useLiveSituation, useScenarioLayers } from './useSituation.js'
 import { clearSituation, setLayersVisible } from './layers/situation.js'
 import { addEmitter, addSite, addWaypoint, addZone, moveSite, moveWaypoint } from './editor/scenarioOps.js'
@@ -388,6 +388,18 @@ export function SceneView({ active }: { active: boolean }) {
     }
   }, [])
 
+  // 基准场景只读（用户 2026-09-19）：改完只能另存为一个新标识。
+  // 用 window.prompt 而不是自建对话框——它就问一个名字，为它做一个模态框不划算；
+  // 名字合不合法由 `checkSaveAsId` 判（那是可单测的纯函数），这里只负责问。
+  const onSaveAs = useCallback(async () => {
+    const cur = live.current.state.scene.scenario.id ?? 'scenario'
+    const suggested = `${cur.replace(/^golden-/, 'my-')}`
+    const id = window.prompt('另存为新的场景标识（小写字母、数字、- 与 _）：', suggested)
+    if (id === null) return
+    setSaving(true)
+    try { await saveScenarioAs(live.current.store, id) } finally { setSaving(false) }
+  }, [])
+
   return (
     <ColumnLayout
       left={<LeftColumn onFlyTo={onFlyTo} scene={scene} error={s.scene.error} dev={dev} />}
@@ -396,6 +408,7 @@ export function SceneView({ active }: { active: boolean }) {
           <div ref={box} className="scene-map" />
           <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat}
                       situation={situation} onSituation={setSituation} fix={fix} onFix={setFix}
+                      onSaveAs={() => { void onSaveAs() }}
                       zonesOn={zonesOn} onZones={setZonesOn} poles={poles} onPoles={setPoles}
                       allOverlays={allOverlays} onAllOverlays={setAllOverlays}
                       editMode={editMode} onEditMode={onEditMode}

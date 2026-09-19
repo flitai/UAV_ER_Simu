@@ -1,12 +1,12 @@
 {
   "schema_version": "cuav-scenario-track/1",
-  "scenario_id": "demo-03",
-  "scenario_sha256": "04d71717d3e297ccc92aa8f16d19f6cd13fa68024e5d4a3723dc8774948a2a28",
+  "scenario_id": "golden-03",
+  "scenario_sha256": "a792f1c474c0b8b944951e67aec87d201d8f43da8c1bc220e7b012893a2c1ca8",
   "aoi_id": "beijing-yayuncun",
   "track_rate_Hz": 2.0,
   "duration_s": 120.0,
   "engine_version": "0.1.0",
-  "generator": "scripts/gen_scenario_track_golden.py --scenario data/scene/beijing-yayuncun/scenarios/demo-03.scenario.json --rate 2.0",
+  "generator": "scripts/gen_scenario_track_golden.py --scenario data/scene/beijing-yayuncun/scenarios/golden-03.scenario.json --rate 2.0",
   "tolerance": {
     "position_deg": 1e-06,
     "alt_m": 0.001,

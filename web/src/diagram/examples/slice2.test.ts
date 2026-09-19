@@ -15,7 +15,7 @@ test('slice2 示例与 engine/tests/diagrams/slice2_scenario_link.json 逐字段
 
 test('slice2 示例声明的场景哈希与盘上的场景文件相符（改场景必须同步改框图）', async () => {
   const { createHash } = await import('node:crypto')
-  const bytes = readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'))
+  const bytes = readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json'))
   const sha = createHash('sha256').update(bytes).digest('hex')
   assert.equal((SLICE2_DIAGRAM as { scenario_ref: { sha256: string } }).scenario_ref.sha256, sha)
 })

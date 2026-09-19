@@ -1,7 +1,7 @@
 // 切片 ②「场景里飞起来」的端到端验收（06 备忘录 §9E）。
 //
 // 两条硬断言：
-//   ① 三时刻位置与 tests/golden/scenario-track-demo-01.json 差 ≤ 1e-6 度；
+//   ① 三时刻位置与 tests/golden/scenario-track-golden-01.json 差 ≤ 1e-6 度；
 //   ② 两时刻带内功率差与几何路损差 ≤ 0.5 dB。
 //      （原文写「峰值功率差」，这里按**峰值邻域的带内功率**算：多普勒把谱线在 ±1.2 个 bin 内推来推去，
 //       hann 的扇贝损耗最坏 1.42 dB，直接比单 bin 峰值守不住 0.5 dB。带内功率与扇贝无关，
@@ -28,12 +28,14 @@ const BASE = (args.url ?? 'http://127.0.0.1:8080/').replace(/\/?$/, '/')
 
 const checks = []
 const netUrls = []
+// 本用例的工作副本：基准场景只读（用户 2026-09-19），编辑一律在另存的副本上做，跑完删掉
+const WORK_SCENARIO = 'e2e-slice2-work'
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }); console.error(`  ${ok ? '✓' : '✗'} ${name}${detail ? `  —— ${detail}` : ''}`) }
 const alt = (digit) => ({ key: String(digit), code: `Digit${digit}`, vk: 48 + digit, modifiers: 1 })
 const waitApp = (page, fn, label, timeoutMs = 90000) => { console.error(`  … ${label}`); return page.waitFor((s) => s.app && fn(s.app, s), { label, timeoutMs }) }
 
-const golden = JSON.parse(readFileSync(join(ROOT, 'tests/golden/scenario-track-demo-01.json'), 'utf8'))
-const scenario = JSON.parse(readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json'), 'utf8'))
+const golden = JSON.parse(readFileSync(join(ROOT, 'tests/golden/scenario-track-golden-01.json'), 'utf8'))
+const scenario = JSON.parse(readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json'), 'utf8'))
 
 /**
  * 给一个地址加一次性查询参数，**保证它是一次真正的导航**。
@@ -85,14 +87,14 @@ try {
   // 到那时探针也没了，只看超时信息根本不知道发生了什么。
   await page.send('Runtime.enable')
   page.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n').slice(0, 4).join(' | ')))
-  // 点名 demo-01：自 D-061 起页面开起来跟着最近任务的场景走，盘上跑过 demo-03 就会落到三站场景
-  await page.send('Page.navigate', { url: `${BASE}?scenario=demo-01#/scene` })
+  // 点名 golden-01：自 D-061 起页面开起来跟着最近任务的场景走，盘上跑过 golden-03 就会落到三站场景
+  await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/scene` })
 
   let st = await page.waitFor((s) => s.ready && s.loaded && s.tilesLoaded && s.app?.scene?.status === 'ok',
     { label: '地图与场景就绪', timeoutMs: 120000 })
 
   // ---------- 场景对象树与图层 ----------
-  check('场景已载入', st.app.scene.scenarioId === 'demo-01' && st.app.scene.sites === 1 && st.app.scene.emitters === 1 && st.app.scene.waypoints === 3,
+  check('场景已载入', st.app.scene.scenarioId === 'golden-01' && st.app.scene.sites === 1 && st.app.scene.emitters === 1 && st.app.scene.waypoints === 3,
     JSON.stringify({ id: st.app.scene.scenarioId, sites: st.app.scene.sites, wps: st.app.scene.waypoints }))
   check('场景哈希与盘上文件一致（框图 scenario_ref 用的就是它）', /^[0-9a-f]{64}$/.test(st.app.scene.scenarioSha256), st.app.scene.scenarioSha256.slice(0, 8) + '…')
   // D3-6：建筑几何 15.9 MB、浏览器 JSON.parse 要 72 ms、堆涨 41 MB（07 §2.3）。
@@ -152,7 +154,7 @@ try {
   // ---------- 提交切片 ② 框图 ----------
   // 手写框图，走公开端点送进界面（自由画布与它的示例下拉已由 D-060 删掉）
   const diagId = await loadDiagramViaApi(page, 'engine/tests/diagrams/slice2_scenario_link.json',
-                                         '?scenario=demo-01#/diagram')
+                                         '?scenario=golden-01#/diagram')
   st = await waitApp(page, (a) => a.view === 'diagram' && a.context.diagramId === diagId, '载入切片 ② 框图')
   check('框图页载入切片 ② 示例', st.app.context.diagramId === 'slice2-scenario-link',
         st.app.context.diagramId ?? '')
@@ -358,10 +360,10 @@ try {
   // ---------- 链路线第一次变红：跑一条 E3 的链（D3-7） ----------
   // `line_of_sight` 从链路帧一路通到链路线着色，非视距红 #b91c1c 在 D2-4 标定过对比度，
   // 但**在 D3-5 之前一次也没画出来过**——缺的只是生产者（07 报告 §1 第 2 行）。
-  // 这里跑一条 E3 的链把它画出来：demo-01 起飞头几秒被 62 m 的楼挡着（D3-5 实测 36.98 dB），
+  // 这里跑一条 E3 的链把它画出来：golden-01 起飞头几秒被 62 m 的楼挡着（D3-5 实测 36.98 dB），
   // 所以 3 秒的窗口里全程非视距。
-  const e3Id = await loadDiagramViaApi(page, 'tests/regression/diagrams/chain-demo-01-e3.json',
-                                       '?scenario=demo-01#/diagram', (d) => {
+  const e3Id = await loadDiagramViaApi(page, 'tests/regression/diagrams/chain-golden-01-e3.json',
+                                       '?scenario=golden-01#/diagram', (d) => {
     d.diagram_id = 'slice2-e3-nlos'
     d.name = 'slice2 E3 非视距（端到端用，跑完即删）'
     d.run.duration_s = 3
@@ -406,20 +408,35 @@ try {
     redLine.length >= 1 && redLine.every((x) => x === false), JSON.stringify(redLine))
   await deleteDiagram(page, e3Id)
   // 回到切片 ② 那份框图与任务，后面的场景编辑断言接着用它
-  await loadDiagramViaApi(page, 'engine/tests/diagrams/slice2_scenario_link.json', '?scenario=demo-01#/scene')
+  await loadDiagramViaApi(page, 'engine/tests/diagrams/slice2_scenario_link.json', '?scenario=golden-01#/scene')
   st = await waitApp(page, (a) => a.view === 'scene', '回到场景页')
 
-  // ---------- 表单编辑与保存场景 ----------
-  // 先把前面「布站→撤销→重做→撤销」留下的未保存状态存一次：场景文件已是编辑器的规范序列化
-  // （JSON.stringify(doc, null, 2) + 换行），内容没变时保存是逐字节的空操作，哈希不变。
-  if (st.app.unsaved.scene) {
-    await page.evaluate("(document.querySelector('[data-act=save-scenario]').click(), true)")
-    st = await waitApp(page, (a) => a.unsaved.scene === false, '存回基线', 30000)
-  }
-  const sha0 = st.app.scene.scenarioSha256
-  check('空操作保存不改变文件哈希（场景文件已是编辑器的规范形式）', sha0 === golden.scenario_sha256,
-    `${sha0.slice(0, 8)}… vs 基准 ${golden.scenario_sha256.slice(0, 8)}…`)
+  // ---------- 基准场景只读，编辑要先另存为（用户 2026-09-19 拍板）----------
+  // 从前这一段是**直接改 golden-01 再存回去**，还得在 finally 里兜底恢复——
+  // 用户就是这么在不知情的情况下把一份基准场景改掉的。现在基准只读：
+  // 按钮变「另存为…」，服务端也真拒（409 scenario_readonly）。这一段因此改成
+  // 「另存为一份工作副本 → 在副本上编辑 → 跑完删掉副本」，**基准文件全程不被碰**。
+  check('基准场景上只有「另存为…」，没有会必然失败的「保存场景」', await page.evaluate(`(() => ({
+    saveAs: !!document.querySelector('[data-act=save-scenario-as]'),
+    save: !!document.querySelector('[data-act=save-scenario]'),
+    note: !!document.querySelector('[data-scenario-readonly]'),
+  }))()`).then((x) => x.saveAs && !x.save && x.note), '按钮为「另存为…」、左栏写着只读')
+  // 界面拦不住手写的请求，所以服务端才是真闸
+  const putGolden = await page.evaluateAsync(`fetch('/api/v1/scenarios/golden-01', { method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(${JSON.stringify(JSON.stringify(scenario))}) }).then(r => r.status)`)
+  check('服务端直接拒写基准场景（界面拦不住手写请求）', putGolden === 409, `HTTP ${putGolden}`)
 
+  // window.prompt 在无头下会被自动关掉（cdp.mjs 的对话框自动放行），这里把它换掉再点
+  await page.evaluate(`(() => { window.prompt = () => '${WORK_SCENARIO}'; return true })()`)
+  await page.evaluate("(document.querySelector('[data-act=save-scenario-as]').click(), true)")
+  st = await waitApp(page, (a) => a.scene.scenarioId === WORK_SCENARIO, '另存为工作副本', 30000)
+  check('另存为切到新场景，并且此后可写（基准一个字节没动）',
+    st.app.scene.scenarioId === WORK_SCENARIO && st.app.unsaved.scene === false,
+    `${WORK_SCENARIO}，脏标 ${st.app.unsaved.scene}`)
+  const sha0 = st.app.scene.scenarioSha256
+
+  // ---------- 表单编辑与保存场景（在工作副本上）----------
   const treeSites = await page.evaluate("Array.from(document.querySelectorAll('[data-tree-site]')).map(b=>b.dataset.treeSite)")
   check('对象树里有站点行可点', Array.isArray(treeSites) && treeSites.length === 1, JSON.stringify(treeSites))
   await page.evaluate("(document.querySelector('[data-tree-site]').click(), true)")
@@ -438,23 +455,21 @@ try {
   st = await waitApp(page, (a) => a.unsaved.scene === true, '改高度后标脏')
   check('改站点离地高即标未保存', st.app.unsaved.scene === true, `原值 ${alt0} → 45`)
   await page.evaluate("(document.querySelector('[data-act=save-scenario]').click(), true)")
-  st = await waitApp(page, (a) => a.unsaved.scene === false && a.scene.scenarioSha256 !== sha0, '保存场景', 30000)
-  check('保存后回到已保存，并拿到新的落盘哈希', /^[0-9a-f]{64}$/.test(st.app.scene.scenarioSha256) && st.app.scene.scenarioSha256 !== sha0,
+  st = await waitApp(page, (a) => a.unsaved.scene === false && a.scene.scenarioSha256 !== sha0, '保存工作副本', 30000)
+  check('工作副本照常保存，并拿到新的落盘哈希', /^[0-9a-f]{64}$/.test(st.app.scene.scenarioSha256) && st.app.scene.scenarioSha256 !== sha0,
     `${sha0.slice(0, 8)}… → ${st.app.scene.scenarioSha256.slice(0, 8)}…`)
 
-  // 改回去：这条测试不该在仓库里留副作用
-  await setAlt(alt0)
-  await waitApp(page, (a) => a.unsaved.scene === true, '改回原值')
-  await page.evaluate("(document.querySelector('[data-act=save-scenario]').click(), true)")
-  st = await waitApp(page, (a) => a.unsaved.scene === false, '存回原样', 30000)
-  check('测试不留副作用：场景已存回原样，哈希与基准一致', st.app.scene.scenarioSha256 === golden.scenario_sha256,
-    `${st.app.scene.scenarioSha256.slice(0, 8)}… vs 基准 ${golden.scenario_sha256.slice(0, 8)}…`)
+  // 基准文件全程没被碰过——这一条取代了从前那个「改完再存回去」的恢复动作
+  const goldenNow = await page.evaluateAsync(
+    "fetch('/api/v1/scenarios/golden-01').then(r => r.headers.get('x-cuav-sha256'))")
+  check('全程之后基准场景仍与黄金基准逐字节一致（只读这条规则的最终判据）',
+    goldenNow === golden.scenario_sha256, `${String(goldenNow).slice(0, 8)}… vs 基准 ${golden.scenario_sha256.slice(0, 8)}…`)
 
   // ---------- D4 渲染—物理同源验收（D-076；铁律 11）----------
   // 到 D3-6 为止「同一份 GeoJSON 驱动渲染与遮挡」是**按结构成立**的：两侧读同一个地址、
   // 解析规则逐条对齐。这里把它在跑起来的画面上核一遍，并把「探针无副作用」从头注里的
   // 一句声明变成断言。
-  await page.send('Page.navigate', { url: reloadUrl('?dev=1&scenario=demo-01#/scene') })
+  await page.send('Page.navigate', { url: reloadUrl('?dev=1&scenario=golden-01#/scene') })
   // **等的是新文档，不是旧文档**：导航刚发出时旧页面还活着，而它同样满足「地图好了、场景好了」，
   // 于是 waitFor 会立刻返回旧页面的状态，紧接着那一页被拆掉——后面的读数就变成
   // 「78 个图层忽然变 0 个」和「map.style 是 null」（2026-09-19 实测撞到两次）。
@@ -552,15 +567,23 @@ try {
 } finally {
   // 删掉本用例存进去的那份手写框图（同下面恢复场景文件，走 HTTP 不依赖页面还活着）
   await fetch(`${BASE}api/v1/diagrams/slice2-scenario-link`, { method: 'DELETE' }).catch(() => undefined)
-  // 场景文件是黄金基准指向的对象，本用例中途改了它。**恢复必须在 finally 里**：
-  // 用例在改完之后、存回之前被打断过一次（2026-09-07），仓库因此留着 3 个站点 6 个航点的
-  // 场景文件，直到别的测试报「哈希对不上」才发现。走 HTTP 直接写回，不依赖页面还活着。
+  // **本用例不再编辑基准场景**（基准只读，用户 2026-09-19）：编辑都在另存的工作副本上做，
+  // 所以从前那套「中途被打断就得用 git 恢复 golden-01」的兜底没有了。删掉工作副本即可。
+  // 走文件系统而不是端点：场景端点没有 DELETE，而这是本机跑的测试，删自己造的东西不必绕路。
   try {
-    const cur = await fetch(`${BASE}api/v1/scenarios/demo-01`)
+    const wp = join(ROOT, 'data/scene/beijing-yayuncun/scenarios', `${WORK_SCENARIO}.scenario.json`)
+    if (existsSync(wp)) await rm(wp)
+  } catch (e) {
+    console.error(`删工作副本失败：${String(e)}`
+      + `（手工删 data/scene/beijing-yayuncun/scenarios/${WORK_SCENARIO}.scenario.json）`)
+  }
+  // 基准文件仍然查一眼：只读这条规则真出漏子的话，这里是最后一道网
+  try {
+    const cur = await fetch(`${BASE}api/v1/scenarios/golden-01`)
     if (cur.ok && cur.headers.get('x-cuav-sha256') !== golden.scenario_sha256) {
-      console.error(`\n场景文件与基准不符（${cur.headers.get('x-cuav-sha256')?.slice(0, 8)}… vs ${golden.scenario_sha256.slice(0, 8)}…），`
-        + '本用例改过它但没能存回。请用 git 恢复 data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json')
-      checks.push({ name: '测试不留副作用：场景文件与基准一致', ok: false, detail: '中途被打断，场景未存回原样' })
+      console.error('\n基准场景被改动了——只读那条规则漏了。请用 git 恢复 '
+        + 'data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json 并查 PUT 为什么没被拒')
+      checks.push({ name: '基准场景全程未被改动', ok: false, detail: '哈希与黄金基准不符' })
     }
   } catch { /* 服务不在就没法查，交给下一次单测的哈希对拍 */ }
   if (typeof pageErrors !== 'undefined' && pageErrors.length) {

@@ -6,8 +6,8 @@
 
 用法：
     uv run --quiet python scripts/gen_scenario_track_golden.py \
-        --scenario data/scene/beijing-yayuncun/scenarios/demo-01.scenario.json \
-        --rate 2 --out tests/golden/scenario-track-demo-01.json
+        --scenario data/scene/beijing-yayuncun/scenarios/golden-01.scenario.json \
+        --rate 2 --out tests/golden/scenario-track-golden-01.json
 
 只用标准库。路径从本文件位置推导（铁律 17）。
 """

@@ -209,8 +209,8 @@ export const SLOTS: readonly SlotDef[] = [
     ],
   },
   {
-    // 缺省旁路（M-2，D-070）：组件已经落地，但把它接进缺省链会改变 demo-01 的产品、检测与
-    // 评价基准，而 demo-01 是 500 kS/s、decim 只能取 1，抽取本来也无从谈起。缺省接线留给 C-10。
+    // 缺省旁路（M-2，D-070）：组件已经落地，但把它接进缺省链会改变 golden-01 的产品、检测与
+    // 评价基准，而 golden-01 是 500 kS/s、decim 只能取 1，抽取本来也无从谈起。缺省接线留给 C-10。
     id: 'ddc', label: 'DDC', hint: '数字下变频', bypassable: true, replayNotApplicable: true,
     defaultBypass: true,
     variants: [
@@ -571,7 +571,7 @@ export const DERIVED_PARAMS: Partial<Record<SlotId, string[]>> = {
  *
  * 这么改是为了消掉两处真理源。在此之前 `ReceiverFrontEnd.nf_dB` 与站点的 `receiver.nf_dB`、
  * `AntennaGain.gain_dBi` 与站点／无人机的天线增益各存各的，只是碰巧填了相同的值；
- * demo-03 的 `uav-3` 就没碰巧——场景里它是 0 dBi 而链路里被迫跟着别人用 2 dBi。
+ * golden-03 的 `uav-3` 就没碰巧——场景里它是 0 dBi 而链路里被迫跟着别人用 2 dBi。
  *
  * `rel` 是 `deviceFields.ts` 里的相对路径，两边指的是同一个字段。
  */

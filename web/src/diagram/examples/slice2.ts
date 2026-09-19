@@ -9,15 +9,15 @@ export const SLICE2_DIAGRAM = {
   "diagram_id": "slice2-scenario-link",
   "name": "场景绑定链路到频谱",
   "scenario_ref": {
-    "scenario_id": "demo-01",
-    "sha256": "72b8e8d0c3ac7df5a036263fdb29354661df7fba77a89e07e1d5087a0767b839"
+    "scenario_id": "golden-01",
+    "sha256": "35a6e3cf9671cbb2493afcfb9cc54cae65575210280d235bc671761903daa0d4"
   },
   "nodes": [
     {
       "id": "scn",
       "type": "ScenarioSource",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "site_id": "site-1"
       },
       "params": {
@@ -30,7 +30,7 @@ export const SLICE2_DIAGRAM = {
       "id": "uav",
       "type": "SceneEmitterSource",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "entity_id": "uav-1"
       },
       "params": {
@@ -42,7 +42,7 @@ export const SLICE2_DIAGRAM = {
       "id": "ch",
       "type": "SceneBoundChannel",
       "scene_binding": {
-        "scenario_id": "demo-01",
+        "scenario_id": "golden-01",
         "entity_id": "uav-1"
       },
       "params": {}

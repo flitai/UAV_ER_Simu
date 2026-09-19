@@ -1,4 +1,4 @@
-// 卡片派生读数的单测（V-1，D-061）。对着真场景 demo-03 跑：三站三源，链路标识里站与源都含连字符。
+// 卡片派生读数的单测（V-1，D-061）。对着真场景 golden-03 跑：三站三源，链路标识里站与源都含连字符。
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -15,7 +15,7 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 function demo03(): ScenarioDoc {
-  return JSON.parse(readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/demo-03.scenario.json'), 'utf8')) as ScenarioDoc
+  return JSON.parse(readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-03.scenario.json'), 'utf8')) as ScenarioDoc
 }
 
 function link(link_id: string, over: Partial<LinkSample> = {}): LinkSample {
@@ -53,7 +53,7 @@ test('目标卡：每源一张、每站一行；有链路帧的行按标识精�
   const r1 = c.sites[0]!
   assert.equal(r1.site_id, 'site-1')
   assert.equal(r1.source, 'link')
-  // demo-03：uav-1 发射 27 dBm、天线 2 dBi；site-1 天线 3 dBi、噪声系数 6 dB、采样率 500 kHz
+  // golden-03：uav-1 发射 27 dBm、天线 2 dBi；site-1 天线 3 dBi、噪声系数 6 dB、采样率 500 kHz
   assert.equal(r1.rx_dBm, 27 + 2 + 3 - 100)
   assert.ok(Math.abs((r1.snr_dB ?? NaN) - (-68 - noisePowerDbm(6, 5e5))) < 1e-9)
   assert.equal(r1.bearing?.df_quality, 'DF-Q2')
@@ -112,7 +112,7 @@ test('站点卡：链路数与最差测向档；探针形状逐项挑', () => {
   assert.deepEqual(probeSiteCards(sc)[0], { id: 'site-1', links: 3, worst_quality: 'DF-Q3', sync_state: 'locked' })
 })
 
-test('告警区判定进卡片：demo-03 的 z-east 圆心处在区内，限高之上不在，远处不在', () => {
+test('告警区判定进卡片：golden-03 的 z-east 圆心处在区内，限高之上不在，远处不在', () => {
   const doc = demo03()
   const sit: SituationLike = { entities: new Map(), links: new Map(), bearings: new Map(), positions: new Map() }
   sit.entities.set('uav-2', { t_s: 70, id: 'uav-2', lon: 116.4105, lat: 39.99, alt_m: 90, heading_deg: 180, speed_mps: 12, tx_on: true, center_Hz: 2.44e9 })

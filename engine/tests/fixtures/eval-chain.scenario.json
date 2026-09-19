@@ -131,6 +131,6 @@
   "trace": {
     "created_by": "实施方（C-5 测试夹具）",
     "created_at": "2026-09-14T00:00:00Z",
-    "notes": "只供 test_evaluator.cpp 取各源的带宽与波形；uav-1 单音自 3 s 起（与 demo-01 同），uav-3 突发无开关事件。"
+    "notes": "只供 test_evaluator.cpp 取各源的带宽与波形；uav-1 单音自 3 s 起（与 golden-01 同），uav-3 突发无开关事件。"
   }
 }

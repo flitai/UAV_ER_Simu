@@ -94,14 +94,14 @@ def links_at(out: str, t: float) -> dict:
 # ---------------------------------------------------------------- 算例 1 / 6 / 11：全合成链
 def synthetic_cases(engine: str, out: str, out2: str) -> None:
     st = run_chain(engine, "chain-synthetic.json", out,
-                   scenario=os.path.join(SCENARIOS, "demo-01.scenario.json"))
+                   scenario=os.path.join(SCENARIOS, "golden-01.scenario.json"))
     # 缺省参数下这条链**本来就削顶**，结果因此是 degraded —— 那是引擎的真实判断，
     # D-066 ⑨ 明确不为了好看去改缺省参数。这里把它写成期望，而不是期望 valid。
     check("全合成链的四态如实传出（缺省参数下 ADC 过载，D-066 ⑨）",
           st["result"] == "degraded", f"result = {st['result']}")
 
     # --- 算例 1：单音频移和功率标度 -------------------------------------------------
-    # demo-01 的 uav-1 是 2440.5 MHz + 48828.125 Hz 的单音，站点中心 2440.5 MHz、500 kS/s。
+    # golden-01 的 uav-1 是 2440.5 MHz + 48828.125 Hz 的单音，站点中心 2440.5 MHz、500 kS/s。
     # nfft 1024 下 bin 宽 488.28125 Hz，48828.125 Hz 恰好是 100 个 bin —— 单音精确落在 bin 中心。
     # 目标在动，所以频点要带上多普勒；电平按 hann 邻域求和的口径读（D-049 ⑪）。
     idx, a, f, dt = spectrum(out, "s1")
@@ -179,7 +179,7 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
         json.dump(doc, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
     run_chain(engine, os.path.relpath(hp, DIAGRAMS), out + "-hr",
-              scenario=os.path.join(SCENARIOS, "demo-01.scenario.json"))
+              scenario=os.path.join(SCENARIOS, "golden-01.scenario.json"))
     os.remove(hp)
     i2h, a2h, f2h, d2h = spectrum(out + "-hr", "s2")
     i3h, a3h, f3h, d3h = spectrum(out + "-hr", "s3")
@@ -203,7 +203,7 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
 
     # --- 算例 11：固定随机种子重复运行 -----------------------------------------------
     run_chain(engine, "chain-synthetic.json", out2,
-              scenario=os.path.join(SCENARIOS, "demo-01.scenario.json"))
+              scenario=os.path.join(SCENARIOS, "golden-01.scenario.json"))
     same, diff, only = compare_products(out, out2)
     check("算例 11 同种子逐字节复现", not diff and not only,
           f"{same} 个产品文件逐字节相同" + (f"；{len(diff)} 个不同：{diff[:3]}" if diff else "")
@@ -239,12 +239,12 @@ def compare_products(a: str, b: str) -> tuple[int, list[str], list[str]]:
 
 # ---------------------------------------------------------------- 算例 2 / 3：宽带链
 def wideband_cases(engine: str, out: str) -> None:
-    run_chain(engine, "chain-demo-02.json", out,
-              scenario=os.path.join(SCENARIOS, "demo-02.scenario.json"))
+    run_chain(engine, "chain-golden-02.json", out,
+              scenario=os.path.join(SCENARIOS, "golden-02.scenario.json"))
     idx, a, f, dt = spectrum(out, "s4")
 
     # --- 算例 2：带限噪声和目标 SNR --------------------------------------------------
-    # demo-02 的图传是 bw_Hz = 2 MHz 的带限噪声（4 阶巴特沃斯，fc = 1 MHz，D-069），
+    # golden-02 的图传是 bw_Hz = 2 MHz 的带限噪声（4 阶巴特沃斯，fc = 1 MHz，D-069），
     # 中心 2438.5 MHz 即相对站点 −2.5 MHz。只有它在发的窗口是 0.5–2.5 s。
     rows = slice(int(0.7 / dt), int(2.3 / dt))
     quiet = slice(int(0.05 / dt), int(0.45 / dt))
@@ -347,7 +347,7 @@ def main(argv=None) -> int:
     print("04 §15.2 标准算例（从保存的典型链路跑）")
     print("--- 全合成链 chain-synthetic.json（算例 1、6、11）---")
     synthetic_cases(engine, outs["synthetic"], outs["synthetic2"])
-    print("--- 宽带链 chain-demo-02.json（算例 2、3）---")
+    print("--- 宽带链 chain-golden-02.json（算例 2、3）---")
     wideband_cases(engine, outs["wideband"])
     print("--- 实测数据（算例 9、10）---")
     if os.path.exists(DATA_INDEX):

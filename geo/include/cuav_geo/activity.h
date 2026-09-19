@@ -4,7 +4,7 @@
 //
 //   · EmitterRuntime 的那两个函数服务**帧域与航迹域** —— 参数帧按 1/update_rate 取值
 //     （geo/src/scenario.cpp 的 LinkFrameSource::frame）、航迹事件按 --track-rate 取值。
-//     它们一个字符都不动，于是 tests/golden/scenario-track-demo-0*.json 逐点逐位不变。
+//     它们一个字符都不动，于是 tests/golden/scenario-track-golden-0*.json 逐点逐位不变。
 //   · 本类服务**波形域与真值域** —— SceneEmitterSource 按它生成 IQ、Evaluator 按它记真值。
 //     遥控跳频的停留在 1–20 ms 量级，块（缺省 65536 样点）与帧（20–100 Hz）都表达不了它，
 //     只有绝对样点号够细。两边共用本类，于是「源怎么发的」与「真值怎么记的」逐位同源。
