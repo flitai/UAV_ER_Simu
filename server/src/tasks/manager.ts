@@ -158,10 +158,20 @@ export class TaskManager {
     this.initialized = true
   }
 
-  list(limit = 100): TaskRecord[] {
+  /**
+   * 按 created_utc 降序的一页任务。offset 越界返回空数组——总数由 count() 另给，
+   * 界面据此写「共 N 个 · 第 a–b 个」而不必先把全部拉下来（U-4，D-075）。
+   */
+  list(limit = 100, offset = 0): TaskRecord[] {
     const all = [...this.tasks.values()].map((l) => l.rec)
     all.sort((a, b) => (a.created_utc < b.created_utc ? 1 : a.created_utc > b.created_utc ? -1 : a.task_id < b.task_id ? 1 : -1))
-    return all.slice(0, Math.max(1, limit))
+    const from = Math.max(0, offset)
+    return all.slice(from, from + Math.max(1, limit))
+  }
+
+  /** 任务总数（盘上 data/runs/ 里能认出 task_id 的那些）。 */
+  count(): number {
+    return this.tasks.size
   }
 
   get(taskId: string): TaskRecord | null {

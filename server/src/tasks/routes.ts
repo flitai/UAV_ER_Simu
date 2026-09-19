@@ -2,7 +2,7 @@
 //
 //   GET  /api/v1/components            组件目录（缓存引擎 --catalog 输出，附 generated_at）
 //   POST /api/v1/tasks                 提交框图 → 201 任务摘要；幂等命中 200；400 diagram_invalid；503 引擎缺失
-//   GET  /api/v1/tasks[?limit=N]       任务列表（created_utc 降序）
+//   GET  /api/v1/tasks[?limit=N&offset=M]  任务列表一页（created_utc 降序）+ total（U-4）
 //   GET  /api/v1/tasks/{id}            任务摘要（task.json 内容）
 //   POST /api/v1/tasks/{id}/cancel     取消：排队中立即；运行中杀进程；已结束 409
 //   GET  /api/v1/tasks/{id}/events?since&limit   按序号补取事件（B-6）：缓冲内切片、缓冲外读 events.jsonl，
@@ -43,7 +43,8 @@ export async function handleTaskRoutes(req: IncomingMessage, res: ServerResponse
     if (path === '/api/v1/tasks') {
       if (method === 'GET' || method === 'HEAD') {
         const limit = parseLimit(url.searchParams.get('limit'))
-        sendJson(res, 200, { tasks: deps.mgr.list(limit) })
+        const offset = parseOffset(url.searchParams.get('offset'))
+        sendJson(res, 200, { tasks: deps.mgr.list(limit, offset), total: deps.mgr.count(), offset, limit })
         return true
       }
       if (method === 'POST') {
@@ -130,6 +131,13 @@ function parseLimit(v: string | null): number {
   const n = v === null ? NaN : Number(v)
   if (!Number.isFinite(n) || n < 1) return 100
   return Math.min(1000, Math.floor(n))
+}
+
+/** 起始位置：缺省、非数、负数一律按 0（分页越界不是错误，返回空页加真实 total）。 */
+function parseOffset(v: string | null): number {
+  const n = v === null ? NaN : Number(v)
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.floor(n)
 }
 
 /** 读 JSON 请求体：非 JSON 类型 415、超 1 MB 413、解析失败 400（与框图错误同形，code = json_parse）。 */

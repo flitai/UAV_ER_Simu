@@ -15,7 +15,7 @@ export const IQ_KINDS = ['measured', 'synthetic', 'mixed'] as const
 const INDEX_SCHEMA = 'cuav-batch-index/1'
 const HOLDOUT_SCHEMA = 'cuav-holdout-manifest/1'
 /** 目录名与 data_id 都必须是 ASCII 标识：它们要进相对路径与旁挂 */
-const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
+export const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
 
 export interface DataEntry {
   data_id: string
@@ -30,6 +30,17 @@ export interface DataEntry {
    * 所以这里只取两边都能给出或缺了也无妨的那几项，缺的就是缺的，不编（铁律 15）。
    */
   label: DataLabel
+  /**
+   * 索引里那一行的原文（U-4，D-075）。`load()` 本来就把整份索引解析了一遍
+   * （dronerfb 那份 2.7 MB），此前 `labelOf()` 取完摘要就把它扔了；详情端点要出
+   * 通道、段数、内容哈希与完整真值，留住它比重读一遍便宜。**它是索引原文，
+   * 里头有 `source_file` 这类外部来源，出给浏览器前必须过白名单**（铁律 17）。
+   */
+  product: Record<string, unknown>
+  /** 该批索引声明的数据集名；一批不止一个数据集时留空（下面的 calibration 同理） */
+  dataset?: string
+  /** 该数据集的功率标定常数（批索引顶层 `calibration`，D-047），只在能唯一认定时带上 */
+  calibration?: Record<string, unknown>
 }
 
 export interface DataLabel {
@@ -79,6 +90,14 @@ export class DataIndex {
         if (!e.isDirectory() || !SAFE_NAME.test(e.name)) continue
         const idx = await readJson(join(kindDir, e.name, 'index.manifest.json'))
         if (idx && idx.schema === INDEX_SCHEMA && Array.isArray(idx.products)) {
+          // 标定常数在批索引里是**按数据集**一块，不是按条。两批公开数据集各只含一个数据集，
+          // 此时能唯一认定；将来一批里混了多个数据集就认不出来是哪一个，那就不给——
+          // 宁可缺，也不拿另一个数据集的常数顶替（铁律 15）。
+          const calibs = (idx.calibration ?? {}) as Record<string, unknown>
+          const names = Object.keys(calibs)
+          const only = names.length === 1 ? names[0] : undefined
+          const calib = only && calibs[only] && typeof calibs[only] === 'object'
+            ? (calibs[only] as Record<string, unknown>) : undefined
           for (const p of idx.products as Array<Record<string, unknown>>) {
             const id = p?.data_id
             if (typeof id !== 'string' || !SAFE_NAME.test(id)) continue
@@ -87,7 +106,10 @@ export class DataIndex {
             if (prev && prev.manifestRel !== rel) {
               throw new Error(`data_id 在多份索引里重复且位置不同：${id}（${prev.manifestRel} 与 ${rel}）`)
             }
-            table.set(id, { data_id: id, kind, batch: e.name, manifestRel: rel, label: labelOf(p) })
+            const entry: DataEntry = { data_id: id, kind, batch: e.name, manifestRel: rel, label: labelOf(p), product: p }
+            if (only) entry.dataset = only
+            if (calib) entry.calibration = calib
+            table.set(id, entry)
           }
         }
         await readHoldout(join(kindDir, e.name, 'holdout.manifest.json'), holdout)

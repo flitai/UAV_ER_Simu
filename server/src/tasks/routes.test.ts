@@ -112,6 +112,36 @@ test('提交、列表、单任务、幂等、取消、404 / 405 / 409', async ()
   assert.equal(lim.tasks.length, 1)
 })
 
+test('GET /api/v1/tasks?limit&offset：一页加真实总数，越界是空页（U-4，D-075）', async () => {
+  type Page = { tasks: TaskRecord[]; total: number; offset: number; limit: number }
+  const page = async (q: string) => (await (await fetch(`${base}/api/v1/tasks${q}`)).json()) as Page
+  // 上一条用例只留下一个任务（幂等提交复用同一个、坏框图不建目录），这里自己再造一个才分得成页
+  const second = await slice1()
+  second.name = '分页用的第二个任务'
+  assert.equal((await post('/api/v1/tasks', second)).status, 201)
+  const all = await page('')
+  assert.ok(all.total >= 2, `分页要至少两个任务，实得 ${all.total}`)
+  assert.equal(all.offset, 0)
+  assert.equal(all.limit, 100)
+  assert.equal(all.tasks.length, Math.min(all.total, 100))
+
+  const p0 = await page('?limit=1&offset=0')
+  const p1 = await page('?limit=1&offset=1')
+  assert.equal(p0.tasks.length, 1)
+  assert.equal(p1.tasks.length, 1)
+  assert.notEqual(p0.tasks[0].task_id, p1.tasks[0].task_id, '两页不重叠')
+  assert.equal(p1.offset, 1)
+  assert.equal(p1.total, all.total, 'total 不随分页变')
+
+  // 越界给空页但 total 照实——界面据此写「共 N 个」而不是「没有任务」（铁律 15）
+  const over = await page(`?offset=${all.total + 10}`)
+  assert.deepEqual(over.tasks, [])
+  assert.equal(over.total, all.total)
+  // 非数与负数一律按 0，不 400（分页参数不是语义输入）
+  assert.equal((await page('?offset=-5')).offset, 0)
+  assert.equal((await page('?offset=abc')).offset, 0)
+})
+
 test('GET /api/v1/tasks/{id}/events：since / limit 补取、product_row 为文本、参数校验 400、404 / 405、HEAD', async () => {
   const r = await post('/api/v1/tasks', await slice1())
   const t = (await r.json()) as TaskRecord
@@ -161,7 +191,7 @@ test('index.ts：任务路由已挂，未 init 时列表为空；健康检查带
   assert.equal(code, 4404)
   const l = await fetch(`${appBase}/api/v1/tasks`)
   assert.equal(l.status, 200)
-  assert.deepEqual(await l.json(), { tasks: [] })
+  assert.deepEqual(await l.json(), { tasks: [], total: 0, offset: 0, limit: 100 })
   assert.equal((await fetch(`${appBase}/api/v1/tasks/t00000000-000000-0000`)).status, 404)
   assert.equal((await fetch(`${appBase}/api/v1/tasks`, { method: 'PUT' })).status, 405)
   const h = (await (await fetch(`${appBase}/api/v1/health`)).json()) as { engine: { available: boolean } }

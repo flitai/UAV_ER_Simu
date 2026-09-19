@@ -112,9 +112,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   if (path === '/api/v1/diagrams' || path.startsWith('/api/v1/diagrams/')) {
     if (handleDiagramRoutes({ root: ROOT, engine, dataIndex, scenarioIndex }, req, res, path)) return
   }
-  // 实测数据清单（D-056）：只读摘要，供辐射源卡片挑回放片段；不出任何服务器路径
-  if (path === '/api/v1/datasets') {
-    if (await handleDatasetRoutes({ index: dataIndex }, req, res, url)) return
+  // 实测数据清单（列表 D-056、单条详情 U-4 / D-075）：只读摘要，供框图挑回放片段与数据中心；
+  // 不出任何服务器路径
+  if (path === '/api/v1/datasets' || path.startsWith('/api/v1/datasets/')) {
+    if (await handleDatasetRoutes({ index: dataIndex, root: ROOT }, req, res, url)) return
   }
   // 视窗抽取（B-7）：结果路由自己管方法与错误码
   if (path.startsWith('/api/v1/results/')) {
@@ -180,7 +181,7 @@ export async function start(): Promise<void> {
     console.log(`  暴露的数据目录：${ROOTS.map((r) => r.prefix).join('  ')}`)
     console.log(`  前端产物 ${WEB_DIST}`)
     console.log(`  引擎 ${engine.cfg.bin}${engineOk ? '' : '（不存在或不可执行：任务提交将返回 503）'}`)
-    console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.list(1000).length} 个`)
+    console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.count()} 个`)
     console.log(`  视窗抽取 GET /api/v1/results/{task}/{op}/{spectrum|envelope}?t0&t1&f0&f1&px&py&stat`)
     console.log(`  WebSocket ws://${HOST}:${PORT}${hub.path}（订阅 {subscribe, since}；补取 GET /api/v1/tasks/{id}/events?since）`)
   })

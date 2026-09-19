@@ -307,6 +307,15 @@ test('重启对账：events.jsonl 有终态就采纳（经脱敏）；没有就 
   assert.equal(again.task.task_id, 'td')
   assert.equal(m2.list().length, 4)
   assert.equal(m2.list(2).length, 2)
+
+  // 分页（U-4，D-075）：count() 与 offset 分工——一页取不完时界面靠 count() 才写得出「共 N 个」。
+  assert.equal(m2.count(), 4)
+  const page1 = m2.list(2, 0).map((r) => r.task_id)
+  const page2 = m2.list(2, 2).map((r) => r.task_id)
+  assert.equal(new Set([...page1, ...page2]).size, 4, '两页无重叠、合起来是全部')
+  assert.deepEqual([...page1, ...page2], m2.list(4, 0).map((r) => r.task_id), '分页顺序与整取一致')
+  assert.deepEqual(m2.list(10, 4), [], 'offset 越界是空页不是报错')
+  assert.deepEqual(m2.list(10, -3).map((r) => r.task_id), m2.list(10, 0).map((r) => r.task_id), '负 offset 按 0')
 })
 
 test('服务退出收尾：运行中的标 failed 并杀进程，排队中的标 failed，task.json 同步落盘', async () => {
