@@ -10,7 +10,7 @@ const base: TaskRecord = {
   observation_points: [{ op_id: 's4', node: 'adc', port: 'out', products: ['spectrum'] }],
   data_refs: [], warnings: [], last_seq: 74115, scenario_id: 'golden-02',
   diagram_sha256: 'fcd9e8004e4e0f98dbd79dcc72648908de7a4306cbfaf5c46f3576146e413259',
-  scenario_sha256: '8e6236d3c2126e2eb347ee06677d7158ad85ad8a4367ca58e3f221569bc5bc82',
+  scenario_sha256: '37f35e4ca958f204fd9bc8821ee6e1d531d0edaadc33041e7067b73ca166ec07',
   engine_version: '0.1.0', seed_source: 'diagram',
   started_utc: '2026-09-18T12:17:06Z', ended_utc: '2026-09-18T12:17:20Z', exit_code: 0,
 }

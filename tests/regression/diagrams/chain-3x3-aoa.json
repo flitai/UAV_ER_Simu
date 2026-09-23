@@ -4,7 +4,7 @@
   "name": "三站三源 · 交叉定位",
   "scenario_ref": {
     "scenario_id": "golden-03",
-    "sha256": "a792f1c474c0b8b944951e67aec87d201d8f43da8c1bc220e7b012893a2c1ca8"
+    "sha256": "30eeba327d45472c3a2b64669be47716f55dcd9f9ca9ef1d66dd9e6b7d278756"
   },
   "nodes": [
     {

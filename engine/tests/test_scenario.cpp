@@ -442,8 +442,11 @@ TEST_CASE("场景：设备型号可缺省，给出时收下并原样保存（D-0
     geo::Scenario s;
     std::string err;
 
-    // 既有场景文件不写 equipment_model 仍合法，读出来是空串（不拿默认值顶替，铁律 15）
+    // 不写 equipment_model 仍合法，读出来是空串（不拿默认值顶替，铁律 15）。
+    // golden-01 自 2026-09-23 起写了型号，这里先删掉，才测得到「缺省」那一支
     nlohmann::json a = demo_json();
+    a["sites"][0].erase("equipment_model");
+    a["emitters"][0].erase("equipment_model");
     REQUIRE_MESSAGE(parse_scenario(a, s, err), err);
     CHECK(s.sites[0].equipment_model.empty());
     CHECK(s.emitters[0].equipment_model.empty());
@@ -467,8 +470,10 @@ TEST_CASE("场景：站钟可缺省，缺省时 has_clock 为假（D-053）") {
     geo::Scenario s;
     std::string err;
 
-    // 既有场景文件不写 clock 照旧合法；has_clock 保持假，TDOA 组件据此报错而不是假定完美时钟
+    // 不写 clock 照旧合法；has_clock 保持假，TDOA 组件据此报错而不是假定完美时钟。
+    // golden-01 自 2026-09-23 起写了站钟，这里先删掉，才测得到「缺省」那一支
     nlohmann::json a = demo_json();
+    a["sites"][0].erase("clock");
     REQUIRE_MESSAGE(parse_scenario(a, s, err), err);
     CHECK_FALSE(s.sites[0].clock.has_clock);
     CHECK(s.sites[0].clock.sync_sigma_ns == 0.0);

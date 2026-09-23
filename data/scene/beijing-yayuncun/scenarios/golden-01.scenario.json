@@ -22,6 +22,7 @@
     {
       "id": "site-1",
       "name": "亚运村侦察站",
+      "equipment_model": "窄带侦察接收机",
       "position": {
         "lon": 116.405,
         "lat": 39.99,
@@ -36,6 +37,13 @@
         "center_Hz": 2440500000,
         "bw_Hz": 400000,
         "nf_dB": 6
+      },
+      "clock": {
+        "sync_sigma_ns": 5,
+        "bias_ns": 0,
+        "rx_delay_ns": 0,
+        "rx_delay_sigma_ns": 0.5,
+        "sync_state": "locked"
       }
     }
   ],
@@ -43,6 +51,7 @@
     {
       "id": "uav-1",
       "name": "多旋翼图传下行",
+      "equipment_model": "中型多旋翼 · 图传",
       "platform_type": "multirotor",
       "position": {
         "lon": 116.4035,
@@ -54,6 +63,7 @@
         "bw_Hz": 400000,
         "tx_power_dBm": 27,
         "antenna_gain_dBi": 2,
+        "polarization": "vertical",
         "waveform": {
           "type": "tone",
           "offset_Hz": 48828.125

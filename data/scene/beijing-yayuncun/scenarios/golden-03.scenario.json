@@ -22,6 +22,7 @@
     {
       "id": "site-1",
       "name": "亚运村北站",
+      "equipment_model": "窄带侦察接收机",
       "position": {
         "lon": 116.405,
         "lat": 40.001428,
@@ -48,6 +49,7 @@
     {
       "id": "site-2",
       "name": "亚运村西南站",
+      "equipment_model": "窄带侦察接收机",
       "position": {
         "lon": 116.392104,
         "lat": 39.984286,
@@ -74,6 +76,7 @@
     {
       "id": "site-3",
       "name": "亚运村东南站",
+      "equipment_model": "窄带侦察接收机",
       "position": {
         "lon": 116.417896,
         "lat": 39.984286,
@@ -102,6 +105,7 @@
     {
       "id": "uav-1",
       "name": "多旋翼图传下行",
+      "equipment_model": "中型多旋翼 · 图传",
       "platform_type": "multirotor",
       "position": {
         "lon": 116.387413,
@@ -123,6 +127,7 @@
     {
       "id": "uav-2",
       "name": "同频绕飞目标",
+      "equipment_model": "轻型多旋翼 · 图传",
       "platform_type": "multirotor",
       "position": {
         "lon": 116.405,
@@ -144,6 +149,7 @@
     {
       "id": "uav-3",
       "name": "悬停遥控突发",
+      "equipment_model": "穿越机 · 遥控",
       "platform_type": "racing",
       "position": {
         "lon": 116.415552,

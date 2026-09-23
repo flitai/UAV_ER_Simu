@@ -4,7 +4,7 @@
   "name": "典型链路 · 全合成 · E3 建筑遮挡",
   "scenario_ref": {
     "scenario_id": "golden-01",
-    "sha256": "35a6e3cf9671cbb2493afcfb9cc54cae65575210280d235bc671761903daa0d4"
+    "sha256": "078b3bfd56cc1d6ffa60c55d75878c4ad6bb06ed1e8ac046b98bc2fb30585e9f"
   },
   "nodes": [
     {

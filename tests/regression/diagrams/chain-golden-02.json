@@ -4,7 +4,7 @@
   "name": "典型链路 · 全合成 · golden-02 宽带",
   "scenario_ref": {
     "scenario_id": "golden-02",
-    "sha256": "8e6236d3c2126e2eb347ee06677d7158ad85ad8a4367ca58e3f221569bc5bc82"
+    "sha256": "37f35e4ca958f204fd9bc8821ee6e1d531d0edaadc33041e7067b73ca166ec07"
   },
   "nodes": [
     {

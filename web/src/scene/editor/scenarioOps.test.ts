@@ -87,8 +87,14 @@ test('setPath：改既有字段，其余部分一字不动', () => {
 })
 
 test('setPath：中间对象缺席时建出来——站钟与设备型号本来就不存在（D-054）', () => {
-  const doc = demo()
-  assert.equal(sites(doc)[0]!.clock, undefined)   // golden-01 的站没有 clock
+  // golden-01 自 2026-09-23 起补了站钟，这里先把它去掉，才测得到「中间对象缺席」那一支
+  const base = demo()
+  const doc = { ...base, sites: sites(base).map((s, i) => {
+    if (i !== 0) return s
+    const { clock: _drop, ...rest } = s as Record<string, unknown>
+    return rest
+  }) } as typeof base
+  assert.equal(sites(doc)[0]!.clock, undefined)
   const next = setPath(doc, 'sites.0.clock.sync_sigma_ns', 3)
   assert.deepEqual(sites(next)[0]!.clock, { sync_sigma_ns: 3 })
   // 顶层的可选标量字段同理
