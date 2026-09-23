@@ -9,8 +9,9 @@
 
 import { DataIdField } from '../data/DataIdField.js'
 import type { ParamSpec } from '../api/catalog.js'
-import { formatEng, formatEngExact, parseEng } from './format.js'
+import { formatEng, formatEngExact, parseEng, plainNum } from './format.js'
 import type { ParamValue } from './doc.js'
+import { enumLabel } from '../chain/enumLabels.js'
 
 export function Field({ ps, value, onChange }: { ps: ParamSpec; value: ParamValue | undefined; onChange: (v: ParamValue | undefined) => void }) {
   const isDefault = value === undefined
@@ -33,7 +34,7 @@ export function Field({ ps, value, onChange }: { ps: ParamSpec; value: ParamValu
     return (
       <select className={isDefault ? 'dim' : ''} data-field={ps.name} value={String(shown)}
         onChange={(e) => onChange(e.target.value)}>
-        {(ps.enum ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+        {(ps.enum ?? []).map((o) => <option key={o} value={o}>{enumLabel(ps.name, o)}</option>)}
       </select>
     )
   }
@@ -42,8 +43,11 @@ export function Field({ ps, value, onChange }: { ps: ParamSpec; value: ParamValu
     return (
       <input
         className={`${isDefault ? 'dim' : ''}${bad ? ' bad' : ''}`} data-field={ps.name}
-        // 显示用无损的工程计数（1024 → 1.024k），否则光是点进点出就会把值改掉
-        defaultValue={typeof shown === 'number' ? formatEngExact(shown).replace(' ', '') : String(shown)}
+        // 带单位的物理量用无损工程计数（2.4405G），否则光是点进点出就会把值改掉；
+        // 无量纲量（块长、FFT 点数一类）写成普通数字，65536 比「65.536k」好读也好改。
+        // 两种写法 parseEng 都能原样读回，往返仍然无损。
+        defaultValue={typeof shown !== 'number' ? String(shown)
+          : ps.unit ? formatEngExact(shown).replace(' ', '') : plainNum(shown)}
         onBlur={(e) => {
           const t = e.target.value.trim()
           if (t === '') { if (value !== undefined) onChange(undefined); return }

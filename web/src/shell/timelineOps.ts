@@ -88,7 +88,7 @@ export function followSignalCursor(store: StoreLike): boolean {
   const cur = s.signal.cursor_t_s
   if (cur === null) { selfWroteCursor = null; return false }
   // 时间轴自己刚写出去的游标回来了：播放中 t 已经继续走，按数值比会误判成「信号页改了游标」而把播放拉停。
-  // 回声只认**一次**，认过就清——否则 Home 写过 0、跟随实时清掉游标之后，用户按 → 得到的 0 也会被当成回声吞掉
+  // 回声只认**一次**，认过就清——否则 Home 写过 0、跟随清掉游标之后，用户按 → 得到的 0 也会被当成回声吞掉
   // （slice8 实测撞到）
   if (selfWroteCursor !== null && Math.abs(cur - selfWroteCursor) <= CURSOR_EPS) { selfWroteCursor = null; return false }
   const t = productT0(s) + cur
@@ -98,7 +98,7 @@ export function followSignalCursor(store: StoreLike): boolean {
   return true
 }
 
-/** 回到跟随实时：时间轴与信号页一起。 */
+/** 回到跟随：时间轴与信号页一起。 */
 export function goLive(store: StoreLike): void {
   selfWroteCursor = null
   timeStore.set({ t: null, mode: 'live', playing: false })

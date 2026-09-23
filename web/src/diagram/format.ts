@@ -84,3 +84,16 @@ export function summarize(params: Record<string, unknown>, unitOf: (k: string) =
   }
   return out
 }
+
+/**
+ * 无量纲量的写法：整数原样，小数去尾随零。
+ *
+ * 与 formatEng 的分工是「有没有单位」——工程词头是给物理量用的。
+ * 无量纲量套上词头会误读（虚警率 0.001 → 「1 m」，读成米）或丢精度
+ * （FFT 点数 1024 → 「1.02 k」，而 1024 本身才是要看的那个数）。
+ */
+export function plainNum(v: number): string {
+  if (!Number.isFinite(v)) return String(v)
+  if (Number.isInteger(v)) return String(v)
+  return String(Number(v.toPrecision(10)))
+}

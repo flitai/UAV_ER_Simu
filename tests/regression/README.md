@@ -19,7 +19,7 @@
 | 3 | 突发开关与占空比 | `standard_cases.py` / `chain-demo-02.json` | 导通帧占比 **0.3043**（设定 0.3） | [x] 2026-09-17 |
 | 4 | 多信号同频及邻频叠加 | — | 随后续（`Superposition` 的同频叠加已在 L-2 量过：对预算和差 −0.001 dB） | [ ] |
 | 5 | 接收滤波与群时延 | C-10 `chain-demo-02-dsp.json` + 引擎单测 | 通带偏差 **0.148 dB**、阻带 **61.13 dB**、冲激对齐**偏差 0 样点** | [x] 2026-09-17 |
-| 6 | 模数转换的量化与削顶 | `standard_cases.py` / `chain-synthetic.json` | 削顶 6.09% 进索引且组件降级；量化抬升实测 **+1.229 dB** 对解析 +1.194 dB | [x] 2026-09-17 |
+| 6 | 模数转换的量化与削波 | `standard_cases.py` / `chain-synthetic.json` | 削波 6.09% 进索引且组件降级；量化抬升实测 **+1.229 dB** 对解析 +1.194 dB | [x] 2026-09-17 |
 | 7 | 数字下变频：频移、低通、抽取 | C-10 `chain-demo-02-dsp.json` + 引擎单测 | 图传带内 S3 → S4 差 **−0.064 dB**；阻带 91.1 dB、冲激对齐 0 样点 | [x] 2026-09-17 |
 | 8 | 宽带 IQ 到信道化 IQ | C-10 `chain-demo-02-dsp.json` + 引擎单测 | S4 → S5 差 **+0.065 dB**；中心增益 0.00 dB、邻道抑制 63.64 dB | [x] 2026-09-17 |
 | 9 | 实测 IQ 回放 | `standard_cases.py` / `chain-replay.json` | 4000000 个样点、80 MS/s @ 2440 MHz 均取自清单；`degraded` 如实传出 | [x] 2026-09-17 |
@@ -107,7 +107,7 @@ uv run --quiet python tests/regression/e3_occlusion_chain.py    # 已接进 scri
 | `chain-demo-02-ddc.json` | 同上但启用 DDC，10 → 5 MS/s（M-2） | 数字下变频进典型链路 |
 | `chain-demo-02-chan.json` | 同上但启用信道化，10 MS/s 切 4 条取零频那一路（M-3） | 多相信道化进典型链路；演示「把两个辐射源分开」 |
 | `chain-demo-02-dsp.json` | 三级 DSP 全开，10 → 5 → 2.5 MS/s（C-10） | 接收滤波 → DDC → 信道化；标准算例 5、7、8 在它上面量 |
-| `chain-synthetic.json` | 全合成，demo-01，20 s，S0–S3 四个观测点（C-11） | 电平链、ADC 量化与削顶、同种子复现 |
+| `chain-synthetic.json` | 全合成，demo-01，20 s，S0–S3 四个观测点（C-11） | 电平链、ADC 量化与削波、同种子复现 |
 | `chain-replay.json` | 实测回放，前六个环节不适用（C-11） | 采样率与中心频率取自清单、四态如实传出 |
 | `chain-mixed.json` | 混合增强，80 MS/s 短窗（C-11） | 合成目标走全链、实测背景在 S4 相加；配套场景 `scenarios/mixed-wideband.scenario.json` |
 

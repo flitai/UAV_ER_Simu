@@ -116,7 +116,7 @@ test('播放中每 0.1 s 墙钟同步一次信号游标；自己写出去的游�
   assert.equal(followSignalCursor(st), true)
   assert.equal(timeStore.get().t, 3)
   timeStore.set({ playing: false })
-  // 回声只认一次：Home 写过 0、跟随实时清掉游标之后，用户按 → 得到 0 必须跟过去（slice8 实测）
+  // 回声只认一次：Home 写过 0、跟随清掉游标之后，用户按 → 得到 0 必须跟过去（slice8 实测）
   seekTo(st, 0, true)
   goLive(st)
   st.dispatch({ type: 'signal/cursor', t_s: 0 })

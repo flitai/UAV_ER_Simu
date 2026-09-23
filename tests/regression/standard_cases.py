@@ -95,7 +95,7 @@ def links_at(out: str, t: float) -> dict:
 def synthetic_cases(engine: str, out: str, out2: str) -> None:
     st = run_chain(engine, "chain-synthetic.json", out,
                    scenario=os.path.join(SCENARIOS, "golden-01.scenario.json"))
-    # 缺省参数下这条链**本来就削顶**，结果因此是 degraded —— 那是引擎的真实判断，
+    # 缺省参数下这条链**本来就削波**，结果因此是 degraded —— 那是引擎的真实判断，
     # D-066 ⑨ 明确不为了好看去改缺省参数。这里把它写成期望，而不是期望 valid。
     check("全合成链的四态如实传出（缺省参数下 ADC 过载，D-066 ⑨）",
           st["result"] == "degraded", f"result = {st['result']}")
@@ -143,8 +143,8 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     check("算例 1 电平链：S2 − S1 = 前端增益", abs((s2 - got) - 20.0) <= 0.05,
           f"S2 {s2:.3f} − S1 {got:.3f} = {s2 - got:.3f} dB，前端增益 20 dB（容差 0.05）")
 
-    # --- 算例 6：ADC 量化和削顶 ------------------------------------------------------
-    # **削顶**：缺省满量程 −20 dBm 在这条链上确实压不住峰值。削顶是数据标记，
+    # --- 算例 6：ADC 量化和削波 ------------------------------------------------------
+    # **削波**：缺省满量程 −20 dBm 在这条链上确实压不住峰值。削波是数据标记，
     # 比例超过 degrade_clip_ratio 才降级（D-051 ⑥）——两件事都要看得见。
     # 两件事分得很清楚：**计数进产品索引**（数据标记，观测点不作判断、状态仍是 valid），
     # **比例超阈值才把组件标降级**（ADC 节点 degraded，并沿四态传到任务结果）。
@@ -153,15 +153,15 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     adc = [x for x in st["nodes"] if x["name"] == "adc"][0]
     n_in = int(adc["samples_in"])
     ratio = clip / n_in if n_in else 0.0
-    check("算例 6 削顶计数是数据标记，进索引但不改观测点状态",
+    check("算例 6 削波计数是数据标记，进索引但不改观测点状态",
           clip > 0 and i3["state"] == "valid",
-          f"S3 索引记削顶 {clip} / {n_in} 个样点（{ratio:.4%}），产品状态 {i3['state']}")
-    check("算例 6 削顶比例超阈值才把组件标降级（D-051 ⑥）",
+          f"S3 索引记削波 {clip} / {n_in} 个样点（{ratio:.4%}），产品状态 {i3['state']}")
+    check("算例 6 削波比例超阈值才把组件标降级（D-051 ⑥）",
           adc["state"] == "degraded" and ratio > 0.01,
           f"比例 {ratio:.4%} 超过缺省 degrade_clip_ratio = 1%，ADC 节点 {adc['state']}；"
           f"给的理由：{'；'.join(adc['notes'])}")
 
-    # **量化**：把同一条保存的链路的满量程抬到不削顶，再看 S3 的底噪相对 S2 抬升多少。
+    # **量化**：把同一条保存的链路的满量程抬到不削波，再看 S3 的底噪相对 S2 抬升多少。
     # 解析预期由量化器自己的步长算：满量程复单音幅度 A = 10^(FS/20)，
     # 步长 Δ = 2A / 2^bits，复信号的量化噪声总功率 Δ²/6，按带宽比例折到读数那一段；
     # hann 窗下白噪声的带内读数是真值的 1.5 倍（等效噪声带宽），与解析量比时要扣掉（D-049 ⑪）。
@@ -197,7 +197,7 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     rise = n3 - n2
     check("算例 6 ADC 量化噪声的抬升合解析预期",
           abs(rise - rise_pred) <= 0.15 and int(i3h.get("clipped_samples", 0)) == 0,
-          f"满量程抬到 {fs_dbm:g} dBm 后削顶 {i3h.get('clipped_samples')} 个；"
+          f"满量程抬到 {fs_dbm:g} dBm 后削波 {i3h.get('clipped_samples')} 个；"
           f"S2 底噪 {n2:.3f} dBm、S3 {n3:.3f} dBm，实测抬升 {rise:+.3f} dB，"
           f"按 {bits:g} 位量化步长算应抬 {rise_pred:+.3f} dB，差 {rise - rise_pred:+.3f} dB（容差 0.15）")
 

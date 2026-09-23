@@ -16,6 +16,7 @@ import {
   devicePath, fieldsFor, readField, type DeviceField, type DeviceKind,
 } from './editor/deviceFields.js'
 import type { ScenarioDoc } from '../state/types.js'
+import { enumLabel } from '../chain/enumLabels.js'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -81,7 +82,8 @@ export function DeviceRow({
       <Row label={field.label}>
         <select className="form-input" data-field={path} value={cur}
           onChange={(e) => onCommit(path, e.target.value)}>
-          {(field.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+          {/* 取值用中文名：rel 的末段就是参数名（emission.polarization → polarization） */}
+          {(field.options ?? []).map((o) => <option key={o} value={o}>{enumLabel(field.rel.split('.').pop() ?? '', o)}</option>)}
         </select>
       </Row>
     )
@@ -154,8 +156,8 @@ export function ObjectPanel() {
   const commit = (path: string, v: unknown) => { if (doc) edit(setPath(doc, path, v)) }
 
   if (measure.length === 2) return <MeasureReadout a={measure[0]} b={measure[1]} />
-  if (!doc) return <div className="group placeholder">载入场景后在这里编辑对象</div>
-  if (!sel) return <div className="group placeholder">在左栏或地图上选一个对象</div>
+  if (!doc) return <div className="group placeholder">载入场景后编辑对象</div>
+  if (!sel) return <div className="group placeholder">在左栏或地图上选择对象</div>
 
   if (sel.kind === 'site') {
     const i = sites(doc).findIndex((x) => x.id === sel.id)
@@ -327,7 +329,7 @@ function RouteSection({ doc, emitterId }: { doc: ScenarioDoc; emitterId: string 
           航点 {i + 1} <span className="tree-dim">{w.position.alt_m} m · {w.speed_mps} m/s</span>
         </button>
       ))}
-      {!wps.length && <div className="form-note">用工具条「编辑场景 › 航点」在地图上连续点击添加</div>}
+      {!wps.length && <div className="form-note">使用工具条「编辑场景 › 航点」在地图上连续点击添加</div>}
     </details>
   )
 }
@@ -380,7 +382,7 @@ function MeasureReadout({ a, b }: { a: { lon: number; lat: number }; b: { lon: n
       <div className="group-title">测量</div>
       <Row label="距离">{fmtMeters(g.distance_m)}</Row>
       <Row label="方位">{fmtDeg(g.azimuth_deg)} <span className="tree-dim">真北顺时针</span></Row>
-      <div className="form-note">再点一次地图开始新的测量；切回「选择」工具即退出。</div>
+      <div className="form-note">再次点击地图开始新的测量；切换至「选择」工具退出。</div>
     </div>
   )
 }

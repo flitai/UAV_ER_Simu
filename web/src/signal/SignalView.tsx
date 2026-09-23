@@ -140,7 +140,7 @@ export function SignalView() {
         onPointerDown={onDown('waterfall')} onPointerMove={onMove('waterfall')} onPointerUp={onUp('waterfall')} onPointerLeave={onLeave('waterfall')}
         onDoubleClick={() => r.doubleClick()} />
       <div className="signal-foot">
-        <label><input type="checkbox" checked={s.signal.follow} onChange={(e) => store.dispatch({ type: 'signal/follow', on: e.target.checked })} data-signal-follow /> 跟随实时</label>
+        <label title="跟随最新数据：瀑布最新行贴着顶往下滚。缩放、平移或移动游标都会转入回看"><input type="checkbox" checked={s.signal.follow} onChange={(e) => store.dispatch({ type: 'signal/follow', on: e.target.checked })} data-signal-follow /> 跟随</label>
         <label><input type="checkbox" checked={s.signal.display.overlayDetections}
           onChange={(e) => store.dispatch({ type: 'signal/display', patch: { overlayDetections: e.target.checked } })} data-signal-overlay /> 叠加检测</label>
         <span className="muted" data-signal-status>{status}</span>

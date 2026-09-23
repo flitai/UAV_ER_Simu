@@ -56,7 +56,7 @@ export function initialState(devMode: boolean, innerWidth: number, diagramText =
 
 function emptyTask(): AppState['task'] {
   return {
-    id: null, name: null, runState: null, result: null, resultProvisional: false, reasons: [],
+    id: null, name: null, runState: null, result: null, resultProvisional: false, reasons: [], nodes: [],
     t_s: 0, duration_s: 0, realtimeFactor: null, liveStart: null, error: null,
     observationPoints: [], dataRefs: 0, holdoutRefs: 0, lastSeq: 0, subscribeSince: 0,
   }
@@ -102,11 +102,27 @@ function firstSpectrumOp(ops: TaskRecord['observation_points']): string | null {
   return op ? op.op_id : null
 }
 
+/** 事件里的 nodes 只取界面要用的三个键；坏条目跳过而不是整段丢掉。 */
+function nodeStates(raw: unknown): AppState['task']['nodes'] {
+  if (!Array.isArray(raw)) return []
+  const out: AppState['task']['nodes'] = []
+  for (const x of raw) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    out.push({
+      name: String(o['name'] ?? ''),
+      state: (o['state'] as ResultState) ?? 'valid',
+      notes: Array.isArray(o['notes']) ? (o['notes'] as unknown[]).map(String) : [],
+    })
+  }
+  return out
+}
+
 function fromRecord(rec: TaskRecord, prev: AppState['task']): AppState['task'] {
   return {
     ...prev,
     id: rec.task_id, name: rec.name ?? prev.name, runState: rec.run_state, result: rec.result,
-    resultProvisional: provisional(rec.run_state), reasons: rec.reasons ?? [],
+    resultProvisional: provisional(rec.run_state), reasons: rec.reasons ?? [], nodes: rec.nodes ?? [],
     realtimeFactor: typeof rec.realtime_factor === 'number' ? rec.realtime_factor : (TERMINAL.has(rec.run_state) ? prev.realtimeFactor : null),
     error: rec.error ?? null,
     observationPoints: rec.observation_points ?? [],
@@ -163,6 +179,7 @@ export function applyEvent(s: AppState, ev: WsTextEvent, wallMs: number): AppSta
         task = {
           ...task, runState: rs, result: result ?? null, resultProvisional: false,
           reasons: Array.isArray(p['reasons']) ? (p['reasons'] as string[]) : task.reasons,
+          nodes: Array.isArray(p['nodes']) ? nodeStates(p['nodes']) : task.nodes,
           realtimeFactor: typeof p['realtime_factor'] === 'number' ? p['realtime_factor'] : task.realtimeFactor,
           liveStart: null,
         }

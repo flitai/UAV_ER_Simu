@@ -39,11 +39,11 @@ export interface MapToolbarProps {
 }
 
 const EDIT_TOOLS: Array<{ id: SceneTool; label: string; hint: string }> = [
-  { id: 'select', label: '选择', hint: '点击选中，拖动站点或航点移动它' },
-  { id: 'site', label: '布站', hint: '点击地图放一个站点，放完回到选择' },
-  { id: 'emitter', label: '布目标', hint: '点击地图放一个辐射源（复制第一个源的发射参数），放完回到选择' },
-  { id: 'waypoint', label: '航点', hint: '先选中辐射源，然后连续点击添加航点；双击或 Esc 结束' },
-  { id: 'zone', label: '布告警区', hint: '点击地图放一个圆形告警区（缺省半径 500 m），半径、限高与类别在左栏改' },
+  { id: 'select', label: '选择', hint: '点击选中；拖动站点或航点改变其位置' },
+  { id: 'site', label: '布站', hint: '点击地图布设侦测站，完成后返回选择工具' },
+  { id: 'emitter', label: '布目标', hint: '点击地图布设辐射源，发射参数复制自第一个辐射源，完成后返回选择工具' },
+  { id: 'waypoint', label: '航点', hint: '先选中辐射源，再连续点击添加航点；双击或按 Esc 结束' },
+  { id: 'zone', label: '布告警区', hint: '点击地图布设圆形告警区，缺省半径 500 m；半径、限高与类别在左栏设置' },
 ]
 
 export function MapToolbar(p: MapToolbarProps) {
@@ -75,17 +75,17 @@ export function MapToolbar(p: MapToolbarProps) {
           )}
         </div>
         <button type="button" onClick={p.onFlat}>{p.flat ? '俯视' : '平视'}</button>
-        <button type="button" title="两点之间的距离与真北顺时针方位" data-tool="measure"
+        <button type="button" title="两点间的距离与真北顺时针方位角" data-tool="measure"
                 className={tool === 'measure' ? 'on' : ''}
                 onClick={() => dispatch({ type: 'scene/tool', tool: tool === 'measure' ? 'select' : 'measure' })}>测量</button>
         {/* 视距探测（D3-7）：点地图任一点，对焦点站算视距与刀口绕射损耗。观察工具，不在编辑组里。 */}
-        <button type="button" title="点地图任一点，对焦点站算视距与刀口绕射损耗（假设目标在那一点上，高度可在右栏改）"
+        <button type="button" title="点击地图任一点，对焦点站计算视距与刀口绕射损耗；假设目标位于该点，高度可在右栏设置"
                 data-tool="los" className={tool === 'los' ? 'on' : ''}
                 onClick={() => dispatch({ type: 'scene/tool', tool: tool === 'los' ? 'select' : 'los' })}>视距</button>
       </div>
       <div className="tool-group" data-tool-group="edit">
         <button type="button" data-act="edit-mode" className={p.editMode ? 'on' : ''} disabled={!canEdit}
-                title={p.editMode ? '结束编辑：收起编辑工具' : '编辑场景：布站、布目标、画航点、布告警区、拖动对象'}
+                title={p.editMode ? '结束编辑：收起编辑工具' : '编辑场景：布设侦测站、辐射源、航点与告警区'}
                 onClick={() => p.onEditMode(!p.editMode)}>{p.editMode ? '结束编辑' : '编辑场景'}</button>
         {p.editMode && EDIT_TOOLS.map((t) => (
           <button key={t.id} type="button" title={t.hint} data-tool={t.id}
@@ -115,7 +115,7 @@ export function MapToolbar(p: MapToolbarProps) {
           它**不需要 dirty**——没改动也能另存一份出来当自己的起点。 */}
       {ro
         ? (
-          <button type="button" data-act="save-scenario-as" disabled={p.saving} title="基准场景只读；另存为一个新标识后就能自由编辑"
+          <button type="button" data-act="save-scenario-as" disabled={p.saving} title="基准场景为只读；另存为新标识后可自由编辑"
                   onClick={p.onSaveAs}>{p.saving ? '保存中…' : '另存为…'}</button>
         )
         : (

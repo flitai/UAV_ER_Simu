@@ -48,7 +48,7 @@ export function DatasetList() {
         </table>
         {st.items.length === 0 && (
           <div className="muted det-empty" data-dataset-empty>
-            {st.status === 'loading' ? '读取中' : st.total === 0 ? '本机没有实测数据索引' : '没有匹配的片段'}
+            {st.status === 'loading' ? '读取中' : st.total === 0 ? '本机无实测数据索引' : '没有匹配的片段'}
           </div>
         )}
       </div>

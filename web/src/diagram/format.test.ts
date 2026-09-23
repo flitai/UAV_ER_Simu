@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseEng, formatEng, formatEngExact, summarize } from './format.js'
+import { parseEng, formatEng, formatEngExact, summarize, plainNum } from './format.js'
 
 test('工程计数法输入：前缀、科学计数、负号', () => {
   assert.equal(parseEng('2.44G'), 2.44e9)
@@ -44,4 +44,15 @@ test('formatEngExact：输入框用的工程计数法能无损往返（formatEng
   assert.equal(formatEngExact(1024), '1.024 k')
   assert.equal(formatEngExact(2440500000), '2.4405 G')
   assert.equal(formatEngExact(0), '0')
+})
+
+test('plainNum：无量纲量不套工程词头（整数原样、小数去尾随零）', () => {
+  // 这两个是实际踩到的：套上词头后虚警率读成「1 m」（米），FFT 点数读成「1.02 k」（丢了 1024 这个数本身）
+  assert.equal(plainNum(0.001), '0.001')
+  assert.equal(plainNum(1024), '1024')
+  assert.equal(plainNum(8192), '8192')
+  assert.equal(plainNum(0.5), '0.5')
+  assert.equal(plainNum(1.0), '1')
+  assert.equal(plainNum(0.1 + 0.2), '0.3')   // 十位有效数字吃掉浮点噪声
+  assert.equal(plainNum(NaN), 'NaN')
 })

@@ -208,7 +208,7 @@ function LosProbeCard() {
         <span className="spacer" />
         <button type="button" className="mini" data-action="clear-los-probe" onClick={() => losProbeStore.clear()}>清除</button>
       </div>
-      {st.status === 'loading' && <div className="dim">正在取建筑几何…（首次约 0.2 秒，之后即时）</div>}
+      {st.status === 'loading' && <div className="dim">正在加载建筑几何…</div>}
       {st.status === 'error' && <div className="pp-warn">{st.error}</div>}
       {r && (
         <table className="los-table" data-los-probe={r.line_of_sight ? 'los' : 'nlos'}>
@@ -223,7 +223,7 @@ function LosProbeCard() {
                 <span className="dim"> m（AGL）</span>
                 {st.heightOverride !== null
                   ? <button type="button" className="mini" data-action="los-height-follow"
-                            title="放开固定，跟回焦点目标此刻的离地高" onClick={() => retarget(null)}>跟随目标</button>
+                            title="取消固定，跟随焦点目标当前离地高度" onClick={() => retarget(null)}>跟随目标</button>
                   : <span className="dim"> · 跟随焦点目标</span>}
               </td>
             </tr>
@@ -266,12 +266,12 @@ export function SituationPanel() {
   const pickEmitter = (id: string) => store.dispatch({ type: 'scene/select', selection: { kind: 'emitter', id } })
   const pickSite = (id: string) => store.dispatch({ type: 'scene/select', selection: { kind: 'site', id } })
 
-  if (!doc) return <div className="group placeholder">载入场景后在这里看态势</div>
+  if (!doc) return <div className="group placeholder">载入场景后显示目标与电磁态势</div>
   return (
     <div className="situation" data-situation data-cards={cards.length}>
       {/* 探测结果压在最上面：它是刚刚点出来的，不是常驻读数；没探测过时整张卡不渲染 */}
       <LosProbeCard />
-      {focus ? <FocusCard c={focus} /> : <div className="group dim">场景里没有辐射源</div>}
+      {focus ? <FocusCard c={focus} /> : <div className="group dim">场景中无辐射源</div>}
       {cards.length > 0 && (
         <div className="group">
           <div className="group-title">目标（{cards.length}）</div>
@@ -280,7 +280,7 @@ export function SituationPanel() {
       )}
       <div className="group">
         <div className="group-title">站点（{siteCards.length}）</div>
-        {siteCards.length === 0 ? <div className="dim">场景里没有站点</div> : <SiteRows cards={siteCards} selectedId={selSite} onPick={pickSite} />}
+        {siteCards.length === 0 ? <div className="dim">场景中无侦测站</div> : <SiteRows cards={siteCards} selectedId={selSite} onPick={pickSite} />}
       </div>
     </div>
   )

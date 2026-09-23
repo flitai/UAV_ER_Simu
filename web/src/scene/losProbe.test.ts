@@ -46,16 +46,16 @@ test('探测输入：站取焦点站、频率取焦点目标的发射中心、�
 
 test('取不到站或取不到频率时说得出缘由，不编缺省值（铁律 15）', () => {
   const s0 = initialState(false, 1920, '')
-  assert.deepEqual(probeInputAt(s0, 116.4, 39.99), { error: '还没有载入场景' })
+  assert.deepEqual(probeInputAt(s0, 116.4, 39.99), { error: '未载入场景' })
 
   const noSite = JSON.parse(JSON.stringify(scenario)) as ScenarioDoc
   noSite.sites = []
-  assert.match((probeInputAt(stateWith(noSite), 116.4, 39.99) as { error: string }).error, /没有站点/)
+  assert.match((probeInputAt(stateWith(noSite), 116.4, 39.99) as { error: string }).error, /无侦测站/)
 
   const noFreq = JSON.parse(JSON.stringify(scenario)) as ScenarioDoc
   delete ((noFreq.emitters as Array<Record<string, unknown>>)[0]!.emission as Record<string, unknown>).center_Hz
   delete ((noFreq.sites as Array<Record<string, unknown>>)[0]!.receiver as Record<string, unknown>).center_Hz
-  assert.match((probeInputAt(stateWith(noFreq), 116.4, 39.99) as { error: string }).error, /取不到频率/)
+  assert.match((probeInputAt(stateWith(noFreq), 116.4, 39.99) as { error: string }).error, /无法确定工作频率/)
 })
 
 test('楼两侧一致：楼后非视距、楼前视距（切片 ⑤ 的验收，缺数据时明说跳过）', () => {

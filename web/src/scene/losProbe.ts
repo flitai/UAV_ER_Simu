@@ -90,11 +90,11 @@ function centerHzOf(e: Obj | undefined): number {
 export function probeInputAt(s: AppState, lon: number, lat: number, heightOverride?: number):
     { input: LosProbeInput } | { error: string } {
   const doc = s.scene.scenario.doc
-  if (!doc) return { error: '还没有载入场景' }
+  if (!doc) return { error: '未载入场景' }
   const siteId = focusSiteId(s)
   const site = sites(doc).find((x) => String(x.id) === siteId)
   const p = posOf(site)
-  if (!site || !p) return { error: '场景里没有站点，无处可算视距' }
+  if (!site || !p) return { error: '场景中无侦测站，无法计算视距' }
 
   const terrain = terrainHeightM(doc)
   const focusId = focusTargetId(s)
@@ -102,7 +102,7 @@ export function probeInputAt(s: AppState, lon: number, lat: number, heightOverri
   const live = currentSituation(doc).entities.get(focusId ?? '')
   const defaultHeight = live ? live.alt_m - terrain : num(posOf(em)?.alt_m, 0) - terrain
   const frequency = centerHzOf(em) || num((site.receiver as Record<string, unknown> | undefined)?.center_Hz, 0)
-  if (!(frequency > 0)) return { error: '取不到频率：焦点目标没有发射中心频率，站也没有接收中心频率' }
+  if (!(frequency > 0)) return { error: '无法确定工作频率：焦点目标与侦测站均未设置中心频率' }
 
   return {
     input: {
@@ -162,7 +162,7 @@ export async function runLosProbe(buildingsUrl: string, originLon: number, origi
   const frame = occlusionFrame()
   if (!map || !frame) {
     // 取不到就说取不到，**不退回「一律视距」**（铁律 15；07 §2.3 最后一行）
-    state = { ...state, status: 'error', result: null, error: '建筑几何没取到，视距算不了' }
+    state = { ...state, status: 'error', result: null, error: '建筑几何未加载，无法计算视距' }
     emit()
     return null
   }

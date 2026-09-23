@@ -109,7 +109,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 |---|---|---|---|
 | `AntennaGain` 天线增益 | antenna | M3 / E1 | cpp，`scene_bindable = false`；解析式方向图（全向 / 高斯主瓣 `12·(Δ/θ)²` 截于副瓣底）+ 指向（固定或随航向）+ 五档极化失配表 + 馈线损耗；`scene` 是**可选输入口**，接了按帧里的离开角 / 到达角逐样点施加，不接按 `aspect_*` 常量方向；极化与馈线只在 `role = rx` 端各计一次 |
 | `ReceiverFrontEnd` 接收机前端 | receiver | M3 / E2 | cpp；噪声系数生等效输入热噪声（与 `geo/link_budget.cpp` 共用 −174 dBm/Hz 常数）、增益、本振频偏、IQ 幅相不平衡、直流偏置；私有随机子流；`noise_mode = none` 供混合增强模式 |
-| `AdcQuantizer` ADC 量化 | receiver | M3 / E2 | cpp；`bits` / `full_scale_dBm` / 削顶；**削顶是数据标记不是降级**，逐块进 `clip_count` 与 `state_reasons`，全程比例超 `degrade_clip_ratio` 才在 `flush()` 降级 |
+| `AdcQuantizer` ADC 量化 | receiver | M3 / E2 | cpp；`bits` / `full_scale_dBm` / 削波；**削波是数据标记不是降级**，逐块进 `clip_count` 与 `state_reasons`，全程比例超 `degrade_clip_ratio` 才在 `flush()` 降级 |
 
 切片 ④b 新增（2026-09-13，C-4）：
 

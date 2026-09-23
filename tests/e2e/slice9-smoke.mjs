@@ -82,7 +82,7 @@ try {
   st = await page.waitFor((s) => s.app?.context?.taskId && s.app.context.taskId !== before, { label: '任务已提交' })
   const taskId = st.app.context.taskId
   st = await page.waitFor((s) => ['finished', 'failed', 'cancelled'].includes(s.app?.task?.runState), { label: '任务结束', timeoutMs: 600000 })
-  check('宽带任务跑完且未降级（带限噪声不再被误判、ADC 不削顶）',
+  check('宽带任务跑完且未降级（带限噪声不再被误判、ADC 不削波）',
     st.app.task.runState === 'finished' && st.app.task.result === 'valid',
     `${taskId} ${st.app.task.runState} / ${st.app.task.result}`)
 

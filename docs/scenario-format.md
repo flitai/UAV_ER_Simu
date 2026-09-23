@@ -44,7 +44,7 @@
 | `aoi` | object | 是 | `{id, manifest_sha256}`：所属场景数据包及其入口清单哈希；不一致时场景状态 `invalid` |
 | `coordinate` | object | 是 | `{crs: "EPSG:4326", alt_ref: "AGL" \| "MSL", terrainHeight_m, coord_version}`。首期 `alt_ref` 固定 `AGL`（离地高），`terrainHeight_m` 是显式平地假设常数（铁律 2） |
 | `time` | object | 是 | `{basis: "LogicalSim", duration_s}`。首期只允许 `LogicalSim`（铁律 3） |
-| `seed` | integer | 是 | 场景内随机量（若有）的种子；与框图 `run.seed` 独立，两者都进溯源 |
+| `seed` | integer | 是 | 场景内随机量的种子，与框图 `run.seed` 独立，两者都进溯源。**截至 2026-09-20 它没有任何消费者**：引擎解析并校验它（必填、非负整数），但驱动全部随机量的是框图的 `run.seed`——接收机热噪声、统计阴影、测向误差抽样、站钟抖动的子流都从那一个派生（各组件 `init()` 里 `sub_rng_ = Xoshiro256pp(rng.next_u64())`）。字段保留是因为场景侧将来会有自己的随机量（如按场景重抽的阴影实现），**但在那之前界面上不显示它**，免得让人以为换了它结果就会变（同 `antenna.pattern` 与 `receiver.bw_Hz` 两次先例：声明了、校验了、没人用）|
 | `sites` | array | 是 | 站点，至少 1 个。**多站自 D-053（2026-09-09）起启用**（纯软件多站，05 §3.2）：一条任务可以同时跑 K 个站的接收链。约束是同一框图里参与的各站 `receiver.fs_Hz` 与 `center_Hz` 必须一致（与装载器的跨节点同采样率约束同口径，`engine/src/diagram_json.cpp`）。阵列与多通道仍不做 |
 | `emitters` | array | 是 | 辐射源（无人机），至少 1 个 |
 | `routes` | array | 是 | 航线；每个辐射源至多一条，没有航线的辐射源静止在 `emitters[].position` |

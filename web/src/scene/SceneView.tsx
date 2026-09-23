@@ -84,7 +84,7 @@ export function SceneView({ active }: { active: boolean }) {
         scene: {
           sameSource: async () => {
             const m = mapRef.current
-            if (!m) return { error: '地图还没建起来' }
+            if (!m) return { error: '地图未初始化' }
             return sameSourceCheck(m, scene.buildingsUrl, scene.center[0], scene.center[1])
           },
         },
@@ -154,7 +154,7 @@ export function SceneView({ active }: { active: boolean }) {
           return
         }
         if (scene && !bboxContains(scene.bbox, lng, lat)) {
-          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '点在观测区域之外：那里没有建筑数据，视距判定不可信' })
+          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '该点位于观测区域之外，无建筑数据，视距判定不可信' })
         }
         void runLosProbe(scene?.buildingsUrl ?? '', scene?.center[0] ?? 0, scene?.center[1] ?? 0, r.input)
         return
@@ -168,7 +168,7 @@ export function SceneView({ active }: { active: boolean }) {
       if (!doc) return
       if (tool === 'site') {
         if (scene && !bboxContains(scene.bbox, lng, lat)) {
-          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '站点放在了观测区域之外：那里没有建筑数据，视距判定不可信' })
+          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '侦测站位于观测区域之外，无建筑数据，视距判定不可信' })
         }
         const r = addSite(doc, lng, lat)
         st.dispatch({ type: 'scene/edit', doc: r.doc })
@@ -178,7 +178,7 @@ export function SceneView({ active }: { active: boolean }) {
       }
       if (tool === 'emitter') {
         if (scene && !bboxContains(scene.bbox, lng, lat)) {
-          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '目标放在了观测区域之外：那里没有建筑数据，视距判定不可信' })
+          st.dispatch({ type: 'ui/toast', kind: 'warn', text: '目标位于观测区域之外，无建筑数据，视距判定不可信' })
         }
         const r = addEmitter(doc, lng, lat)
         st.dispatch({ type: 'scene/edit', doc: r.doc })
@@ -394,7 +394,7 @@ export function SceneView({ active }: { active: boolean }) {
   const onSaveAs = useCallback(async () => {
     const cur = live.current.state.scene.scenario.id ?? 'scenario'
     const suggested = `${cur.replace(/^golden-/, 'my-')}`
-    const id = window.prompt('另存为新的场景标识（小写字母、数字、- 与 _）：', suggested)
+    const id = window.prompt('另存为新的场景标识（小写字母、数字、连字符与下划线）：', suggested)
     if (id === null) return
     setSaving(true)
     try { await saveScenarioAs(live.current.store, id) } finally { setSaving(false) }

@@ -37,7 +37,7 @@ export function TaskList() {
       <div className="site-table-wrap det-table-wrap">
         <table className="site-table det-table" data-task-table>
           <thead>
-            <tr><th>时刻</th><th>实验</th><th>状态</th><th>场景</th><th>墙钟</th><th>评价</th><th>数据</th><th /></tr>
+            <tr><th>时刻</th><th>试验</th><th>状态</th><th>场景</th><th>墙钟</th><th>评价</th><th>数据</th><th /></tr>
           </thead>
           <tbody>
             {rows.map(({ rec, row }) => {
@@ -79,12 +79,12 @@ export function TaskList() {
         </table>
         {st.tasks.length === 0 && (
           <div className="muted det-empty" data-task-empty>
-            {st.status === 'loading' ? '读取中' : st.total === 0 ? '还没有任务：在框图页点「运行」' : '本页没有任务'}
+            {st.status === 'loading' ? '读取中' : st.total === 0 ? '暂无任务。在框图页点击「运行」提交。' : '本页没有任务'}
           </div>
         )}
       </div>
       {/* 采用会连场景一起换（D-061 ⑨）；这是既有行为，说在这里免得当成毛病 */}
-      <div className="muted task-foot">「采用」把结果页、态势图层与场景切到该任务；{s.ui.devMode && <span data-dev="task-hint">开发者模式下摘要栏另出哈希与引擎版本；</span>}点行看右栏摘要。
+      <div className="muted task-foot">「采用」将结果页、态势图层与场景切换到该任务；{s.ui.devMode && <span data-dev="task-hint">开发者模式下摘要栏另行显示框图哈希与引擎版本；</span>}点击行查看右栏摘要。
         <button type="button" className="link" data-action="tasks-reload" onClick={() => { void loadPage(st.offset) }}>刷新</button>
       </div>
     </div>

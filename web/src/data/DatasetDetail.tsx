@@ -20,10 +20,10 @@ export function DatasetDetailPanel() {
   const s = useAppState()
   const store = useStore()
   if (!st.selected) {
-    return <div className="group" data-dataset-detail><h2>片段详情</h2><div className="muted">点中间列表的一行</div></div>
+    return <div className="group" data-dataset-detail><h2>片段详情</h2><div className="muted">在列表中选择片段</div></div>
   }
   if (st.detailStatus !== 'ok' || !st.detail) {
-    const text = st.detailStatus === 'loading' ? '读取中' : st.detailStatus === 'missing' ? '索引里没有这条' : (st.error ?? '取不到')
+    const text = st.detailStatus === 'loading' ? '读取中' : st.detailStatus === 'missing' ? '索引中无此片段' : (st.error ?? '取不到')
     return <div className="group" data-dataset-detail data-detail-status={st.detailStatus}><h2>片段详情</h2><div className="muted">{text}</div></div>
   }
   const d = st.detail
@@ -58,7 +58,7 @@ export function DatasetDetailPanel() {
         </>
       )}
       {d.detail_level === 'index' && (
-        <div className="muted ds-note">逐产物清单不在本机，采样率、片长与质检明细没有（这些不入版本库）。</div>
+        <div className="muted ds-note">本机无逐产物清单，采样率、片长与质检明细不可用。</div>
       )}
       <div className="ds-actions">
         <button type="button" data-action="use-for-replay" disabled={!plan.ok} title={plan.note}

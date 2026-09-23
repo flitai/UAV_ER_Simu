@@ -88,7 +88,7 @@ data/runs/<task_id>/
 | `nfft`、`segments_per_frame`、`window` | 谱参数；`frame_hop_samples = hop × segments_per_frame` |
 | `scale` | `dBm` 或 `dBFS`。有 `calibration` 即为 `dBm`：引擎内部功率单位是 mW（`|x|² = 功率 / mW`，D-047），样点在**源端**已换算，观测点不再加偏移，行值直接是 dBm；没有任何标定常数才写 `dBFS`。界面对用户只标 `dBm`，来源徽标、常数与出处只在开发者模式 `?dev=1` 显示（D-047 ④，修正 D-038 的显示层） |
 | `calibration` | `{offset_dB, source ∈ {measured, paper, assumed, model}, note}`：`offset_dB` 是源端用过的常数——回放源为清单 `power.calibration.full_scale_dBm`（满量程对应的 dBm，2026-09-06 估算：DroneRFb-DIR −1.6 `model`、DroneRFa −50.0 `paper`，原型阶段验证值），合成源为 0（`model`）；`AddMixer` 两路都标定才标定、来源取较弱者（`measured > paper > model > assumed`）；缺失即无此字段 |
-| `clipped_samples` | 上游 ADC 削顶样点的累计（2026-09-07，D-051）。**恒写出**：没有 ADC 时为 0，读端不必区分「没有 ADC」与「有 ADC 但没削顶」，对界面是同一句话。削顶是数据标记不是降级，因此它不参与 `state` 的判定；界面在页头写「削顶 n 样点」，不解释来源 |
+| `clipped_samples` | 上游 ADC 削波样点的累计（2026-09-07，D-051）。**恒写出**：没有 ADC 时为 0，读端不必区分「没有 ADC」与「有 ADC 但没削波」，对界面是同一句话。削波是数据标记不是降级，因此它不参与 `state` 的判定；界面在页头写「削波 n 样点」，不解释来源 |
 | `floor_dB` | 零功率频点的下限（−300 dB），读端据此识别精确零 |
 | `state`、`state_reasons` | 四态与原因，取自被观测信号的块元数据；**末行段数不足、末桶样点不足、丢弃尾样点是流结束的自然结果，不降级** |
 | `notes` | 说明性备注：`末行只有 m/K 段`、`末桶只有 n/N 个样点`、`收尾丢弃不满一段的 k 个样点` |
@@ -280,7 +280,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `statistic` / `threshold` / `hit` | 归一化检测量 Λ（H0 下均值 1）、门限 η（只依赖频点数与 pfa）、`Λ > η` |
 | `band_power_dBm?` / `noise_dBm?` | 频段内功率与噪声估计的频段功率，`Σ|X_k|² / nfft²` 按 Parseval 折成每样点平均功率（引擎单位 mW，D-047）；输入未标定或参数 `band_power_dBm = false` 时**两键都省** |
 | `snr_dB` | `10·log10 Λ`，即 (S+N)/N；Λ = 0 时钳在 −300 |
-| `overload` | 组成该帧的任一块 `clip_count > 0`（帧可能跨块）；削顶是数据标记不是降级（D-051） |
+| `overload` | 组成该帧的任一块 `clip_count > 0`（帧可能跨块）；削波是数据标记不是降级（D-051） |
 | `noise_frames_used` | 判决时噪声估计用了几帧：`probe` 恒为探针帧数；`sliding` 为判决时的环大小（暖机期从 1 涨到 W，之后停在 W） |
 
 **`detections.index.json`**（运行器在 `graph.run` 返回后写，每个检测器一条摘要；`rows` 是落盘的总行数）
@@ -314,7 +314,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `crest_factor_dB` | 命中帧时域样点的峰值 |x|² / 均值 |x|² |
 | `duty` | 段末命中帧处，最近 `window_frames` 帧里命中帧的占比 |
 | `interval_from_prev_s` / `hop_from_prev_Hz` | 本段起点 − 上一段终点、本段质心 − 上一段质心；「上一段」只由 `quality ∈ {full, overload}` 的段充当（一帧虚警夹在两个真突发之间不该搅乱它们）；没有上一段时两键都是 `null` |
-| `overload` / `quality` | 段内任一命中帧含削顶块；`full / short（少于 min_frames 帧）/ low_snr（没有信号 bin）/ overload`（EM-S-03 §10.13） |
+| `overload` / `quality` | 段内任一命中帧含削波块；`full / short（少于 min_frames 帧）/ low_snr（没有信号 bin）/ overload`（EM-S-03 §10.13） |
 | `trace` | 溯源七件（`model_id = FeatureExtractor`、`EM-S-03`、`M3` / `E2` / `V3`；绑站时 `trace_id = FeatureExtractor:<site_id>`） |
 
 两套谱的分工（`engine/src/processing.cpp` 头注）：电量（带内功率、信噪比、噪声）用与检测器同律的矩形帧，形状（质心、带宽、平坦度、峰值）用同一帧加周期 Hann 窗的 PSD——矩形帧对不在 bin 上的单音漏出 sinc² 旁瓣，99% 占用带宽会量到几十个 bin。参考实现 `algos/reference/features.py`，黄金基准 `engine/tests/golden/features.json`（`gen_engine_golden.py --mode features`）。

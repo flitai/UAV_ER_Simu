@@ -54,7 +54,7 @@ export function Drawer() {
               {alerts === 0 && <div className="muted empty">没有任务级告警</div>}
             </div>
           )}
-          {s.ui.drawer.tab === 'flow' && <div className="muted empty">数据流（切片 ② 启用）</div>}
+          {s.ui.drawer.tab === 'flow' && <div className="muted empty">数据流</div>}
           {s.ui.drawer.tab === 'resources' && (
             <div className="resources" data-drawer-resources>
               {s.scene.summary

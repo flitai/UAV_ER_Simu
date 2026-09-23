@@ -419,8 +419,9 @@ try {
   check('基准场景上只有「另存为…」，没有会必然失败的「保存场景」', await page.evaluate(`(() => ({
     saveAs: !!document.querySelector('[data-act=save-scenario-as]'),
     save: !!document.querySelector('[data-act=save-scenario]'),
-    note: !!document.querySelector('[data-scenario-readonly]'),
-  }))()`).then((x) => x.saveAs && !x.save && x.note), '按钮为「另存为…」、左栏写着只读')
+    note: (() => { const sel = document.querySelector('[data-form=scene-pick] [data-field=scenario]')
+                   return !!sel && /只读/.test(sel.options[sel.selectedIndex]?.text ?? '') })(),
+  }))()`).then((x) => x.saveAs && !x.save && x.note), '按钮为「另存为…」、下拉选项上标着只读')
   // 界面拦不住手写的请求，所以服务端才是真闸
   const putGolden = await page.evaluateAsync(`fetch('/api/v1/scenarios/golden-01', { method: 'PUT',
     headers: { 'content-type': 'application/json' },

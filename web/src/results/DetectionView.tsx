@@ -126,7 +126,7 @@ export function DetectionView() {
           <table className="site-table det-table" data-det-table>
             <thead>
               <tr>
-                <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th><th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削顶</th><th>标签</th><th>后验</th><th>结论</th>
+                <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th><th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削波</th><th>标签</th><th>后验</th><th>结论</th>
               </tr>
             </thead>
             <tbody>
@@ -171,7 +171,7 @@ export function DetectionView() {
           <table className="site-table det-table" data-frame-table>
             <thead>
               <tr>
-                <th>t s</th>{sites.length > 0 && <th>站</th>}<th>帧</th><th>频段</th><th>Λ</th><th>η</th><th>dBm</th><th>噪声 dBm</th><th>信噪比 dB</th><th>命中</th><th>段</th><th>削顶</th>
+                <th>t s</th>{sites.length > 0 && <th>站</th>}<th>帧</th><th>频段</th><th>Λ</th><th>η</th><th>dBm</th><th>噪声 dBm</th><th>信噪比 dB</th><th>命中</th><th>段</th><th>削波</th>
               </tr>
             </thead>
             <tbody>

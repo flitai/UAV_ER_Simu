@@ -156,9 +156,9 @@ export function EvaluationAside() {
       <div className="form-row pp-line"><span className="form-label">ROC 取点</span><span className="form-value pp-ro">{String(p['roc_points'] ?? '—')}</span></div>
       <div className="form-row pp-line"><span className="form-label">帧</span><span className="form-value pp-ro">{m.frames.total}</span></div>
       <div className="form-row pp-line"><span className="form-label">真值行</span><span className="form-value pp-ro">{m.quality.truth_rows}</span></div>
-      <div className="form-row pp-line"><span className="form-label">削顶帧</span><span className="form-value pp-ro">{m.quality.overload_frames}</span></div>
+      <div className="form-row pp-line"><span className="form-label">削波帧</span><span className="form-value pp-ro">{m.quality.overload_frames}</span></div>
       {/* 陈旧帧在 metrics.json 里恒 null，取检测摘要那一份 */}
-      <div className="form-row pp-line"><span className="form-label">噪声陈旧帧</span><span className="form-value pp-ro">{node ? node.noise_stale_frames : '—'}</span></div>
+      <div className="form-row pp-line"><span className="form-label">噪声估计过期帧</span><span className="form-value pp-ro">{node ? node.noise_stale_frames : '—'}</span></div>
       {s.ui.devMode && (
         <div data-dev>
           <h2>溯源</h2>

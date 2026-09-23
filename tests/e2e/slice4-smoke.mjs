@@ -240,7 +240,8 @@ try {
   check('缺省焦点落在参与运行的第一架无人机与第一个站',
     picks.em === 'uav-1' && picks.site === 'site-1', JSON.stringify(picks))
   check('条目写得出是哪一台（id · 名称 · 型号）',
-    String(picks.emText).includes('uav-1') && String(picks.emText).includes('multirotor'), String(picks.emText))
+    String(picks.emText).includes('uav-1') && String(picks.emText).includes('中型多旋翼'), String(picks.emText))
+  // ↑ 2026-09-23 前 golden-01 没写型号，这里显示的是回退的平台类型 multirotor；补了型号后显示型号本身
 
   // 噪声系数改为由场景带出：组件参数行只说明来源，值在「设备参数 · 来自场景」那组里改
   const nfFrom = await page.evaluate("!!document.querySelector('[data-param-from-scene=nf_dB]')")
@@ -258,7 +259,7 @@ try {
   const roState = await page.evaluate(`(() => ({
     dirty: window.__probe().app.scene.dirty,
     note: !!document.querySelector('[data-chain-scenario-readonly]'),
-    toast: [...document.querySelectorAll('.toast')].some((e) => e.textContent.includes('基准场景只读')),
+    toast: [...document.querySelectorAll('.toast')].some((e) => e.textContent.includes('基准场景为只读')),
   }))()`)
   check('基准场景上改设备参数不落盘，而且把「没保存」说出来（用户 2026-09-19：基准只读，改动只能另存为）',
     roState.dirty === true && roState.note && roState.toast, JSON.stringify(roState))
@@ -462,9 +463,9 @@ try {
     near(s2.median, wantS2, 0.5), `实测 ${s2.median.toFixed(2)} dBm，解析 ${wantS2.toFixed(2)} dBm`)
 
   const idx = await page.evaluateAsync(`fetch('/api/v1/results/${taskId}/s4/spectrum/index').then(r => r.json())`)
-  check('S4 索引带 dBm 标度与削顶计数（D-047、D-051）', idx.scale === 'dBm' && typeof idx.clipped_samples === 'number',
-    `scale ${idx.scale}，削顶 ${idx.clipped_samples}`)
-  check('本次运行没有削顶（满量程留了余量）', idx.clipped_samples === 0, String(idx.clipped_samples))
+  check('S4 索引带 dBm 标度与削波计数（D-047、D-051）', idx.scale === 'dBm' && typeof idx.clipped_samples === 'number',
+    `scale ${idx.scale}，削波 ${idx.clipped_samples}`)
+  check('本次运行没有削波（满量程留了余量）', idx.clipped_samples === 0, String(idx.clipped_samples))
 
   // ---------- 结果页：观测点分得开、切得动，默认仍是主产品 S4 ----------
   await page.send('Page.navigate', { url: `${BASE}?scenario=golden-01#/results` })
@@ -1054,6 +1055,39 @@ try {
   } else {
     check('（本机没有逐产物清单，质检原因这一档验不了——明说跳过，不当作通过）', false, `档位 ${devDs.level}`)
   }
+
+  // ---------- 顶栏弹出层的对齐方向（2026-09-22 用户在非全屏下发现向左溢出）----------
+  // 根因是 `.topbar .popover-anchor:last-of-type .popover { right: 0 }`：那个伪类相对父元素算，
+  // 而面包屑里的试验胶囊是它父元素里唯一的 .popover-anchor，于是也被当成「最右边那个」右对齐了，
+  // 1100 px 视口下向左溢出 103 px。这里直接盯对齐方向——比模拟窄视口简单，抓的也正是根因。
+  // ---------- 顶栏弹出层的对齐方向（2026-09-22 用户在非全屏下发现向左溢出）----------
+  // 根因是 `.topbar .popover-anchor:last-of-type .popover { right: 0 }`：那个伪类相对父元素算，
+  // 而面包屑里的试验胶囊是它父元素里唯一的 .popover-anchor，于是也被当成「最右边那个」右对齐了，
+  // 1100 px 视口下向左溢出 103 px。这里直接盯对齐方向——比模拟窄视口简单，抓的也正是根因。
+  // 面包屑只在框图页与结果页出现（D-062 的分层），前面刚在数据页，先切回来。
+  await page.evaluate("(location.hash = '#/diagram', true)")
+  await sleep(600)
+  const alignOf = async (sel) => {
+    await page.evaluate(`(document.querySelector('${sel}').click(), true)`)
+    await sleep(300)   // 点开是 React 状态更新，同步查不到弹出层
+    const r = await page.evaluate(`(() => {
+      const a = document.querySelector('${sel}').closest('.popover-anchor')
+      const pop = a && a.querySelector('.popover')
+      if (!pop) return 'null'
+      const p = pop.getBoundingClientRect(), q = a.getBoundingClientRect()
+      return JSON.stringify({ dl: Math.round(p.left - q.left), dr: Math.round(p.right - q.right),
+        over: Math.max(0, Math.round(-p.left), Math.round(p.right - innerWidth)) })
+    })()`)
+    await page.evaluate(`(document.querySelector('${sel}').click(), true)`)
+    await sleep(200)
+    return r === 'null' ? null : JSON.parse(r)
+  }
+  const aExp = await alignOf('[data-crumb=experiment]')
+  const aMore = await alignOf('.topbar .more')
+  check('试验详情向右展开（左边与胶囊对齐），不会溢出到视口外',
+    !!aExp && Math.abs(aExp.dl) <= 1 && aExp.over === 0, JSON.stringify(aExp))
+  check('顶栏最右的「更多」菜单向左展开（右边与按钮对齐）',
+    !!aMore && Math.abs(aMore.dr) <= 1 && aMore.over === 0, JSON.stringify(aMore))
 
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 } catch (e) {

@@ -195,7 +195,7 @@ export const SLOTS: readonly SlotDef[] = [
     // 缺省旁路：接上它会改变每一条既有链路的产品，而本期没有场景需要它（零基准变更）。
     // `bw_Hz` 由场景的 `sites[].receiver.bw_Hz` 逐站带出（FROM_SCENE，D-054）——
     // 那个字段自 G-2 起就被解析、校验，然后一直没有任何模型用它。
-    id: 'rx_flt', label: '接收滤波', hint: '接收通道滤波（04 §7.5 与附录 A 的「滤波」）',
+    id: 'rx_flt', label: '接收滤波', hint: '接收通道带通滤波',
     group: 'rx_fe', bypassable: true, defaultBypass: true, replayNotApplicable: true,
     variants: [
       { type: 'RxFilter', node: 'rx_flt', label: '接收滤波', summary: ['bw_Hz', 'fir_version'] },
@@ -236,7 +236,7 @@ export const SLOTS: readonly SlotDef[] = [
   {
     // 特征提取（C-4，10 报告 §4.3）：挂在检测识别评价卡片里，一站一份，吃 S4 尾的 IQ 与本站检测器的行。
     // nfft 与 merge_gap_frames 由检测器**派生**（必须相等，装载器再核对一遍），用户只在检测器那一行填。
-    id: 'feat', label: '特征提取', hint: '按突发提取特征（EM-S-03）', group: 'det',
+    id: 'feat', label: '特征提取', hint: '按突发提取时频特征', group: 'det',
     variants: [
       { type: 'FeatureExtractor', node: 'feat', label: '特征提取', bind: 'site',
         summary: ['bandwidth_method', 'noise_gate', 'window_frames'] },
@@ -245,7 +245,7 @@ export const SLOTS: readonly SlotDef[] = [
   {
     // 模板匹配识别（C-4，10 报告 §4.4）：吃本站的特征行，出 signal_role 层的标签。
     // 模板库版本是用户参数，库文件位置由装载器注入（D-037 同法）。
-    id: 'rec', label: '模板识别', hint: '模板加权匹配识别（EM-S-04 E2）', group: 'det',
+    id: 'rec', label: '模板识别', hint: '模板加权匹配识别，含开放集判决', group: 'det',
     variants: [
       { type: 'TemplateClassifier', node: 'rec', label: '模板匹配识别', bind: 'site',
         summary: ['library_version', 'accept_threshold', 'min_quality'] },
@@ -255,7 +255,7 @@ export const SLOTS: readonly SlotDef[] = [
     // 真值与评价（C-5，10 报告 §4.5）：挂在检测识别评价卡片里的第三个子环节，一站一份，吃本站检测行 + 识别行 + 全部链路帧。
     // 真值来源由信号源模式派生（全合成 / 混合 → 场景参数帧，回放 → 清单类别），nfft 随检测器，
     // data_id 随信号源（回放）或背景片段（混合）——都不让用户再填一遍（DERIVED_PARAMS）。
-    id: 'eval', label: '评价', hint: '真值与评价：帧级 / 突发级检出、ROC、混淆矩阵', group: 'det',
+    id: 'eval', label: '评价', hint: '真值比对与性能评价：帧级 / 突发级检出率、ROC、混淆矩阵', group: 'det',
     variants: [
       { type: 'Evaluator', node: 'eval', label: '真值与评价', bind: 'site',
         summary: ['truth_source', 'match_overlap', 'roc_points'] },
@@ -264,7 +264,7 @@ export const SLOTS: readonly SlotDef[] = [
   {
     // 测向不在 IQ 主链上：它吃的是链路参数帧，一站一个（D-053）。
     // 缺省旁路——单站演示里它没有增量，勾上多站才有意义。
-    id: 'df', label: '测向', hint: '单站测向（EM-S-05 的 E2 效应模型，取真值按误差预算给量测）',
+    id: 'df', label: '测向', hint: '单站测向：按误差预算给出方位量测与置信区间',
     per: 'site', bypassable: true, defaultBypass: true, replayNotApplicable: true,
     variants: [
       { type: 'DirectionFinder', node: 'df', label: '单站测向', bind: 'site',
@@ -274,7 +274,7 @@ export const SLOTS: readonly SlotDef[] = [
   {
     // 全图唯一的融合节点：吃 K 路测向报告（与到达时间报告）出一个位置解。
     // 缺省旁路——它至少要两个站，单站演示里没有意义。
-    id: 'loc', label: '多站定位', hint: '多站交叉定位与时差定位（EM-S-06 / EM-S-07）',
+    id: 'loc', label: '多站定位', hint: '多站测向交会定位与到达时差定位',
     per: 'single', owner: 'shared', bypassable: true, defaultBypass: true, replayNotApplicable: true,
     variants: [
       { type: 'MultiSiteLocator', node: 'loc', label: '多站定位',
@@ -604,9 +604,9 @@ export function fromSceneOf(id: SlotId): FromSceneParam[] {
  * 光说「不是典型链路」用户会以为自己的框图坏了，所以这里记下缘由，由界面照实说明。
  */
 export const RETIRED_VARIANTS: Readonly<Record<string, string>> = {
-  FreeSpaceChannel: '「自由空间（定参）」信道要手填固定距离，而框图页上能跑的配置一定有场景'
-    + '（距离由航迹每秒重算 20 次），它在这里永远是错的选择，2026-09-10 撤掉（D-059）。'
-    + '这份框图在自由画布里照常打开与运行',
+  FreeSpaceChannel: '该框图使用了「自由空间（定参）」信道：它需要手工填写固定距离，'
+    + '而本页的链路距离由航迹逐帧解算，因此该变体已不再提供。'
+    + '如需固定距离的自由空间信道，请改用场景绑定信道并设置静止航迹',
 }
 
 /** 这份框图里有没有已撤掉的变体；有的话给出说明。 */

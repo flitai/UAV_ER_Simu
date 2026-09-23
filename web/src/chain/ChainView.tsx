@@ -37,6 +37,7 @@ import {
 import { propConflict, propView, visiblePropParams } from './effects.js'
 import { freqPlan, planChecks } from './plan.js'
 import { SlotCard } from './SlotCard.js'
+import { valueLabel } from './enumLabels.js'
 
 const MODES: ChainMode[] = ['synthetic', 'replay', 'mixed']
 
@@ -142,7 +143,7 @@ function useScenarioAutosave(store: ReturnType<typeof useStore>, dirty: boolean)
       if (isReadonlyScenario(store.getState())) {
         store.dispatch({
           type: 'ui/toast', kind: 'warn', sticky: true,
-          text: '基准场景只读：这处改动没有保存。要留下它，请到场景页「另存为」一份再改',
+          text: '基准场景为只读，该改动未保存；如需保留，请在场景页另存为新标识后修改',
         })
         return
       }
@@ -216,18 +217,18 @@ export function ChainView() {
         <div className="group placeholder" data-chain-foreign>
           {retired
             ? <p data-chain-retired>{retired}</p>
-            : <p>当前框图不是典型链路（多半是手写的，或是自由画布时代存下来的）。</p>}
+            : <p>当前框图不是典型链路结构，无法按环节解析。</p>}
           <p>
             <button type="button" data-action="chain-new" onClick={() => commit(newChain('synthetic'), '新建典型链路')}>
               新建典型链路
             </button>
-            <span className="dim"> 会换掉下面这份文档</span>
+            <span className="dim"> 将替换当前框图</span>
           </p>
           {/* 原文只读地摆在这里（D-060）。自由画布删掉之后这是唯一能看见它的地方——
               「新建典型链路」是**换掉**这份文档，不先让人看一眼、拷出去，就等于替他丢了东西
               （铁律 15）。只读是有意的：可编辑的原始 JSON 框跟画布一样难以控制，
               而这里要的只是一条不丢数据的退路。 */}
-          <p className="dim">下面是它的原文，可以选中拷走：</p>
+          <p className="dim">当前框图原文（只读）：</p>
           <pre className="chain-foreign-src" data-chain-foreign-src>{s.diagram.text}</pre>
         </div>
       </div>
@@ -336,7 +337,7 @@ export function ChainView() {
               混在一行里两种语义会打架。传播信道与多站定位不随它变，面板上会写明。 */}
           {chain.mode !== 'replay' && (
             <div className="chain-entity-bar" data-chain-entity-bar>
-              <span className="chain-entity-lead" title="框图显示并编辑这一条链路的参数；参与计算的实例在左栏勾选（D-064）">当前链路</span>
+              <span className="chain-entity-lead" title="选择要查看与编辑的那一条链路；参与计算的实例在左栏勾选">当前链路</span>
               <EntityPick label="无人机" kind="emitter" doc={scenarioDoc}
                 ids={chain.emitterIds} value={focusEmitter} onChange={setFocusEmitter} />
               <EntityPick label="侦测站" kind="site" doc={scenarioDoc}
@@ -477,13 +478,13 @@ function BackgroundPick(p: { value: string | null; fsRf: number; fRx: number; on
     let alive = true
     void getDataset(p.value).then((d) => {
       if (!alive) return
-      if (!d) { setNote({ ok: false, text: '这条不在数据索引里' }); return }
+      if (!d) { setNote({ ok: false, text: '该标识不在数据索引中' }); return }
       const sampling = (d.manifest?.sampling ?? {}) as Record<string, unknown>
       const freq = (d.manifest?.frequency ?? {}) as Record<string, unknown>
       const fs = typeof sampling.sample_rate_Hz === 'number' ? sampling.sample_rate_Hz : null
       const raw = freq.center_frequency_Hz ?? d.index.center_frequency_Hz
       const fc = typeof raw === 'number' ? raw : null
-      if (fs === null) { setNote({ ok: true, text: '本机没有这条的逐产物清单，采样率对不对得上要等引擎判' }); return }
+      if (fs === null) { setNote({ ok: true, text: '本机无该片段的逐产物清单，采样率一致性由引擎在运行时校验' }); return }
       // 只点出**真正对不上的那一项**：两边都写出来的话，2.4410 GHz 与 2.4400 GHz 在粗一点的
       // 格式下会印成同一个数，那句话读起来自相矛盾（第一版就是这样）
       const bad: string[] = []
@@ -517,14 +518,14 @@ function ExperimentSetup(p: SetupProps) {
         </label>
         {c.mode !== 'replay' && p.scenarioReadonly && (
           <div className="muted ds-note" data-chain-scenario-readonly>
-            基准场景只读：这一页改的设备参数（天线增益 / 噪声系数 / 采样率）长在场景文件里，不会被保存。
-            要留下改动，请到场景页「另存为」一份。
+            基准场景为只读：本页的设备参数（天线增益、噪声系数、采样率）存放在场景文件中，改动不会被保存。
+            如需保留，请在场景页另存为新标识。
           </div>
         )}
         {c.mode !== 'replay' && (
           <>
             {/* 场景在场景页选（2026-09-13 用户定）：这里只写当前跟着的是哪一份，不给第二个入口（D-057 同理） */}
-            <div className="form-row pp-line" title="在场景页左栏切换场景；框图跟着场景页当前载入的场景走">
+            <div className="form-row pp-line" title="在场景页左栏切换场景；框图跟随场景页当前载入的场景">
               <span className="form-label">场景</span>
               <span className="form-value pp-ro" data-chain-scenario>{c.scenario?.scenario_id ?? p.currentScenario ?? '（未选）'}</span>
             </div>
@@ -615,6 +616,11 @@ function EntityPick(p: {
       </select>
     </label>
   )
+}
+
+/** 在组件条目里找一个参数的描述（模板固定值查中文名时用）。 */
+function specOf(spec: { params: unknown[] } | null, name: string): ParamSpec | undefined {
+  return (spec?.params as ParamSpec[] | undefined)?.find((x) => x.name === name)
 }
 
 // ------------------------------------------------------------------ 右栏
@@ -725,7 +731,7 @@ function SlotPanel(p: {
           <div className="pp-sub">
             模板固定：
             {Object.entries(fixed).map(([k, val], i) => (
-              <span key={k} data-param-fixed={k}>{i > 0 ? '、' : ''}{paramLabel({ name: k })} = {String(val)}</span>
+              <span key={k} data-param-fixed={k}>{i > 0 ? '、' : ''}{paramLabel({ name: k })} = {valueLabel(specOf(spec, k), val)}</span>
             ))}
           </div>
         )}
@@ -847,8 +853,8 @@ function PropagationGroup(p: {
       {rows.length === 0 ? (
         <div className="pp-line dim">
           {view.level === 'E1'
-            ? 'E1 只算自由空间路损、多普勒与时延，没有逐项开关。档位在左边卡片上改。'
-            : '这一档没有可调的逐项开关。'}
+            ? 'E1 档只计自由空间路径损耗、多普勒频移与传播时延，无逐项开关；档位在传播信道卡片上选择。'
+            : '该档位无可调的逐项开关。'}
         </div>
       ) : rows.map((ps) => (
         <PRow key={ps.name} label={paramLabel(ps)} title={paramTitle(ps, range(ps))} unit={ps.unit}>
@@ -881,7 +887,7 @@ function TapRow(p: {
         const at = !!p.tapAt[t]
         return (
           <label key={t} className={`tap${at ? '' : ' dim'}`} data-tap={t}
-            title={at ? '勾上即在这条边上取信号，下次运行产出频谱与包络' : '本版本没有落点（所在环节旁路或未实现）'}>
+            title={at ? '在该环节输出处取样，下次运行输出频谱与包络' : '该观测点无对应节点：所在环节已旁路或尚未实现'}>
             <input
               type="checkbox"
               data-tap-toggle={t}
@@ -893,7 +899,7 @@ function TapRow(p: {
           </label>
         )
       })}
-      <span className="tap-hint dim">勾上的会在下次运行时产出频谱与包络，在结果页按观测点分开看</span>
+      <span className="tap-hint dim">勾选的观测点在下次运行时输出频谱与包络，结果页按观测点分列</span>
     </div>
   )
 }

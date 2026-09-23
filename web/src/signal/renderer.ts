@@ -16,7 +16,7 @@ import { bucketIndexForTime, envelopeRange, envelopeToDb, envelopeUnit, groupFor
 import { composeExportPng, csvFromWindow, exportFilename } from './export.js'
 import { WindowFetcher, type FetchKey, type WindowData } from './fetcher.js'
 import { reduceSpectrum, type Extract } from './reduce.js'
-import { autoRange, niceTicks } from './scale.js'
+import { MAX_RANGE_DB, autoRange, niceTicks } from './scale.js'
 import { TraceState, peakOf } from './trace.js'
 import { TERMINAL } from '../state/reducer.js'
 import { signalHooks, viewStore } from './viewStore.js'
@@ -256,10 +256,13 @@ export class SignalRenderer {
     const r = autoRange(values)
     if (!r) return
     const lo = r.refLevel_dB - r.range_dB
-    // 自动量程只扩不缩：新峰超过上限或新底噪低于下限 10 dB 才重算
+    // 自动量程只扩不缩：新峰超过上限或新底噪低于下限 10 dB 才重算。
+    // **但下限要跟着上限走**：golden-01 的辐射源 t = 3 s 才开机，开机前 S0 全是数值残余，
+    // 自动量程据此把下限定在 −300；信号一来上限抬到 30，而「只扩不缩」让下限留在原地，
+    // 于是动态范围变成 330 dB，真正的谱线被挤成顶上一根针（2026-09-21 实测）。
     if (!this.scaleInit || r.refLevel_dB > this.hi || lo < this.lo - 10) {
       this.hi = r.refLevel_dB
-      this.lo = lo
+      this.lo = Math.max(lo, this.hi - MAX_RANGE_DB)
       this.scaleInit = true
       this.needFull = true
       const st = this.store.getState().signal.display

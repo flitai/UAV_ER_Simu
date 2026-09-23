@@ -18,7 +18,7 @@ export function TaskSummary() {
   const s = useAppState()
   const rec = st.tasks.find((t) => t.task_id === st.selected) ?? null
   if (!rec) {
-    return <div className="group" data-task-summary><h2>任务摘要</h2><div className="muted">点左边的一行看它的摘要</div></div>
+    return <div className="group" data-task-summary><h2>任务摘要</h2><div className="muted">选择左侧任务查看摘要</div></div>
   }
   const isCurrent = rec.task_id === s.task.id
   const rb = resultBadge(rec.run_state, rec.result)

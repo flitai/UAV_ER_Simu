@@ -7,7 +7,6 @@ import { ObjectTree } from './ObjectTree.js'
 import { ObjectPanel } from './ObjectForm.js'
 import { ScenePackagePanel } from './ScenePackagePanel.js'
 import { useAppState, useStore } from '../state/store.js'
-import { isReadonlyScenario } from './readonly.js'
 import { loadScenarioInto } from '../shell/actions.js'
 import type { SceneSelection, SceneSummaryLite } from '../state/types.js'
 
@@ -55,11 +54,6 @@ function ScenarioPick() {
           </select>
         </span>
       </label>
-      {/* 基准场景只读（用户 2026-09-19）：它的字节被黄金基准与回归夹具钉着。
-          改是可以改的，但存的时候要另存为一个新标识——服务端会拒写它（`scenario_readonly`）。 */}
-      {isReadonlyScenario(s) && (
-        <div className="muted ds-note" data-scenario-readonly>基准场景 · 只读。改完请「另存为」一个新标识。</div>
-      )}
       {sc.status === 'error' && sc.error && <div className="pp-warn">{sc.error}</div>}
     </div>
   )

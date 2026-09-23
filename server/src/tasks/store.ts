@@ -52,6 +52,13 @@ export interface MetricsSummaryEntry {
   state: string
 }
 
+/** 一个节点跑完之后的状态与说明。引擎 `task.state` 事件里那份的子集。 */
+export interface TaskNodeState {
+  name: string
+  state: ResultState
+  notes: string[]
+}
+
 export interface TaskRecord {
   schema_version: typeof TASK_SCHEMA
   task_id: string
@@ -66,6 +73,18 @@ export interface TaskRecord {
   run_state: RunState
   result: ResultState
   reasons: string[]
+  /**
+   * 逐节点的四态与说明（引擎在终态事件里给的）。
+   *
+   * 为什么要单独留一份：`reasons` 是把所有节点的说明**压扁**成一个数组，
+   * 于是界面只能把七八条一视同仁地摆出来，真正导致降级的那一两条被例行收尾淹掉
+   * （用户 2026-09-22 指出「全是红的」）。引擎本来就分得清——11 个节点里只有 adc 是
+   * degraded——这一份就是把那个区分带到界面上，不必靠关键词去猜。
+   *
+   * 只留 name / state / notes 三个键：`samples_in`、`blocks_out` 那些是诊断量，界面用不上。
+   * 旧任务的 task.json 没有这个字段，读端一律当缺席处理。
+   */
+  nodes?: TaskNodeState[]
   created_utc: string
   started_utc?: string
   ended_utc?: string
@@ -244,6 +263,15 @@ export function foldEvent(rec: TaskRecord, ev: EngineEvent): void {
         rec.run_state = rs
         rec.result = asResult(p.result, rs === 'failed' ? 'invalid' : 'valid')
         rec.reasons = Array.isArray(p.reasons) ? p.reasons.map(String) : []
+        rec.nodes = Array.isArray(p.nodes)
+          ? (p.nodes as Array<Record<string, unknown>>)
+              .filter((x) => x && typeof x === 'object')
+              .map((x) => ({
+                name: String(x.name ?? ''),
+                state: asResult(x.state, 'valid'),
+                notes: Array.isArray(x.notes) ? x.notes.map(String) : [],
+              }))
+          : undefined
         if (typeof p.rounds === 'number') rec.rounds = p.rounds
         if (typeof p.wall_s === 'number') rec.wall_s = p.wall_s
         if (typeof p.realtime_factor === 'number') rec.realtime_factor = p.realtime_factor

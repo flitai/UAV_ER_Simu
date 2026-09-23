@@ -462,7 +462,7 @@ class TestSurvey(unittest.TestCase):
             iq, _ = self._convert(d, i=i.astype(np.float32))
             r = iq_survey.survey_file(iq)
             self.assertIn(r.checks["clip_dropout_zero_gap"], (M.DEGRADED, M.INVALID))
-            self.assertTrue(any("削顶" in x for x in r.reasons))
+            self.assertTrue(any("削波" in x for x in r.reasons))
 
     def test_survey_detects_zero_gap(self):
         with tempfile.TemporaryDirectory() as d:

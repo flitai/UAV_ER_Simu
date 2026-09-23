@@ -53,8 +53,11 @@ export function ObjectTree({ onFlyTo }: { onFlyTo: (lon: number, lat: number) =>
         场景 {String(doc.name ?? doc.scenario_id)}
         {s.scene.dirty ? <span className="dot-dirty" title="未保存">●</span> : null}
       </div>
+      {/* 不显示场景的 seed（用户 2026-09-20）：它被引擎解析、校验，然后没有任何代码读它——
+          真正驱动随机量的是框图的 run.seed（顶栏「试验上下文」里那个）。
+          摆一个看起来有用、实际不起作用的数，只会让人以为换了它结果就会变。 */}
       <div className="tree-meta">
-        时长 {fmtSeconds(Number((doc.time as Record<string, unknown>)?.duration_s ?? 0))} · 种子 {String(doc.seed ?? '—')}
+        时长 {fmtSeconds(Number((doc.time as Record<string, unknown>)?.duration_s ?? 0))}
       </div>
 
       <div className="tree-group">站点 ({sites(doc).length})</div>

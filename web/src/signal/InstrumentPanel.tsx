@@ -1,5 +1,5 @@
 // 右栏「仪表与视窗控制」（09 §7.1 线框右栏；§7.2 参考电平 / 动态范围 / 分辨率 / 迹线 / 缩放行）。
-// 分辨率是引擎参数不是显示参数：只读并给「去框图改」。
+// 分辨率是引擎参数不是显示参数：只读并给「在框图页设置」。
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { fmtHz } from '../shell/format.js'
@@ -56,7 +56,7 @@ export function InstrumentPanel() {
       <div className="group">
         <h2>分辨率</h2>
         <div className="muted">{idx ? `nfft ${idx.nfft ?? '—'} · ${idx.window ?? '—'} · RBW ${fmtHz(idx.bin_width_Hz ?? 0)}` : '—'}</div>
-        <button type="button" onClick={() => dispatch({ type: 'ui/navigate', view: 'diagram' })} data-action="goto-diagram">去框图改</button>
+        <button type="button" onClick={() => dispatch({ type: 'ui/navigate', view: 'diagram' })} data-action="goto-diagram">在框图页设置</button>
       </div>
       <div className="group">
         <h2>视窗</h2>
@@ -69,7 +69,7 @@ export function InstrumentPanel() {
             <option value="max">max</option><option value="mean">mean</option><option value="min">min</option>
           </select>
         </label>
-        <label className="field"><span className="k">跟随实时</span><input type="checkbox" checked={s.signal.follow} onChange={(e) => dispatch({ type: 'signal/follow', on: e.target.checked })} data-field="follow" /></label>
+        <label className="field" title="跟随最新数据：瀑布最新行贴着顶往下滚"><span className="k">跟随</span><input type="checkbox" checked={s.signal.follow} onChange={(e) => dispatch({ type: 'signal/follow', on: e.target.checked })} data-field="follow" /></label>
         <div className="muted">频率相对中心；时间相对起点。框选 / 滚轮 / Alt 拖动会转入回看。</div>
       </div>
       <div className="group">

@@ -70,6 +70,8 @@ export interface TaskRecord {
   run_state: RunState
   result: ResultState
   reasons: string[]
+  /** 逐节点四态与说明；旧任务的 task.json 没有这一项 */
+  nodes?: TaskNodeState[]
   created_utc: string
   wall_s?: number
   realtime_factor?: number
@@ -114,6 +116,13 @@ export interface WsState {
 }
 
 export interface Cursor { lng: number; lat: number; insideAoi: boolean }
+
+/** 一个链路节点跑完之后的状态与说明。 */
+export interface TaskNodeState {
+  name: string
+  state: ResultState
+  notes: string[]
+}
 
 export interface AppState {
   ui: {
@@ -181,6 +190,12 @@ export interface AppState {
     result: ResultState | null
     resultProvisional: boolean
     reasons: string[]
+    /**
+     * 逐节点的四态与说明（引擎给的，服务端自 2026-09-22 起透传）。
+     * `reasons` 是它压扁后的样子——界面靠这一份把「导致降级的说明」与「例行说明」分开，
+     * 不必靠关键词去猜哪条要紧。旧任务没有这个字段，按空数组处理。
+     */
+    nodes: TaskNodeState[]
     t_s: number
     duration_s: number
     realtimeFactor: number | null

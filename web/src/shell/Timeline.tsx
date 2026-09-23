@@ -53,13 +53,13 @@ export function Timeline() {
   const trackRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ lastSync: number } | null>(null)
 
-  // 新任务开始 / 换任务：回到跟随实时
+  // 新任务开始 / 换任务：回到跟随
   const taskId = s.task.id
   const runState = s.task.runState
   useEffect(() => { timeStore.reset() }, [taskId])
   useEffect(() => { if (runState === 'running') timeStore.reset() }, [runState])
 
-  // 信号页改了游标（键、点击）→ 时间轴跟过去；游标被清（跟随实时）→ 时间轴也回 live
+  // 信号页改了游标（键、点击）→ 时间轴跟过去；游标被清（跟随）→ 时间轴也回 live
   const prevCursor = useRef<number | null>(s.signal.cursor_t_s)
   useEffect(() => {
     const cur = s.signal.cursor_t_s
@@ -147,9 +147,9 @@ export function Timeline() {
           <button type="button" key={v} className={ts.speed === v ? 'on' : ''} data-action="tl-speed" data-speed={v}
                   onClick={() => timeStore.set({ speed: v })}>{v}×</button>
         ))}
-        <label title="回到跟随实时：地图与信号页都显示最新一帧">
+        <label title="跟随最新数据：地图与信号页都显示最新一帧。拖时间轴、按播放或在信号页上缩放都会转入回放">
           <input type="checkbox" checked={ts.mode === 'live'} data-field="tl-follow"
-                 onChange={(e) => { if (e.target.checked) goLive(store); else { seekTo(store, shownT, false); syncSignalCursor(store, shownT) } }} /> 跟随实时
+                 onChange={(e) => { if (e.target.checked) goLive(store); else { seekTo(store, shownT, false); syncSignalCursor(store, shownT) } }} /> 跟随
         </label>
       </div>
     </div>

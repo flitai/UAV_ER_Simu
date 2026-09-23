@@ -140,18 +140,18 @@ export function propConflict(v: PropView): string | null {
   // 场景页的视距探测走的就是它，预览与跑出来的结果不再对不上。
   if (v.level === 'E3' && v.shadow) {
     return 'E3 已按建筑几何确定性地算出遮挡损耗，统计阴影（EM-P-08）是同一效应的统计等效，'
-      + '同时开即同源双计；请关掉统计阴影，或把档位降回 E2'
+      + '同时开即同源双计；请关闭统计阴影，或将传播档位降回 E2'
   }
   if (v.level === 'E3' && v.primary === 'urban_empirical') {
     return 'E3 已按建筑几何确定性地算出遮挡损耗，城市经验（EM-P-05）的路损指数与环境偏置'
-      + '本身就是建筑密度的经验拟合，同时开即同源双计；E3 下主模型只能选自由空间或地面双径'
+      + '本身就是建筑密度的经验拟合，同时开即同源双计；E3 档的主传播模型只能取自由空间或地面双径'
   }
   if (v.level === 'E1' && (v.primary !== 'free_space' || v.shadow || v.weather)) {
-    return 'E1 档只算自由空间路损、多普勒与时延；要用双径 / 城市经验 / 阴影 / 天气请把档位改为 E2'
+    return 'E1 档只计自由空间路径损耗、多普勒频移与传播时延；如需地面双径、城市经验、统计阴影或大气降雨，请将传播档位改为 E2'
   }
   if (v.shadow && v.primary === 'urban_empirical' && v.urbanMargin) {
     return '城市经验取「均值 + 分位裕度」时已含 90% 分位阴影，再开统计阴影即同源双计'
-      + '（EM-P-13 §10.9）；请把 urban_loss_mode 改回 mean，或关掉统计阴影'
+      + '；请将城市经验的损耗口径改回「中值路径损耗」，或关闭统计阴影'
   }
   return null
 }

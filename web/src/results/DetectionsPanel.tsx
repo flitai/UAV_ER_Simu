@@ -26,7 +26,7 @@ export function DetectionSummary() {
                 <b>{n.site_id ?? n.node_id}</b> <span className="muted">{n.noise_mode === 'sliding' ? '滑动噪声估计' : '探针噪声估计'}</span>
                 {n.state !== 'valid' && <span className={'badge result ' + badge.tone} data-det-node-state={n.state}>{badge.glyph} {badge.text}</span>}
               </div>
-              <div className="muted">帧 {n.frames} · 命中 {n.hits} · 段 {n.segments}{n.overload_frames > 0 ? ` · 削顶 ${n.overload_frames}` : ''}</div>
+              <div className="muted">帧 {n.frames} · 命中 {n.hits} · 段 {n.segments}{n.overload_frames > 0 ? ` · 削波 ${n.overload_frames}` : ''}</div>
               <div className="muted">nfft {n.nfft} · pfa {n.pfa} · η {n.threshold.toFixed(3)} · 窗 {n.noise_window_frames} 帧 · 合并 {n.merge_gap_frames}{n.m_bins ? ` · M ${n.m_bins}` : ''}</div>
               {n.noise_stale_frames > 0 && <div className="muted">噪声估计陈旧 {n.noise_stale_frames} 帧</div>}
               {n.state !== 'valid' && n.notes.length > 0 && <div className="bad">{n.notes[0]}</div>}

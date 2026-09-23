@@ -13,7 +13,7 @@ export function ExperimentContext() {
     <div className="popover-anchor">
       <button type="button" className={`pill${open ? ' on' : ''}`} title={title} data-crumb="experiment"
         onClick={() => dispatch({ type: 'ui/popover', id: open ? null : 'experiment' })}>
-        {name}{dirty && <span className="dirty" aria-label="未保存">●</span>}
+        <span className="crumb-name">{name}</span>{dirty && <span className="dirty" aria-label="未保存">●</span>}
       </button>
       {open && (
         <div className="popover experiment">

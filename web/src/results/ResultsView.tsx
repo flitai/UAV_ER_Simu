@@ -19,6 +19,8 @@ import { useDetections } from './detectionStore.js'
 import { useRecognitions } from './recognitionStore.js'
 import { useMetrics } from './metricsStore.js'
 import { useTruth } from './truthStore.js'
+import { countLines, splitNotes } from '../shell/taskNotes.js'
+import { stateBadge } from '../shell/badges.js'
 
 const TABS: Array<{ id: ResultsTab; label: string }> = [
   { id: 'signal', label: '信号' }, { id: 'detections', label: '检测识别' },
@@ -38,6 +40,7 @@ export function ResultsView() {
   useTruth(s.task.id, s.task.runState, s.ui.view === 'results')
   // 任务列表（U-4）：只在任务页签可见时取，本页里还有在跑的才接着轮询
   useTaskList(s.ui.view === 'results' && s.ui.resultsTab === 'tasks', s.task.id, s.task.runState)
+  const { alerts, routine } = splitNotes(s.task.nodes, s.task.reasons)
   return (
     <ColumnLayout
       left={<>
@@ -52,16 +55,25 @@ export function ResultsView() {
               <div className="form-row pp-line"><span className="form-label">时长</span><span className="form-value pp-ro">{s.task.duration_s > 0 ? `${s.task.duration_s} s` : '—'}</span></div>
               <div className="form-row pp-line"><span className="form-label">实时因子</span><span className="form-value pp-ro">{fmtFactor(s.task.realtimeFactor)}</span></div>
               <div className="form-row pp-line"><span className="form-label">观测点</span><span className="form-value pp-ro">{s.task.observationPoints.length}</span></div>
-              {/* 引擎备注：结果有效时只是各节点的说明（噪声底、末尾丢样点……），折叠；降级 / 无效时原因要一眼看到 */}
-              {s.task.reasons.length > 0 && (
-                s.task.result === 'valid'
-                  ? (
-                    <details className="form-details" data-task-reasons>
-                      <summary>引擎备注 {s.task.reasons.length} 条</summary>
-                      <ul className="pp-notes">{s.task.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
-                    </details>
-                  )
-                  : <ul className="pp-notes bad" data-task-reasons>{s.task.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+              {/* 运行说明分两段，与顶栏的任务详情共用同一套分层（taskNotes.ts）：
+                  导致降级 / 无效的那个节点的说明标红排在前，其余折起来。
+                  此前这里是「结果降级就整段标红」，于是每次运行都有的收尾说明
+                  （末尾样点不足一帧之类）也一起变红，把真问题淹掉（用户 2026-09-22）。 */}
+              {alerts.length > 0 && (
+                <div className="pp-notes-alert" data-task-alerts>
+                  <div className="k">{alerts.map((g) => `${g.node} ${stateBadge(g.state).text}`).join('、')}</div>
+                  <ul className="pp-notes bad">
+                    {alerts.map((g) => g.lines.map((l, j) => <li key={`${g.node}-${j}`}>{g.node}：{l}</li>))}
+                  </ul>
+                </div>
+              )}
+              {routine.length > 0 && (
+                <details className="form-details" data-task-reasons>
+                  <summary>运行说明 {countLines(routine)} 条</summary>
+                  <ul className="pp-notes">
+                    {routine.map((g) => g.lines.map((l, j) => <li key={`${g.node}-${j}`}>{g.node}：{l}</li>))}
+                  </ul>
+                </details>
               )}
             </>
           )}

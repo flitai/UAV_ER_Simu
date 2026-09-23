@@ -13,7 +13,7 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   offset_Hz: '频偏', amplitude: '幅度', level_dBm: '功率', phase_rad: '初相',
   start_sample: '起始样点', stop_sample: '终止样点', block_samples: '块长',
   power: '噪声功率', power_dBm: '噪声功率',
-  data_id: '录音', max_samples: '最多读取', emit_at_tx_power: '按发射功率出电平',
+  data_id: '录音', max_samples: '最多读取', emit_at_tx_power: '按发射功率定标',
   report_entities: '上报实体', report_rate_Hz: '上报率', update_rate_Hz: '帧更新率',
   // 混合
   gain_a: 'a 路增益', gain_b: 'b 路增益', min_inputs: '最少输入路数',
@@ -37,18 +37,18 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   nf_dB: '噪声系数', gain_dB: '增益', lo_offset_Hz: '本振频偏', reference_temperature_K: '参考温度',
   iq_gain_imbalance_dB: 'IQ 幅度不平衡', iq_phase_imbalance_deg: 'IQ 相位不平衡', dc_offset_mW: '直流',
   noise_mode: '噪声估计', bits: '量化位数', full_scale_dBm: '满量程', rounding: '取整',
-  degrade_clip_ratio: '削顶降级比例',
+  degrade_clip_ratio: '削波降级比例',
   // DDC（M-2，D-070）、接收滤波与信道化（M-3，D-071）
   // fir_version 三件组件共用（这张表按参数名索引），所以标签取中性的「抽头版本」，
   // 不写 DDC 专属的「抗混叠」——信道化的原型与接收滤波的低通都不是抗混叠用的。
   f_shift_Hz: '频移', decim: '抽取比', fir_version: '抽头版本',
   bw_Hz: '通带带宽', channels: '子信道数', select_channel: '输出子信道',
   // 频谱、观测点
-  nfft: '帧长 nfft', window: '窗函数', overlap: '重叠', segments_per_frame: '平均段数',
+  nfft: 'FFT 点数', window: '窗函数', overlap: '重叠', segments_per_frame: '平均段数',
   op_id: '观测点', spectrum: '写功率谱', envelope: '写包络', bucket_samples: '包络桶长',
   // 检测
   band_lo_Hz: '频段下限', band_hi_Hz: '频段上限', pfa: '虚警率', noise_frames: '探针帧数',
-  noise_window_frames: '滑动窗长', merge_gap_frames: '突发合并空隙', band_power_dBm: '附 dBm 读数',
+  noise_window_frames: '滑动窗长', merge_gap_frames: '突发合并空隙', band_power_dBm: '输出 dBm 读数',
   // C-4：特征提取与模板识别
   bandwidth_method: '带宽口径', min_frames: '最少帧数', window_frames: '占空比窗', noise_gate: '噪声闸',
   library_version: '模板库版本', accept_threshold: '接受门限', ambiguity_margin: '歧义间隔', unknown_distance: '未知距离', min_quality: '最低质量',
@@ -78,4 +78,17 @@ export function paramTitle(ps: ParamSpec, rangeText: string): string {
   if (ps.description) lines.push(ps.description)
   if (rangeText) lines.push(`范围 ${rangeText}`)
   return lines.join('\n')
+}
+
+/**
+ * 显示宽度：中日韩字符与全角标点算 2 个单位，其余算 1。
+ *
+ * 标签表的长度判据用它。原来两张表都按 `s.length <= 8` 判，那对纯中文成立，
+ * 对「−20 dB 带边」这种中英混排就不对了——它 10 个字符，但排出来只有 9 个字符宽
+ * （2026-09-21 加枚举取值表时撞上）。换判据形状，不是放宽。
+ */
+export function displayWidth(s: string): number {
+  let w = 0
+  for (const ch of s) w += /[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? 2 : 1
+  return w
 }

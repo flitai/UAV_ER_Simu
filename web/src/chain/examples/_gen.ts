@@ -62,7 +62,7 @@ if (mode === 'default') {
     `export const DEFAULT_CHAIN_TEXT = ${JSON.stringify(text)}\n`)
 } else if (mode === 'golden-02') {
   // 宽带回归夹具（C-8）：10 MS/s、两个源。接收机增益与 ADC 满量程要照顾**高斯型图传**——
-  // 它的峰均比远高于单音，同样的平均电平下削顶比例高得多，所以留出 12 dB 余量而不是像
+  // 它的峰均比远高于单音，同样的平均电平下削波比例高得多，所以留出 12 dB 余量而不是像
   // 缺省链那样贴着满量程（D-066 ⑨：不靠改缺省参数遮掉真实的过载判断）。
   const { doc: scenario, sha } = loadScenario('golden-02')
   const c: ChainState = emptyChain('synthetic', 'chain-golden-02')

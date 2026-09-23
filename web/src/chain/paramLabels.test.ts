@@ -4,12 +4,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { Catalog, ParamSpec } from '../api/catalog.js'
-import { PARAM_LABELS, paramLabel, paramTitle } from './paramLabels.js'
+import { PARAM_LABELS, displayWidth, paramLabel, paramTitle } from './paramLabels.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const cat = JSON.parse(readFileSync(join(ROOT, 'tests/golden/component-catalog.json'), 'utf8')) as Catalog
 
-test('目录里每个可见参数都有中文短标签；标签不超过 8 个字', () => {
+test('目录里每个可见参数都有中文短标签；标签不超过 8 个汉字宽', () => {
   const missing: string[] = []
   for (const c of cat.components) {
     for (const p of c.params as ParamSpec[]) {
@@ -18,7 +18,7 @@ test('目录里每个可见参数都有中文短标签；标签不超过 8 个�
     }
   }
   assert.deepEqual(missing, [], '新组件上目录时在 paramLabels.ts 补一行')
-  for (const [k, v] of Object.entries(PARAM_LABELS)) assert.ok(v.length <= 8, `${k} 的标签太长：${v}`)
+  for (const [k, v] of Object.entries(PARAM_LABELS)) assert.ok(displayWidth(v) <= 16, `${k} 的标签太长：${v}`)
 })
 
 test('没有短名的参数退回英文标识；悬停提示三行：标识、说明、范围', () => {

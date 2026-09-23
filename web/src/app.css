@@ -33,7 +33,15 @@ code.chip { display: inline-block; background: var(--earth); border: 1px solid v
 /* ---------- 顶栏 ---------- */
 .topbar { display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--earth); border-bottom: 1px solid var(--border); white-space: nowrap; }
 .topbar .logo { border: none; background: none; padding: 4px; display: flex; color: var(--ink); }
-.crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
+/* 这里**不能有 overflow: hidden**：两个胶囊的弹出层都靠 .popover-anchor 绝对定位在容器之外，
+   容器只有 26 px 高，一裁就把 176 px 的试验详情与 446 px 的任务详情整个裁没
+   （2026-09-20 实测：底部各超出 179 / 450 px，试验详情从上线起就打不开，没人发现）。
+   防止长名字撑破顶栏的活交给下面两条——**截断落在文字上，不落在容器上**。 */
+.crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
+.crumbs .pill { min-width: 0; }
+.crumbs .crumb-name, .crumbs .task-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs .crumb-name { max-width: 20ch; }
+.crumbs .task-id { max-width: 24ch; }
 .crumbs .chev { color: var(--poi); }
 .pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); border-radius: 12px; padding: 2px 10px; }
 .pill.project { color: var(--dim); }
@@ -78,7 +86,14 @@ code.chip { display: inline-block; background: var(--earth); border: 1px solid v
 .popover.menu .item.disabled { color: var(--poi); cursor: default; }
 .popover.experiment table td { padding: 2px 8px 2px 0; vertical-align: top; }
 .popover.experiment table td:first-child { color: var(--dim); white-space: nowrap; }
-.topbar .popover-anchor:last-of-type .popover { left: auto; right: 0; }
+/* 顶栏最右边那个菜单要右对齐，否则会溢出右边界。
+   **按用途标记，不用 :last-of-type**：那个伪类是相对父元素算的，而面包屑里的试验胶囊
+   是它父元素里唯一的 .popover-anchor，于是也被算成 last，弹出层跟着右对齐、
+   在窄窗口下向左溢出到视口外（用户 2026-09-22 在非全屏下发现）。
+   此前一直没暴露，是因为 .crumbs 的 overflow:hidden 把它整个裁掉了，根本看不见。 */
+.popover-anchor.to-left .popover { left: auto; right: 0; }
+/* 窄窗口下的兜底：弹出层再宽也不超出视口 */
+.popover { max-width: calc(100vw - 16px); }
 
 /* ---------- 三栏 ---------- */
 .cols { display: grid; height: 100%; }
@@ -352,6 +367,9 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .pp-tag, .pp-note { color: var(--poi); font-size: 11px; white-space: nowrap; }
 .pp-notes { margin: 4px 0 0; padding-left: 16px; font-size: 11px; color: var(--dim); line-height: 1.5; }
 .pp-notes.bad { color: var(--bad); }
+/* 结果页左栏：要紧的那一段（与顶栏任务详情同一套分层，见 shell/taskNotes.ts） */
+.pp-notes-alert { margin-top: 6px; }
+.pp-notes-alert > .k { color: var(--bad); font-weight: 600; font-size: var(--fs-label); margin-bottom: 2px; }
 .pp-ro { font-variant-numeric: tabular-nums; }
 .pp-value > .pp-scope { flex: 0 0 auto; }
 

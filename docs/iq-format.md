@@ -187,7 +187,7 @@
 | `length_format_metadata` | 文件长度、格式和元数据一致性 |
 | `iq_order_endian_range` | I/Q 顺序、字节序和数值范围 |
 | `dc_swap_imbalance` | 直流偏置、IQ 交换和幅相异常 |
-| `clip_dropout_zero_gap` | 削顶、过载、丢样、全零和时间空洞 |
+| `clip_dropout_zero_gap` | 削波、过载、丢样、全零和时间空洞 |
 | `spectrum_noise_bandwidth` | 频谱占用、噪声底和带宽 |
 | `multichannel_alignment` | 多通道样本数和时间对齐 |
 | `metadata_required_units` | 元数据必填项、单位和取值范围 |

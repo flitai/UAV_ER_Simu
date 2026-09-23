@@ -245,7 +245,7 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
       ok: plan.fs_rf > 0 && plan.bw_tx + plan.guard <= plan.fs_rf,
       detail: plan.fs_rf > 0
         ? `占用 ${fmt(plan.bw_tx)} + 保护带 ${fmt(plan.guard)} ≤ 采样率 ${fmt(plan.fs_rf)}`
-        : '站点接收机没有采样率，先选场景与站点',
+        : '未取到站点接收机采样率，请先选择场景与站点',
     })
 
     const need = plan.df_max + plan.bw_tx / 2 + plan.guard
@@ -307,7 +307,7 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         : plan.bw_rx > 0
           ? `通带 ${fmt(plan.bw_rx)} / 采样率 ${fmt(plan.fs_rf)} = ${bwRel.toFixed(3)}`
             + (rxOnGrid ? '，在抽头表内' : `；该比值须取 ${gridText('rx_v1')}，改站点的接收带宽`)
-          : '站点没写接收带宽（sites[].receiver.bw_Hz），算不出',
+          : '站点未设置接收带宽，无法查表',
     })
 
     // 信道化（M-3，D-071）：四件事一起看——档位、整除、路号范围、目标装不装得进本路。
@@ -339,7 +339,7 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
           ? why.join('；')
           : `S5 = ${fmt(plan.fs_s5)} @ ${fmt(plan.f_s5)}，可用子带 ±${fmt(edgeS5 ?? 0)}`
             + `；目标占用落在本路的 ±${fmt(inbandS5)}`
-            + (fits ? '，都在子带内' : '，超出的部分会被信道化滤掉'),
+            + (fits ? '，都在子带内' : '，超出部分将被信道化滤除'),
     })
   }
 
@@ -373,10 +373,10 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
       label: 'ADC 量化噪声不淹没热噪声',
       ok: margin >= 6,
       detail: `热噪声 ${thermal_dBm.toFixed(1)} dBm，量化噪声 ${qNoise_dBm.toFixed(1)} dBm，`
-        + `余量 ${margin.toFixed(1)} dB${margin >= 6 ? '' : '；请加大接收机增益或减小满量程'}`,
+        + `余量 ${margin.toFixed(1)} dB${margin >= 6 ? '' : '；请增大接收机增益或减小满量程'}`,
     })
   } else {
-    out.push({ id: 'adc_floor', label: 'ADC 量化噪声不淹没热噪声', ok: false, detail: '缺满量程或采样率，算不出' })
+    out.push({ id: 'adc_floor', label: 'ADC 量化噪声不淹没热噪声', ok: false, detail: '缺少满量程或采样率，无法计算' })
   }
   }
 
@@ -389,13 +389,13 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
     if (replay && (N > 1 || K > 1)) {
       ok = false
       detail = '实测回放的片段是已经过完整接收链的 S4 数据，它对应一个录制时的站位；'
-        + '把它复制到多个站等于假装同一份录音在几个地方同时被收到。多源多站请用全合成或混合模式'
+        + '同一段录音不能代表多个站点的接收结果；多源多站请使用全合成或混合增强模式'
     } else if (chain.mode === 'mixed' && K > 1) {
       ok = false
       detail = '混合增强的背景片段同样只对应一个站，K 必须为 1；合成目标那一支可以有多个源'
     } else if (!replay && (N === 0 || K === 0)) {
       ok = false
-      detail = '站点与目标各至少选一个，否则没有链路可算'
+      detail = '站点与目标各需至少选择一个，否则无链路可计算'
     } else if (N > 8 || K > 8) {
       ok = false
       detail = `固定可选口上限为 8（源 ${N}、站 ${K}）；再多要改端口表，本期不做`
@@ -446,9 +446,9 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         label: 'E3 有观测区域建筑几何',
         ok,
         detail: !scene
-          ? '观测区域数据包还没载入，E3 的建筑遮挡算不了'
+          ? '观测区域数据包未载入，无法计算建筑遮挡'
           : !aoiId
-          ? '场景文件里没有 aoi 段，指不出该用哪个观测区域的建筑几何'
+          ? '场景未指定观测区域，无法确定建筑几何来源'
           : scene.id !== aoiId
           ? `场景要的是观测区域 ${aoiId}，当前载入的是 ${scene.id}`
           : feats > 0
@@ -463,8 +463,8 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
     label: '标度与单位一致',
     ok: chain.mode !== 'mixed' || !!chain.backgroundDataId,
     detail: chain.mode === 'mixed'
-      ? (chain.backgroundDataId ? '背景与合成目标都按 dBm 标定后相加' : '混合模式要先选背景数据')
-      : '合成链内部一律 mW（D-047）',
+      ? (chain.backgroundDataId ? '背景与合成目标都按 dBm 标定后相加' : '混合增强模式需先选择背景片段')
+      : '合成链内部功率一律以 mW 计',
   })
 
   return out

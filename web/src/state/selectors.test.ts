@@ -25,7 +25,7 @@ test('时间基准与 WS 文字', () => {
   const s = initialState(false, 1920, '')
   assert.deepEqual(timeBasis(s), { text: 'WGS-84 · AGL · LogicalSim', attr: 'WGS-84 AGL LogicalSim' })
   assert.equal(timeBasis({ ...s, task: { ...s.task, dataRefs: 1 } }).attr, 'WGS-84 AGL FileAcquisition')
-  assert.equal(wsStatusText({ status: 'connected', lastSeq: 1842, reconnects: 0, dropped: 0, attempt: 0, nextRetryMs: 0 }), '● 已连接 seq 1842')
+  assert.equal(wsStatusText({ status: 'connected', lastSeq: 1842, reconnects: 0, dropped: 0, attempt: 0, nextRetryMs: 0 }), '● 已连接 · 事件序号 1842')
   assert.equal(wsStatusText({ status: 'reconnecting', lastSeq: 1, reconnects: 2, dropped: 0, attempt: 2, nextRetryMs: 2000 }), '● 重连中（第 2 次，2 s 后）')
   assert.equal(wsStatusText({ status: 'closed', lastSeq: 1, reconnects: 0, dropped: 0, attempt: 0, nextRetryMs: 0 }), '● 已断开')
 })

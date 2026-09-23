@@ -5,7 +5,7 @@
 // 换算 `cursor = t − t0_s`，在 shell/timelineOps.ts 里做。
 //
 // 模式：live = 地图与卡片显示每键最新一帧（今天的行为）；replay = 按 `t` 从历史里取快照。
-// 任何拖动 / 播放进 replay；勾「跟随实时」或新任务开始回 live。
+// 任何拖动 / 播放进 replay；勾「跟随」或新任务开始回 live。
 
 export type TimeMode = 'live' | 'replay'
 export type TimeSpeed = 1 | 2 | 5
@@ -38,7 +38,7 @@ export const timeStore = {
     state = next
     notify()
   },
-  /** 新任务开始 / 换任务：回到跟随实时。 */
+  /** 新任务开始 / 换任务：回到跟随。 */
   reset() {
     state = { t: null, mode: 'live', playing: false, speed: state.speed }
     notify()

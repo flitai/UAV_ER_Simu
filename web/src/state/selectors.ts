@@ -50,7 +50,7 @@ export function timeBasis(s: AppState): { text: string; attr: string } {
 }
 
 export function wsStatusText(ws: WsState): string {
-  if (ws.status === 'connected') return `● 已连接 seq ${ws.lastSeq}`
+  if (ws.status === 'connected') return `● 已连接 · 事件序号 ${ws.lastSeq}`
   if (ws.status === 'reconnecting') return `● 重连中（第 ${ws.attempt} 次，${Math.round(ws.nextRetryMs / 1000)} s 后）`
   return '● 已断开'
 }

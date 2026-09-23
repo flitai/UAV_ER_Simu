@@ -5,7 +5,7 @@
 
 import type { Catalog } from '../api/catalog.js'
 import { CATEGORY_COLOR, findComponent } from '../api/catalog.js'
-import { formatEng } from '../diagram/format.js'
+import { formatEng, plainNum } from '../diagram/format.js'
 import type { ParamValue } from '../diagram/doc.js'
 import {
   SLOT_BY_ID, effectiveParams, fromSceneOf, ownerEntity, proxyOf, unavailableReason, variantOf,
@@ -14,6 +14,7 @@ import {
 import { LEVEL_LABEL, propView, type PropLevel } from './effects.js'
 import { readField } from '../scene/editor/deviceFields.js'
 import { paramLabel } from './paramLabels.js'
+import { valueLabel } from './enumLabels.js'
 
 type Obj = Record<string, unknown>
 
@@ -74,7 +75,10 @@ function summaryText(
       ?? (typeof fromScene === 'number' ? fromScene : undefined)
       ?? eff[name] ?? (ps?.default as ParamValue | undefined)
     if (raw === undefined || raw === null) continue
-    const text = typeof raw === 'number' ? formatEng(raw) : String(raw)
+    // 工程词头只给带单位的物理量用。无量纲量加了只会误读或丢精度：
+    // 虚警率 0.001 被写成「1 m」（读成米），FFT 点数 1024 被写成「1.02 k」（1024 本身才是要看的数）。
+    const text = typeof raw !== 'number' ? valueLabel(ps, raw)
+      : ps?.unit ? formatEng(raw) : plainNum(raw)
     // 标签用与右栏同一张中文短名表，值带单位（2026-09-13 与参数面板一并改版）。
     // 工程词头与单位连写：formatEng 给 "2.44 G"，直接接 Hz 就是 "2.44 GHz"（与左栏频率计划同一写法）；没有词头时补一个空格
     const withUnit = !ps?.unit ? text : text.includes(' ') ? text + ps.unit : `${text} ${ps.unit}`
@@ -180,9 +184,16 @@ export function SlotCard(p: SlotCardProps) {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); p.onSelect(m.id) } }}
             >
               <span className="k">{m.label}</span>
-              <span className={`v${m.error ? ' bad' : m.missing.length ? ' warn' : ''}`}>
-                {m.error ? '✕' : m.missing.length ? '待填' : m.state === 'active' ? '✓' : (STATE_TEXT[m.state] || unavailableReason(variantOf(p.chain, m.id).type))}
-              </span>
+              {/* 子环节正常时**不画勾**（用户 2026-09-22：「比别的框多出几个勾勾」）。
+                  这三个子环节不可旁路、各只有一个变体、实测回放模式下也适用、必填参数全有缺省——
+                  也就是说那个位置的取值实际上恒为 ✓，白占一格还把这张卡的勾密度抬成别的卡的四倍。
+                  出错或缺参数时照旧标出来，红黄色比对勾醒目得多：没消息就是好消息。
+                  父卡那个 ✓ 不动——全界面每个环节一个状态位是统一约定。 */}
+              {(m.error || m.missing.length > 0 || m.state !== 'active') && (
+                <span className={`v${m.error ? ' bad' : m.missing.length ? ' warn' : ''}`}>
+                  {m.error ? '✕' : m.missing.length ? '待填' : (STATE_TEXT[m.state] || unavailableReason(variantOf(p.chain, m.id).type))}
+                </span>
+              )}
               {/* 可旁路的子环节要有自己的勾选框（C-10）：旁路开关此前只画在卡片上，
                   于是挂在卡片里的接收滤波一旦缺省旁路，界面上就没有任何地方能把它打开。 */}
               {SLOT_BY_ID[m.id].bypassable && m.state !== 'not_applicable' && m.state !== 'unavailable' && (

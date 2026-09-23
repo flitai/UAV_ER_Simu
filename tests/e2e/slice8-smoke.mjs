@@ -16,7 +16,7 @@
 // V-3（全宽时间轴与回放缓冲，13 报告 §5）：
 //   ⑧ 场景页有时间轴条（live、活动标记、左端计数）；拖到 30 s 进回放：t 与指针一致、信号页游标同步为 t − t0_s，
 //      图上三架机的位置 = track 文件里该时刻前的最后一行、卡片的距离 = links 文件里该时刻前的最后一行；
-//   ⑨ 空格播放（t 单调增）、再按暂停；Home 回 0；「跟随实时」两边一起回 live；
+//   ⑨ 空格播放（t 单调增）、再按暂停；Home 回 0；「跟随」两边一起回 live；
 //   ⑩ 结果页也有时间轴，信号页按 → 改游标时时间轴跟到 t0_s + 游标；框图页没有时间轴。
 //
 // 跑法（先起服务：cd server && npm run build && node dist/index.js；引擎已构建；web/dist 为最新）：
@@ -347,7 +347,13 @@ try {
   st = await page.waitFor(cardsFollow, { label: '卡片跟到回放时刻', timeoutMs: 5000 }).catch(() => st)
   check('卡片 9 行的距离 = links 文件里该时刻前的最后一行（卡片与地图同一帧）', cardsFollow(st))
   const tlR = await tlDom()
-  check('时间轴读数写着回放时刻、「跟随实时」未勾', !!tlR && tlR.mode === 'replay' && !tlR.follow && tlR.t.startsWith(`t ${Math.floor(tGot)}`), JSON.stringify(tlR))
+  // 读数按 toFixed(1) 四舍五入，所以这里也要按显示精度比，不能用 Math.floor：
+  // 拖动落点是像素级的，tGot 实测会落到 29.99999951808009 这种值上——显示成「30.0 s」而 floor 是 29，
+  // 于是这条断言有大约一半的概率失败，以前跑绿只是碰巧落在另一侧（2026-09-20 查出）。
+  const shownT_ = tlR && /t ([\d.]+) s/.exec(tlR.t)
+  check('时间轴读数写着回放时刻、「跟随」未勾',
+        !!tlR && tlR.mode === 'replay' && !tlR.follow && !!shownT_ && Math.abs(Number(shownT_[1]) - tGot) <= 0.05,
+        `${JSON.stringify(tlR)} tGot=${tGot}`)
   // 空格播放：t 单调增；再按暂停
   await page.pressKey({ key: ' ', code: 'Space', vk: 32 })
   st = await page.waitFor((s) => s.app?.timeline?.playing === true, { label: '空格播放', timeoutMs: 5000 })
@@ -363,11 +369,11 @@ try {
   st = await page.waitFor((s) => s.app?.timeline?.t === 0, { label: 'Home 回 0', timeoutMs: 5000 })
   check('Home 回到 0 s，游标 = −t0_s 处', st.app.timeline.t === 0 && near(st.app.signal.cursor_t_s, -t0s, 1e-6))
   await page.evaluate("(document.querySelector('[data-field=tl-follow]').click(), true)")
-  st = await page.waitFor((s) => s.app?.timeline?.mode === 'live' && s.app.signal.follow === true, { label: '跟随实时', timeoutMs: 5000 })
+  st = await page.waitFor((s) => s.app?.timeline?.mode === 'live' && s.app.signal.follow === true, { label: '跟随', timeoutMs: 5000 })
   // 最新一帧 = track 文件的最后一行（10 Hz 航迹最后一行是 69.9 s，不是任务时长 70 s）
   const trackTail = await tail('track')
   const tLast = Math.max(...trackTail.map((r) => r.t_s))
-  check('勾「跟随实时」：时间轴回 live、信号页回跟随且游标清掉、图上回到最新一帧', st.app.timeline.t === null && st.app.signal.cursor_t_s === null && st.app.timeline.source === 'live'
+  check('勾「跟随」：时间轴回 live、信号页回跟随且游标清掉、图上回到最新一帧', st.app.timeline.t === null && st.app.signal.cursor_t_s === null && st.app.timeline.source === 'live'
     && st.app.entities.length === 3 && st.app.entities.every((e) => near(e.t_s, tLast, 1e-9)), `t=${st.app.timeline.t} cursor=${st.app.signal.cursor_t_s} entities t_s=${st.app.entities.map((e) => e.t_s).join(',')} 最后一行 ${tLast}`)
   // 结果页：时间轴仍在；信号页按 → 改游标，时间轴跟过去
   await page.evaluate("(window.location.hash = '#/results', true)")

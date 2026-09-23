@@ -27,7 +27,7 @@ export async function bootstrap(store: StoreApi, alive: () => boolean): Promise<
     try {
       const want = new URLSearchParams(location.search).get('aoi')
       const ids = await listScenes()
-      if (ids.length === 0) throw new Error('服务端没有任何场景数据包，先跑 scene/ 下的建库脚本')
+      if (ids.length === 0) throw new Error('服务端没有可用的场景数据包')
       const id = want && ids.includes(want) ? want : ids[0]!
       const summary = await loadScene(id)
       if (alive()) dispatch({ type: 'scene/loaded', summary })
@@ -181,7 +181,7 @@ export async function saveDiagram(store: StoreApi): Promise<void> {
   const s = getState()
   const id = s.context.diagramId
   if (!id) {
-    dispatch({ type: 'ui/toast', kind: 'error', text: '框图没有标识，存不了' })
+    dispatch({ type: 'ui/toast', kind: 'error', text: '框图缺少标识，无法保存' })
     return
   }
   let r
@@ -278,7 +278,7 @@ export function sendDataIdToChain(
   const parsed = parseDoc(s.diagram.text)
   const chain = parsed.ok ? parseChain(parsed.doc) : null
   if (!chain) {
-    return { ok: false, label: '用于回放', note: '当前框图不是典型链路，改不了；先在框图页新建一条' }
+    return { ok: false, label: '用于回放', note: '当前框图不是典型链路结构，无法写入；请先在框图页新建' }
   }
   const catalog = isCatalog(s.components.catalog) ? s.components.catalog : null
   const scenarioDoc = s.scene.scenario.doc
@@ -294,7 +294,7 @@ export function sendDataIdToChain(
     return { ok: true, label: '用于回放', note: '' }
   }
   // 全合成：换模式会把场景引用一起清掉（switchMode 的既有行为），所以要说在前面
-  if (opts.dryRun) return { ok: true, label: '用于回放', note: '当前是全合成模式；点它会把模式切成「实测回放」，那条链不绑场景' }
+  if (opts.dryRun) return { ok: true, label: '用于回放', note: '当前为全合成模式；执行后将切换为实测回放模式，该链路不绑定场景' }
   const next = switchMode(chain, 'replay')
   const tx = { ...next.slots.tx, params: { ...next.slots.tx.params, data_id: dataId } }
   commitChain(store, { ...next, slots: { ...next.slots, tx } }, catalog, scenarioDoc, '换成实测回放并选片段')

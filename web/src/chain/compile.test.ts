@@ -345,7 +345,7 @@ test('ADC 量化噪声检查：不给接收机增益就拦下来（实测逼出�
   }
   const k = planChecks(noGain, freqPlan(noGain, scenario), scenario).find((x) => x.id === 'adc_floor')!
   assert.equal(k.ok, false)
-  assert.match(k.detail, /加大接收机增益/)
+  assert.match(k.detail, /增大接收机增益/)
 })
 
 // ------------------------------------------------------------ 多源 / 多站实例化（L-2，D-053）
@@ -940,7 +940,7 @@ test('频率计划新增第 14 项：E3 要有观测区域建筑几何（D3-7）
   assert.match(find(pkg).detail, /47582/)
   // 数据包没载入时不假装通过（铁律 15）
   assert.equal(find(null).ok, false)
-  assert.match(find(null).detail, /还没载入/)
+  assert.match(find(null).detail, /数据包未载入/)
   // 载入的是别的观测区域：照实说是哪一个对不上
   const other = { ...pkg, id: 'xian-demo' }
   assert.equal(find(other).ok, false)
@@ -1020,7 +1020,7 @@ test('信道化检查：旁路时不拦，启用后四件事一起看（C-10，D
   assert.equal(c1.ok, true, '装不下是取舍不是错')
   assert.match(c1.detail, /可用子带 ±50\.000 kHz/, c1.detail)
   // 中心就在本路中心上，但 400 kHz 的占用比 ±50 kHz 的子带宽得多——说明要写占用不是写中心
-  assert.match(c1.detail, /目标占用落在本路的 ±200\.000 kHz，超出的部分会被信道化滤掉/, c1.detail)
+  assert.match(c1.detail, /目标占用落在本路的 ±200\.000 kHz，超出部分将被信道化滤除/, c1.detail)
 
   // 档位外的子信道数
   const bad = withSlot(synthetic(), 'chan', { channels: 6, select_channel: 3 })
