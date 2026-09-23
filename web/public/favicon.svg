@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img"
+     aria-label="无人机电子信号侦察仿真系统">
+  <title>无人机电子信号侦察仿真系统</title>
+  <!--
+    标签页图标：一个侦察站向右上方发出探测波束，外侧是一个被发现的目标。
+    配色取自系统内已有的语义色（docs/display-route.md §4）：站点蓝 #1e40af、目标红。
+
+    设计约束是 16 × 16 下仍可辨识，所以只用三种形状。波束定成两道而不是三道，
+    是因为三道在 16 像素下会糊成一团，而且最外那道必然与目标点挨上（四个候选逐个渲染比过）。
+    深色标签栏下底块会与背景接近，此时靠白色波束与红色目标点辨识，这是有意的取舍。
+
+    改了这个文件之后要重跑 scripts/gen_favicon_png.py，那份 PNG 后备与本文件同一套几何参数。
+  -->
+  <rect width="32" height="32" rx="6" fill="#1e40af"/>
+
+  <!-- 两道探测波束，圆心落在侦察站上，外侧那道淡一些表示衰减 -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round">
+    <path d="M 16.31 22.23 A 8.5 8.5 0 0 0 9.77 15.69" stroke-width="3.0"/>
+    <path d="M 22.67 20.88 A 15 15 0 0 0 11.12 9.33"   stroke-width="2.5" opacity="0.6"/>
+  </g>
+
+  <!-- 侦察站 -->
+  <circle cx="8" cy="24" r="2.6" fill="#ffffff"/>
+
+  <!-- 被发现的目标 -->
+  <circle cx="24" cy="8" r="4.2" fill="#ffffff"/>
+  <circle cx="24" cy="8" r="2.8" fill="#e11d48"/>
+</svg>
