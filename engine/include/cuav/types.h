@@ -113,7 +113,7 @@ struct BlockMeta {
     PowerCalibration calibration;
     double full_scale = 32768.0;   // 回放源的量化码满量程；合成源不用
 
-    // 本块里被 ADC 削顶的样点数（D-051）。这是**数据标记不是降级**：削顶是被显式建模的效应，
+    // 本块里被 ADC 削波的样点数（D-051）。这是**数据标记不是降级**：削波是被显式建模的效应，
     // 把它标成 Degraded 会让整个任务的结果四态变成降级，掩盖真正的降级信号（同 08 报告 §9.5
     // 对整数样点时延跳变的处置）。全程比例失控才由 AdcQuantizer 按 degrade_clip_ratio 降级。
     // 上游没有 ADC 时恒为 0；施加类组件按「取上游值」传递，AdcQuantizer 覆写为本块实测值。

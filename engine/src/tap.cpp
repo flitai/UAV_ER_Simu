@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/tap.h"
 
 #include <algorithm>
@@ -174,8 +175,8 @@ bool ObservationTap::write_index(const char* kind, std::string& err) {
     if (cal.calibrated) {
         j["calibration"] = {{"offset_dB", cal.offset_dB}, {"source", cal.source}, {"note", cal.note}};
     }
-    // 上游 ADC 的削顶累计（D-051）。恒写出，读端不必区分「没有 ADC」与「有 ADC 但没削顶」——
-    // 两种情形对界面是同一句话「削顶 0 样点」。
+    // 上游 ADC 的削波累计（D-051）。恒写出，读端不必区分「没有 ADC」与「有 ADC 但没削波」——
+    // 两种情形对界面是同一句话「削波 0 样点」。
     j["clipped_samples"] = clipped_samples_;
     State st = worst(last_meta_.state, status_.state);
     j["state"] = to_string(st);
@@ -298,18 +299,18 @@ Step ObservationTap::flush(PortMap&, std::string& err) {
         acc_.flush([&](const std::vector<double>& power, std::uint64_t first, std::size_t segs) {
             // 末行段数不足是流结束的自然结果，行数据本身正确，记备注不降级；索引里 rows 与备注一起给读端判断
             if (segs < segments_per_frame_) {
-                reasons_.push_back("末行只有 " + std::to_string(segs) + "/" + std::to_string(segments_per_frame_) + " 段");
+                reasons_.push_back("末行只有 " + numstr(segs) + "/" + numstr(segments_per_frame_) + " 段");
             }
             if (ok) ok = write_spectrum_row(power, first, segs, err);
         });
         if (acc_.dropped_tail_samples() > 0) {
-            const std::string n = "收尾丢弃不满一段的 " + std::to_string(acc_.dropped_tail_samples()) + " 个样点";
+            const std::string n = "结束时丢弃不足一段的 " + numstr(acc_.dropped_tail_samples()) + " 个样点";
             status_.notes.push_back(n);
             reasons_.push_back(n);
         }
     }
     if (ok && want_envelope_ && bucket_count_ > 0) {
-        reasons_.push_back("末桶只有 " + std::to_string(bucket_count_) + "/" + std::to_string(bucket_samples_) + " 个样点");
+        reasons_.push_back("末桶只有 " + numstr(bucket_count_) + "/" + numstr(bucket_samples_) + " 个样点");
         ok = write_envelope_row(err);
     }
     if (!ok) return Step::Error;

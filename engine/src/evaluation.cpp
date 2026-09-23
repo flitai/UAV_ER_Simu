@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/evaluation.h"
 #include "cuav/evaluation_json.h"
 
@@ -279,7 +280,7 @@ EvaluationMetrics evaluate(const std::vector<Detection>& det_in, const std::vect
     }
     if (hits_without_segment > 0) {
         m.state = worst(m.state, State::Degraded);
-        m.reasons.push_back("有 " + std::to_string(hits_without_segment) + " 个命中帧没有突发编号，未参与突发级指标");
+        m.reasons.push_back("有 " + numstr(hits_without_segment) + " 个命中帧没有突发编号，未参与突发级指标");
     }
     return m;
 }

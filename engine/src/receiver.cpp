@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/receiver.h"
 
 #include <algorithm>
@@ -144,9 +145,9 @@ Step ReceiverFrontEnd::process(PortMap& in, PortMap& out, std::string& err) {
         if (!(fs_ > 0.0)) { err = "ReceiverFrontEnd 收到的块没有采样率"; return Step::Error; }
         have_fs_ = true;
         if (noise_mode_ == "thermal") {
-            status_.notes.push_back("等效输入噪声 " + std::to_string(noise_power_dBm(fs_)) +
-                                    " dBm（噪声系数 " + std::to_string(nf_dB_) + " dB，带宽 " +
-                                    std::to_string(fs_) + " Hz）");
+            status_.notes.push_back("等效输入噪声 " + numstr(noise_power_dBm(fs_)) +
+                                    " dBm（噪声系数 " + numstr(nf_dB_) + " dB，带宽 " +
+                                    numstr(fs_) + " Hz）");
         }
     } else if (src.meta.sample_rate_Hz != fs_) {
         err = "ReceiverFrontEnd 中途收到不同采样率的块";
@@ -230,10 +231,10 @@ ComponentInfo AdcQuantizer::describe() const {
     i.display_name = "ADC 量化";
     i.description =
         "ADC 采样与量化（04 §7.6）。I、Q 各按 bits 位均匀量化，量化步长 q = 2A / 2^bits，"
-        "其中 A = 10^(full_scale_dBm/20) 是满量程复单音的幅度；超出可表示范围的样点在 ±A 处削顶。"
+        "其中 A = 10^(full_scale_dBm/20) 是满量程复单音的幅度；超出可表示范围的样点在 ±A 处削波。"
         "满量程复单音的量化信噪比为 6.02·bits + 1.76 dB。"
-        "**削顶是数据标记不是降级**：逐块的削顶样点数写进块元数据 clip_count 与 state_reasons，"
-        "四态不变；只有全程削顶比例超过 degrade_clip_ratio 才在收尾时把组件状态标降级（D-051）。"
+        "**削波是数据标记不是降级**：逐块的削波样点数写进块元数据 clip_count 与 state_reasons，"
+        "四态不变；只有全程削波比例超过 degrade_clip_ratio 才在收尾时把组件状态标降级（D-051）。"
         "采样时钟偏差、丢样与不连续注入是 04 §7.6 的可选项，本版本未实现。";
     i.model_layer = "M3";
     i.model_level = "E2";
@@ -242,13 +243,13 @@ ComponentInfo AdcQuantizer::describe() const {
     i.inputs = inputs();
     i.outputs = outputs();
     i.scene_bindable = false;
-    i.stateful = true;   // 削顶计数跨块累计
+    i.stateful = true;   // 削波计数跨块累计
     i.params = {
         ParamSpec::choice("bits", {"8", "10", "12", "14", "16"}, "I、Q 各自的量化位数").def_text("14"),
         ParamSpec::number("full_scale_dBm", "dBm", "满量程复单音对应的功率")
             .req().at_least(-60.0).at_most(30.0),
         ParamSpec::choice("rounding", {"nearest"}, "量化取整方式；抖动随后续版本").def_text("nearest"),
-        ParamSpec::number("degrade_clip_ratio", "", "全程削顶样点比例超过它才标降级")
+        ParamSpec::number("degrade_clip_ratio", "", "全程削波样点比例超过它才标降级")
             .def(0.01).at_least(0.0, true).at_most(1.0),
     };
     return i;
@@ -329,7 +330,7 @@ Step AdcQuantizer::process(PortMap& in, PortMap& out, std::string& err) {
     // 标记而非降级：四态不动，只把计数与理由随块带走（D-051）
     d.iq.meta.clip_count = clipped_here;
     if (clipped_here > 0) {
-        d.iq.meta.state_reasons.push_back("adc_clip:" + std::to_string(clipped_here));
+        d.iq.meta.state_reasons.push_back("adc_clip:" + numstr(clipped_here));
     }
 
     out["out"] = d;
@@ -345,12 +346,12 @@ Step AdcQuantizer::flush(PortMap&, std::string& err) {
     (void)err;
     if (seen_ > 0 && clipped_ > 0) {
         const double ratio = static_cast<double>(clipped_) / static_cast<double>(seen_);
-        status_.notes.push_back("削顶 " + std::to_string(clipped_) + " / " + std::to_string(seen_) +
+        status_.notes.push_back("削波 " + numstr(clipped_) + " / " + numstr(seen_) +
                                 " 样点");
         if (ratio > degrade_clip_ratio_) {
             // 持续过载的数据对下游检测识别确实不可信，这时才降级（EM-S-02 的 overload_flag 同理）
             status_.state = worst(status_.state, State::Degraded);
-            status_.notes.push_back("削顶比例超过 " + std::to_string(degrade_clip_ratio_) +
+            status_.notes.push_back("削波比例超过 " + numstr(degrade_clip_ratio_) +
                                     "，量化结果不足以支撑下游判决");
         }
     }

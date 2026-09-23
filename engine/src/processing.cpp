@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/processing.h"
 
 #include <algorithm>
@@ -77,8 +78,8 @@ Step AddMixer::process(PortMap& in, PortMap& out, std::string& err) {
     d.iq.meta = a.meta;
     d.iq.meta.trace = make_trace("AddMixer", "M3", "E2", "V3");
     d.iq.meta.state = worst(a.meta.state, b.meta.state);
-    // 削顶计数相加（D-051）：混合增强模式下 ADC 只在合成目标那一路上，取哪一路当"主"都不对，
-    // 两路相加才是这一块里被削顶的样点总数。两路都为 0 时结果仍是 0，既有框图不受影响。
+    // 削波计数相加（D-051）：混合增强模式下 ADC 只在合成目标那一路上，取哪一路当"主"都不对，
+    // 两路相加才是这一块里被削波的样点总数。两路都为 0 时结果仍是 0，既有框图不受影响。
     d.iq.meta.clip_count = a.meta.clip_count + b.meta.clip_count;
     d.iq.meta.state_reasons = a.meta.state_reasons;
     for (const auto& r : b.meta.state_reasons) d.iq.meta.state_reasons.push_back(r);
@@ -138,8 +139,8 @@ ComponentInfo Superposition::describe() const {
 
 bool Superposition::check_wiring(const std::vector<std::string>& wired, std::string& err) const {
     if (wired.size() >= min_inputs_) return true;
-    err = "多路叠加要求至少连上 " + std::to_string(min_inputs_) + " 路，实际只连了 " +
-          std::to_string(wired.size()) + " 路";
+    err = "多路叠加要求至少连上 " + numstr(min_inputs_) + " 路，实际只连了 " +
+          numstr(wired.size()) + " 路";
     return false;
 }
 
@@ -221,7 +222,7 @@ Step Superposition::process(PortMap& in, PortMap& out, std::string& err) {
                 break;
             }
         }
-        c.note = "叠加 " + std::to_string(parts.size()) + " 路，取最弱来源 " + weak +
+        c.note = "叠加 " + numstr(parts.size()) + " 路，取最弱来源 " + weak +
                  "；各路已在源端换算到 mW";
     }
     d.iq.meta.calibration = c;
@@ -529,7 +530,7 @@ Step EnergyDetector::process(PortMap& in, PortMap& out, std::string& err) {
     const bool blk_clipped = blk.meta.clip_count > 0;
 
     // 拼上上一块的余量再切帧；块大小由调度器定，组件不假设它是帧长的整数倍。
-    // 一帧可能跨两块：只要任一块含削顶样点，这一帧就标 overload。
+    // 一帧可能跨两块：只要任一块含削波样点，这一帧就标 overload。
     std::size_t pos = 0;
     while (pos < blk.size()) {
         const std::size_t need = nfft_ - carry_.size();
@@ -598,11 +599,11 @@ Step EnergyDetector::flush(PortMap& out, std::string& err) {
         noise_frames_ = probe_.size();
         finalise_noise();
         status_.state = worst(status_.state, State::Degraded);
-        status_.notes.push_back("噪声估计只用了 " + std::to_string(noise_frames_) +
+        status_.notes.push_back("噪声估计只用了 " + numstr(noise_frames_) +
                                 " 帧，少于配置值，门限可信度下降");
     }
     if (!carry_.empty()) {
-        status_.notes.push_back("末尾 " + std::to_string(carry_.size()) +
+        status_.notes.push_back("末尾 " + numstr(carry_.size()) +
                                 " 个样点不足一帧，已丢弃（不补零，补零会造出假信号）");
         carry_.clear();
     }
@@ -610,14 +611,14 @@ Step EnergyDetector::flush(PortMap& out, std::string& err) {
         if (!ring_ever_full_) {
             // 与 probe 的「探针不足即降级」对称：环从未填满，全程的门限都建立在少于 W 帧的估计上
             status_.state = worst(status_.state, State::Degraded);
-            status_.notes.push_back("滑动噪声估计的环从未填满：配置 " + std::to_string(window_frames_) +
-                                    " 帧，全程最多纳入 " + std::to_string(ring_.size()) +
+            status_.notes.push_back("滑动噪声估计的环从未填满：配置 " + numstr(window_frames_) +
+                                    " 帧，全程最多纳入 " + numstr(ring_.size()) +
                                     " 帧，门限可信度下降");
         }
         if (noise_stale_ > 0) {
             // 信号持续占满时的正常状态：没有未命中帧可纳入，估计停留在最近一次更新。记 note 不降级（10 §4.2）
-            status_.notes.push_back("噪声估计陈旧 " + std::to_string(noise_stale_) +
-                                    " 帧：连续超过 " + std::to_string(window_frames_) +
+            status_.notes.push_back("噪声估计过期 " + numstr(noise_stale_) +
+                                    " 帧：连续超过 " + numstr(window_frames_) +
                                     " 帧没有未命中帧可纳入，估计停留在最近一次更新");
         }
     }
@@ -934,8 +935,8 @@ Step FeatureExtractor::process(PortMap& in, PortMap& out, std::string& err) {
         return Step::Error;
     }
     if (has_expected_ && blk.meta.start_sample != expected_start_) {
-        err = "FeatureExtractor 的 IQ 块不连续：期望首样点 " + std::to_string(expected_start_) + "，收到 " +
-              std::to_string(blk.meta.start_sample) +
+        err = "FeatureExtractor 的 IQ 块不连续：期望首样点 " + numstr(expected_start_) + "，收到 " +
+              numstr(blk.meta.start_sample) +
               "——上游有一轮没产出、深度 1 的缓冲被覆盖了；不静默丢块（铁律 15）";
         return Step::Error;
     }
@@ -963,15 +964,15 @@ Step FeatureExtractor::process(PortMap& in, PortMap& out, std::string& err) {
     // 逐行对齐检测行：本组件的第 k 帧 = 检测行 frame_index = k
     for (const Detection& d : dt->second.detections.items) {
         if (pending_frames_.empty()) {
-            err = "FeatureExtractor 收到检测行 frame_index = " + std::to_string(d.frame_index) +
+            err = "FeatureExtractor 收到检测行 frame_index = " + numstr(d.frame_index) +
                   "，却没有对应的 IQ 帧：检测器与本组件的 nfft 不同，或上游丢了块";
             return Step::Error;
         }
         const Frame& f = pending_frames_.front();
         if (f.index != d.frame_index || d.start_sample != d.frame_index * nfft_) {
-            err = "FeatureExtractor 与检测器的帧对不上：检测行 frame_index = " + std::to_string(d.frame_index) +
-                  "、start_sample = " + std::to_string(d.start_sample) + "，本组件下一帧 index = " +
-                  std::to_string(f.index) + "（nfft = " + std::to_string(nfft_) + "）；两边的 nfft 必须相同";
+            err = "FeatureExtractor 与检测器的帧对不上：检测行 frame_index = " + numstr(d.frame_index) +
+                  "、start_sample = " + numstr(d.start_sample) + "，本组件下一帧 index = " +
+                  numstr(f.index) + "（nfft = " + numstr(nfft_) + "）；两边的 nfft 必须相同";
             return Step::Error;
         }
         if (!band_ready_) build_band(d.f_lo_Hz, d.f_hi_Hz);
@@ -996,14 +997,14 @@ Step FeatureExtractor::flush(PortMap& out, std::string& err) {
     (void)err;
     if (open_) close_segment();
     if (!carry_.empty()) {
-        status_.notes.push_back("末尾 " + std::to_string(carry_.size()) + " 个样点不足一帧，已丢弃（与检测器同律）");
+        status_.notes.push_back("末尾 " + numstr(carry_.size()) + " 个样点不足一帧，已丢弃（与检测器同律）");
         carry_.clear();
     }
     if (!pending_frames_.empty()) {
         // 检测器在收尾时才产出的行到不了双输入节点（调度器只给单输入的下游转发尾块），
         // 这些帧因此没有判决可依，按缺失记降级，不假装它们不存在
         status_.state = worst(status_.state, State::Degraded);
-        status_.notes.push_back("有 " + std::to_string(pending_frames_.size()) +
+        status_.notes.push_back("有 " + numstr(pending_frames_.size()) +
                                 " 帧 IQ 没有等到对应的检测行，未参与特征提取");
         pending_frames_.clear();
     }

@@ -2,7 +2,7 @@
 //
 //   ReceiverFrontEnd  入 in(IQStream)，出 out(IQStream)。噪声系数生热噪声、增益、本振频偏、
 //                     IQ 幅相不平衡、直流偏置。产出 S2 观测点。
-//   AdcQuantizer      入 in(IQStream)，出 out(IQStream)。均匀量化与削顶。产出 S3 观测点。
+//   AdcQuantizer      入 in(IQStream)，出 out(IQStream)。均匀量化与削波。产出 S3 观测点。
 //
 // 两条拍板结论（D-050）：
 //
@@ -13,8 +13,8 @@
 //    （290 K 的 kT 实为 −173.975，工程惯例四舍五入），因此参数帧里的链路读数与这里实际注入的
 //    噪声**逐项一致**。温度偏离 290 K 时按 10·log10(T/290) 修正。
 //
-// ③ **ADC 削顶是数据标记不是降级**。逐块把削顶样点数记进 BlockMeta.clip_count 与 state_reasons，
-//    四态不变；只有全程削顶比例超过 degrade_clip_ratio 才在收尾时把组件状态标降级。
+// ③ **ADC 削波是数据标记不是降级**。逐块把削波样点数记进 BlockMeta.clip_count 与 state_reasons，
+//    四态不变；只有全程削波比例超过 degrade_clip_ratio 才在收尾时把组件状态标降级。
 //    理由同 08 报告 §9.5 对整数样点时延跳变的处置：被显式建模的效应标成降级会淹没真正的降级信号。
 //
 // 两者都**不改变流长度**，逐样点处理，start_sample 与样点数与输入块严格相同。

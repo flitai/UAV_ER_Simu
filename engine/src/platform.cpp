@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/platform.h"
 
 #include <cstdint>
@@ -30,7 +31,7 @@ bool mkdir_one(const std::string& p, std::string& err) {
 #else
     if (::mkdir(p.c_str(), 0755) == 0) return true;
     if (errno == EEXIST) return true;
-    err = "建目录失败：" + p + "（errno " + std::to_string(errno) + "）";
+    err = "建目录失败：" + p + "（errno " + numstr(errno) + "）";
     return false;
 #endif
 }
@@ -67,7 +68,7 @@ bool atomic_replace(const std::string& tmp, const std::string& dst, std::string&
     return true;
 #else
     if (std::rename(tmp.c_str(), dst.c_str()) != 0) {
-        err = "替换文件失败：" + dst + "（errno " + std::to_string(errno) + "）";
+        err = "替换文件失败：" + dst + "（errno " + numstr(errno) + "）";
         return false;
     }
     return true;

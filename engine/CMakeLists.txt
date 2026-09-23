@@ -54,6 +54,7 @@ target_include_directories(cuav_coder PUBLIC
 
 add_library(cuav_engine STATIC
   src/types.cpp
+  src/numstr.cpp
   src/random.cpp
   src/dsp.cpp
   src/ddc_taps.cpp
@@ -115,6 +116,7 @@ enable_testing()
 add_executable(cuav_engine_tests
   tests/test_main.cpp
   tests/test_types_graph.cpp
+  tests/test_numstr.cpp
   tests/test_dsp_random.cpp
   tests/test_components.cpp
   tests/test_golden.cpp

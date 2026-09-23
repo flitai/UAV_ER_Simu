@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/ddc.h"
 
 #include <cmath>
@@ -143,8 +144,8 @@ Step DDC::process(PortMap& in, PortMap& out, std::string& err) {
     }
 
     if (have_expect_ && src.meta.start_sample != expect_in_) {
-        err = "DDC 的输入块不连续：期望首样点序号 " + std::to_string(expect_in_) + "，实际 " +
-              std::to_string(src.meta.start_sample) + "；输出样点号由本组件自己数，"
+        err = "DDC 的输入块不连续：期望首样点序号 " + numstr(expect_in_) + "，实际 " +
+              numstr(src.meta.start_sample) + "；输出样点号由本组件自己数，"
               "丢块会静默错位（铁律 15）";
         return Step::Error;
     }
@@ -156,7 +157,7 @@ Step DDC::process(PortMap& in, PortMap& out, std::string& err) {
     expect_in_ = src.meta.start_sample + static_cast<std::uint64_t>(src.size());
     have_expect_ = true;
 
-    pend_clip_ += src.meta.clip_count;   // 上游削顶计数跨速率累计，随下一个输出块带走
+    pend_clip_ += src.meta.clip_count;   // 上游削波计数跨速率累计，随下一个输出块带走
     samples_in_ += static_cast<std::uint64_t>(src.size());
     status_.blocks_in++;
     status_.samples_in += src.size();
@@ -195,13 +196,13 @@ Step DDC::process(PortMap& in, PortMap& out, std::string& err) {
     d.iq.meta.trace.credibility = "V2";
     // 口径四：下游与产品清单要能区分同一个 DDC 的不同抽头版本
     d.iq.meta.trace.parameter_version = std::string("ddc-") + fir_version_ + "-d" +
-                                        std::to_string(decim_);
+                                        numstr(decim_);
     d.iq.meta.trace.trace_id = "ddc";
     if (out_count_ == 0) {
         // 口径四：变更采样率的组件要在块上留一条说明。记录性质，不是降级。
         d.iq.meta.state_reasons.push_back(
             "ddc_rate:" + num(fs_in_) + "->" + num(fs_out_) + " Hz，抽取 " +
-            std::to_string(decim_) + " 倍，群时延 " + std::to_string(st_.group_delay) +
+            numstr(decim_) + " 倍，群时延 " + numstr(st_.group_delay) +
             " 个输入样点已在时间锚里扣除");
     }
     out_count_ += static_cast<std::uint64_t>(d.iq.samples.size());
@@ -222,18 +223,18 @@ Step DDC::flush(PortMap&, std::string& err) {
     const std::uint64_t warm = (gd + static_cast<std::uint64_t>(decim_) - 1) /
                                static_cast<std::uint64_t>(decim_);
     status_.notes.push_back(
-        "入 " + std::to_string(samples_in_) + " 样点 @ " + num(fs_in_) + " Hz，出 " +
-        std::to_string(out_count_) + " 样点 @ " + num(fs_out_) + " Hz；群时延 " +
-        std::to_string(gd) + " 个输入样点已在时间锚里扣除（输出 m ↔ 输入 m·" +
-        std::to_string(decim_) + "）；起始 " + std::to_string(warm) +
-        " 个输出样点含滤波器启动瞬态；收尾丢弃 " + std::to_string(dropped) +
+        "入 " + numstr(samples_in_) + " 样点 @ " + num(fs_in_) + " Hz，出 " +
+        numstr(out_count_) + " 样点 @ " + num(fs_out_) + " Hz；群时延 " +
+        numstr(gd) + " 个输入样点已在时间锚里扣除（输出 m ↔ 输入 m·" +
+        numstr(decim_) + "）；起始 " + numstr(warm) +
+        " 个输出样点含滤波器启动瞬态；收尾丢弃 " + numstr(dropped) +
         " 个输入样点（不足以再出一个输出样点）");
     // 收尾不补零冲刷延迟线：补出来的最后几个输出样点是用根本没采到的数据算的（铁律 15），
     // 而且会在 S4 谱的末几行留下一段淡出，下游可能读成一次真实的电平变化。
     // 与 EnergyDetector 丢不满一帧、FeatureExtractor 丢未收口段同一口径。
     if (pend_clip_ > 0) {
-        status_.notes.push_back("收尾时尚有 " + std::to_string(pend_clip_) +
-                                " 个上游削顶样点未随块带出");
+        status_.notes.push_back("收尾时尚有 " + numstr(pend_clip_) +
+                                " 个上游削波样点未随块带出");
     }
     return Step::Finished;
 }

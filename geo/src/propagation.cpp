@@ -170,13 +170,13 @@ bool PropagationConfig::validate(std::string& err) const {
     if (level == PropLevel::E3) {
         if (shadow) {
             err = "prop_level = E3 已按建筑几何确定性地算出遮挡损耗，统计阴影（EM-P-08）是"
-                  "同一效应的统计等效，同时开即同源双计；请关掉 prop_shadow，或把档位降回 E2";
+                  "同一效应的统计等效，同时开即同源双计；请关闭统计阴影，或将传播档位降回 E2";
             return false;
         }
         if (primary == PrimaryModel::UrbanEmpirical) {
             err = "prop_level = E3 已按建筑几何确定性地算出遮挡损耗，城市经验（EM-P-05）的"
                   "路损指数与环境偏置本身就是建筑密度的经验拟合，同时开即同源双计；"
-                  "E3 下 prop_primary 只能是 free_space 或 two_ray";
+                  "E3 档的主传播模型只能取自由空间或地面双径";
             return false;
         }
     }
@@ -184,12 +184,12 @@ bool PropagationConfig::validate(std::string& err) const {
         // E1 只算自由空间路损、多普勒与时延。选了别的却停在 E1，不静默忽略（铁律 15）。
         if (primary != PrimaryModel::FreeSpace) {
             err = std::string("prop_level = E1 只算自由空间路损，与 prop_primary = ")
-                  + to_string(primary) + " 冲突；要用它请把 prop_level 改为 E2";
+                  + to_string(primary) + " 冲突；如需使用，请将传播档位改为 E2";
             return false;
         }
         if (shadow || weather) {
             err = "prop_level = E1 只算自由空间路损、多普勒与时延；"
-                  "统计阴影与大气降雨请把 prop_level 改为 E2";
+                  "如需统计阴影或大气降雨，请将传播档位改为 E2";
             return false;
         }
     }

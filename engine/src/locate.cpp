@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/locate.h"
 
 #include <algorithm>
@@ -185,7 +186,7 @@ bool DirectionFinder::configure(const std::map<std::string, double>& params,
     const geo::Site* site = 0;
     if (site_id_.empty()) {
         if (ls.scenario.sites.size() != 1) {
-            err = "多站场景（" + std::to_string(ls.scenario.sites.size()) +
+            err = "多站场景（" + numstr(ls.scenario.sites.size()) +
                   " 个站点）的测向组件必须在 scene_binding 里绑定 site_id";
             return false;
         }
@@ -686,15 +687,15 @@ bool MultiSiteLocator::check_wiring(const std::vector<std::string>& wired, std::
         else if (wired[i][0] == 't') ++nt;
     }
     if (method_ == "aoa" && nb < 2) {
-        err = "交叉定位至少要接 2 路测向报告（b1..b8），实际 " + std::to_string(nb) + " 路";
+        err = "交叉定位至少要接 2 路测向报告（b1..b8），实际 " + numstr(nb) + " 路";
         return false;
     }
     if (method_ == "tdoa" && nt < 3) {
-        err = "时差定位至少要接 3 路到达时间报告（t1..t8），实际 " + std::to_string(nt) + " 路";
+        err = "时差定位至少要接 3 路到达时间报告（t1..t8），实际 " + numstr(nt) + " 路";
         return false;
     }
     if (method_ == "aoa_tdoa" && (nb < 2 || nt < 3)) {
-        err = "融合定位要求测向 ≥ 2 路且到达时间 ≥ 3 路，实际 " + std::to_string(nb) + " / " + std::to_string(nt);
+        err = "融合定位要求测向 ≥ 2 路且到达时间 ≥ 3 路，实际 " + numstr(nb) + " / " + numstr(nt);
         return false;
     }
     return true;
@@ -746,7 +747,7 @@ void MultiSiteLocator::solve_group(double t_s, const std::string& emitter_id,
     r.method = method_;
     r.coord_version = coord_version_;
     r.truth_consumed = true;
-    r.trace = fix_trace(method_, emitter_id + "@" + std::to_string(t_s));
+    r.trace = fix_trace(method_, emitter_id + "@" + numstr(t_s));
 
     // 参与解算的只有 use_policy != exclude 的量测；被剔除的进 outlier_sites，
     // 让读的人看得出「这一站有量测但没参与」，而不是以为它压根没报

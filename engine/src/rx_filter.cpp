@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/rx_filter.h"
 
 #include <cmath>
@@ -175,8 +176,8 @@ Step RxFilter::process(PortMap& in, PortMap& out, std::string& err) {
     }
 
     if (have_expect_ && src.meta.start_sample != expect_in_) {
-        err = "RxFilter 的输入块不连续：期望首样点序号 " + std::to_string(expect_in_) +
-              "，实际 " + std::to_string(src.meta.start_sample) +
+        err = "RxFilter 的输入块不连续：期望首样点序号 " + numstr(expect_in_) +
+              "，实际 " + numstr(src.meta.start_sample) +
               "；输出样点号由本组件自己数，丢块会静默错位（铁律 15）";
         return Step::Error;
     }
@@ -234,7 +235,7 @@ Step RxFilter::process(PortMap& in, PortMap& out, std::string& err) {
         // 记录性质，不是降级：本组件不改采样率，但改了时间锚（扣了群时延）
         d.iq.meta.state_reasons.push_back(
             "rxfilt:通带 " + num(bw_Hz_) + " Hz（bw_rel " + num(bw_rel_) + "），抽头 " +
-            std::to_string(ntaps_) + "，群时延 " + std::to_string(group_delay_) +
+            numstr(ntaps_) + "，群时延 " + numstr(group_delay_) +
             " 个输入样点已在时间锚里扣除");
     }
     out_count_ += static_cast<std::uint64_t>(d.iq.samples.size());
@@ -286,15 +287,15 @@ Step RxFilter::flush(PortMap& out, std::string& err) {
     const std::uint64_t gd = static_cast<std::uint64_t>(group_delay_);
     const std::uint64_t want = samples_in_ > gd ? samples_in_ - gd : 0;
     status_.notes.push_back(
-        "入 " + std::to_string(samples_in_) + " 样点 @ " + num(fs_in_) + " Hz，出 " +
-        std::to_string(out_count_) + " 样点（期望 " + std::to_string(want) +
-        " = 入 − 群时延）；通带 " + num(bw_Hz_) + " Hz、抽头 " + std::to_string(ntaps_) +
-        "、群时延 " + std::to_string(gd) + " 个输入样点已在时间锚里扣除（输出 m ↔ 输入 m）；"
-        "起始 " + std::to_string(gd) + " 个输出样点含滤波器启动瞬态；"
-        "末尾少 " + std::to_string(gd) + " 个输出样点（收尾不补零）");
+        "入 " + numstr(samples_in_) + " 样点 @ " + num(fs_in_) + " Hz，出 " +
+        numstr(out_count_) + " 样点（期望 " + numstr(want) +
+        " = 入 − 群时延）；通带 " + num(bw_Hz_) + " Hz、抽头 " + numstr(ntaps_) +
+        "、群时延 " + numstr(gd) + " 个输入样点已在时间锚里扣除（输出 m ↔ 输入 m）；"
+        "起始 " + numstr(gd) + " 个输出样点含滤波器启动瞬态；"
+        "末尾少 " + numstr(gd) + " 个输出样点（收尾不补零）");
     if (pend_clip_ > 0) {
-        status_.notes.push_back("收尾时尚有 " + std::to_string(pend_clip_) +
-                                " 个上游削顶样点未随块带出");
+        status_.notes.push_back("收尾时尚有 " + numstr(pend_clip_) +
+                                " 个上游削波样点未随块带出");
     }
     return out.empty() ? Step::Finished : Step::Produced;
 }

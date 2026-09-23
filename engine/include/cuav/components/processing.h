@@ -140,7 +140,7 @@ private:
     // 状态
     std::vector<Complex> carry_;                 // 不满一帧的余量
     std::vector<std::vector<double>> probe_;     // 探针帧的逐频点功率（probe）
-    std::vector<bool> probe_overload_;           // 与 probe_ 同长：该探针帧是否含削顶块
+    std::vector<bool> probe_overload_;           // 与 probe_ 同长：该探针帧是否含削波块
     std::vector<double> noise_per_bin_;
     std::vector<bool> band_mask_;
     std::vector<std::size_t> band_bins_;         // 频段内 bin 的 k 值，升序
@@ -169,7 +169,7 @@ private:
     std::int64_t segment_counter_ = -1;
     std::uint64_t segments_ = 0;
     std::uint64_t overload_frames_ = 0;
-    bool frame_overload_ = false;                // 正在拼的这一帧是否含削顶块
+    bool frame_overload_ = false;                // 正在拼的这一帧是否含削波块
     bool frame_calibrated_ = false;              // 最近一块是否已标定（决定 has_dBm）
     bool summary_sent_ = false;
     ComponentStatus status_;

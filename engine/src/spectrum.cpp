@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/spectrum.h"
 
 #include <algorithm>
@@ -54,7 +55,7 @@ bool WelchAccumulator::configure(std::size_t nfft, double overlap, const std::st
     const double hop_d = static_cast<double>(nfft) * (1.0 - overlap);
     const double hop_r = std::floor(hop_d + 0.5);
     if (std::fabs(hop_d - hop_r) > 1e-9 || hop_r < 1.0) {
-        err = "nfft × (1 − overlap) 必须是正整数，当前为 " + std::to_string(hop_d);
+        err = "nfft × (1 − overlap) 必须是正整数，当前为 " + numstr(hop_d);
         return false;
     }
     if (segments_per_frame == 0) { err = "segments_per_frame 必须大于 0"; return false; }
@@ -207,8 +208,8 @@ SpectrumFrame SpectrumAnalyzer::make_frame(const std::vector<double>& power, std
     f.meta.start_sample = first_sample;
     f.meta.trace = make_trace("SpectrumAnalyzer");
     if (partial) {
-        f.meta.degrade("末帧只有 " + std::to_string(segments) + "/" +
-                       std::to_string(segments_per_frame_) + " 段");
+        f.meta.degrade("末帧只有 " + numstr(segments) + "/" +
+                       numstr(segments_per_frame_) + " 段");
     }
     return f;
 }
@@ -252,7 +253,7 @@ Step SpectrumAnalyzer::flush(PortMap& out, std::string&) {
         d.spectra.push_back(make_frame(power, first, segs, segs < segments_per_frame_));
     });
     if (acc_.dropped_tail_samples() > 0) {
-        status_.notes.push_back("收尾丢弃不满一段的 " + std::to_string(acc_.dropped_tail_samples()) + " 个样点");
+        status_.notes.push_back("结束时丢弃不足一段的 " + numstr(acc_.dropped_tail_samples()) + " 个样点");
     }
     if (produced) {
         d.has_data = true;

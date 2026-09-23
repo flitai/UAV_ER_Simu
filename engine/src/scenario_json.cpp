@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/scenario_json.h"
 
 #include <cmath>
@@ -148,7 +149,7 @@ bool parse_clock(const json& c, const std::string& where, geo::Clock& out, std::
 }
 
 bool parse_site(const json& s, std::size_t i, geo::Site& out, std::string& err) {
-    const std::string where = "sites[" + std::to_string(i) + "]";
+    const std::string where = "sites[" + numstr(i) + "]";
     if (!s.is_object()) return fail(err, where, "必须是对象");
     static const std::set<std::string> kKeys = {"id", "name", "equipment_model", "position",
                                                 "antenna", "receiver", "clock"};
@@ -186,7 +187,7 @@ bool parse_site(const json& s, std::size_t i, geo::Site& out, std::string& err) 
 }
 
 bool parse_emitter(const json& e, std::size_t i, geo::Emitter& out, std::string& err) {
-    const std::string where = "emitters[" + std::to_string(i) + "]";
+    const std::string where = "emitters[" + numstr(i) + "]";
     if (!e.is_object()) return fail(err, where, "必须是对象");
     static const std::set<std::string> kKeys = {"id", "name", "equipment_model", "platform_type",
                                                 "position", "emission"};
@@ -232,7 +233,7 @@ bool parse_emitter(const json& e, std::size_t i, geo::Emitter& out, std::string&
 }
 
 bool parse_route(const json& r, std::size_t i, geo::RouteSpec& out, std::string& err) {
-    const std::string where = "routes[" + std::to_string(i) + "]";
+    const std::string where = "routes[" + numstr(i) + "]";
     if (!r.is_object()) return fail(err, where, "必须是对象");
     static const std::set<std::string> kKeys = {"emitter_id", "waypoints", "loop"};
     if (!check_keys(r, kKeys, where, err)) return false;
@@ -245,7 +246,7 @@ bool parse_route(const json& r, std::size_t i, geo::RouteSpec& out, std::string&
     if (!r["waypoints"].is_array() || r["waypoints"].empty())
         return fail(err, where, "的 waypoints 必须是至少一项的数组");
     for (std::size_t k = 0; k < r["waypoints"].size(); ++k) {
-        const std::string w = where + ".waypoints[" + std::to_string(k) + "]";
+        const std::string w = where + ".waypoints[" + numstr(k) + "]";
         const json& jw = r["waypoints"][k];
         if (!jw.is_object()) return fail(err, w, "必须是对象");
         static const std::set<std::string> kWp = {"position", "speed_mps", "loiter_s"};
@@ -266,7 +267,7 @@ bool parse_route(const json& r, std::size_t i, geo::RouteSpec& out, std::string&
 }
 
 bool parse_activity(const json& a, std::size_t i, geo::Activity& out, std::string& err) {
-    const std::string where = "activities[" + std::to_string(i) + "]";
+    const std::string where = "activities[" + numstr(i) + "]";
     if (!a.is_object()) return fail(err, where, "必须是对象");
     static const std::set<std::string> kKeys = {"emitter_id", "t_s", "event", "args"};
     if (!check_keys(a, kKeys, where, err)) return false;
@@ -318,7 +319,7 @@ bool parse_activity(const json& a, std::size_t i, geo::Activity& out, std::strin
 
 // 圆形告警区（D-061）：只收下、不解释；枚举显式判定，不给缺省（铁律 15）。
 bool parse_zone(const json& z, std::size_t i, geo::Zone& out, std::string& err) {
-    const std::string where = "zones[" + std::to_string(i) + "]";
+    const std::string where = "zones[" + numstr(i) + "]";
     if (!z.is_object()) return fail(err, where, "必须是对象");
     static const std::set<std::string> kKeys = {"id", "name", "kind", "shape", "center", "radius_m", "alt_max_m"};
     if (!check_keys(z, kKeys, where, err)) return false;

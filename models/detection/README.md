@@ -57,7 +57,7 @@ hit        = Λ > η
 dBm 读数（输入已标定且 `band_power_dBm = true`）：未归一化 DFT 的 Parseval `Σ_k |X_k|² = nfft · Σ_n |x_n|²`，
 频段内每样点平均功率 `= T / nfft²`，故 `band_power_dBm = 10·log10(T / nfft²)`、
 `noise_dBm = 10·log10(Σ N̂ / nfft²)`；`snr_dB = 10·log10 Λ` 即 (S+N)/N。
-`overload` = 组成该帧的任一块 `clip_count > 0`（帧可跨块；削顶是数据标记不是降级，D-051）。
+`overload` = 组成该帧的任一块 `clip_count > 0`（帧可跨块；削波是数据标记不是降级，D-051）。
 
 ## 4. 已知行为（不是缺陷，是中位数估计的边界）
 
@@ -106,7 +106,7 @@ D-026 的实测：静态门限在一半真实背景上标定、换到另一半�
 - 黄金基准：`energy_detector.json`（probe，逐字节不变）；`energy_detector_sliding.json`（4000 帧，statistic rel ≤ 1e-5
   实测 4.1e-7，命中 / 段号 / `noise_frames_used` 逐帧相同，借 `borderline_frames == 0` 守判决翻转的级联）。
 - 单测：H0 暖机后虚警率 0.0107（目标 0.01）、均值 1.002；清净起步的持续单音保持检出且陈旧帧 > 0；从第一帧起的
-  信号被吸收；分段按空隙合并；削顶标记随块传到行；观察者行数 == 帧数、带节点名与站点。
+  信号被吸收；分段按空隙合并；削波标记随块传到行；观察者行数 == 帧数、带节点名与站点。
 - 端到端：`slice4`（demo-01，6 s）最长段起点 3.015 s、1457 帧、开机前 1 帧虚警、陈旧 1200 帧；`slice6`（demo-03 3×3，20 s）
   三站各写自己的行与摘要。
 

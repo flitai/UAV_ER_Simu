@@ -686,11 +686,11 @@ TEST_CASE("sliding：清净起步后出现的持续单音保持检出——环�
     CHECK(before <= 10);
     CHECK(static_cast<double>(after_hits) / static_cast<double>(after) >= 0.99);
     // 单音一来，命中帧不再入环，环停在 1000 帧前的干净噪声上：这正是删截的意义，
-    // 代价是估计不再更新，按 10 §4.2 计陈旧帧、记 note、不降级
+    // 代价是估计不再更新，按 10 §4.2 计过期帧、记 note、不降级
     CHECK(c.det->noise_stale_frames() > 0);
     CHECK(c.det->noise_stale_frames() < after);
     bool noted = false;
-    for (const auto& s : c.det->status().notes) if (s.find("陈旧") != std::string::npos) noted = true;
+    for (const auto& s : c.det->status().notes) if (s.find("过期") != std::string::npos) noted = true;
     CHECK(noted);
     CHECK(rep.state == State::Valid);
     // 从 1000 帧起的命中属于同一个突发（虚警帧之间的空隙远大于 merge_gap，不会被并进来）

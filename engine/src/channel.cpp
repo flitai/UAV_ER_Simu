@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/channel.h"
 
 #include <algorithm>
@@ -135,7 +136,7 @@ bool SceneBoundChannel::configure(const std::map<std::string, double>& params,
     const geo::Site* site = nullptr;
     if (site_id_.empty()) {
         if (ls.scenario.sites.size() != 1) {
-            err = "多站场景（" + std::to_string(ls.scenario.sites.size()) +
+            err = "多站场景（" + numstr(ls.scenario.sites.size()) +
                   " 个站点）的场景绑定信道必须在 scene_binding 里绑定 site_id，"
                   "否则不知道接收天线增益取哪个站的";
             return false;
@@ -185,14 +186,14 @@ Step SceneBoundChannel::process(PortMap& in, PortMap& out, std::string& err) {
         fs_ = src.meta.sample_rate_Hz;
         have_fs_ = true;
     } else if (std::fabs(src.meta.sample_rate_Hz - fs_) > 1e-9) {
-        err = "输入采样率中途从 " + std::to_string(fs_) + " 变成 " +
-              std::to_string(src.meta.sample_rate_Hz) + "；本组件不做重采样";
+        err = "输入采样率中途从 " + numstr(fs_) + " 变成 " +
+              numstr(src.meta.sample_rate_Hz) + "；本组件不做重采样";
         return Step::Error;
     }
     if (!(fs_ > 0.0)) { err = "输入块没有采样率"; return Step::Error; }
     if (have_expect_ && src.meta.start_sample != expect_start_) {
-        err = "输入块不连续：期望首样点序号 " + std::to_string(expect_start_) + "，实际 " +
-              std::to_string(src.meta.start_sample) + "；不静默补零（铁律 3）";
+        err = "输入块不连续：期望首样点序号 " + numstr(expect_start_) + "，实际 " +
+              numstr(src.meta.start_sample) + "；不静默补零（铁律 3）";
         return Step::Error;
     }
 
@@ -238,8 +239,8 @@ Step SceneBoundChannel::process(PortMap& in, PortMap& out, std::string& err) {
                 want = fixed_delay_;
             }
             if (want > max_delay_samples_) {
-                err = "本帧时延 " + std::to_string(f->delay_s) + " 秒需要 " + std::to_string(want) +
-                      " 个样点的历史，超过 max_delay_samples " + std::to_string(max_delay_samples_) +
+                err = "本帧时延 " + numstr(f->delay_s) + " 秒需要 " + numstr(want) +
+                      " 个样点的历史，超过 max_delay_samples " + numstr(max_delay_samples_) +
                       "；请调大该参数或检查场景距离（不截断，铁律 15）";
                 return Step::Error;
             }

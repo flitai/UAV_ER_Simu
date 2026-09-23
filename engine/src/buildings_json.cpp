@@ -5,6 +5,7 @@
 // 机器生成的 GeoJSON，属性里还留着 src 之类的数据层标记（铁律 14），所以**不查未知键**，
 // 只取用得上的那几个字段。
 
+#include "cuav/numstr.h"
 #include "cuav/buildings_json.h"
 
 #include <cstdio>
@@ -34,11 +35,11 @@ std::string feature_id(const nlohmann::json& f, std::size_t index) {
         src = &f["id"];
     if (src != nullptr) {
         if (src->is_string()) return src->get<std::string>();
-        if (src->is_number_integer()) return std::to_string(src->get<std::int64_t>());
-        if (src->is_number_unsigned()) return std::to_string(src->get<std::uint64_t>());
+        if (src->is_number_integer()) return numstr(src->get<std::int64_t>());
+        if (src->is_number_unsigned()) return numstr(src->get<std::uint64_t>());
         if (src->is_number()) return num_to_string(src->get<double>());
     }
-    return "feature#" + std::to_string(index);
+    return "feature#" + numstr(index);
 }
 
 double prop_number(const nlohmann::json& f, const char* key, double def) {
@@ -91,7 +92,7 @@ bool ring_to_building(const nlohmann::json& ring, const geo::SceneFrame& frame,
     for (std::size_t i = 0; i < n; ++i) {
         const nlohmann::json& pt = ring[i];
         if (!pt.is_array() || pt.size() < 2 || !pt[0].is_number() || !pt[1].is_number())
-            return fail(err, "建筑 " + id + " 的第 " + std::to_string(i) + " 个顶点不是 [经度, 纬度]");
+            return fail(err, "建筑 " + id + " 的第 " + numstr(i) + " 个顶点不是 [经度, 纬度]");
         double x = 0.0, y = 0.0;
         frame.to_plane(pt[0].get<double>(), pt[1].get<double>(), x, y);
         out.ring_x.push_back(x);
@@ -130,11 +131,11 @@ bool parse_buildings(const nlohmann::json& j, const geo::SceneFrame& frame,
     for (std::size_t i = 0; i < feats.size(); ++i) {
         const nlohmann::json& f = feats[i];
         if (!f.is_object() || !f.contains("geometry") || !f["geometry"].is_object())
-            return fail(err, "第 " + std::to_string(i) + " 个要素缺 geometry");
+            return fail(err, "第 " + numstr(i) + " 个要素缺 geometry");
         const nlohmann::json& g = f["geometry"];
         if (!g.contains("type") || !g["type"].is_string() ||
             !g.contains("coordinates") || !g["coordinates"].is_array())
-            return fail(err, "第 " + std::to_string(i) + " 个要素的 geometry 不完整");
+            return fail(err, "第 " + numstr(i) + " 个要素的 geometry 不完整");
 
         const std::string gtype = g["type"].get<std::string>();
         const std::string id = feature_id(f, i);
@@ -157,12 +158,12 @@ bool parse_buildings(const nlohmann::json& j, const geo::SceneFrame& frame,
             const nlohmann::json& polys = g["coordinates"];
             for (std::size_t k = 0; k < polys.size(); ++k) {
                 if (!polys[k].is_array() || polys[k].empty())
-                    return fail(err, "要素 " + id + " 的第 " + std::to_string(k) + " 件多边形为空");
+                    return fail(err, "要素 " + id + " 的第 " + numstr(k) + " 件多边形为空");
                 ++stats.parts;
                 if (polys[k].size() > 1) stats.holes_ignored += polys[k].size() - 1;
                 // 每个子多边形的外环各当一栋，共用同一个 id 加序号后缀（07 报告 §7.3）。
                 geo::Building b;
-                if (!ring_to_building(polys[k][0], frame, id + "#" + std::to_string(k), base_m,
+                if (!ring_to_building(polys[k][0], frame, id + "#" + numstr(k), base_m,
                                       height_m, b, stats, err)) {
                     if (!err.empty()) return false;
                     continue;

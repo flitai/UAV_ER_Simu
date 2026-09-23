@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/diagram_json.h"
 
 #include "cuav/scenario_json.h"
@@ -117,7 +118,7 @@ bool optional_string(const nlohmann::json& obj, const char* key, std::size_t max
                      const std::string& node_id, DiagramError& err) {
     if (!obj.contains(key)) return true;
     if (!obj[key].is_string() || obj[key].get<std::string>().size() > max_len) {
-        err = fail("schema", node_id, "", where + " 的 " + key + " 必须是长度不超过 " + std::to_string(max_len) + " 的字符串");
+        err = fail("schema", node_id, "", where + " 的 " + key + " 必须是长度不超过 " + numstr(max_len) + " 的字符串");
         return false;
     }
     return true;
@@ -418,8 +419,8 @@ bool inject_scene(const ComponentInfo& info, const std::string& node_id, const n
         // 框图时长不得超过场景时长，否则后半段无人机停在末航点，画面上像卡住。
         if (diag.run.duration_s > cache.scenario.scenario.duration_s + 1e-9) {
             err = fail("duration", node_id, "",
-                       "框图 run.duration_s " + std::to_string(diag.run.duration_s) +
-                       " 超过场景时长 " + std::to_string(cache.scenario.scenario.duration_s));
+                       "框图 run.duration_s " + numstr(diag.run.duration_s) +
+                       " 超过场景时长 " + numstr(cache.scenario.scenario.duration_s));
             return false;
         }
         diag.scenario_path = cache.scenario.path;
@@ -474,8 +475,8 @@ bool inject_scene(const ComponentInfo& info, const std::string& node_id, const n
         } else if (std::fabs(cache.fs - fs_it->second) > 1e-6) {
             err = fail("param", node_id, "",
                        "同一场景的场景绑定节点必须同采样率：节点 " + cache.fs_node + " 声明 " +
-                       std::to_string(cache.fs) + " Hz，节点 " + node_id + " 声明 " +
-                       std::to_string(fs_it->second) + " Hz");
+                       numstr(cache.fs) + " Hz，节点 " + node_id + " 声明 " +
+                       numstr(fs_it->second) + " Hz");
             return false;
         }
     }

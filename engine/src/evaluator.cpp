@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/evaluator.h"
 
 #include <algorithm>
@@ -44,7 +45,7 @@ std::vector<PortSpec> Evaluator::inputs() const {
     rec.optional = true;
     v.push_back(rec);
     for (int i = 1; i <= 8; ++i) {
-        PortSpec s{"scene" + std::to_string(i), PortType::SceneParamFrame};
+        PortSpec s{"scene" + numstr(i), PortType::SceneParamFrame};
         s.optional = true;
         v.push_back(s);
     }
@@ -163,7 +164,7 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
         }
         if (site_id_.empty()) {
             if (ls.scenario.sites.size() != 1) {
-                err = "多站场景（" + std::to_string(ls.scenario.sites.size()) +
+                err = "多站场景（" + numstr(ls.scenario.sites.size()) +
                       " 个站点）的评价器必须在 scene_binding 里绑定 site_id";
                 return false;
             }
@@ -293,8 +294,8 @@ Step Evaluator::process(PortMap& in, PortMap& out, std::string& err) {
         for (std::size_t i = 0; i < dl.items.size(); ++i) {
             const Detection& x = dl.items[i];
             if (has_expected_ && x.frame_index != expected_frame_) {
-                err = "Evaluator 的检测行不连续：期望帧 " + std::to_string(expected_frame_) + "，收到帧 " +
-                      std::to_string(x.frame_index) + "——上游有一轮没产出、深度 1 的缓冲被覆盖了；不静默丢行（铁律 15）";
+                err = "Evaluator 的检测行不连续：期望帧 " + numstr(expected_frame_) + "，收到帧 " +
+                      numstr(x.frame_index) + "——上游有一轮没产出、深度 1 的缓冲被覆盖了；不静默丢行（铁律 15）";
                 return Step::Error;
             }
             expected_frame_ = x.frame_index + 1;
@@ -317,7 +318,7 @@ Step Evaluator::process(PortMap& in, PortMap& out, std::string& err) {
         for (std::size_t i = 0; i < rl.items.size(); ++i) rec_.push_back(rl.items[i]);
     }
     for (int k = 1; k <= 8; ++k) {
-        PortMap::iterator s = in.find("scene" + std::to_string(k));
+        PortMap::iterator s = in.find("scene" + numstr(k));
         if (s == in.end() || !s->second.has_data) continue;
         any = true;
         for (std::size_t i = 0; i < s->second.scenes.size(); ++i) take_frame(s->second.scenes[i]);

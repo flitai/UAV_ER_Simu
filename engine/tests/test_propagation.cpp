@@ -134,7 +134,8 @@ TEST_CASE("E3 本身可用（D3-5），但与两个「建筑遮挡的统计等�
         cfg.shadow = true;
         std::string err;
         CHECK_FALSE(cfg.validate(err));
-        CHECK(err.find("prop_shadow") != std::string::npos);
+        // 报文用界面上的中文名，不用代码里的参数名（2026-09-21 界面用语统一）
+        CHECK(err.find("统计阴影") != std::string::npos);
         CHECK(err.find("双计") != std::string::npos);
     }
     {   // 闸四：E3 + 城市经验 = 同一效应算两遍
@@ -144,7 +145,7 @@ TEST_CASE("E3 本身可用（D3-5），但与两个「建筑遮挡的统计等�
         std::string err;
         CHECK_FALSE(cfg.validate(err));
         CHECK(err.find("双计") != std::string::npos);
-        CHECK(err.find("two_ray") != std::string::npos);
+        CHECK(err.find("地面双径") != std::string::npos);
     }
     {   // E3 + 地面双径：允许（两者不是同一效应）
         PropagationConfig cfg;

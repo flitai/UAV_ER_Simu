@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/channelizer.h"
 
 #include <cmath>
@@ -191,8 +192,8 @@ Step Channelizer::process(PortMap& in, PortMap& out, std::string& err) {
     }
 
     if (have_expect_ && src.meta.start_sample != expect_in_) {
-        err = "Channelizer 的输入块不连续：期望首样点序号 " + std::to_string(expect_in_) +
-              "，实际 " + std::to_string(src.meta.start_sample) +
+        err = "Channelizer 的输入块不连续：期望首样点序号 " + numstr(expect_in_) +
+              "，实际 " + numstr(src.meta.start_sample) +
               "；输出样点号由本组件自己数，丢块会静默错位（铁律 15）";
         return Step::Error;
     }
@@ -260,16 +261,16 @@ Step Channelizer::process(PortMap& in, PortMap& out, std::string& err) {
     d.iq.meta.trace.credibility = "V2";
     // 口径四：下游与产品清单要能区分同一个信道化的不同原型版本与不同切法
     d.iq.meta.trace.parameter_version = std::string("chan-") + fir_version_ + "-m" +
-                                        std::to_string(channels_) + "-j" + std::to_string(select_);
+                                        numstr(channels_) + "-j" + numstr(select_);
     d.iq.meta.trace.trace_id = "channelizer";
     if (out_count_ == 0) {
         // 口径四：变更采样率的组件要在块上留一条说明。记录性质，不是降级。
         d.iq.meta.state_reasons.push_back(
             "chan_rate:" + num(fs_in_) + "->" + num(fs_out_) + " Hz，" +
-            std::to_string(channels_) + " 路子信道取第 " + std::to_string(select_) +
-            " 路（原始 bin " + std::to_string(raw_bin_) + "），中心偏移 " +
+            numstr(channels_) + " 路子信道取第 " + numstr(select_) +
+            " 路（原始 bin " + numstr(raw_bin_) + "），中心偏移 " +
             num(static_cast<double>(select_ - channels_ / 2) * fs_out_) + " Hz，群时延 " +
-            std::to_string(group_delay_) + " 个输入样点已在时间锚里扣除");
+            numstr(group_delay_) + " 个输入样点已在时间锚里扣除");
     }
     out_count_ += static_cast<std::uint64_t>(d.iq.samples.size());
     status_.blocks_out++;
@@ -288,17 +289,17 @@ Step Channelizer::flush(PortMap&, std::string& err) {
     const std::uint64_t dropped = samples_in_ > used ? samples_in_ - used : 0;
     const std::uint64_t warm = (gd + m - 1) / m;
     status_.notes.push_back(
-        "入 " + std::to_string(samples_in_) + " 样点 @ " + num(fs_in_) + " Hz，出 " +
-        std::to_string(out_count_) + " 样点 @ " + num(fs_out_) + " Hz（" +
-        std::to_string(channels_) + " 路取第 " + std::to_string(select_) + " 路）；群时延 " +
-        std::to_string(gd) + " 个输入样点已在时间锚里扣除（输出 m ↔ 输入 m·" +
-        std::to_string(channels_) + "）；起始 " + std::to_string(warm) +
-        " 个输出样点含滤波器启动瞬态；收尾丢弃 " + std::to_string(dropped) +
+        "入 " + numstr(samples_in_) + " 样点 @ " + num(fs_in_) + " Hz，出 " +
+        numstr(out_count_) + " 样点 @ " + num(fs_out_) + " Hz（" +
+        numstr(channels_) + " 路取第 " + numstr(select_) + " 路）；群时延 " +
+        numstr(gd) + " 个输入样点已在时间锚里扣除（输出 m ↔ 输入 m·" +
+        numstr(channels_) + "）；起始 " + numstr(warm) +
+        " 个输出样点含滤波器启动瞬态；收尾丢弃 " + numstr(dropped) +
         " 个输入样点（不足以再出一个输出样点）");
     // 收尾不补零冲刷延迟线，与 DDC 同一口径：补出来的输出是用根本没采到的数据算的（铁律 15）。
     if (pend_clip_ > 0) {
-        status_.notes.push_back("收尾时尚有 " + std::to_string(pend_clip_) +
-                                " 个上游削顶样点未随块带出");
+        status_.notes.push_back("收尾时尚有 " + numstr(pend_clip_) +
+                                " 个上游削波样点未随块带出");
     }
     return Step::Finished;
 }

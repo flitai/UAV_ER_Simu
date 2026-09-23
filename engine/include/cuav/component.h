@@ -39,7 +39,7 @@ struct Detection {
     double noise_dBm = 0.0;           // 噪声估计的频段功率，同上
     double snr_dB = 0.0;              // 10·log10 Λ，即 (S+N)/N
     bool has_dBm = false;             // 输入已标定且参数 band_power_dBm 为真
-    bool overload = false;            // 组成该帧的任一块 clip_count > 0（削顶是数据标记，D-051）
+    bool overload = false;            // 组成该帧的任一块 clip_count > 0（削波是数据标记，D-051）
     std::uint32_t noise_frames_used = 0;   // 判决时噪声估计用了几帧
 };
 
@@ -70,7 +70,7 @@ struct FeatureRow {
     bool has_prev = false;            // 本节点此前有过 full / overload 质量的段
     double interval_from_prev_s = 0.0;   // 本段起点 − 上一段终点
     double hop_from_prev_Hz = 0.0;       // 本段质心 − 上一段质心
-    bool overload = false;            // 段内任一命中帧含削顶块
+    bool overload = false;            // 段内任一命中帧含削波块
     std::string quality;              // full / short / low_snr / overload（EM-S-03 §10.13）
 };
 

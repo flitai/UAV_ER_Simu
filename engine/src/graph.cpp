@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/graph.h"
 
 #include <algorithm>
@@ -188,7 +189,7 @@ RunReport Graph::run_impl(IRandom& rng, IRunObserver* observer, std::uint64_t ma
     // 背压与多线程留待接口稳定后再加。
     std::map<std::string, PortData> buffers;
     auto key = [](NodeId to, const std::string& port) {
-        return std::to_string(to) + "#" + port;
+        return numstr(to) + "#" + port;
     };
 
     // 每个节点的上游集合。下游要靠它判断「上游都结束且缓冲已排空」，

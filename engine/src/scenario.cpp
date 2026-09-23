@@ -1,3 +1,4 @@
+#include "cuav/numstr.h"
 #include "cuav/components/scenario.h"
 
 #include "cuav/buildings_json.h"
@@ -210,8 +211,8 @@ bool ScenarioSource::configure(const std::map<std::string, double>& params,
     // 轮数预算：调度器默认上限一百万轮。与其跑到一半才报"超过最大轮数"，不如现在就说清楚。
     const std::uint64_t rounds = (total_samples_ + block_samples_ - 1) / block_samples_ + 1;
     if (rounds > 1000000u) {
-        err = "本节点需要 " + std::to_string(rounds) + " 轮调度，超过默认上限一百万；"
-              "请把 run.block_size 调大到至少 " + std::to_string(total_samples_ / 999000u + 1);
+        err = "本节点需要 " + numstr(rounds) + " 轮调度，超过默认上限一百万；"
+              "请把 run.block_size 调大到至少 " + numstr(total_samples_ / 999000u + 1);
         return false;
     }
 
@@ -267,8 +268,8 @@ bool ScenarioSource::configure(const std::map<std::string, double>& params,
     }
     // 采样率必须与站点接收机一致：不一致就说明框图与场景在讲两套事，参数帧与 IQ 块的样点窗口对不上。
     if (std::fabs(site->receiver.fs_Hz - sample_rate_Hz_) > 1e-6) {
-        err = "sample_rate_Hz " + std::to_string(sample_rate_Hz_) + " 与站点 " + site_id_ +
-              " 接收机的 fs_Hz " + std::to_string(site->receiver.fs_Hz) + " 不一致";
+        err = "sample_rate_Hz " + numstr(sample_rate_Hz_) + " 与站点 " + site_id_ +
+              " 接收机的 fs_Hz " + numstr(site->receiver.fs_Hz) + " 不一致";
         return false;
     }
 
@@ -561,7 +562,7 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
             const double df = centers[ci].Hz + offset - center_frequency_Hz_;
             if (std::fabs(df) + bw_Hz_ / 2.0 < sample_rate_Hz_ / 2.0) continue;
             if (centers[ci].where == "emission.center_Hz") {
-                err = "辐射源 " + entity_id_ + " 的基带频偏 " + std::to_string(df) +
+                err = "辐射源 " + entity_id_ + " 的基带频偏 " + numstr(df) +
                       " Hz 加半带宽超出奈奎斯特（|Δf| + B/2 < Fs/2，铁律 4）";
             } else {
                 // 需要多大的采样率才装得下最坏的那个频点——算得出来就别让用户猜
@@ -569,12 +570,12 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
                 for (std::size_t k = 0; k < centers.size(); ++k)
                     worst = std::max(worst, std::fabs(centers[k].Hz + offset - center_frequency_Hz_));
                 const double need = 2.0 * (worst + bw_Hz_ / 2.0);
-                err = "辐射源 " + entity_id_ + " 的跳频点 " + std::to_string(centers[ci].Hz) +
-                      " Hz（" + centers[ci].where + "）折成基带频偏 " + std::to_string(df) +
-                      " Hz，加半带宽 " + std::to_string(bw_Hz_ / 2.0) + " Hz 不小于 Fs/2 = " +
-                      std::to_string(sample_rate_Hz_ / 2.0) +
+                err = "辐射源 " + entity_id_ + " 的跳频点 " + numstr(centers[ci].Hz) +
+                      " Hz（" + centers[ci].where + "）折成基带频偏 " + numstr(df) +
+                      " Hz，加半带宽 " + numstr(bw_Hz_ / 2.0) + " Hz 不小于 Fs/2 = " +
+                      numstr(sample_rate_Hz_ / 2.0) +
                       " Hz（|Δf| + B/2 < Fs/2，铁律 4）；请收窄跳频序列的跨度、调小 emission.bw_Hz，"
-                      "或把站点 fs_Hz 提到大于 " + std::to_string(need) + " Hz";
+                      "或把站点 fs_Hz 提到大于 " + numstr(need) + " Hz";
             }
             return false;
         }
@@ -593,8 +594,8 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
         }
         double gain = 0.0;
         if (!dsp::impulse_power_gain(lp_, gain, lp_settle_, err)) {
-            err = "辐射源 " + entity_id_ + " 的噪声带限（截止 " + std::to_string(fc) + " Hz / 采样率 " +
-                  std::to_string(sample_rate_Hz_) + " Hz）：" + err;
+            err = "辐射源 " + entity_id_ + " 的噪声带限（截止 " + numstr(fc) + " Hz / 采样率 " +
+                  numstr(sample_rate_Hz_) + " Hz）：" + err;
             return false;
         }
         lp_gain_norm_ = 1.0 / std::sqrt(gain);
@@ -626,10 +627,10 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
         burst_period_n_ = static_cast<std::uint64_t>(p + 0.5);
         burst_on_n_ = static_cast<std::uint64_t>(waveform_.duty * static_cast<double>(burst_period_n_) + 0.5);
         if (burst_period_n_ == 0 || burst_on_n_ == 0 || burst_on_n_ >= burst_period_n_) {
-            err = "突发周期 " + std::to_string(waveform_.period_s) + " s 与占空比 " +
-                  std::to_string(waveform_.duty) + " 在 " + std::to_string(sample_rate_Hz_) +
-                  " Hz 下折不出有效的整数样点图案（导通 " + std::to_string(burst_on_n_) + " / 周期 " +
-                  std::to_string(burst_period_n_) + "）；不把占空比夹到端点（铁律 15）";
+            err = "突发周期 " + numstr(waveform_.period_s) + " s 与占空比 " +
+                  numstr(waveform_.duty) + " 在 " + numstr(sample_rate_Hz_) +
+                  " Hz 下折不出有效的整数样点图案（导通 " + numstr(burst_on_n_) + " / 周期 " +
+                  numstr(burst_period_n_) + "）；不把占空比夹到端点（铁律 15）";
             return false;
         }
     }
@@ -682,7 +683,7 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
         const std::uint64_t stop = std::min<std::uint64_t>(seg.end, s0 + n);
         // 段长必须为正，否则死循环。ActivitySchedule 保证 end > 查询点，这里显式兜一道。
         if (stop <= s0 + i) {
-            err = "活动时间线给出的子段长度为零（样点 " + std::to_string(s0 + i) + "）";
+            err = "活动时间线给出的子段长度为零（样点 " + numstr(s0 + i) + "）";
             return Step::Error;
         }
         // 带限之后 noise 也走同一条相位搬移路径，offset_Hz 对三种波形一视同仁（C-8）
@@ -747,7 +748,7 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
             }
         } else if (alias_frac_ > 1e-3) {
             // 带限了，但信号离带边太近：裙边绕折过去的功率不可忽略，如实降级
-            d.iq.meta.degrade("噪声波形搬移后有 " + std::to_string(alias_frac_ * 100.0) +
+            d.iq.meta.degrade("噪声波形搬移后有 " + numstr(alias_frac_ * 100.0) +
                               "% 的功率绕折到带的另一头（中心频偏加带宽相对 Fs/2 太靠边）");
             if (!band_note_done_) {
                 status_.notes.push_back("噪声带限：绕折功率占比超过千分之一，频偏相对采样带宽太靠边");
@@ -756,7 +757,7 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
         } else if (!band_note_done_) {
             // 正路：不降级，只记一行说明滤波器是什么形状（阻带不是砖墙）
             status_.notes.push_back("噪声波形按 4 阶巴特沃斯带限，−3 dB 截止 " +
-                                    std::to_string(bw_Hz_ / 2.0) + " Hz，阻带非砖墙");
+                                    numstr(bw_Hz_ / 2.0) + " Hz，阻带非砖墙");
             band_note_done_ = true;
         }
     }

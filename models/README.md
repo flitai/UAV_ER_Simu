@@ -8,7 +8,7 @@
 | `channel/` | 信道 | 时变复信道，把慢变传播参数施加到采样率上 |
 | `antenna/` | 天线 | 复增益与极化损耗 |
 | `receiver/` | 接收机 | 噪声系数、增益、自动增益控制、阻塞、样本级噪声注入；**接收滤波 `RxFilter`**（M-3，D-071）的模型卡在 `receiver/README.md` §8，冻结系数表 `receiver/fir_rx_v1.json`，Coder 产物 `receiver/coder/` |
-| `adc-ddc/` | 模数转换与数字下变频 | 量化、削顶、频移、低通、抽取；模型卡 `adc-ddc/README.md`（M-2，D-070），冻结系数表 `adc-ddc/fir_lp_v1.json` |
+| `adc-ddc/` | 模数转换与数字下变频 | 量化、削波、频移、低通、抽取；模型卡 `adc-ddc/README.md`（M-2，D-070），冻结系数表 `adc-ddc/fir_lp_v1.json` |
 | `channelizer/` | 信道化 | 宽带 IQ 切分为子带 IQ；多相 FFT 滤波器组 `Channelizer`（M-3，D-071，**首条 Coder 链路**），模型卡 `channelizer/README.md`，冻结原型表 `channelizer/fir_pfb_v1.json`，Coder 产物 `channelizer/coder/` |
 | `detection/` | 检测 | 能量检测的滑动噪声估计与突发分段（C-3，D-063）；模型卡在此，代码在引擎 `processing.cpp` |
 
@@ -32,7 +32,7 @@
 |---|---|---|
 | **信道化、接收滤波** | **MATLAB Coder 生成的 C（2026-09-16 落地，D-071）**，放对应子目录的 `coder/`；来源 `.m`、MATLAB 与 Coder 版本、codegen 参数哈希编在 `engine/src/coder_provenance.cpp` 里，由组件的 `source_ref` 给出（08 §13 第 4 条），产物的 sha256 由单测重算核对 | 06 §9D M-3 |
 | **DDC** | **手写 C++**：算法核（数控振荡 + 抽取型 FIR）约 60 行，而封装层按 08 §13 本来就得手写，Coder 在这一件上收益很小——工程取舍，不是许可所迫（D-070 ①） | 06 §9D M-2 |
-| ADC 量化削顶、噪声注入、混合、观测量归约 | 手写 C++ | 引擎 `components/` |
+| ADC 量化削波、噪声注入、混合、观测量归约 | 手写 C++ | 引擎 `components/` |
 | 场景绑定信道、自由空间信道 | 手写 C++，链接 `geo/` | 06 §9C G-3 |
 
 ## 现状（2026-09-16 更新）

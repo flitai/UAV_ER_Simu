@@ -2,7 +2,7 @@
   "components": [
     {
       "category": "receiver",
-      "description": "ADC 采样与量化（04 §7.6）。I、Q 各按 bits 位均匀量化，量化步长 q = 2A / 2^bits，其中 A = 10^(full_scale_dBm/20) 是满量程复单音的幅度；超出可表示范围的样点在 ±A 处削顶。满量程复单音的量化信噪比为 6.02·bits + 1.76 dB。**削顶是数据标记不是降级**：逐块的削顶样点数写进块元数据 clip_count 与 state_reasons，四态不变；只有全程削顶比例超过 degrade_clip_ratio 才在收尾时把组件状态标降级（D-051）。采样时钟偏差、丢样与不连续注入是 04 §7.6 的可选项，本版本未实现。",
+      "description": "ADC 采样与量化（04 §7.6）。I、Q 各按 bits 位均匀量化，量化步长 q = 2A / 2^bits，其中 A = 10^(full_scale_dBm/20) 是满量程复单音的幅度；超出可表示范围的样点在 ±A 处削波。满量程复单音的量化信噪比为 6.02·bits + 1.76 dB。**削波是数据标记不是降级**：逐块的削波样点数写进块元数据 clip_count 与 state_reasons，四态不变；只有全程削波比例超过 degrade_clip_ratio 才在收尾时把组件状态标降级（D-051）。采样时钟偏差、丢样与不连续注入是 04 §7.6 的可选项，本版本未实现。",
       "display_name": "ADC 量化",
       "implementation": "cpp",
       "model_id": "EM-B-11",
@@ -46,7 +46,7 @@
         },
         {
           "default": 0.01,
-          "description": "全程削顶样点比例超过它才标降级",
+          "description": "全程削波样点比例超过它才标降级",
           "max": 1.0,
           "min": 0.0,
           "min_exclusive": true,
