@@ -201,8 +201,13 @@ test('基准场景只读：PUT 被拒，报文说清怎么办（用户 2026-09-1
   // 界面拦不住手写的请求，所以这条闸在服务端：盘上的字节必须一个没动
   assert.equal(await fsp.readFile(join(dir, 'golden-test.scenario.json'), 'utf8'), bytes)
 
-  // 另存为一个不以 golden- 开头的标识：照常写得进去
-  const saveAs = { ...doc, scenario_id: 'my-01' }
+})
+
+// 另存为要走引擎的语义校验（cuav_run --scenario-track），所以单独成一条、缺二进制时明说跳过。
+// 此前它和上面拒写那半写在同一条里，CI 前端 job 没有引擎，整条 503 红掉，连不需要引擎的拒写那半也一起算失败。
+test('另存为一个不以 golden- 开头的标识：照常写得进去', async (t) => {
+  if (!engineOk) return t.skip('缺 engine/build/cuav_run，跳过需要真引擎的用例')
+  const saveAs = { ...demoScenario('golden-test'), scenario_id: 'my-01' }
   const r2 = await fetch(`${base}/api/v1/scenarios/my-01`, {
     method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(saveAs),
   })
@@ -210,8 +215,12 @@ test('基准场景只读：PUT 被拒，报文说清怎么办（用户 2026-09-1
 })
 
 test('清单里标出哪些是基准场景', async () => {
+  // 可写的那份直接落盘，不借上一条经端点另存的 my-01——那条缺引擎时会跳过
+  const dir = join(root, 'data', 'scene', 'test-aoi', 'scenarios')
+  await fsp.writeFile(join(dir, 'mine-01.scenario.json'),
+    JSON.stringify({ ...demoScenario('golden-test'), scenario_id: 'mine-01' }, null, 2) + '\n', 'utf8')
   const b = (await (await fetch(`${base}/api/v1/scenarios`)).json()) as { scenarios: Array<{ scenario_id: string; readonly: boolean }> }
   const byId = new Map(b.scenarios.map((x) => [x.scenario_id, x.readonly]))
   assert.equal(byId.get('golden-test'), true, 'golden- 开头的标为只读')
-  assert.equal(byId.get('my-01'), false, '自己另存的可写')
+  assert.equal(byId.get('mine-01'), false, '自己另存的可写')
 })
