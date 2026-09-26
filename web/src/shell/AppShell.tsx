@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { installAppProbe, probeMapInstanceId } from '../scene/probe.js'
 import { occlusionState, occlusionNote } from '../scene/occlusion/store.js'
 import { losProbeStore } from '../scene/losProbe.js'
+import { coverageProbe } from '../scene/coverage/store.js'
 import { SceneView } from '../scene/SceneView.js'
 import { situationSnapshot } from '../scene/sceneStore.js'
 import { currentSituation } from '../scene/situationView.js'
@@ -136,6 +137,8 @@ export function AppShell() {
           intrusion_m: r?.intrusion_m ?? null,
         }
       })(),
+      // 探测范围（D-079）。只读摘要，探针不触发计算
+      coverage: coverageProbe(),
       taskList: probeTaskList(taskListStore.get()),
       dataCenter: probeDataCenter(datasetStore.get()),
       detections: probeDetections(detectionStore.get()),

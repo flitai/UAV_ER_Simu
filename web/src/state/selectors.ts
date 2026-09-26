@@ -94,6 +94,11 @@ export interface ProbeExtras {
   timeline3?: ReturnType<typeof probeTimeline3>
   /** 建筑几何的懒加载状态（D3-6），由 scene/occlusion/store.ts 给 */
   occlusion?: { status: string; buildings: number | null; ms: number; note: string }
+  /** 探测范围（D-079），由 scene/coverage/store.ts 给；没开过时 on = false、status = 'off' */
+  coverage?: {
+    on: boolean; status: string; site: string; height_agl_m: number | null; cells: number
+    pdMax: number | null; contourSegments: number; target: string | null; ms: number | null
+  }
   /** 最近一次视距探测（D3-7），由 scene/losProbe.ts 给；没探测过时 status = 'idle'、其余为 null */
   losProbe?: {
     status: string
@@ -228,6 +233,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     // 那 15.9 MB 只有真要算遮挡时才取，端到端据此验「懒加载确实懒住了」。
     occlusion: x.occlusion,
     losProbe: x.losProbe,
+    coverage: x.coverage,
     entities: x.entities,
     links: x.links,
     // 逐项挑而不是整包展开——这里漏了新字段就在探针上看不见，切片 ⑥b 踩过一次

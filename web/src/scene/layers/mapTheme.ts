@@ -13,6 +13,7 @@ import { setBuildingsBaseColor } from './buildings3d.js'
 import { AOI_BOUNDARY_LAYER_ID } from './aoiBoundary.js'
 import { HILLSHADE_LAYER_ID, hillshadePaint } from './hillshade.js'
 import { LOS_PROBE_LAYER_IDS } from './losProbe.js'
+import { applyCoverageTheme } from './coverage.js'
 
 export function basemapPalette(theme: Theme) {
   return theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT
@@ -41,5 +42,6 @@ export async function applyMapTheme(map: MLMap, theme: Theme): Promise<void> {
       if (id.endsWith('dot')) map.setPaintProperty(id, 'circle-stroke-color', SIT.halo)
     }
   } catch { /* 地图正在拆除 */ }
+  applyCoverageTheme(map)
   await applySituationTheme(map)
 }

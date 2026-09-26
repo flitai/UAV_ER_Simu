@@ -24,6 +24,9 @@ export interface MapToolbarProps {
   /** 测向的画法（D-078）：渐隐色带（缺省）或按测向质量分档的虚线 */
   bearingStyle: BearingStyle
   onBearingStyle: (v: BearingStyle) => void
+  /** 探测范围（D-079）：考虑建筑遮挡、给定高度的检测概率覆盖图 */
+  coverage: boolean
+  onCoverage: (v: boolean) => void
   /** 告警区与高度立柱（D-061） */
   zonesOn: boolean
   onZones: (v: boolean) => void
@@ -75,6 +78,7 @@ export function MapToolbar(p: MapToolbarProps) {
                   <option value="line">虚线（按测向质量分档）</option>
                 </select>
               </label>
+              <label data-layer="coverage"><input type="checkbox" checked={p.coverage} onChange={(e) => p.onCoverage(e.target.checked)} /> 探测范围</label>
               <label data-layer="zones"><input type="checkbox" checked={p.zonesOn} onChange={(e) => p.onZones(e.target.checked)} /> 告警区</label>
               <label data-layer="poles"><input type="checkbox" checked={p.poles} onChange={(e) => p.onPoles(e.target.checked)} /> 高度立柱</label>
               <label data-layer="all-overlays"><input type="checkbox" checked={p.allOverlays} onChange={(e) => p.onAllOverlays(e.target.checked)} /> 全部目标叠加</label>

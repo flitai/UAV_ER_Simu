@@ -34,6 +34,8 @@ export const SIT_LIGHT = {
   zoneAlert: '#b91c1c',   // 告警区 alert；入圈目标的红环变体也用它
   zoneWarning: '#92400e', // 告警区 warning
   label: '#48423a',       // 地图上的目标与距离标注（= PM.ink）
+  // 探测范围的 Pd = 0.9 等值线（D-079）。同一判据实测：陆地 / 建筑 / 水面 6.79 / 5.83 / 5.39
+  coverageContour: '#115e59',
 }
 
 type SitPalette = { [K in keyof typeof SIT_LIGHT]: string }
@@ -62,6 +64,8 @@ export const SIT_DARK: SitPalette = {
   zoneAlert: '#ef4444',
   zoneWarning: '#eab308',
   label: '#e2e8f0',
+  // em-demo 深色底上的原色；实测 15.99 / 13.57 / 13.99
+  coverageContour: '#aaffdd',
 }
 
 /**

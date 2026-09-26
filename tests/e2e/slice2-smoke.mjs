@@ -32,6 +32,17 @@ const netUrls = []
 const WORK_SCENARIO = 'e2e-slice2-work'
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }); console.error(`  ${ok ? '✓' : '✗'} ${name}${detail ? `  —— ${detail}` : ''}`) }
 const alt = (digit) => ({ key: String(digit), code: `Digit${digit}`, vk: 48 + digit, modifiers: 1 })
+/** 轮询一个页面表达式直到等于 want（或超时），返回最后读到的值 */
+const waitDom = async (page, expr, want, ms = 8000) => {
+  const t0 = Date.now()
+  let got
+  do {
+    got = await page.evaluate(expr)
+    if (got === want) return got
+    await new Promise((r) => setTimeout(r, 100))
+  } while (Date.now() - t0 < ms)
+  return got
+}
 const waitApp = (page, fn, label, timeoutMs = 90000) => { console.error(`  … ${label}`); return page.waitFor((s) => s.app && fn(s.app, s), { label, timeoutMs }) }
 
 const golden = JSON.parse(readFileSync(join(ROOT, 'tests/golden/scenario-track-golden-01.json'), 'utf8'))
@@ -557,6 +568,38 @@ try {
   // 桶网格里的栋数等于那份 GeoJSON 解出来的数，瓦片一栋也没混进来。
   check('D4-3 瓦片 buildings 层没混进遮挡计算：桶网格 47662 栋 = GeoJSON 47582 要素拆出来的数',
     same.physicsTotal === 47662, `${same.physicsTotal} 栋`)
+
+  // ---------- 探测范围（D-079）：开关 → 后台算完 → 两层可见；改高度重算；关掉即隐；深色下等值线换色 ----------
+  await page.evaluate("(window.location.hash = '#/scene', true)")
+  await waitApp(page, (a) => a.view === 'scene', '回场景页')
+  const covOpen = () => page.evaluate(`(() => { const b = [...document.querySelectorAll('.map-toolbar button')].find((x) => x.textContent.startsWith('图层')); b.click(); return true })()`)
+  await covOpen()
+  await page.evaluate(`(document.querySelector('[data-layer=coverage] input').click(), true)`)
+  await covOpen()
+  st = await waitApp(page, (a) => a.coverage?.status === 'ready' || a.coverage?.status === 'error', '探测范围算完', 60000)
+  const cov1 = st.app.coverage
+  check('探测范围：打开开关后后台算完，40000 格（20 × 20 km、100 m）、Pd 最大值在 (0, 1]、Pd = 0.9 等值线有线段',
+    cov1.status === 'ready' && cov1.cells === 40000 && cov1.pdMax > 0 && cov1.pdMax <= 1 && cov1.contourSegments > 0, JSON.stringify(cov1))
+  const covVis = await page.evaluate(`['cuav-coverage-fill', 'cuav-coverage-contour'].map((id) => window.__map.getLayoutProperty(id, 'visibility'))`)
+  check('探测范围：着色图与等值线两层可见，地图左下有图例', JSON.stringify(covVis) === '["visible","visible"]'
+    && (await page.evaluate("document.querySelectorAll('[data-coverage-legend]').length")) === 1, JSON.stringify(covVis))
+  // 改高度：固定到 1.5 m（贴地，几乎处处被楼挡），结果必须重算且不同
+  await page.evaluate(`(() => { const el = document.querySelector('[data-field=coverage-height]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '1.5');
+    el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`)
+  st = await waitApp(page, (a) => a.coverage?.status === 'ready' && a.coverage?.height_agl_m === 1.5, '按 1.5 m 重算', 60000)
+  check('探测范围：目标高度改成 1.5 m 后重算，等值线与之前不同', st.app.coverage.contourSegments !== cov1.contourSegments,
+    `${cov1.height_agl_m?.toFixed(1)} m → 1.5 m：等值线 ${cov1.contourSegments} → ${st.app.coverage.contourSegments} 段`)
+  await page.evaluate("(document.querySelector('[data-act=theme]').click(), true)")
+  const contourDark = await waitDom(page, "window.__map.getPaintProperty('cuav-coverage-contour', 'line-color')", '#aaffdd')
+  await page.evaluate("(document.querySelector('[data-act=theme]').click(), true)")
+  const contourLight = await waitDom(page, "window.__map.getPaintProperty('cuav-coverage-contour', 'line-color')", '#115e59')
+  check('探测范围：等值线随主题换色（深色 #aaffdd、浅色 #115e59）', contourDark === '#aaffdd' && contourLight === '#115e59', `${contourDark} / ${contourLight}`)
+  await covOpen()
+  await page.evaluate(`(document.querySelector('[data-layer=coverage] input').click(), true)`)
+  await covOpen()
+  const covOff = await waitDom(page, "window.__map.getLayoutProperty('cuav-coverage-fill', 'visibility')", 'none')
+  check('探测范围：关掉开关两层即隐、图例收起', covOff === 'none' && (await page.evaluate("document.querySelectorAll('[data-coverage-legend]').length")) === 0)
 
   const shot = join(tmpdir(), 'cuav-slice2-smoke.png')
   await page.screenshot(shot)

@@ -32,9 +32,12 @@ import { useAppState, useStore } from '../state/store.js'
 import { saveScenario, saveScenarioAs } from '../shell/actions.js'
 import { mountSituation, useLiveSituation, useScenarioLayers } from './useSituation.js'
 import { clearSituation, setLayersVisible } from './layers/situation.js'
-import { addEmitter, addSite, addWaypoint, addZone, moveSite, moveWaypoint } from './editor/scenarioOps.js'
+import { addEmitter, addSite, addWaypoint, addZone, moveSite, moveWaypoint, sites as scenarioSites } from './editor/scenarioOps.js'
 import type { BearingStyle } from './layers/fixOverlay.js'
 import { themeStore } from '../shell/theme.js'
+import { addCoverageLayers, setCoverage, setCoverageVisible } from './layers/coverage.js'
+import { coverageContour, coverageStore, coverageValues, requestCoverage } from './coverage/store.js'
+import { CoverageLegend } from './CoverageLegend.js'
 import { applyMapTheme, basemapPalette } from './layers/mapTheme.js'
 import { setSituationTheme } from './style/situation.js'
 
@@ -116,6 +119,7 @@ export function SceneView({ active }: { active: boolean }) {
       addAoiBoundary(map, scene.bbox)
       mountSituation(map)
       addLosProbeLayers(map)
+      addCoverageLayers(map)
       setReady(true)
     }
     map.on('style.load', mount)
@@ -343,6 +347,36 @@ export function SceneView({ active }: { active: boolean }) {
     losProbeStore.clear()
   }, [s.scene.scenario.id])
 
+  // ---------------- 探测范围（D-079）
+  // 换场景即清：结果里的站与目标来自上一份场景
+  useEffect(() => { coverageStore.reset() }, [s.scene.scenario.id])
+  const cov = useSyncExternalStore(coverageStore.subscribe, coverageStore.get)
+  const focusId = focusTargetId(s)
+  // 触发重算：开关、固定高度、场景文档、焦点目标、框图（检测器参数）、组件目录。
+  // **时间不在里面**：回放时焦点目标的高度每帧都在变，跟着它就是每帧重算一张 40000 格的图；
+  // 缺省高度只在这些事件发生的那一刻取一次。去抖 300 ms：拖着改参数时只算最后一次。
+  useEffect(() => {
+    if (!cov.on || !ready || !scene) return
+    const t = window.setTimeout(() => {
+      requestCoverage(live.current.state, scene.buildingsUrl, [scene.center[0], scene.center[1]], scene.bbox)
+    }, 300)
+    return () => window.clearTimeout(t)
+  }, [cov.on, cov.heightOverride, ready, scene, s.scene.scenario.doc, focusId, s.diagram.text, s.components.catalog])
+  // 画：订阅那个小 store，开关、站选择或结果一变就重画
+  useEffect(() => {
+    if (!ready) return
+    const draw = () => {
+      const map = mapRef.current
+      if (!map) return
+      const st = coverageStore.get()
+      setCoverageVisible(map, st.on)
+      const v = coverageValues()
+      setCoverage(map, st.on && st.result ? st.result : null, st.on ? v : null, st.on ? coverageContour() : [])
+    }
+    draw()
+    return coverageStore.subscribe(draw)
+  }, [ready])
+
   // 探测线跟着探测结果走。**不进主 store**（D-049 ⑩）：订阅那个小 store，变了就重画一条线。
   useEffect(() => {
     if (!ready) return
@@ -425,11 +459,13 @@ export function SceneView({ active }: { active: boolean }) {
       center={
         <div className="scene">
           <div ref={box} className="scene-map" />
+          <CoverageLegend dev={dev} siteNames={scenarioSites(s.scene.scenario.doc).map((x) => ({ id: String(x.id), name: String(x.name ?? x.id) }))} />
           <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat}
                       situation={situation} onSituation={setSituation} fix={fix} onFix={setFix}
                       bearingStyle={bearingStyle} onBearingStyle={setBearingStyle}
                       onSaveAs={() => { void onSaveAs() }}
                       zonesOn={zonesOn} onZones={setZonesOn} poles={poles} onPoles={setPoles}
+                      coverage={cov.on} onCoverage={(v) => coverageStore.setOn(v)}
                       allOverlays={allOverlays} onAllOverlays={setAllOverlays}
                       editMode={editMode} onEditMode={onEditMode}
                       onSave={() => void onSave()} saving={saving} />
