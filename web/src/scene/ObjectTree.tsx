@@ -7,6 +7,7 @@ import { loadScenarioInto } from '../shell/actions.js'
 import { fmtHz, fmtSeconds } from '../shell/format.js'
 import { emitters, sites, zones } from './editor/scenarioOps.js'
 import type { SceneSelection } from '../state/types.js'
+import { PlatformIcon } from './cards/icons.js'
 
 function sameSel(a: SceneSelection | null, b: SceneSelection): boolean {
   if (!a || a.kind !== b.kind) return false
@@ -81,7 +82,9 @@ export function ObjectTree({ onFlyTo }: { onFlyTo: (lon: number, lat: number) =>
         return (
           <button key={id} className={'tree-row' + (active ? ' sel' : '')}
                   data-tree-emitter={id} onClick={() => pick({ kind: 'emitter', id }, p.lon, p.lat)}>
-            ✈ {String(x.name ?? id)} <span className="tree-dim">{fmtHz(Number(em?.center_Hz ?? 0))}</span>
+            {/* 与地图、右栏同一份机型剪影（D-078） */}
+            <span className="tree-icon"><PlatformIcon type={String(x.platform_type ?? '')} size={14} /></span>
+            {String(x.name ?? id)} <span className="tree-dim">{fmtHz(Number(em?.center_Hz ?? 0))}</span>
           </button>
         )
       })}

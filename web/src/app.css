@@ -278,6 +278,8 @@ details.scene-panel > summary::-webkit-details-marker { display: none; }
 .tree-row.sel { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .tree-row.sel .tree-dim { color: var(--paper); opacity: 0.75; }
 .tree-row.indent { padding-left: 18px; }
+.tree-icon { display: inline-flex; vertical-align: -2px; margin-right: 4px; color: var(--target); }
+.tree-row.sel .tree-icon { color: inherit; }
 
 .form-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
 /* 标签列 88 px：七字标签（群时延不确定度）一行放得下；控件与单位同一行，单位不再折到下一行（2026-09-13） */
