@@ -390,6 +390,34 @@ try {
   check('框图页没有时间轴条', !!tlDia && tlDia.hidden === true, JSON.stringify(tlDia))
   await page.evaluate("(window.location.hash = '#/scene', true)")
   await page.waitFor((s) => s.app?.view === 'scene', { label: '回场景页', timeoutMs: 10000 })
+  // ---------- ⑦ 浅色 / 深色切换（D-078）：按层换色，不重建地图、不丢态势 ----------
+  trace('进入 ⑦ 主题切换')
+  const themeState = () => evalJson(page, `(() => { const m = window.__map; const c = m ? m.getCenter() : null
+    const ids = ${JSON.stringify(['cuav-zone-fill', 'cuav-zone-line', 'cuav-link-line', 'cuav-link-label', 'cuav-route-line', 'cuav-trail-line', 'cuav-waypoint-dot', 'cuav-site-dot', 'cuav-site-icon', 'cuav-target-pole', 'cuav-target-ring', 'cuav-target-icon', 'cuav-target-label'])}
+    return { theme: document.documentElement.dataset.theme, bg: m ? m.getPaintProperty('bg', 'background-color') : null,
+             layers: m ? ids.filter((id) => !!m.getLayer(id)).length : -1, overlay: document.querySelectorAll('canvas.cuav-fix-overlay').length,
+             focus: document.querySelector('[data-focus-card]')?.dataset.focusCard ?? null, rows: document.querySelectorAll('[data-target-row]').length,
+             icon: m ? m.hasImage('cuav-drone') && m.hasImage('cuav-drone-alert') : false,
+             cam: c ? [c.lng.toFixed(9), c.lat.toFixed(9), m.getZoom().toFixed(6)].join(',') : null,
+             body: getComputedStyle(document.body).backgroundColor } })()`)
+  const th0 = await themeState()
+  check('缺省浅色主题：底图底色是 Airports 的纸色', th0.theme === 'light' && th0.bg === '#f4f1ec', JSON.stringify(th0))
+  await page.evaluate("(document.querySelector('[data-act=theme]').click(), true)")
+  const thDark = await waitDom(page, "window.__map ? window.__map.getPaintProperty('bg', 'background-color') : ''", '#0a0e17')
+  const th1 = await themeState()
+  check('点顶栏主题按钮换深色：<html data-theme=dark>、底图换深色、页底换深色',
+    th1.theme === 'dark' && thDark === '#0a0e17' && th1.body === 'rgb(10, 14, 23)', JSON.stringify(th1))
+  check('换主题不重建地图：13 个态势图层、叠加画布、焦点卡、目标列表、图标都在，相机不动',
+    th1.layers === 13 && th1.overlay === 1 && th1.focus === th0.focus && th1.rows === 3 && th1.icon && th1.cam === th0.cam,
+    `${JSON.stringify(th0)} → ${JSON.stringify(th1)}`)
+  const linkDark = await evalJson(page, "window.__map ? JSON.stringify(window.__map.getPaintProperty('cuav-link-line', 'line-color')) : ''")
+  check('态势图层按深色色表重设（视距绿 #22c55e）', /#22c55e/.test(linkDark), linkDark)
+  await page.evaluate("(document.querySelector('[data-act=theme]').click(), true)")
+  const thLight = await waitDom(page, "window.__map ? window.__map.getPaintProperty('bg', 'background-color') : ''", '#f4f1ec')
+  const th2 = await themeState()
+  check('再点回浅色：底图、态势色、页面全部回到原值', th2.theme === 'light' && thLight === '#f4f1ec' && th2.layers === 13 && th2.cam === th0.cam
+    && /#15803d/.test(await evalJson(page, "JSON.stringify(window.__map.getPaintProperty('cuav-link-line', 'line-color'))")), JSON.stringify(th2))
+
   check('默认 DOM 里没有开发者模式元素', (await evalJson(page, "document.querySelectorAll('[data-dev]').length")) === 0)
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '))
 } catch (e) {

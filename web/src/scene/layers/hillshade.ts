@@ -4,6 +4,7 @@
 // 禁止隐式相加）。数据只到 zoom 8，更高缩放由 MapLibre 自己放大。
 
 import type { Map as MLMap } from 'maplibre-gl'
+import { themeStore } from '../../shell/theme.js'
 
 export const DEM_SOURCE_ID = 'dem'
 export const HILLSHADE_LAYER_ID = 'hillshade'
@@ -30,13 +31,28 @@ export function addHillshade(map: MLMap, opts: HillshadeOptions): void {
   }
   map.addLayer({
     id: HILLSHADE_LAYER_ID, type: 'hillshade', source: DEM_SOURCE_ID,
-    paint: {
-      'hillshade-exaggeration': 0.28,
-      'hillshade-shadow-color': 'rgba(88,96,112,0.34)',
-      'hillshade-highlight-color': 'rgba(255,255,255,0.22)',
-      'hillshade-accent-color': 'rgba(0,0,0,0)',
-    },
+    paint: hillshadePaint(themeStore.get()),
   }, before)
+}
+
+/**
+ * 山体阴影的 paint。浅色是 Airports 原值（1218 行）；深色底上白色高光会把山地抹成一片灰，
+ * 阴影换纯黑、高光压到很淡（D-078）。
+ */
+export function hillshadePaint(theme: 'light' | 'dark'): Record<string, unknown> {
+  return theme === 'dark'
+    ? {
+        'hillshade-exaggeration': 0.28,
+        'hillshade-shadow-color': 'rgba(0,0,0,0.45)',
+        'hillshade-highlight-color': 'rgba(255,255,255,0.05)',
+        'hillshade-accent-color': 'rgba(0,0,0,0)',
+      }
+    : {
+        'hillshade-exaggeration': 0.28,
+        'hillshade-shadow-color': 'rgba(88,96,112,0.34)',
+        'hillshade-highlight-color': 'rgba(255,255,255,0.22)',
+        'hillshade-accent-color': 'rgba(0,0,0,0)',
+      }
 }
 
 export function removeHillshade(map: MLMap): void {

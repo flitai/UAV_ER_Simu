@@ -50,3 +50,22 @@ test('署名字段保留（OpenStreetMap 按 ODbL 要求署名，铁律 13）', 
   assert.match(s.pm.attribution, /OpenStreetMap/)
   assert.match(s.pm.attribution, /Protomaps/)
 })
+
+// 深色底图（D-078）：只换颜色。图层 id、顺序、过滤、布局、缩放门槛逐项与浅色相同，
+// paint 的键集合相同、非颜色的值相同——否则两种主题下看到的就不是同一张图。
+test('深色样式与浅色只差颜色', async () => {
+  const { BASEMAP_DARK } = await import('./protomaps.js')
+  const dark = protomapsStyle({ url: '__PMTILES_URL__', maxzoom: 15, palette: BASEMAP_DARK }) as unknown as { layers: Array<Record<string, unknown>> }
+  const light = mine as unknown as { layers: Array<Record<string, unknown>> }
+  assert.equal(dark.layers.length, light.layers.length)
+  const isColor = (v: unknown) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)
+  const strip = (v: unknown): unknown => (isColor(v) ? '<color>' : Array.isArray(v) ? v.map(strip)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, strip(x)])) : v)
+  let changed = 0
+  for (let i = 0; i < light.layers.length; i++) {
+    assert.equal(JSON.stringify(strip(dark.layers[i])), JSON.stringify(strip(light.layers[i])), `第 ${i} 层（${light.layers[i]!.id}）结构不同`)
+    if (JSON.stringify(dark.layers[i]) !== JSON.stringify(light.layers[i])) changed++
+  }
+  // 真的换了色：60 层里只有不带颜色的层才会相同
+  assert.ok(changed > 50, `只有 ${changed} 层换了色`)
+})

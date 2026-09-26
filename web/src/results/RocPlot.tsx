@@ -12,7 +12,8 @@
 // **横轴取对数**（1e-6 … 1）：本系统的目标虚警率是 1e-3，线性轴上整条曲线都贴在左缘，读不出东西。
 // Pfa = 0 的点（门限扫到最高、一个虚警都没有）在对数轴上没有位置，贴到左缘并在图例写明轴的下限。
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { themeStore } from '../shell/theme.js'
 import { analyticRocFamily, familySnrsDb } from './analytic.js'
 
 export interface RocProps {
@@ -28,7 +29,9 @@ const H = 300
 const PAD = { l: 44, r: 20, t: 10, b: 30 }
 /** 横轴下限：10^AX_MIN。低于它的（含 Pfa = 0）贴左缘 */
 const AX_MIN = -6
-const C = { ink: '#48423a', dim: '#7b7367', grid: '#ddd7cd', trace: '#2f5d7c', mark: '#a33333', fam: '#c3bcb2' }
+const C_LIGHT = { ink: '#48423a', dim: '#7b7367', grid: '#ddd7cd', trace: '#2f5d7c', mark: '#a33333', fam: '#c3bcb2' }
+/** 深色（D-078），与 app.css 的深色令牌同值；迹线换亮一档 */
+const C_DARK: typeof C_LIGHT = { ink: '#e2e8f0', dim: '#94a3b8', grid: '#1e293b', trace: '#7dd3fc', mark: '#ef4444', fam: '#475569' }
 
 export function RocPlot({ points, workingPoint, mBins, dev }: RocProps) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -37,7 +40,9 @@ export function RocPlot({ points, workingPoint, mBins, dev }: RocProps) {
     : usable.length === 0 ? 'Pfa —（tn + fp = 0）'
     : ''
 
+  const theme = useSyncExternalStore(themeStore.subscribe, themeStore.get)
   useEffect(() => {
+    const C = theme === 'dark' ? C_DARK : C_LIGHT
     const cv = ref.current
     if (!cv) return
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1))
@@ -118,7 +123,7 @@ export function RocPlot({ points, workingPoint, mBins, dev }: RocProps) {
     ctx.strokeStyle = C.ink
     ctx.lineWidth = 1
     ctx.strokeRect(x0 + 0.5, y0 + 0.5, pw - 1, ph - 1)
-  }, [points, workingPoint, mBins, dev, usable.length])
+  }, [points, workingPoint, mBins, dev, usable.length, theme])
 
   return (
     <div className="roc" data-roc data-roc-points={usable.length} data-roc-family={dev && mBins ? String(mBins) : ''}>

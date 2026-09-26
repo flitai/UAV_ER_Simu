@@ -25,13 +25,29 @@ export interface Buildings3dOptions {
   colorBySrc?: boolean
 }
 
-const COLOR_BY_SRC: ExpressionSpecification = [
-  'match', ['get', 'src'],
-  'osm:height', '#8c6d5a',
-  'osm:levels', '#b09a86',
-  'tile:height', '#c0392b',
-  PM.bldg,                       // est:area 及其它，用与瓦片建筑相同的浅色
-]
+/**
+ * 建筑的底色：随主题换（D-078），缺省是 Airports 的 `PM.bldg`。按来源分色只在开发者模式，
+ * 它的三档色不随主题换——那是内部诊断，不是演示画面。
+ */
+let baseColor: string = PM.bldg
+let bySrcOn = false
+
+function colorBySrcExpr(): ExpressionSpecification {
+  return [
+    'match', ['get', 'src'],
+    'osm:height', '#8c6d5a',
+    'osm:levels', '#b09a86',
+    'tile:height', '#c0392b',
+    baseColor,                     // est:area 及其它，用与瓦片建筑相同的底色
+  ]
+}
+
+/** 切主题：换建筑底色并重设图层（按来源分色开着时保持分色）。 */
+export function setBuildingsBaseColor(map: MLMap | null, color: string): void {
+  baseColor = color
+  if (!map || !map.getLayer(BUILDINGS_LAYER_ID)) return
+  map.setPaintProperty(BUILDINGS_LAYER_ID, 'fill-extrusion-color', bySrcOn ? colorBySrcExpr() : baseColor)
+}
 
 /**
  * **渲染侧缺高度时的兜底值必须是 0，不能是别的数**（D4，D-076）。
@@ -50,7 +66,7 @@ export const BASE_FALLBACK_M = 0
 
 export function buildings3dPaint(colorBySrc = false): FillExtrusionLayerSpecification['paint'] {
   return {
-    'fill-extrusion-color': colorBySrc ? COLOR_BY_SRC : PM.bldg,
+    'fill-extrusion-color': colorBySrc ? colorBySrcExpr() : baseColor,
     // 14→14.7 的插值让建筑从平面"长起来"，避免跨过 minzoom 时整片弹出
     'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'],
       14, 0, 14.7, ['coalesce', ['get', 'height_m'], HEIGHT_FALLBACK_M]],
@@ -71,6 +87,7 @@ let sourceUrl: string | null = null
 export function buildingsSourceUrl(): string | null { return sourceUrl }
 
 export function addBuildings3d(map: MLMap, opts: Buildings3dOptions): void {
+  bySrcOn = opts.colorBySrc === true
   if (map.getLayer(BUILDINGS_LAYER_ID)) return
   sourceUrl = opts.data
   if (!map.getSource(BUILDINGS_SOURCE_ID)) {
@@ -89,5 +106,6 @@ export function addBuildings3d(map: MLMap, opts: Buildings3dOptions): void {
 
 export function setBuildingsColorBySrc(map: MLMap, on: boolean): void {
   if (!map.getLayer(BUILDINGS_LAYER_ID)) return
-  map.setPaintProperty(BUILDINGS_LAYER_ID, 'fill-extrusion-color', on ? COLOR_BY_SRC : PM.bldg)
+  bySrcOn = on
+  map.setPaintProperty(BUILDINGS_LAYER_ID, 'fill-extrusion-color', on ? colorBySrcExpr() : baseColor)
 }

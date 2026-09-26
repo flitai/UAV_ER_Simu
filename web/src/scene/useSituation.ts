@@ -26,6 +26,7 @@ import { emitters, posOf, routeOf, sites, splitLinkId, waypointsOf, zoneOf, zone
 import { currentSituation, situationRev } from './situationView.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { platformKind, type PlatformKind } from './style/platformIcons.js'
+import { themeStore } from '../shell/theme.js'
 
 const TICK_MS = 50   // 20 Hz
 
@@ -144,11 +145,13 @@ export function useLiveSituation(
     let focusShown = focusRef.current
     let allShown = allRef.current
     let styleShown = styleRef.current
+    let themeShown = themeStore.get()
     const timer = window.setInterval(() => {
       // 数据、时间轴（回放时刻 / 模式）、图层开关、选中、焦点或场景文档（告警区）任一变了才重画
       const now = situationRev()
       if (now === rev && fixShown === fixRef.current && selShown === selRef.current && docShown === docRef.current
-          && focusShown === focusRef.current && allShown === allRef.current && styleShown === styleRef.current) return
+          && focusShown === focusRef.current && allShown === allRef.current && styleShown === styleRef.current
+          && themeShown === themeStore.get()) return
       rev = now
       fixShown = fixRef.current
       selShown = selRef.current
@@ -156,6 +159,7 @@ export function useLiveSituation(
       focusShown = focusRef.current
       allShown = allRef.current
       styleShown = styleRef.current
+      themeShown = themeStore.get()   // 换主题：叠加层按新的 SIT 重画（D-078）
       const all = allRef.current
       const focus = focusRef.current
       const d = docRef.current

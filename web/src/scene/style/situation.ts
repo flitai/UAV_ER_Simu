@@ -10,7 +10,7 @@
 import { platformSvg, type PlatformKind } from './platformIcons.js'
 
 /** 浅色底图上的态势色值。最低对比度 3.56:1（视距绿对水面），高于非文本图形的 3:1 门槛。 */
-export const SIT = {
+export const SIT_LIGHT = {
   site: '#1e40af',        // 侦察站
   siteHalo: '#ffffff',
   target: '#be123c',      // 无人机
@@ -33,7 +33,47 @@ export const SIT = {
   // warning 特意比 bearing 的 #b45309 更深更红，免得楔形与警戒圈混成一色。
   zoneAlert: '#b91c1c',   // 告警区 alert；入圈目标的红环变体也用它
   zoneWarning: '#92400e', // 告警区 warning
-} as const
+  label: '#48423a',       // 地图上的目标与距离标注（= PM.ink）
+}
+
+type SitPalette = { [K in keyof typeof SIT_LIGHT]: string }
+
+/**
+ * 深色底图上的态势色值（D-078）。基本就是 em-demo 为深色底调的那一套（测向橙 #f97316、
+ * 时差青 #22d3ee、威胁红、站点蓝），光晕换成底色——深色底上白晕反而刺眼。
+ * 与浅色一样按 D2-4 的判据对深色底图的陆地 / 建筑 / 水面实测，结果见 docs/display-route.md §4。
+ */
+export const SIT_DARK: SitPalette = {
+  site: '#38bdf8',
+  siteHalo: '#0a0e17',
+  target: '#f43f5e',
+  trail: '#f43f5e',
+  linkLos: '#22c55e',
+  linkNlos: '#ef4444',
+  route: '#94a3b8',
+  waypoint: '#cbd5e1',
+  waypointSel: '#f43f5e',
+  measure: '#fb923c',
+  halo: '#0a0e17',
+  bearing: '#f97316',
+  aoa: '#f97316',
+  tdoa: '#22d3ee',
+  fusion: '#a78bfa',
+  zoneAlert: '#ef4444',
+  zoneWarning: '#eab308',
+  label: '#e2e8f0',
+}
+
+/**
+ * **当前主题**下的态势色值。各图层模块照旧读 `SIT.xxx`，切主题时由 `setSituationTheme()` 原地换值：
+ * Canvas 叠加层每帧读它，自然跟上；MapLibre 图层在建图时就把颜色写死了，要由
+ * layers/situation.ts 的 `applySituationTheme()` 逐层重设（D-078）。
+ */
+export const SIT: SitPalette = { ...SIT_LIGHT }
+
+export function setSituationTheme(theme: 'light' | 'dark'): void {
+  Object.assign(SIT, theme === 'dark' ? SIT_DARK : SIT_LIGHT)
+}
 
 /** 航迹抽稀：相邻点近于这个距离就不新增顶点。20 km 的观测区域上 3 米足够细。 */
 export const TRAIL_MIN_STEP_DEG = 3e-5
@@ -107,10 +147,8 @@ export const ICON_SVG: Record<IconName, string> = {
   'cuav-site': SITE_SVG,
 }
 
-export const ICON_COLOR: Record<IconName, string> = {
-  'cuav-drone': SIT.target,
-  'cuav-drone-alert': SIT.zoneAlert,
-  'cuav-drone-fixed_wing': SIT.target,
-  'cuav-drone-alert-fixed_wing': SIT.zoneAlert,
-  'cuav-site': SIT.site,
+/** 图标颜色：按当前主题取（函数而不是常量表，切主题后重新光栅化时才取得到新值）。 */
+export function iconColor(name: IconName): string {
+  if (name === 'cuav-site') return SIT.site
+  return name.startsWith('cuav-drone-alert') ? SIT.zoneAlert : SIT.target
 }

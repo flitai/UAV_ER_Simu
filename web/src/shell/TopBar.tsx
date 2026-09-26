@@ -6,7 +6,9 @@
 // 「盘上有哪些录音」，把试验管理信息摆在那两页只会分散焦点（D-062 按「用户在问什么」分层的同一条）。
 // 运行按钮与视图切换不受影响——它们是动作，不是信息。
 
+import { useSyncExternalStore } from 'react'
 import { useAppState, useDispatch } from '../state/store.js'
+import { themeStore } from './theme.js'
 import { ExperimentContext } from './ExperimentContext.js'
 import { RunGroup } from './RunGroup.js'
 import { ViewSwitch } from './ViewSwitch.js'
@@ -30,6 +32,7 @@ export function TopBar() {
   const menu = s.ui.popover === 'menu'
   const about = s.ui.popover === 'about'
   const crumbsShown = s.ui.view === 'diagram' || s.ui.view === 'results'
+  const theme = useSyncExternalStore(themeStore.subscribe, themeStore.get)
   return (
     <header className="topbar">
       <div className="popover-anchor">
@@ -54,6 +57,11 @@ export function TopBar() {
       )}
       <RunGroup />
       <ViewSwitch />
+      {/* 浅色 / 深色（D-078）：每个浏览者自己的偏好，存本机，不进任务 */}
+      <button type="button" className="more" data-act="theme" data-theme-now={theme}
+              title={theme === 'dark' ? '切换到浅色' : '切换到深色'} onClick={() => themeStore.toggle()}>
+        {theme === 'dark' ? '☀' : '☾'}
+      </button>
       {/* to-left：这个菜单在顶栏最右边，弹出层要向左展开（见 app.css 里的缘由） */}
       <div className="popover-anchor to-left">
         <button type="button" className="more" title="更多" onClick={() => dispatch({ type: 'ui/popover', id: menu ? null : 'menu' })}>⋯</button>

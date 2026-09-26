@@ -10,13 +10,13 @@
 // 地图上的交互（点选、布站、画航点、拖动、测量）都在这里绑，画图在 useSituation，
 // 改文档在 editor/scenarioOps——三者分开，免得一个 useEffect 里既算几何又改状态。
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Map as MLMap, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { protomapsStyle } from './style/protomaps.js'
 import { registerProtocols, newMap } from './init.js'
 import { addHillshade, removeHillshade } from './layers/hillshade.js'
-import { addBuildings3d, setBuildingsColorBySrc } from './layers/buildings3d.js'
+import { addBuildings3d, setBuildingsColorBySrc, setBuildingsBaseColor } from './layers/buildings3d.js'
 import { addAoiBoundary, bboxContains } from './layers/aoiBoundary.js'
 import { installProbe } from './probe.js'
 import { sameSourceCheck } from './sameSourceProbe.js'
@@ -34,6 +34,9 @@ import { mountSituation, useLiveSituation, useScenarioLayers } from './useSituat
 import { clearSituation, setLayersVisible } from './layers/situation.js'
 import { addEmitter, addSite, addWaypoint, addZone, moveSite, moveWaypoint } from './editor/scenarioOps.js'
 import type { BearingStyle } from './layers/fixOverlay.js'
+import { themeStore } from '../shell/theme.js'
+import { applyMapTheme, basemapPalette } from './layers/mapTheme.js'
+import { setSituationTheme } from './style/situation.js'
 
 export function SceneView({ active }: { active: boolean }) {
   const s = useAppState()
@@ -60,13 +63,27 @@ export function SceneView({ active }: { active: boolean }) {
   const live = useRef({ state: s, store, editMode })
   live.current = { state: s, store, editMode }
 
+  // 切主题（D-078）：按层换色，不重建地图（相机、选中与数据都不动）
+  const theme = useSyncExternalStore(themeStore.subscribe, themeStore.get)
+  const themeShown = useRef(themeStore.get())
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || themeShown.current === theme) return
+    themeShown.current = theme
+    void applyMapTheme(map, theme)
+  }, [theme, ready])
+
   // 建图：只在场景摘要就绪且尚无地图时建一次
   useEffect(() => {
     if (!scene || !box.current || mapRef.current) return
     registerProtocols()
+    // 按当前主题建图（D-078）：底图色表、建筑底色、态势色值在图层建出来之前就定好
+    const theme0 = themeStore.get()
+    setSituationTheme(theme0)
+    setBuildingsBaseColor(null, basemapPalette(theme0).bldg)
     const map = newMap({
       container: box.current,
-      style: protomapsStyle({ url: scene.basemapUrl, maxzoom: 15 }),
+      style: protomapsStyle({ url: scene.basemapUrl, maxzoom: 15, palette: basemapPalette(theme0) }),
       center: scene.center,
       zoom: 14.2,
     })

@@ -23,6 +23,7 @@ import { signalHooks, viewStore } from './viewStore.js'
 import { detectionStore, visibleSegments } from '../results/detectionStore.js'
 import { recKey, recognitionStore } from '../results/recognitionStore.js'
 import { labelStyle, UNRECOGNIZED } from '../results/labels.js'
+import { themeStore, withAlpha } from '../shell/theme.js'
 import {
   FLOOR_DB, boxToViewport, clampViewport, colEdgeHz, envelopeGeomOf, fullWindow, groupBounds, liveWindow, panSpan,
   planSpectrumQuery, spectrumGeomOf, srcIndexForPixel, yToTime, zoomSpan, type SpectrumGeom, type Viewport,
@@ -40,12 +41,29 @@ export const SPEC_TOP = 10
 export const SPEC_BOTTOM = 22
 
 /** 与 app.css 的 :root 色表同值（D-017：壳的配色从 Airports 的 PM 色表取）。 */
-const C = {
+const C_LIGHT = {
   paper: '#f4f1ec', earth: '#faf8f5', ink: '#48423a', dim: '#7b7367', poi: '#8b8173', border: '#ddd7cd', white: '#ffffff',
   bound: '#c3bcb2', warn: '#b8860b', bad: '#a33333', water: '#5d87a3', trace: '#2f5d7c', band: '#c9d9e4',
 }
-const INK: Rgb = hexToRgb(C.ink)
-const PAPER: Rgb = hexToRgb(C.paper)
+/** 与 app.css 的 `:root[data-theme="dark"]` 同值（D-078）；迹线与缺行底色换成深底上看得清的一档。 */
+const C_DARK: typeof C_LIGHT = {
+  paper: '#0a0e17', earth: '#111827', ink: '#e2e8f0', dim: '#94a3b8', poi: '#64748b', border: '#1e293b', white: '#0f1724',
+  bound: '#2d3b4f', warn: '#eab308', bad: '#ef4444', water: '#38bdf8', trace: '#7dd3fc', band: '#1e3a4f',
+}
+/**
+ * **当前主题**的画布色（D-078）：切主题时原地换值并整幅重画（构造函数里订阅了 themeStore）。
+ * 瀑布上检测框标签的浅色底衬（rgba(250,248,245,0.92)）**两种主题都不换**：类别色的对比度
+ * 是对着那块浅底衬量的（results/labels.ts、display-route.md §4.1），底衬换深了那组数就不成立。
+ */
+const C = { ...C_LIGHT }
+let INK: Rgb = hexToRgb(C.ink)
+let PAPER: Rgb = hexToRgb(C.paper)
+function syncPalette(): void {
+  Object.assign(C, themeStore.get() === 'dark' ? C_DARK : C_LIGHT)
+  INK = hexToRgb(C.ink)
+  PAPER = hexToRgb(C.paper)
+}
+syncPalette()
 const FONT = '11px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
 
 /**
@@ -119,7 +137,9 @@ export class SignalRenderer {
     signalHooks.csv = () => this.csv()
     signalHooks.png = () => this.png()
     signalHooks.clearHold = () => this.clearHold()
+    this.unsubTheme = themeStore.subscribe(() => { syncPalette(); this.needFull = true; this.schedule() })
   }
+  private readonly unsubTheme: () => void
 
   attach(spec: HTMLCanvasElement, wf: HTMLCanvasElement): void {
     this.spec = spec
@@ -138,6 +158,7 @@ export class SignalRenderer {
     this.detach()
     this.fetcher.cancel()
     if (this.raf !== null) cancelAnimationFrame(this.raf)
+    this.unsubTheme()
     if (signalHooks.csv && signalHooks.csv === this.csvHook) signalHooks.csv = null
   }
   private csvHook = () => this.csv()
@@ -551,7 +572,7 @@ export class SignalRenderer {
     }
     // 框选（频率方向）
     if (this.box && this.box.which === 'spectrum') {
-      ctx.fillStyle = 'rgba(93, 135, 163, 0.18)'
+      ctx.fillStyle = withAlpha(C.water, 0.18)
       ctx.fillRect(Math.min(this.box.x0, this.box.x1), y0, Math.abs(this.box.x1 - this.box.x0), ph)
     }
     ctx.strokeStyle = C.bound
@@ -637,7 +658,7 @@ export class SignalRenderer {
       ctx.fillText(text, bx + 4, by + 1)
     }
     if (this.box && this.box.which === 'waterfall') {
-      ctx.fillStyle = 'rgba(93, 135, 163, 0.18)'
+      ctx.fillStyle = withAlpha(C.water, 0.18)
       ctx.strokeStyle = C.water
       const bx = Math.min(this.box.x0, this.box.x1)
       const by = Math.min(this.box.y0, this.box.y1)
@@ -710,7 +731,7 @@ export class SignalRenderer {
     // 回看等待期：半透明蒙层
     const fs = viewStore.get().fetchStatus
     if (this.mode === 'browse' && (fs === 'pending' || fs === 'inflight' || fs === 'waiting')) {
-      ctx.fillStyle = 'rgba(244, 241, 236, 0.45)'
+      ctx.fillStyle = withAlpha(C.paper, 0.45)
       ctx.fillRect(x0, y0, pw, ph)
     }
     ctx.strokeStyle = C.bound
@@ -778,14 +799,14 @@ export class SignalRenderer {
     // 标签
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.font = FONT
-    ctx.fillStyle = 'rgba(250, 248, 245, 0.85)'
+    ctx.fillStyle = withAlpha(C.earth, 0.85)
     ctx.fillRect(this.cssW - GUT_R + GAP, 0, ENV_W, 15)
     ctx.fillStyle = C.dim
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     ctx.fillText(`包络 ${n > 0 ? this.envUnit : ''}`, this.cssW - GUT_R + GAP + 2, 2)
     if (range) {
-      ctx.fillStyle = 'rgba(250, 248, 245, 0.85)'
+      ctx.fillStyle = withAlpha(C.earth, 0.85)
       ctx.fillRect(this.cssW - GUT_R + GAP, this.cssHWf - 15, ENV_W, 15)
       ctx.fillStyle = C.dim
       ctx.textBaseline = 'bottom'

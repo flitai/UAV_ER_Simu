@@ -2,7 +2,12 @@
 // 这是在 Airports 样式之上**新增**的一层，不改任何既有图层的外观（D-017）。
 
 import type { Map as MLMap } from 'maplibre-gl'
-import { PM } from '../style/colors.js'
+import { BASEMAP_DARK, BASEMAP_LIGHT } from '../style/protomaps.js'
+import { themeStore } from '../../shell/theme.js'
+
+function basemapPaletteNow() {
+  return themeStore.get() === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT
+}
 
 export const AOI_BOUNDARY_SOURCE_ID = 'aoi-boundary'
 export const AOI_BOUNDARY_LAYER_ID = 'aoi-boundary'
@@ -22,7 +27,7 @@ export function addAoiBoundary(map: MLMap, bbox: [number, number, number, number
   }
   map.addLayer({
     id: AOI_BOUNDARY_LAYER_ID, type: 'line', source: AOI_BOUNDARY_SOURCE_ID,
-    paint: { 'line-color': PM.waterInk, 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.9 },
+    paint: { 'line-color': basemapPaletteNow().waterInk, 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.9 },
   }, before)
 }
 

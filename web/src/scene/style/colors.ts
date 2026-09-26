@@ -17,6 +17,36 @@ export const PM = {
   bound: '#c3bcb2', ink: '#48423a', dim: '#7b7367', poi: '#8b8173', halo: '#ffffff',
 } as const
 
+/**
+ * 底图色表的完整键：`PM` 的键加上 Airports 原文里直接写在图层上的六个色值
+ * （人行道虚线、滑行道、跑道、铁路虚线、国界、机场标注）。浅色那一套见 protomaps.ts 的 `BASEMAP_LIGHT`。
+ */
+export type BasemapPalette = { [K in keyof typeof PM]: string } & {
+  path: string; taxiway: string; runway: string; railDash: string; boundCountry: string; aeroLabel: string
+}
+
+/**
+ * 深色底图色表（D-078，用户 2026-09-26「浅色和深色共存，可以切换」）。
+ * 观感取 em-demo 的深色控制台（底 #0a0e17、面板 #111827、建筑 #1a2332），但**色值是手写的**，
+ * 不引 `protomaps-themes-base`（D-017 那半条仍有效）；键与浅色表一一对应，所以只换颜色、
+ * 图层与压盖顺序一概不动。与浅色表一样，任何改动先记决策。
+ */
+export const PM_DARK: BasemapPalette = {
+  paper: '#0a0e17', earth: '#0e131d',
+  water: '#0b2233', waterInk: '#5b9cc4',
+  green: '#101d17', park: '#11211a', wood: '#0f1c15', sand: '#1a1912',
+  wet: '#0e1c1c', ice: '#141c26',
+  built: '#111722', inst: '#131a25', sport: '#11201a', grave: '#121a17',
+  road: '#1f2939', roadCase: '#0a0e17',
+  major: '#27334a', majorCase: '#0c111a',
+  motor: '#3a4763', motorCase: '#0c111a',
+  rail: '#29334a', railCase: '#0c111a',
+  aero: '#161a29', aeroCase: '#232a3e', apron: '#151a27',
+  bldg: '#1a2332', bldgCase: '#243044',
+  bound: '#3a475c', ink: '#cbd5e1', dim: '#8391a7', poi: '#6b7a90', halo: '#0a0e17',
+  path: '#1a2230', taxiway: '#1e2536', runway: '#2b3549', railDash: '#0e131d', boundCountry: '#4a5870', aeroLabel: '#9a95b5',
+}
+
 /** 底图标注的名称字段：优先中文，回落到通用名与英文。 */
 export const PM_NAME = ['coalesce', ['get', 'name:zh-Hans'], ['get', 'name'], ['get', 'name:en']]
 
