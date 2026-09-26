@@ -17,7 +17,7 @@ import {
   bearingFromPayload, positionFromPayload, sceneStore,
   type BearingSample, type EntitySample, type LinkSample, type PositionSample,
 } from './sceneStore.js'
-import { attachFixOverlay } from './layers/fixOverlay.js'
+import { attachFixOverlay, type BearingStyle } from './layers/fixOverlay.js'
 import {
   addSituationLayers, loadSituationIcons,
   setLinks, setPlannedRoute, setSites, setTargets, setTrails, setZones,
@@ -25,6 +25,7 @@ import {
 import { emitters, posOf, routeOf, sites, splitLinkId, waypointsOf, zoneOf, zones } from './editor/scenarioOps.js'
 import { currentSituation, situationRev } from './situationView.js'
 import type { ScenarioDoc } from '../state/types.js'
+import { platformKind, type PlatformKind } from './style/platformIcons.js'
 
 const TICK_MS = 50   // 20 Hz
 
@@ -67,7 +68,7 @@ export function useScenarioLayers(
 /** 运行态与回看：目标、航迹、链路线。 */
 export function useLiveSituation(
   map: MLMap | null, ready: boolean, doc: ScenarioDoc | null, showFix = true, selectedEmitter: string | null = null,
-  focusEmitter: string | null = null, allOverlays = false,
+  focusEmitter: string | null = null, allOverlays = false, bearingStyle: BearingStyle = 'band',
 ): void {
   const s = useAppState()
   const taskId = s.task.id
@@ -84,6 +85,8 @@ export function useLiveSituation(
   focusRef.current = focusEmitter
   const allRef = useRef(allOverlays)
   allRef.current = allOverlays
+  const styleRef = useRef(bearingStyle)
+  styleRef.current = bearingStyle
 
   // 换任务即清空实时数据：上一个任务的航迹不该留在图上。
   // **只挂 taskId**：挂上 map / ready 会在地图就绪那一刻把已经取回的航迹又清掉——
@@ -140,26 +143,31 @@ export function useLiveSituation(
     let docShown = docRef.current
     let focusShown = focusRef.current
     let allShown = allRef.current
+    let styleShown = styleRef.current
     const timer = window.setInterval(() => {
       // 数据、时间轴（回放时刻 / 模式）、图层开关、选中、焦点或场景文档（告警区）任一变了才重画
       const now = situationRev()
       if (now === rev && fixShown === fixRef.current && selShown === selRef.current && docShown === docRef.current
-          && focusShown === focusRef.current && allShown === allRef.current) return
+          && focusShown === focusRef.current && allShown === allRef.current && styleShown === styleRef.current) return
       rev = now
       fixShown = fixRef.current
       selShown = selRef.current
       docShown = docRef.current
       focusShown = focusRef.current
       allShown = allRef.current
+      styleShown = styleRef.current
       const all = allRef.current
       const focus = focusRef.current
       const d = docRef.current
       // live 取每键最新；回放按时间轴的 t 取历史快照；没历史时走航迹预览（13 §5.3）
       const st = currentSituation(d)
       // 入圈判定（D-061，13 §4.3）：纯几何，每 tick 对每个实体算一次；选中环跟着选中走
-      const targets = [] as Array<EntitySample & { alert: boolean; selected: boolean; focus: boolean }>
+      const kinds = new Map<string, PlatformKind>()
+      for (const e of emitters(d)) kinds.set(String(e.id), platformKind(typeof e.platform_type === 'string' ? e.platform_type : undefined).kind)
+      const targets = [] as Array<EntitySample & { alert: boolean; selected: boolean; focus: boolean; platform: PlatformKind }>
       st.entities.forEach((e) => targets.push({
         ...e, alert: zoneOf(d, e.lon, e.lat, e.alt_m) !== null, selected: e.id === selRef.current, focus: all || e.id === focus,
+        platform: kinds.get(e.id) ?? 'multirotor',
       }))
       setTargets(map, targets)
       setTrails(map, st.trails, all ? null : focus)
@@ -195,7 +203,7 @@ export function useLiveSituation(
         st.bearings.forEach((b) => bs.push(b))
         const ps: PositionSample[] = []
         st.positions.forEach((q) => ps.push(q))
-        overlay.draw({ sites: sitePos, bearings: bs, positions: ps, dev: devMode(), focusId: all ? null : focus })
+        overlay.draw({ sites: sitePos, bearings: bs, positions: ps, dev: devMode(), focusId: all ? null : focus, bearingStyle: styleRef.current })
       } else if (overlay) {
         // 关掉图层要真的清空，不是留着上一帧
         overlay.draw({ sites: new Map(), bearings: [], positions: [], dev: false })

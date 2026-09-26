@@ -5,6 +5,8 @@
   --paper: #f4f1ec; --earth: #faf8f5; --ink: #48423a; --dim: #7b7367; --poi: #8b8173;
   --water-ink: #5d87a3; --border: #ddd7cd; --bound: #c3bcb2; --white: #ffffff;
   --ok: #3a7d44; --warn: #b8860b; --bad: #a33333; --na: #8b8173;
+  /* 态势强调色（D-078）：目标色与分节标题色，取自态势色表 SIT.target / SIT.site */
+  --target: #be123c; --accent: #1e40af;
   --topbar-h: 48px; --drawer-collapsed: 28px;
   /* 三档字级（D-062）：标题 / 读数 / 标签 */
   --fs-title: 14px; --fs-read: 13px; --fs-label: 12px;
@@ -281,7 +283,14 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .focus-card { background: var(--white); border: 1px solid var(--ink); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
 .focus-head { display: flex; align-items: center; gap: 6px; color: var(--ink); }
 .focus-title { font-size: var(--fs-title); font-weight: 600; }
-.focus-summary { font-size: var(--fs-read); margin: 4px 0 6px; line-height: 1.5; }
+/* 分节 + 两列键值网格（D-078，em-demo 目标详情的版式；字级守 D-062 三档） */
+.card-sec { margin-top: 8px; }
+.card-sec-title { font-size: 11px; font-weight: 600; color: var(--accent); letter-spacing: 0.5px; padding-bottom: 2px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+.kv { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; font-size: var(--fs-label); line-height: 1.6; }
+.kv.wide { grid-column: 1 / -1; }
+.kv-k { color: var(--dim); font-size: 11px; flex: 0 0 auto; }
+.kv-v { color: var(--ink); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .site-table-wrap { overflow-x: auto; }
 .site-table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .site-table th { text-align: right; font-weight: 500; color: var(--dim); padding: 2px 3px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -302,17 +311,22 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .focus-identity > summary::-webkit-details-marker { display: none; }
 .focus-identity > summary::before { content: '▸ '; color: var(--poi); }
 .focus-identity[open] > summary::before { content: '▾ '; }
-.focus-identity-body { font-size: var(--fs-label); margin-top: 3px; line-height: 1.5; }
-/* 目标列表：一行一目标 */
+.focus-identity-body { margin-top: 3px; }
+/* 目标列表：一行一目标（D-078，em-demo 目标表的版式：粘性表头、数字等宽右对齐、选中行左侧色条） */
 .tlist { width: 100%; border-collapse: collapse; font-size: var(--fs-label); }
-.tlist th { text-align: left; font-weight: 500; color: var(--dim); font-size: 11px; padding: 2px 4px; border-bottom: 1px solid var(--border); }
-.tlist td { padding: 3px 4px; border-bottom: 1px solid var(--earth); white-space: nowrap; }
-.tlist td.num { font-variant-numeric: tabular-nums; text-align: right; }
-.tlist td.icon { width: 16px; color: var(--ink); }
+.tlist th { position: sticky; top: 0; background: var(--paper); white-space: nowrap; text-align: left; font-weight: 500; color: var(--dim); font-size: 11px; letter-spacing: 0.5px; padding: 3px 4px; border-bottom: 1px solid var(--border); }
+.tlist th.num { text-align: right; }
+.tlist td { padding: 4px 3px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tlist td.num { font-variant-numeric: tabular-nums; text-align: right; font-size: 11px; }
+.tlist td.icon { width: 18px; color: var(--target); }
+.tlist td.tx-on { color: var(--ok); }
+.tlist td.tx-off { color: var(--dim); }
 .tlist tr { cursor: pointer; }
 .tlist tbody tr:hover { background: var(--earth); }
-.tlist tr.sel { background: var(--ink); color: var(--paper); }
-.tlist tr.sel td.icon { color: var(--paper); }
+.tlist tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.tlist tr.sel td.name { font-weight: 600; }
+/* 名字列让位给读数：放不下时截断，悬停看全名 */
+.tlist td.name { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
 /* 站点：一行一站 */
 .site-rows { display: flex; flex-direction: column; gap: 3px; }
 .site-row { display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--white); text-align: left; font-size: var(--fs-label); }

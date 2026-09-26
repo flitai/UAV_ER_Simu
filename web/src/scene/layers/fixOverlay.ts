@@ -27,7 +27,17 @@ export interface FixOverlayInput {
   dev: boolean
   /** 焦点目标（D-062）：给定时只画它的测向色带与椭圆，其余目标只画定位中心点；null / 缺席 = 全部画 */
   focusId?: string | null
+  /** 测向的画法（D-078）：`band` 渐隐色带（缺省，D-061）；`line` em-demo 式虚线，按测向质量分档透明度 */
+  bearingStyle?: BearingStyle
 }
+
+export type BearingStyle = 'band' | 'line'
+
+/**
+ * `line` 画法下各测向质量档的不透明度。em-demo 在深色底上用 0.5 / 0.35 / 0.2，
+ * 浅色底上那几档淡得看不见，整体抬高一档；档位随 `df_quality`（DF-Q1 最好）。
+ */
+const LINE_ALPHA: Record<string, number> = { 'DF-Q1': 0.9, 'DF-Q2': 0.7, 'DF-Q3': 0.5, 'DF-Q4': 0.35 }
 
 interface Handle {
   canvas: HTMLCanvasElement
@@ -122,6 +132,19 @@ export function attachFixOverlay(map: MlMap): Handle | null {
       const p1 = map.project(end)
       const valid = b.df_result_state === 'valid'
 
+      if (input.bearingStyle === 'line') {
+        // em-demo 式（D-078）：一条虚线，质量越好越实；非 valid 换成更碎的点划
+        g.beginPath()
+        g.moveTo(p0.x, p0.y)
+        g.lineTo(p1.x, p1.y)
+        g.strokeStyle = alpha(SIT.bearing, valid ? (LINE_ALPHA[b.df_quality] ?? 0.35) : 0.3)
+        g.lineWidth = 1.5
+        g.setLineDash(valid ? [6, 4] : [2, 4])
+        g.stroke()
+        g.setLineDash([])
+        continue
+      }
+
       // 渐隐色带（V-2，D-061；Aaronia 的表达）：楔形半角取 max(2σ, 5 px 在射线中点所张的角)，
       // σ 再小也有可见宽度；沿射线从站址 α 0.35 线性降到末端 α 0.05，非 valid 减半
       const lenPx = Math.hypot(p1.x - p0.x, p1.y - p0.y)
@@ -168,34 +191,65 @@ export function attachFixOverlay(map: MlMap): Handle | null {
         g.fill()
         continue
       }
+      // 参与站 → 定位解的细虚线（D-078，em-demo 同法）：一眼看出这个解是哪几个站算出来的。
+      // TDOA 的参考站画深一档，其余站淡；先画，压在椭圆下面
+      for (const sid of p.participating_sites) {
+        const sp = input.sites.get(sid)
+        if (!sp) continue
+        const q = map.project([sp.lon, sp.lat])
+        const isRef = p.reference_site === sid
+        g.beginPath()
+        g.moveTo(q.x, q.y)
+        g.lineTo(c.x, c.y)
+        g.strokeStyle = alpha(color, isRef ? 0.6 : 0.3)
+        g.lineWidth = 1
+        g.setLineDash(p.method === 'tdoa' ? [2, 3] : [3, 3])
+        g.stroke()
+      }
+      g.setLineDash([])
+
       // 半轴长度换算成像素：沿正东与正北各取一点，量出每米多少像素
       const east = map.project(advance(p.lon, p.lat, 90, Math.max(p.semi_major_m, 1)))
       const north = map.project(advance(p.lon, p.lat, 0, Math.max(p.semi_major_m, 1)))
       const pxPerM = Math.hypot(east.x - c.x, east.y - c.y) / Math.max(p.semi_major_m, 1)
       const pyPerM = Math.hypot(north.x - c.x, north.y - c.y) / Math.max(p.semi_major_m, 1)
       const scale = (pxPerM + pyPerM) / 2
-      const a = Math.max(p.semi_major_m * scale, 2)
-      const bAxis = Math.max(p.semi_minor_m * scale, 2)
+      // 最小半轴 8 / 4 px（em-demo 同值）：再小就看不出是椭圆，只剩一个点
+      const a = Math.max(p.semi_major_m * scale, 8)
+      const bAxis = Math.max(p.semi_minor_m * scale, 4)
+      // 三种体制三种线型（D-078）：aoa 虚线、tdoa 实线、融合实线加粗。颜色另分，线型让色弱者也分得开
+      const dash = p.method === 'aoa' ? [4, 3] : []
       // 椭圆旋转角是相对 ENU 东向的（PositionReport.enu_origin 声明过），
       // 屏幕 y 轴朝下，所以取负
       g.beginPath()
       g.ellipse(c.x, c.y, a, bAxis, (-p.rotation_deg * Math.PI) / 180, 0, Math.PI * 2)
-      g.fillStyle = alpha(color, 0.15)
+      g.fillStyle = alpha(color, p.method === 'aoa' ? 0.1 : 0.14)
       g.fill()
       g.strokeStyle = color
-      g.lineWidth = 2.5
+      g.lineWidth = p.method === 'aoa_tdoa' ? 2.5 : 2
+      g.setLineDash(dash)
       g.stroke()
+      g.setLineDash([])
 
-      // 中心点：4 px 实心点带白晕（V-2 加重）
+      // 中心标记：aoa 与融合是圆点，tdoa 是菱形（em-demo 同法），都带白晕
       g.beginPath()
-      g.arc(c.x, c.y, 4, 0, Math.PI * 2)
+      if (p.method === 'tdoa') {
+        const r = 5.5
+        g.moveTo(c.x, c.y - r)
+        g.lineTo(c.x + r, c.y)
+        g.lineTo(c.x, c.y + r)
+        g.lineTo(c.x - r, c.y)
+        g.closePath()
+      } else {
+        g.arc(c.x, c.y, 4, 0, Math.PI * 2)
+      }
       g.strokeStyle = SIT.halo
       g.lineWidth = 2
       g.stroke()
       g.fillStyle = color
       g.fill()
 
-      // 标签只在开发者模式（D-039：界面不主动解释）
+      // 读数不上地图（用户 2026-09-26，D-078）：CEP、GDOP 在右栏焦点卡；开发者模式留一行诊断
       if (input.dev) {
         g.font = '11px system-ui, sans-serif'
         g.fillStyle = color

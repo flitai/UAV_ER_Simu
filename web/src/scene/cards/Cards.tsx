@@ -77,7 +77,32 @@ function SiteTableRows({ r }: { r: SiteRow }) {
   )
 }
 
-/** 焦点卡：一个目标的全部观测量。头一行身份，第二行运动一句话，中间各站一表，定位一行，身份配置折叠在底部。 */
+/** 分节（D-078，em-demo 的 TargetDetail 版式）：小标题 + 下划线，正文由调用方给。 */
+function Section({ title, children, ...rest }: { title: string; children: React.ReactNode } & Record<`data-${string}`, string | boolean | undefined>) {
+  return (
+    <section className="card-sec" {...rest}>
+      <div className="card-sec-title">{title}</div>
+      {children}
+    </section>
+  )
+}
+
+/** 两列键值网格的一格。`wide` 占满一行（经纬度这类长值）。 */
+function Kv({ k, v, wide, ...rest }: { k: string; v: React.ReactNode; wide?: boolean } & Record<`data-${string}`, string | boolean | undefined>) {
+  return (
+    <div className={'kv' + (wide ? ' wide' : '')} {...rest}>
+      <span className="kv-k">{k}</span>
+      <span className="kv-v mono">{v}</span>
+    </div>
+  )
+}
+
+const METHOD_TITLE: Record<string, string> = { aoa: 'AOA 交叉定位', tdoa: 'TDOA 时差定位', aoa_tdoa: 'AOA + TDOA 融合' }
+
+/**
+ * 焦点卡：一个目标的全部观测量（D-062 的三级之第三级）。版式照 em-demo 的目标详情（D-078）：
+ * 分节小标题 + 两列键值网格；各站仍是一张表——三个站横向比距离与电平，表格比键值好读。
+ */
 function FocusCard({ c }: { c: TargetCardData }) {
   const m = c.motion
   return (
@@ -88,45 +113,58 @@ function FocusCard({ c }: { c: TargetCardData }) {
         <span className="dim">{c.id}</span>
         {c.inZone && <span className="card-badge alert" data-card-zone={c.inZone}>{c.inZoneName ?? c.inZone}</span>}
       </div>
-      <div className="focus-summary mono" data-focus-summary>
+      <Section title="运动状态" data-focus-summary>
         {m
-          ? <>{fmtMeters(m.alt_m)} · {m.speed_mps !== null ? `${m.speed_mps.toFixed(1)} m/s` : '—'} · 航向 {fmtDeg(m.heading_deg)} · 发射 {txText(m.tx_on)}{m.center_Hz !== null ? ` · ${fmtHz(m.center_Hz)}` : ''}</>
-          : <span className="dim">未运行</span>}
-      </div>
+          ? (
+            <div className="kv-grid">
+              <Kv k="高度" v={fmtMeters(m.alt_m)} />
+              <Kv k="速度" v={m.speed_mps !== null ? `${m.speed_mps.toFixed(1)} m/s` : '—'} />
+              <Kv k="航向" v={fmtDeg(m.heading_deg)} />
+              <Kv k="发射" v={txText(m.tx_on)} />
+              {m.center_Hz !== null && <Kv k="频点" v={fmtHz(m.center_Hz)} />}
+              <Kv k="位置" v={`${m.lat.toFixed(5)}, ${m.lon.toFixed(5)}`} wide data-focus-pos />
+            </div>
+          )
+          : <div className="dim">未运行</div>}
+      </Section>
       {c.sites.length > 0 && (
-        <div className="site-table-wrap">
-          <table className="site-table" data-focus-sites>
-            <thead>
-              {/* 单位写在列头，数字裸写。不列真值方位（测向已是同一方向的量测）与路损（电平 = 发射 + 天线 − 路损，路损在探针里）。 */}
-              <tr><th>站</th><th>距离</th><th>电平 dBm</th><th>信噪比 dB</th></tr>
-            </thead>
-            <tbody>{c.sites.map((r) => <SiteTableRows key={r.site_id} r={r} />)}</tbody>
-          </table>
-        </div>
+        <Section title="信号侦测">
+          <div className="site-table-wrap">
+            <table className="site-table" data-focus-sites>
+              <thead>
+                {/* 单位写在列头，数字裸写。不列真值方位（测向已是同一方向的量测）与路损（电平 = 发射 + 天线 − 路损，路损在探针里）。 */}
+                <tr><th>站</th><th>距离</th><th>电平 dBm</th><th>信噪比 dB</th></tr>
+              </thead>
+              <tbody>{c.sites.map((r) => <SiteTableRows key={r.site_id} r={r} />)}</tbody>
+            </table>
+          </div>
+        </Section>
       )}
       {c.fixes.map((f) => (
-        <div className="focus-fix" key={f.method} data-card-fix={f.method}>
-          <span className="k">定位</span>
-          <span className="mono">
-            {f.method} · {f.lat.toFixed(5)}, {f.lon.toFixed(5)} · CEP {f.cep_m.toFixed(0)} m
+        <Section key={f.method} title={METHOD_TITLE[f.method] ?? f.method} data-card-fix={f.method}>
+          <div className="kv-grid">
+            <Kv k="CEP" v={`${f.cep_m.toFixed(0)} m`} />
             {/* aoa 的 gdop 实为 rms_trace_m（米），tdoa 的是无量纲几何精度因子：按行标单位，不混（13 §3.3） */}
-            {' · '}{f.method === 'aoa' ? `均方根 ${f.gdop.toFixed(1)} m` : `GDOP ${f.gdop.toFixed(2)}`}
-            {' · '}{f.geometry_quality}{f.time_quality ? ` · ${f.time_quality}` : ''}
+            {f.method === 'aoa' ? <Kv k="均方根" v={`${f.gdop.toFixed(1)} m`} /> : <Kv k="GDOP" v={f.gdop.toFixed(2)} />}
+            <Kv k="几何" v={f.geometry_quality} />
             {/* 最小交会角只对到达角交汇有意义；时差解上它恒为 0，不显示 */}
-            {f.method.includes('aoa') ? ` · 交会 ${f.min_crossing_angle_deg.toFixed(0)}°` : ''} · {f.sites.length} 站
-          </span>
-        </div>
+            {f.method.includes('aoa') && <Kv k="交会角" v={`${f.min_crossing_angle_deg.toFixed(0)}°`} />}
+            {f.time_quality && <Kv k="时统" v={f.time_quality} />}
+            <Kv k="参与站" v={`${f.sites.length} 站`} />
+            <Kv k="解算位置" v={`${f.lat.toFixed(5)}, ${f.lon.toFixed(5)}`} wide />
+          </div>
+        </Section>
       ))}
-      {m && <div className="focus-fix" data-focus-pos><span className="k">位置</span><span className="mono">{m.lat.toFixed(5)}, {m.lon.toFixed(5)}</span></div>}
       <details className="focus-identity" data-focus-identity>
         <summary>身份</summary>
-        <div className="focus-identity-body">
-          {PLATFORM_LABEL[c.platform_type] ?? c.platform_type}{c.equipment_model ? ` · ${c.equipment_model}` : ''}
-          {c.center_Hz !== null ? ` · 中心 ${fmtHz(c.center_Hz)}` : ''}
-          {c.bw_Hz !== null ? ` · 带宽 ${fmtHz(c.bw_Hz)}` : ''}
-          {c.tx_power_dBm !== null ? ` · 发射 ${fmtDb(c.tx_power_dBm, 'dBm')}` : ''}
-          {c.tx_gain_dBi !== null ? ` · 天线 ${c.tx_gain_dBi} dBi` : ''}
-          {c.polarization ? ` · ${c.polarization}` : ''}
+        <div className="kv-grid focus-identity-body">
+          <Kv k="机型" v={PLATFORM_LABEL[c.platform_type] ?? c.platform_type} />
+          {c.equipment_model && <Kv k="型号" v={c.equipment_model} />}
+          {c.center_Hz !== null && <Kv k="中心" v={fmtHz(c.center_Hz)} />}
+          {c.bw_Hz !== null && <Kv k="带宽" v={fmtHz(c.bw_Hz)} />}
+          {c.tx_power_dBm !== null && <Kv k="发射" v={fmtDb(c.tx_power_dBm, 'dBm')} />}
+          {c.tx_gain_dBi !== null && <Kv k="天线" v={`${c.tx_gain_dBi} dBi`} />}
+          {c.polarization && <Kv k="极化" v={c.polarization} />}
         </div>
       </details>
     </div>
@@ -137,7 +175,7 @@ function TargetList({ cards, focusId, onPick }: { cards: TargetCardData[]; focus
   return (
     <table className="tlist" data-target-list>
       <thead>
-        <tr><th></th><th>目标</th><th>高度</th><th>速度</th><th>发射</th><th>最近站</th></tr>
+        <tr><th></th><th>目标</th><th className="num">高度 m</th><th className="num">速度 m/s</th><th>发射</th><th className="num">最近站</th></tr>
       </thead>
       <tbody>
         {cards.map((c) => {
@@ -145,11 +183,11 @@ function TargetList({ cards, focusId, onPick }: { cards: TargetCardData[]; focus
           return (
             <tr key={c.id} className={c.id === focusId ? 'sel' : ''} data-target-row={c.id} onClick={() => onPick(c.id)}>
               <td className="icon"><PlatformIcon type={c.platform_type} size={14} /></td>
-              <td className="name">{c.name}{c.inZone ? <span className="card-badge alert" data-row-zone={c.inZone}>告警区</span> : null}</td>
-              <td className="num">{m ? fmtMeters(m.alt_m) : '—'}</td>
-              <td className="num">{m?.speed_mps !== null && m?.speed_mps !== undefined ? `${m.speed_mps.toFixed(1)} m/s` : '—'}</td>
-              <td>{txText(m?.tx_on ?? null)}</td>
-              <td className="num">{fmtMeters(c.nearest_m)}</td>
+              <td className="name" title={c.name}>{c.name}{c.inZone ? <span className="card-badge alert" data-row-zone={c.inZone}>告警区</span> : null}</td>
+              <td className="num mono">{m ? m.alt_m.toFixed(0) : '—'}</td>
+              <td className="num mono">{m?.speed_mps !== null && m?.speed_mps !== undefined ? m.speed_mps.toFixed(1) : '—'}</td>
+              <td className={m?.tx_on ? 'tx-on' : 'tx-off'}>{txText(m?.tx_on ?? null)}</td>
+              <td className="num mono">{fmtMeters(c.nearest_m)}</td>
             </tr>
           )
         })}

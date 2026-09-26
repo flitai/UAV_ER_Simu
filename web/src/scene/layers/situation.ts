@@ -8,7 +8,8 @@
 // 本模块只管画。数据从哪来（运行中的 WS 事件、结束后的 track 端点、编辑器的草稿）由调用方决定。
 
 import type { Map as MLMap } from 'maplibre-gl'
-import { SIT, ICON_SVG, ICON_COLOR, makeIcon, type IconName } from '../style/situation.js'
+import { SIT, ICON_SVG, ICON_COLOR, makeIcon, droneIconSuffix, type IconName } from '../style/situation.js'
+import type { PlatformKind } from '../style/platformIcons.js'
 import { PM, PM_FONT } from '../style/colors.js'
 
 export const SRC = {
@@ -58,6 +59,8 @@ export interface TargetPoint {
   selected?: boolean
   /** 焦点目标（D-062）：标签带高度；非焦点只标识别号 */
   focus?: boolean
+  /** 机型剪影（D-078）；缺省多旋翼 */
+  platform?: PlatformKind
 }
 
 export interface LinkLine {
@@ -259,15 +262,21 @@ export function addSituationLayers(map: MLMap): void {
     map.addLayer({
       id: 'cuav-target-ring', type: 'circle', source: SRC.targets,
       filter: ['==', ['get', 'selected'], true],
-      paint: { 'circle-radius': 24, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': SIT.target, 'circle-stroke-width': 2 },
+      // em-demo 式选中：细环加一圈半透明光晕（D-078）。circle-opacity 只管填充，环保持不透明
+      paint: {
+        'circle-radius': 24, 'circle-color': SIT.target, 'circle-opacity': 0.12,
+        'circle-stroke-color': SIT.target, 'circle-stroke-width': 2,
+      },
     }, before)
   }
   if (!map.getLayer('cuav-target-icon')) {
     map.addLayer({
       id: 'cuav-target-icon', type: 'symbol', source: SRC.targets,
       layout: {
-        // 在告警区内换红环变体；1.25 × 32 = 40 CSS px（V-2 由 25.6 px 加到 40 px）
-        'icon-image': ['case', ['==', ['get', 'alert'], true], 'cuav-drone-alert', 'cuav-drone'],
+        // 按机型选剪影、在告警区内换红环变体（D-078）；1.25 × 32 = 40 CSS px（V-2 由 25.6 px 加到 40 px）
+        'icon-image': ['case', ['==', ['get', 'alert'], true],
+          ['concat', 'cuav-drone-alert', ['get', 'icon_suffix']],
+          ['concat', 'cuav-drone', ['get', 'icon_suffix']]],
         'icon-size': 1.25,
         'icon-rotate': ['get', 'heading'], 'icon-rotation-alignment': 'map',
         'icon-allow-overlap': true, 'icon-ignore-placement': true,
@@ -352,6 +361,7 @@ export function setTargets(map: MLMap, targets: TargetPoint[]): void {
       properties: {
         id: t.id, heading: t.heading_deg, speed: t.speed_mps, alt_m: t.alt_m, tx_on: t.tx_on,
         alert: t.alert === true, selected: t.selected === true, focus: t.focus !== false,
+        icon_suffix: droneIconSuffix(t.platform ?? 'multirotor'),
         label: t.focus === false ? t.id : `${t.id} · ${t.alt_m.toFixed(0)} m`,
       },
       geometry: { type: 'Point', coordinates: [t.lon, t.lat] },

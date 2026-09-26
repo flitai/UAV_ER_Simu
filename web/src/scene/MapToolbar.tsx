@@ -7,6 +7,7 @@
 import { useAppState, useDispatch } from '../state/store.js'
 import { isReadonlyScenario } from './readonly.js'
 import type { SceneTool } from '../state/types.js'
+import type { BearingStyle } from './layers/fixOverlay.js'
 
 export interface MapToolbarProps {
   hill: boolean
@@ -20,6 +21,9 @@ export interface MapToolbarProps {
    *  没跑过带测向的任务时图上本来就是空的，开关仍在，关掉即整层不画 */
   fix: boolean
   onFix: (v: boolean) => void
+  /** 测向的画法（D-078）：渐隐色带（缺省）或按测向质量分档的虚线 */
+  bearingStyle: BearingStyle
+  onBearingStyle: (v: BearingStyle) => void
   /** 告警区与高度立柱（D-061） */
   zonesOn: boolean
   onZones: (v: boolean) => void
@@ -65,6 +69,12 @@ export function MapToolbar(p: MapToolbarProps) {
               <label><input type="checkbox" checked={p.hill} onChange={(e) => p.onHill(e.target.checked)} /> 山体阴影</label>
               <label><input type="checkbox" checked={p.situation} onChange={(e) => p.onSituation(e.target.checked)} /> 站点、航线、目标与链路</label>
               <label data-layer="fix"><input type="checkbox" checked={p.fix} onChange={(e) => p.onFix(e.target.checked)} /> 测向线与定位椭圆</label>
+              <label data-layer="bearing-style">测向画法
+                <select value={p.bearingStyle} disabled={!p.fix} onChange={(e) => p.onBearingStyle(e.target.value as BearingStyle)}>
+                  <option value="band">渐隐色带</option>
+                  <option value="line">虚线（按测向质量分档）</option>
+                </select>
+              </label>
               <label data-layer="zones"><input type="checkbox" checked={p.zonesOn} onChange={(e) => p.onZones(e.target.checked)} /> 告警区</label>
               <label data-layer="poles"><input type="checkbox" checked={p.poles} onChange={(e) => p.onPoles(e.target.checked)} /> 高度立柱</label>
               <label data-layer="all-overlays"><input type="checkbox" checked={p.allOverlays} onChange={(e) => p.onAllOverlays(e.target.checked)} /> 全部目标叠加</label>

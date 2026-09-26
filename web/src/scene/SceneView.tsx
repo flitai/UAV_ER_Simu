@@ -33,6 +33,7 @@ import { saveScenario, saveScenarioAs } from '../shell/actions.js'
 import { mountSituation, useLiveSituation, useScenarioLayers } from './useSituation.js'
 import { clearSituation, setLayersVisible } from './layers/situation.js'
 import { addEmitter, addSite, addWaypoint, addZone, moveSite, moveWaypoint } from './editor/scenarioOps.js'
+import type { BearingStyle } from './layers/fixOverlay.js'
 
 export function SceneView({ active }: { active: boolean }) {
   const s = useAppState()
@@ -46,6 +47,7 @@ export function SceneView({ active }: { active: boolean }) {
   const [flat, setFlat] = useState(false)
   const [situation, setSituation] = useState(true)
   const [fix, setFix] = useState(true)
+  const [bearingStyle, setBearingStyle] = useState<BearingStyle>('band')
   const [zonesOn, setZonesOn] = useState(true)
   const [poles, setPoles] = useState(true)
   const [allOverlays, setAllOverlays] = useState(false)
@@ -292,7 +294,7 @@ export function SceneView({ active }: { active: boolean }) {
   const selWp = s.scene.editor.selection?.kind === 'waypoint' ? s.scene.editor.selection.index : -1
   const selTarget = s.scene.editor.selection?.kind === 'emitter' ? s.scene.editor.selection.id : null
   useScenarioLayers(situation ? mapRef.current : null, ready, s.scene.scenario.doc, selEmitter, selWp)
-  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc, fix, selTarget, focusTargetId(s), allOverlays)
+  useLiveSituation(situation ? mapRef.current : null, ready, s.scene.scenario.doc, fix, selTarget, focusTargetId(s), allOverlays, bearingStyle)
 
   // 告警区与高度立柱的显隐（D-061）
   useEffect(() => {
@@ -408,6 +410,7 @@ export function SceneView({ active }: { active: boolean }) {
           <div ref={box} className="scene-map" />
           <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat}
                       situation={situation} onSituation={setSituation} fix={fix} onFix={setFix}
+                      bearingStyle={bearingStyle} onBearingStyle={setBearingStyle}
                       onSaveAs={() => { void onSaveAs() }}
                       zonesOn={zonesOn} onZones={setZonesOn} poles={poles} onPoles={setPoles}
                       allOverlays={allOverlays} onAllOverlays={setAllOverlays}

@@ -7,6 +7,8 @@
 // 图形语义沿用 em-demo（docs/display-route.md 第 3 节，已冻结）：视距绿 / 非视距红、
 // 无人机图标随航向旋转、航迹抽稀。首期没有威胁分级与效应染色，目标只有一种颜色。
 
+import { platformSvg, type PlatformKind } from './platformIcons.js'
+
 /** 浅色底图上的态势色值。最低对比度 3.56:1（视距绿对水面），高于非文本图形的 3:1 门槛。 */
 export const SIT = {
   site: '#1e40af',        // 侦察站
@@ -36,29 +38,22 @@ export const SIT = {
 /** 航迹抽稀：相邻点近于这个距离就不新增顶点。20 km 的观测区域上 3 米足够细。 */
 export const TRAIL_MIN_STEP_DEG = 3e-5
 
-/**
- * 无人机图标。单色路径，光栅化后用 source-in 染色（docs/display-route.md 第 3 节）；
- * 图标朝上画，靠 icon-rotate 表航向，所以尖端必须指向 +Y 的反方向（屏幕上的正北）。
- */
-const DRONE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-<path d="M16 2 L22 14 L17 13 L17 24 L21 24 L21 27 L11 27 L11 24 L15 24 L15 13 L10 14 Z"
-      fill="#000" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>
-</svg>`
-
-/** 入圈变体：同一机身外加一圈粗环（D-061）。整个图标染成告警红，环让它在一群目标里一眼跳出来。 */
-const DRONE_ALERT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-<circle cx="16" cy="16" r="14" fill="none" stroke="#000" stroke-width="2.4"/>
-<path d="M16 4 L21 14 L17 13 L17 23 L20.5 23 L20.5 25.5 L11.5 25.5 L11.5 23 L15 23 L15 13 L11 14 Z"
-      fill="#000" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>
-</svg>`
-
 const SITE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 <circle cx="16" cy="16" r="7" fill="none" stroke="#000" stroke-width="3"/>
 <circle cx="16" cy="16" r="2.5" fill="#000"/>
 <path d="M16 3 L16 7 M16 25 L16 29 M3 16 L7 16 M25 16 L29 16" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
 </svg>`
 
-export type IconName = 'cuav-drone' | 'cuav-drone-alert' | 'cuav-site'
+/**
+ * 图标名。无人机按机型分图（D-078，剪影见 platformIcons.ts）：多旋翼沿用旧名 `cuav-drone` /
+ * `cuav-drone-alert`（端到端按这两个名字断言），固定翼加后缀 `-fixed_wing`。
+ */
+export type IconName = 'cuav-drone' | 'cuav-drone-alert' | 'cuav-drone-fixed_wing' | 'cuav-drone-alert-fixed_wing' | 'cuav-site'
+
+/** 机型 → 图标名后缀（多旋翼为空，保住旧名）。 */
+export function droneIconSuffix(kind: PlatformKind): string {
+  return kind === 'multirotor' ? '' : `-${kind}`
+}
 
 /** 把一段 SVG 变成染好色的 ImageData。异步：Image 解码是异步的。 */
 export async function makeIcon(svg: string, px: number, color: string, halo: string): Promise<ImageData | null> {
@@ -105,13 +100,17 @@ export async function makeIcon(svg: string, px: number, color: string, halo: str
 }
 
 export const ICON_SVG: Record<IconName, string> = {
-  'cuav-drone': DRONE_SVG,
-  'cuav-drone-alert': DRONE_ALERT_SVG,
+  'cuav-drone': platformSvg('multirotor'),
+  'cuav-drone-alert': platformSvg('multirotor', true),
+  'cuav-drone-fixed_wing': platformSvg('fixed_wing'),
+  'cuav-drone-alert-fixed_wing': platformSvg('fixed_wing', true),
   'cuav-site': SITE_SVG,
 }
 
 export const ICON_COLOR: Record<IconName, string> = {
   'cuav-drone': SIT.target,
   'cuav-drone-alert': SIT.zoneAlert,
+  'cuav-drone-fixed_wing': SIT.target,
+  'cuav-drone-alert-fixed_wing': SIT.zoneAlert,
   'cuav-site': SIT.site,
 }

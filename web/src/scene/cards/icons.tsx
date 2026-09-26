@@ -1,42 +1,18 @@
 // 卡片用的两种小图形（13 报告 §3.3）：机型剪影与小方位盘。内联 SVG，不加载任何资源（铁律 6）。
 
-/** 机型剪影：按 `platform_type` 四选一，都用 currentColor 填色，朝上画。 */
+import { PLATFORM_SHAPES, platformKind } from '../style/platformIcons.js'
+
+/**
+ * 机型剪影：与地图图标同一份（D-078，platformIcons.ts），currentColor 填色，朝上画。
+ * 四个 `platform_type` 归成两种剪影；具体机型写在旁边的文字里。
+ */
 export function PlatformIcon({ type, size = 22 }: { type: string; size?: number }) {
-  const common = { width: size, height: size, viewBox: '0 0 32 32', 'aria-hidden': true, className: 'plat-icon' }
-  switch (type) {
-    case 'fixed_wing':
-      return (
-        <svg {...common}>
-          <path d="M16 2 L18 12 L30 16 L30 19 L18 17 L17 26 L21 28 L21 30 L11 30 L11 28 L15 26 L14 17 L2 19 L2 16 L14 12 Z" fill="currentColor" />
-        </svg>
-      )
-    case 'racing':
-      return (
-        <svg {...common}>
-          <path d="M6 6 L26 26 M26 6 L6 26" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          <circle cx="6" cy="6" r="3.5" fill="currentColor" /><circle cx="26" cy="6" r="3.5" fill="currentColor" />
-          <circle cx="6" cy="26" r="3.5" fill="currentColor" /><circle cx="26" cy="26" r="3.5" fill="currentColor" />
-          <circle cx="16" cy="16" r="3" fill="currentColor" />
-        </svg>
-      )
-    case 'medium':
-      return (
-        <svg {...common}>
-          <path d="M16 3 L19 11 L30 13 L30 17 L19 16 L18 25 L24 27 L24 30 L8 30 L8 27 L14 25 L13 16 L2 17 L2 13 L13 11 Z" fill="currentColor" />
-        </svg>
-      )
-    default:   // multirotor
-      return (
-        <svg {...common}>
-          <path d="M8 8 L24 24 M24 8 L8 24" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          <circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <circle cx="24" cy="8" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <circle cx="8" cy="24" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <circle cx="24" cy="24" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <circle cx="16" cy="16" r="3.5" fill="currentColor" />
-        </svg>
-      )
-  }
+  const shape = PLATFORM_SHAPES[platformKind(type).kind]
+  return (
+    <svg width={size} height={size} viewBox={shape.viewBox} aria-hidden className="plat-icon">
+      {shape.paths.map((d, i) => <path key={i} d={d} fill="currentColor" fillRule="evenodd" />)}
+    </svg>
+  )
 }
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {

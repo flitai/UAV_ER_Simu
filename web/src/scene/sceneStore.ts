@@ -71,6 +71,8 @@ export interface PositionSample {
   geometry_quality: string
   time_quality: string | null
   participating_sites: string[]
+  /** TDOA 参考站（aoa 解为 null） */
+  reference_site?: string | null
   state: string
 }
 
@@ -367,6 +369,7 @@ export function positionFromPayload(t_s: number, p: Record<string, unknown>): Po
     geometry_quality: typeof p.geometry_quality === 'string' ? p.geometry_quality : 'degenerate',
     time_quality: typeof p.time_quality === 'string' ? p.time_quality : null,
     participating_sites: sites,
+    reference_site: typeof p.reference_site === 'string' ? p.reference_site : null,
     state: typeof p.state === 'string' ? p.state : 'valid',
   }
 }
