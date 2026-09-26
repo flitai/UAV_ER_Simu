@@ -34,6 +34,7 @@ add_library(cuav_geo STATIC
   src/occlusion.cpp
   src/kinematics.cpp
   src/link_budget.cpp
+  src/coverage.cpp
   src/propagation.cpp
   src/scenario.cpp
   src/activity.cpp

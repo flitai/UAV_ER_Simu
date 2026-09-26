@@ -7,6 +7,8 @@
 // 本文件同时是 tests/golden/geodesy.json 的**生成器**（D-074 / D3-1）：
 //     cuav_geo_smoke_test --write-golden tests/golden/geodesy.json
 // 带这个参数时只写基准不跑自检；不带参数时行为与以前逐字相同。
+// 同理生成 tests/golden/coverage-cells.json（D-079，覆盖场单格链路预算，C++ 是真理源）：
+//     cuav_geo_smoke_test --write-golden-coverage tests/golden/coverage-cells.json
 // 放在这里是因为它是全仓唯一既链接 cuav_geo、又拿得到 GeographicLib 私有头的目标。
 
 #include <cmath>
@@ -20,6 +22,7 @@
 #include <GeographicLib/Geocentric.hpp>
 #include <GeographicLib/LocalCartesian.hpp>
 
+#include "cuav_geo/coverage.h"
 #include "cuav_geo/geodesy.h"
 #include "cuav_geo/kinematics.h"
 #include "cuav_geo/link_budget.h"
@@ -104,10 +107,127 @@ int write_golden(const char* path) {
     return 0;
 }
 
+
+// ---------------------------------------------------------------- 覆盖场单格（D-079）
+//
+// 建筑集写在本文件里、也原样写进基准：浏览器侧拿同一组楼建桶网格，两侧的差异只可能来自
+// 被测的计算本身。楼放在观测区域中心附近、平面米、外环首尾不闭合（map.h 的约定）。
+struct CovBox { const char* id; double x0, y0, x1, y1, base, height; };
+const CovBox kCovBoxes[] = {
+    {"b1", 150.0, -60.0, 230.0, 60.0, 0.0, 45.0},
+    {"b2", -320.0, 200.0, -240.0, 300.0, 0.0, 80.0},
+    {"b3", 400.0, 380.0, 520.0, 440.0, 0.0, 25.0},
+    {"b4", -80.0, -520.0, 80.0, -470.0, 0.0, 60.0},
+    {"b5", 900.0, -120.0, 960.0, 140.0, 10.0, 120.0},
+    {"b6", -900.0, -900.0, -700.0, -700.0, 0.0, 35.0},
+};
+
+std::vector<Building> cov_buildings() {
+    std::vector<Building> out;
+    for (size_t i = 0; i < sizeof(kCovBoxes) / sizeof(kCovBoxes[0]); ++i) {
+        const CovBox& b = kCovBoxes[i];
+        Building bd;
+        bd.id = b.id;
+        bd.ring_x = {b.x0, b.x1, b.x1, b.x0};
+        bd.ring_y = {b.y0, b.y0, b.y1, b.y1};
+        bd.base_m = b.base;
+        bd.height_m = b.height;
+        out.push_back(bd);
+    }
+    return out;
+}
+
+int write_golden_coverage(const char* path) {
+    const Lla origin(116.405, 39.990, 0.0);
+    const double terrain = 0.0;
+    LocalSceneAdapter map;
+    map.set_buildings(cov_buildings());
+    OcclusionQuery occ;
+    occ.map = &map;
+    occ.frame = SceneFrame(origin);
+
+    const Lla sites[] = {Lla(116.405, 39.990, 30.0), Lla(116.3990, 39.9860, 15.0)};
+    // 目标：楼后、楼前、掠射、远处、贴地，外加一个与站重合的无效点（valid = false）
+    const double tlon[] = {116.4080, 116.4150, 116.4000, 116.4250, 116.3950, 116.4065, 116.3860};
+    const double tlat[] = {39.9900, 39.9910, 39.9930, 39.9950, 39.9800, 39.9848, 39.9810};
+    const double heights[] = {1.5, 60.0, 150.0};
+    const double freqs[] = {2.44e9, 5.8e9};
+
+    CoverageLink base;
+    base.tx_power_dBm = 27.0;
+    base.tx_gain_dBi = 2.0;
+    base.rx_gain_dBi = 3.0;
+    base.nf_dB = 6.0;
+    base.noise_bw_Hz = 921.0 * 500000.0 / 1024.0;   // 缺省链：M = 921、fs = 500 kS/s、nfft = 1024
+
+    std::ofstream f(path, std::ios::binary);
+    if (!f) { std::printf("打不开 %s\n", path); return 1; }
+    char buf[1024];
+    f << "{\n  \"_meta\": {\n";
+    f << "    \"what\": \"覆盖场单格链路预算（D-079）：C++ geo::coverage_cell 的输出，浏览器 web/src/scene/coverage/cell.ts 逐格复算对拍\",\n";
+    f << "    \"generator\": \"geo/build/cuav_geo_smoke_test --write-golden-coverage tests/golden/coverage-cells.json\",\n";
+    f << "    \"tolerance\": {\"distance_m\": \"rel <= 1e-9\", \"fspl_dB\": \"rel <= 1e-9\", \"diffraction_dB/signal_dBm/noise_dBm/snr_dB\": \"abs <= 1e-8 dB\"},\n";
+    f << "    \"why_abs_for_dB\": \"信噪比、刀口损耗会落在 0 dB 附近，相对差在那里会被放大成没有意义的大数（实测 snr 0.30 dB 那格 abs 1.6e-10 dB 即 rel 5.2e-10）；两侧的差来自椭球换算两家实现相差 1.7e-9 m，折到 dB 上约 1e-10 量级，1e-8 dB 留约五十倍余量\",\n";
+    f << "    \"frame\": \"geo::SceneFrame，原点 [116.405, 39.99]；楼的外环是平面米、首尾不闭合；terrain_height_m = 0\",\n";
+    f << "    \"formula\": \"S = P_tx + G_t + G_r - FSPL - L_diff；N = -174 + nf + 10 log10(noise_bw_Hz)；snr = S - N\"\n  },\n";
+    f << "  \"origin\": {\"lon\": 116.405, \"lat\": 39.99},\n  \"terrain_height_m\": 0,\n  \"buildings\": [\n";
+    const size_t nb = sizeof(kCovBoxes) / sizeof(kCovBoxes[0]);
+    for (size_t i = 0; i < nb; ++i) {
+        const CovBox& b = kCovBoxes[i];
+        std::snprintf(buf, sizeof(buf),
+                      "    {\"id\": \"%s\", \"ring_x\": [%.17g, %.17g, %.17g, %.17g], \"ring_y\": [%.17g, %.17g, %.17g, %.17g], \"base_m\": %.17g, \"height_m\": %.17g}%s\n",
+                      b.id, b.x0, b.x1, b.x1, b.x0, b.y0, b.y0, b.y1, b.y1, b.base, b.height, i + 1 < nb ? "," : "");
+        f << buf;
+    }
+    f << "  ],\n  \"cases\": [\n";
+    std::vector<std::string> rows;
+    for (int si = 0; si < 2; ++si)
+        for (size_t ti = 0; ti < sizeof(tlon) / sizeof(tlon[0]); ++ti)
+            for (int hi = 0; hi < 3; ++hi)
+                for (int fi = 0; fi < 2; ++fi) {
+                    CoverageLink link = base;
+                    link.frequency_Hz = freqs[fi];
+                    const Lla target(tlon[ti], tlat[ti], terrain + heights[hi]);
+                    const CoverageCell c = coverage_cell(sites[si], target, terrain, &occ, link);
+                    std::snprintf(buf, sizeof(buf),
+                                  "    {\"site\": [%.17g, %.17g, %.17g], \"target\": [%.17g, %.17g, %.17g], \"frequency_Hz\": %.17g, "
+                                  "\"out\": {\"valid\": %s, \"blocked\": %s, \"distance_m\": %.17g, \"fspl_dB\": %.17g, \"diffraction_dB\": %.17g, "
+                                  "\"signal_dBm\": %.17g, \"noise_dBm\": %.17g, \"snr_dB\": %.17g}}",
+                                  sites[si].lon_deg, sites[si].lat_deg, sites[si].alt_m, target.lon_deg, target.lat_deg, target.alt_m,
+                                  link.frequency_Hz, c.valid ? "true" : "false", c.blocked ? "true" : "false", c.distance_m,
+                                  c.fspl_dB, c.diffraction_dB, c.signal_dBm, c.noise_dBm, c.snr_dB);
+                    rows.push_back(buf);
+                }
+    // 与站重合的点：距离为零，valid 必须为 false
+    {
+        CoverageLink link = base;
+        link.frequency_Hz = 2.44e9;
+        const CoverageCell c = coverage_cell(sites[0], sites[0], terrain, &occ, link);
+        std::snprintf(buf, sizeof(buf),
+                      "    {\"site\": [%.17g, %.17g, %.17g], \"target\": [%.17g, %.17g, %.17g], \"frequency_Hz\": %.17g, "
+                      "\"out\": {\"valid\": %s, \"blocked\": %s, \"distance_m\": %.17g, \"fspl_dB\": %.17g, \"diffraction_dB\": %.17g, "
+                      "\"signal_dBm\": %.17g, \"noise_dBm\": %.17g, \"snr_dB\": %.17g}}",
+                      sites[0].lon_deg, sites[0].lat_deg, sites[0].alt_m, sites[0].lon_deg, sites[0].lat_deg, sites[0].alt_m,
+                      link.frequency_Hz, c.valid ? "true" : "false", c.blocked ? "true" : "false", c.distance_m,
+                      c.fspl_dB, c.diffraction_dB, c.signal_dBm, c.noise_dBm, c.snr_dB);
+        rows.push_back(buf);
+    }
+    for (size_t i = 0; i < rows.size(); ++i) f << rows[i] << (i + 1 < rows.size() ? ",\n" : "\n");
+    f << "  ],\n";
+    std::snprintf(buf, sizeof(buf), "  \"link\": {\"tx_power_dBm\": %.17g, \"tx_gain_dBi\": %.17g, \"rx_gain_dBi\": %.17g, \"nf_dB\": %.17g, \"noise_bw_Hz\": %.17g}\n}\n",
+                  base.tx_power_dBm, base.tx_gain_dBi, base.rx_gain_dBi, base.nf_dB, base.noise_bw_Hz);
+    f << buf;
+    int blocked = 0;
+    for (size_t i = 0; i < rows.size(); ++i) if (rows[i].find("\"blocked\": true") != std::string::npos) ++blocked;
+    std::printf("已写入 %s（%zu 例，其中判非视距 %d 例）\n", path, rows.size(), blocked);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     if (argc == 3 && std::strcmp(argv[1], "--write-golden") == 0) return write_golden(argv[2]);
+    if (argc == 3 && std::strcmp(argv[1], "--write-golden-coverage") == 0) return write_golden_coverage(argv[2]);
 
     const IGeodesy& g = default_geodesy();
 

@@ -121,6 +121,7 @@ add_executable(cuav_engine_tests
   tests/test_components.cpp
   tests/test_golden.cpp
   tests/test_occlusion.cpp
+  tests/test_coverage.cpp
   tests/test_buildings.cpp
   tests/test_registry.cpp
   tests/test_spectrum.cpp
