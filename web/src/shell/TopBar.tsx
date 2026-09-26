@@ -58,7 +58,7 @@ export function TopBar() {
       <RunGroup />
       <ViewSwitch />
       {/* 浅色 / 深色（D-078）：每个浏览者自己的偏好，存本机，不进任务 */}
-      <button type="button" className="more" data-act="theme" data-theme-now={theme}
+      <button type="button" className="theme-btn" data-act="theme" data-theme-now={theme}
               title={theme === 'dark' ? '切换到浅色' : '切换到深色'} onClick={() => themeStore.toggle()}>
         {theme === 'dark' ? '☀' : '☾'}
       </button>

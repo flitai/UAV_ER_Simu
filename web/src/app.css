@@ -103,7 +103,7 @@ code.chip { display: inline-block; background: var(--earth); border: 1px solid v
 .view-switch button:first-child { border-radius: 4px 0 0 4px; }
 .view-switch button:nth-child(3) { border-radius: 0 4px 4px 0; }
 .view-switch button.data { margin-left: 8px; border-radius: 4px; }
-.topbar .more { border: none; background: none; font-size: 18px; padding: 0 6px; }
+.topbar .more, .topbar .theme-btn { border: none; background: none; font-size: 18px; padding: 0 6px; }
 .dev-mark { background: var(--warn); color: var(--white); font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; letter-spacing: 1px; }
 @media (max-width: 1919px) {
   .pill.project { display: none; }
