@@ -177,17 +177,37 @@ function notify(): void {
   for (const f of subs) f()
 }
 
+/**
+ * 当前任务数据属于哪个场景（D-061 ⑨ 的 task.json scenario_id）。由外壳在任务变更时设。
+ * 与数据本身分开放：reset() 清数据、不清归属——换任务时归属随即被新任务改写。
+ */
+let owner: string | null = null
+
 export const sceneStore = {
   get: () => state,
+  owner: (): string | null => owner,
+  setOwner(id: string | null) {
+    if (id === owner) return
+    owner = id
+    notify()
+  },
   subscribe(f: () => void) {
     subs.add(f)
     return () => {
       subs.delete(f)
     }
   },
-  /** 换任务、换场景、开始回看之前调一次。 */
+  /**
+   * 换任务、换场景、开始回看之前调一次。
+   *
+   * **版本号不归零**：地图定频 tick、卡片与时间轴计数都按「版本号变了才重算」去重，归零会让清空之后的
+   * 版本号撞上清空之前算过的某个值，于是新数据到了也被当成「没变」——2026-09-27 场景归属一加 notify()
+   * 就撞上了：刷新后时间轴计数停在清空前的空态（视距 0/0），而卡片那一拍碰巧没撞。
+   */
   reset() {
+    const rev = state.rev
     state = empty()
+    state.rev = rev
     notify()
   },
   pushEntity(e: EntitySample) {

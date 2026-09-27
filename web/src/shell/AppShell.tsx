@@ -7,7 +7,7 @@ import { occlusionState, occlusionNote } from '../scene/occlusion/store.js'
 import { losProbeStore } from '../scene/losProbe.js'
 import { coverageProbe } from '../scene/coverage/store.js'
 import { SceneView } from '../scene/SceneView.js'
-import { situationSnapshot } from '../scene/sceneStore.js'
+import { sceneStore, situationSnapshot } from '../scene/sceneStore.js'
 import { currentSituation } from '../scene/situationView.js'
 import { timelineMarkers } from './timelineOps.js'
 import { Timeline } from './Timeline.js'
@@ -64,6 +64,8 @@ export function AppShell() {
   useHotkeys()
   useTaskStream()
   useProductIndex()
+  // 任务数据的场景归属（2026-09-27）：地图与卡片只在它与当前场景一致时用任务数据（scene/situationView.ts）
+  useEffect(() => { sceneStore.setOwner(s.task.id ? s.task.scenarioId ?? null : null) }, [s.task.id, s.task.scenarioId])
 
   const [visited, setVisited] = useState<Set<View>>(() => new Set<View>(['scene', s.ui.view]))
   useEffect(() => {

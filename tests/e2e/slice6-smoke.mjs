@@ -76,6 +76,12 @@ try {
   await sleep(600)
   await page.evaluate(setSelect('[data-form=scene-pick] [data-field=scenario]', 'golden-03'))
   st = await page.waitFor((s) => s.app?.scene?.scenarioId === 'golden-03' && s.app?.scene?.status === 'ok', { label: '场景页切到 golden-03', timeoutMs: 30000 })
+  // 采用的最近任务属于别的场景（本套端到端开头跑的是 golden-01）：地图不能再画那个任务的无人机，
+  // 要画当前场景自己的三架（2026-09-27 用户：「为何无论选择哪个场景都只有一架无人机」）
+  st = await page.waitFor((s) => (s.app?.entities ?? []).length === 3, { label: '图上是 golden-03 的三架', timeoutMs: 10000 }).catch(() => st)
+  check('换场景后地图画的是这份场景的无人机（三架），不是采用的别的场景任务里的那一架',
+    st.app.entities.length === 3 && st.app.entities.map((e) => e.id).sort().join() === 'uav-1,uav-2,uav-3' && st.app.timeline.source === 'preview',
+    `${st.app.entities.map((e) => e.id).join(',')} · 来源 ${st.app.timeline.source} · 任务 ${st.app.context.taskId}`)
   await page.send('Page.navigate', { url: `${BASE}#/diagram` })
   st = await page.waitFor((s) => s.app?.view === 'diagram' && s.app?.chain?.scenarioId === 'golden-03', { label: '框图页跟着场景页', timeoutMs: 30000 })
   check('场景在场景页选，框图页跟着切到 golden-03', st.app.chain.scenarioId === 'golden-03', st.app.chain.scenarioId)

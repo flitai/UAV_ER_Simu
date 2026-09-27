@@ -67,6 +67,14 @@ export function previewEntities(doc: ScenarioDoc | null, t: number): Map<string,
 export function currentSituation(doc: ScenarioDoc | null): SituationView {
   const ts = timeStore.get()
   const st = sceneStore.get()
+  // 任务数据只在它属于当前场景时才用（2026-09-27）：启动时会采用盘上最近的任务，
+  // 用户再在顶栏换场景，任务还是原来那个——不查归属就把别的场景的无人机画在这份场景上。
+  // 不属于时退到浏览器航迹预览：回放按时间轴的 t，live 取起点（t = 0，运行前看得见各机在哪）。
+  const docId = doc && typeof doc.scenario_id === 'string' ? doc.scenario_id : null
+  if (!docId || sceneStore.owner() !== docId) {
+    const t = ts.mode === 'replay' && ts.t !== null ? ts.t : 0
+    return { entities: previewEntities(doc, t), links: new Map(), bearings: new Map(), positions: new Map(), trails: new Map(), source: 'preview', t }
+  }
   if (ts.mode === 'replay' && ts.t !== null) {
     if (sceneStore.hasHistory()) {
       const snap = sceneStore.snapshotAt(ts.t)

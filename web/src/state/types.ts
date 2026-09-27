@@ -204,6 +204,12 @@ export interface AppState {
     observationPoints: ObservationPointSummary[]
     dataRefs: number
     holdoutRefs: number
+    /**
+     * 这个任务绑定的场景（task.json 的 scenario_id，D-061 ⑨）。地图上的实体、链路、测向只在它与当前
+     * 选中的场景一致时才取自任务（scene/situationView.ts）；否则画的是别的场景的无人机（2026-09-27 用户：
+     * 「为何无论选择哪个场景都只有一架无人机」——启动时采用了最近的 golden-01 任务）。旧记录没有，为 null。
+     */
+    scenarioId?: string | null
     lastSeq: number
     subscribeSince: number
   }

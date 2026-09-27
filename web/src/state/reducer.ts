@@ -129,6 +129,7 @@ function fromRecord(rec: TaskRecord, prev: AppState['task']): AppState['task'] {
     dataRefs: (rec.data_refs ?? []).length,
     holdoutRefs: (rec.data_refs ?? []).filter((d) => d.holdout).length,
     lastSeq: rec.last_seq ?? 0,
+    scenarioId: rec.scenario_id ?? (rec.task_id === prev.id ? prev.scenarioId ?? null : null),
   }
 }
 
