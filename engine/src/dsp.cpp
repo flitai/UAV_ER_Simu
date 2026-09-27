@@ -135,6 +135,12 @@ double threshold_for_pfa(int m_bins, double pfa) {
     return 0.5 * (lo + hi);
 }
 
+double pd_random(int m_bins, double eta, double snr_linear) {
+    if (snr_linear < 0.0) throw std::invalid_argument("信噪比线性值不能为负");
+    const double m = static_cast<double>(m_bins);
+    return regularized_gamma_q(m, m * eta / (1.0 + snr_linear));
+}
+
 
 // --- 带限用的双二阶节（C-8 / G-6，D-069）------------------------------------
 

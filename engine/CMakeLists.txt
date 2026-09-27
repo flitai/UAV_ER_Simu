@@ -81,6 +81,8 @@ add_library(cuav_engine STATIC
   src/scenario_json.cpp
   src/buildings_json.cpp
   src/scenario.cpp
+  src/propagation_params.cpp
+  src/field.cpp
   src/channel.cpp
   src/antenna.cpp
   src/receiver.cpp
@@ -122,6 +124,7 @@ add_executable(cuav_engine_tests
   tests/test_golden.cpp
   tests/test_occlusion.cpp
   tests/test_coverage.cpp
+  tests/test_field.cpp
   tests/test_buildings.cpp
   tests/test_registry.cpp
   tests/test_spectrum.cpp

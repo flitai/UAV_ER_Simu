@@ -10,6 +10,7 @@
 
 #include "cuav/catalog.h"
 #include "cuav/diagram_json.h"
+#include "cuav/field.h"
 #include "cuav/evaluation_json.h"
 #include "cuav/observer.h"
 #include "cuav/platform.h"
@@ -787,6 +788,87 @@ int do_scenario_track(const Options& opt, std::ostream& events, std::ostream& di
     return ExitOk;
 }
 
+// --field：覆盖场（探测范围，D-080）。
+//
+// 网格写进 --out（float32 小端，先合并、再按场景站序逐站，每层 nx × ny、行主序、第 0 行在北），
+// 事实摘要作一条 field 事件写 stdout，末尾一条 task.state。不建产品目录，墙钟只进摘要不进网格，
+// 于是网格文件逐字节可复现（同一请求、同一场景、同一份建筑）。
+int do_field(const Options& opt, std::ostream& events, std::ostream& diag) {
+    EventSink sink(events);
+    auto die = [&](const std::string& code, const std::string& msg, int rc) {
+        sink.emit("error", 0.0, json{{"code", code}, {"node_id", ""}, {"port", ""}, {"message", msg}});
+        diag << msg << "\n";
+        return rc;
+    };
+    const auto t0 = std::chrono::steady_clock::now();
+
+    std::string err;
+    nlohmann::json rj;
+    {
+        std::ifstream f(opt.field_request_path.c_str(), std::ios::binary);
+        if (!f) return die("schema", "打不开覆盖场请求：" + opt.field_request_path, ExitDiagram);
+        std::stringstream ss;
+        ss << f.rdbuf();
+        try {
+            rj = nlohmann::json::parse(ss.str());
+        } catch (const std::exception& e) {
+            return die("schema", std::string("覆盖场请求不是合法 JSON：") + e.what(), ExitDiagram);
+        }
+    }
+    FieldRequest req;
+    if (!parse_field_request(rj, req, err)) return die("schema", err, ExitDiagram);
+
+    LoadedScenario loaded;
+    if (!load_scenario_file(opt.scenario_paths[0], loaded, err)) return die("scenario", err, ExitDiagram);
+    const geo::Scenario& sc = loaded.scenario;
+    sink.set_task_id(sc.scenario_id);
+    std::string aoi_actual;
+    if (!check_aoi_manifest(sc, opt.scene_root, aoi_actual, err)) return die("scenario", err, ExitDiagram);
+
+    FieldResult r;
+    if (!compute_field(sc, req, opt.scene_root, r, err)) return die("field", err, ExitRunFailed);
+
+    {
+        std::ofstream f(opt.out_dir.c_str(), std::ios::binary | std::ios::trunc);
+        if (!f) return die("io", "网格文件写不了：" + opt.out_dir, ExitIo);
+        const std::streamsize bytes = static_cast<std::streamsize>(r.combined.size() * sizeof(float));
+        f.write(reinterpret_cast<const char*>(r.combined.data()), bytes);
+        for (std::size_t i = 0; i < r.sites.size(); ++i)
+            f.write(reinterpret_cast<const char*>(r.sites[i].pd.data()), bytes);
+        if (!f) return die("io", "网格文件写入失败：" + opt.out_dir, ExitIo);
+    }
+
+    json layers = json::array({"combined"});
+    json sites = json::array();
+    for (const FieldSite& s : r.sites) {
+        layers.push_back(s.id);
+        sites.push_back(json{{"id", s.id}, {"m_bins", s.m_bins}, {"eta", s.eta}, {"noise_bw_Hz", s.noise_bw_Hz},
+                             {"out_of_band", s.out_of_band}, {"blocked", s.blocked}, {"degraded", s.degraded},
+                             {"shadow_sigma_dB", s.shadow_sigma_dB}});
+    }
+    json points = json::array();
+    for (const FieldPoint& p : r.points) {
+        json ps = json::object();
+        for (const auto& kv : p.sites)
+            ps[kv.first] = json{{"distance_m", kv.second.distance_m}, {"path_loss_dB", kv.second.path_loss_dB},
+                                {"diffraction_dB", kv.second.diffraction_dB}, {"line_of_sight", kv.second.line_of_sight},
+                                {"snr_dB", kv.second.snr_dB}, {"pd", kv.second.pd}, {"valid", kv.second.valid}};
+        points.push_back(json{{"lon", p.lon}, {"lat", p.lat}, {"height_agl_m", p.height_agl_m}, {"sites", ps}});
+    }
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    sink.emit("field", 0.0,
+              json{{"schema_version", "cuav-field/1"},
+                   {"scenario_id", sc.scenario_id}, {"scenario_sha256", loaded.sha256},
+                   {"emitter_id", req.emitter_id}, {"height_agl_m", req.height_agl_m}, {"res_m", req.res_m},
+                   {"nx", r.nx}, {"ny", r.ny},
+                   {"bbox", json::array({r.bbox[0], r.bbox[1], r.bbox[2], r.bbox[3]})},
+                   {"layers", layers}, {"sites", sites}, {"prop_level", r.prop_level},
+                   {"included_loss_terms", r.included_loss_terms}, {"points", points},
+                   {"notes", r.notes}, {"ms", ms}, {"engine_version", engine_version()}});
+    sink.emit("task.state", 0.0, json{{"run_state", "finished"}, {"result", "valid"}});
+    return ExitOk;
+}
+
 }  // namespace
 
 const char* usage() {
@@ -799,6 +881,7 @@ const char* usage() {
         "           [--resolved <旁挂.json> | --data-index <索引.json>...] [--scenario <场景.json>...]\n"
         "           [--scene-root <目录>] [--library-root <目录>] [--progress-interval-ms N]\n"
         "  cuav_run --scenario-track <场景.json> [--track-rate Hz] [--scene-root <目录>]\n"
+        "  cuav_run --field <请求.json> --scenario <场景.json> --out <网格文件> [--scene-root <目录>]\n"
         "退出码：0 成功；1 命令行错误；2 框图装载失败；3 运行失败；4 产品目录或事件文件不可写。\n"
         "stdout 每行一条 JSON 事件 {seq, task_id, type, t_s, payload}；诊断文字在 stderr。\n";
 }
@@ -825,6 +908,7 @@ bool parse_args(int argc, const char* const* argv, Options& opt, std::string& er
         else if (a == "--validate") { if (!set_mode(Mode::Validate) || !value(opt.diagram_path)) return false; }
         else if (a == "--run") { if (!set_mode(Mode::Run) || !value(opt.diagram_path)) return false; }
         else if (a == "--scenario-track") { if (!set_mode(Mode::ScenarioTrack) || !value(opt.scenario_path)) return false; }
+        else if (a == "--field") { if (!set_mode(Mode::Field) || !value(opt.field_request_path)) return false; }
         else if (a == "--out") { if (!value(opt.out_dir)) return false; }
         else if (a == "--task-id") { if (!value(opt.task_id)) return false; }
         else if (a == "--resolved") { if (!value(opt.resolved_path)) return false; }
@@ -858,7 +942,16 @@ bool parse_args(int argc, const char* const* argv, Options& opt, std::string& er
     }
     if (opt.mode == Mode::None) { err = "缺子命令"; return false; }
     if (opt.mode == Mode::Run && opt.out_dir.empty()) { err = "--run 需要 --out <产品目录>"; return false; }
-    if (opt.mode != Mode::Run && !opt.out_dir.empty()) { err = "--out 只与 --run 搭配"; return false; }
+    if (opt.mode == Mode::Field) {
+        // --field 的 --out 是一个文件（网格），不是产品目录；--scenario 恰好一份
+        if (opt.out_dir.empty()) { err = "--field 需要 --out <网格文件>"; return false; }
+        if (opt.scenario_paths.size() != 1) { err = "--field 需要恰好一个 --scenario <场景.json>"; return false; }
+        if (opt.scene_root.empty()) { err = "--field 需要观测区域数据包（--scene-root 不能为空）：网格边界取清单的 aoi.bbox"; return false; }
+        if (opt.seed_given || track_rate_given || !opt.resolved_path.empty() || !opt.data_index_paths.empty() || !opt.task_id.empty() || library_root_given)
+            { err = "--field 只收 --scenario / --out / --scene-root"; return false; }
+        return true;
+    }
+    if (opt.mode != Mode::Run && !opt.out_dir.empty()) { err = "--out 只与 --run / --field 搭配"; return false; }
     if (opt.mode != Mode::Run && opt.seed_given) { err = "--seed 只与 --run 搭配"; return false; }
     if (!opt.resolved_path.empty() && !opt.data_index_paths.empty()) { err = "--resolved 与 --data-index 只能给一种"; return false; }
     if ((opt.mode == Mode::Catalog || opt.mode == Mode::Help || opt.mode == Mode::ScenarioTrack) &&
@@ -885,6 +978,7 @@ int run(const Options& opt, std::ostream& events, std::ostream& diag) {
         case Mode::Validate: return do_validate(opt, events, diag);
         case Mode::Run: return do_run(opt, events, diag);
         case Mode::ScenarioTrack: return do_scenario_track(opt, events, diag);
+        case Mode::Field: return do_field(opt, events, diag);
         default: diag << usage(); return ExitUsage;
     }
 }

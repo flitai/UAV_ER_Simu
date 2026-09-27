@@ -50,6 +50,15 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 探测范围：覆盖场与链路帧跨侧对拍（D-080）===\n'
+# cuav_run --field 在目标位置读出的路损 = E3 链路帧的 path_loss（同一个函数，判据 1e-9 dB）；网格逐字节可复现。
+# 用上一步 E3 回归写的 data/runs/e3-occlusion，所以必须排在它后面；缺数据时脚本自己明说跳过、不当作通过。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet python tests/regression/coverage_field.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
+fi
+
 echo "=== 常数策略守卫（D-009）==="
 # `geo::legacy::` 里是自 emcore 移植时保留的旧常数（111320 投影、10 MHz 标称带宽等），
 # 它们存在的唯一理由是守住那几份黄金基准。新写代码一律用严格 ENU 与精确光速，

@@ -1,5 +1,6 @@
 #include "cuav/numstr.h"
 #include "cuav/components/scenario.h"
+#include "cuav/propagation_params.h"
 
 #include "cuav/buildings_json.h"
 
@@ -216,45 +217,8 @@ bool ScenarioSource::configure(const std::map<std::string, double>& params,
         return false;
     }
 
-    // 传播效应配置（D-058）。枚举一律显式解析：认不出就报错，不拿缺省顶替（铁律 15）。
-    {
-        std::string txt;
-        prop_ = geo::PropagationConfig();
-        if (get_text(text_params, "prop_level", txt) && !geo::parse_prop_level(txt, prop_.level)) {
-            err = "prop_level 必须是 E1 / E2 / E3 之一，收到 " + txt;
-            return false;
-        }
-        if (get_text(text_params, "prop_primary", txt)
-            && !geo::parse_primary_model(txt, prop_.primary)) {
-            err = "prop_primary 必须是 free_space / two_ray / urban_empirical 之一，收到 " + txt;
-            return false;
-        }
-        if (get_text(text_params, "env_class", txt) && !geo::parse_env_class(txt, prop_.env)) {
-            err = "env_class 必须是 open / suburban / urban / dense_urban 之一，收到 " + txt;
-            return false;
-        }
-        if (get_text(text_params, "ground_type", txt) && !geo::parse_ground_type(txt, prop_.ground)) {
-            err = "ground_type 必须是 paved / grass / water / dirt / unknown 之一，收到 " + txt;
-            return false;
-        }
-        if (get_text(text_params, "urban_loss_mode", txt)
-            && !geo::parse_urban_loss_mode(txt, prop_.urban_mode)) {
-            err = "urban_loss_mode 必须是 mean / mean_with_shadow_margin 之一，收到 " + txt;
-            return false;
-        }
-        prop_.shadow = get_num(params, "prop_shadow", 0.0) != 0.0;
-        prop_.weather = get_num(params, "prop_weather", 0.0) != 0.0;
-        prop_.roughness_m = get_num(params, "ground_roughness_m", -1.0);
-        prop_.coherence_rho = get_num(params, "coherence_rho", 1.0);
-        prop_.max_fade_depth_dB = get_num(params, "max_fade_depth_dB", 20.0);
-        prop_.path_loss_exponent = get_num(params, "path_loss_exponent", -1.0);
-        prop_.ref_distance_m = get_num(params, "ref_distance_m", 100.0);
-        prop_.shadow_sigma_dB = get_num(params, "shadow_sigma_dB", -1.0);
-        prop_.shadow_corr_distance_m = get_num(params, "shadow_corr_distance_m", 50.0);
-        prop_.rain_rate_mmh = get_num(params, "rain_rate_mmh", 0.0);
-        // 档位与组合的跨参数约束都在这一处（E3 未实现、E1 却选了效应、城市经验裕度与统计阴影双计）
-        if (!prop_.validate(err)) return false;
-    }
+    // 传播效应配置（D-058）。解析与校验抽到 propagation_params.cpp，与覆盖场（D-080）共用一份。
+    if (!propagation_from_params(params, text_params, prop_, err)) return false;
 
     if (!load_bound_scenario("ScenarioSource", scenario_path_, scenario_id_, scene_, err)) return false;
 

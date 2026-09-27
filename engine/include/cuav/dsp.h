@@ -37,6 +37,11 @@ double regularized_gamma_q(double a, double x);
 // 解 Q(M, M·η) = pfa，返回归一化门限 η。二分法，与参考实现同收敛判据。
 double threshold_for_pfa(int m_bins, double pfa);
 
+// 随机型（带限噪声）目标的单帧检出概率 Pd = Q(M, M·η / (1 + s))，s 为带内信噪比的线性值（D-026）。
+// 与 algos/reference/energy_detector.py 的 pd_random_signal 同式，守 tests/golden/analytic-pd.json。
+// 覆盖场（cuav_run --field，D-080）逐格用它。s < 0 抛 invalid_argument。
+double pd_random(int m_bins, double eta, double snr_linear);
+
 // --- 带限用的双二阶节（C-8 / G-6，D-069）------------------------------------
 //
 // 用途只有一个：给 SceneEmitterSource 的 noise 波形做带限，让「2 MHz 图传落在 10 MS/s 的

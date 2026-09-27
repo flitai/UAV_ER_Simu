@@ -9,6 +9,9 @@
 //                                      航迹预览：只跑运动学，输出 entity 事件流，不建产品目录。
 //                                      不发 progress、不按墙钟节流，因此 stdout 逐字节可复现，
 //                                      直接用作黄金基准的生成器；服务端 PUT 场景时也拿它作语义校验。
+//   --field <请求.json> --scenario <场景.json> --out <网格文件> [--scene-root <目录>]
+//                                      覆盖场（探测范围，D-080）：逐格单帧检出概率，float32 网格写进 --out，
+//                                      事实摘要作一条 field 事件写 stdout。不建产品目录。
 //
 // stdout 每行一条 JSON 事件，信封与 WebSocket 文本帧相同（docs/api-versions.md §4）：
 //   {seq, task_id, type, t_s, payload}，seq 从 1 单调递增。
@@ -27,7 +30,7 @@
 namespace cuav {
 namespace runner {
 
-enum class Mode { None = 0, Help, Catalog, Validate, Run, ScenarioTrack };
+enum class Mode { None = 0, Help, Catalog, Validate, Run, ScenarioTrack, Field };
 
 struct Options {
     Mode mode = Mode::None;
@@ -39,6 +42,7 @@ struct Options {
     std::string resolved_path;                    // 解析旁挂 cuav-resolved/1（docs/diagram-format.md §9）
     std::vector<std::string> data_index_paths;    // 数据索引 index.manifest.json，可多份
     std::string scenario_path;                    // --scenario-track 的位置参数
+    std::string field_request_path;               // --field 的位置参数（cuav-field-request/1）
     std::vector<std::string> scenario_paths;      // --scenario <场景文件>，可多份（单机与回归用）
     double track_rate_Hz = 10.0;                  // --track-rate，只与 --scenario-track 搭配，[1, 100]
     std::string scene_root = "data/scene";        // --scene-root；空串表示跳过观测区域清单哈希核对
