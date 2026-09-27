@@ -7,20 +7,22 @@
 import { useSyncExternalStore } from 'react'
 import { buildLut } from '../signal/colormap.js'
 import { COVERAGE_LEVEL, coverageStore } from './coverage/store.js'
+import { TERM_LABEL, type LossTerm } from '../chain/effects.js'
 
 const LUT = buildLut()
 const GRADIENT = `linear-gradient(to right, ${[0, 64, 128, 191, 255].map((i) => `rgb(${LUT[i * 4]}, ${LUT[i * 4 + 1]}, ${LUT[i * 4 + 2]})`).join(', ')})`
 
-export function CoverageLegend({ siteNames, dev }: { siteNames: Array<{ id: string; name: string }>; dev: boolean }) {
+export function CoverageLegend({ siteNames, dev, dirty }: { siteNames: Array<{ id: string; name: string }>; dev: boolean; dirty: boolean }) {
   const st = useSyncExternalStore(coverageStore.subscribe, coverageStore.get)
   if (!st.on) return null
   const r = st.result
-  const oob = r ? Object.entries(r.outOfBand).filter(([, v]) => v).map(([k]) => k) : []
+  const oob = r ? r.sites.filter((x) => x.out_of_band).map((x) => x.id) : []
+  const terms = r ? r.included_loss_terms.map((t) => TERM_LABEL[t as LossTerm] ?? t).join(' + ') : ''
   return (
     <div className="coverage-legend" data-coverage-legend data-status={st.status}>
       <div className="cov-row cov-head">
         <span className="cov-title">探测范围</span>
-        {st.status === 'computing' && <span className="dim" data-coverage-progress>计算中 {Math.round(st.progress * 100)}%</span>}
+        {st.status === 'computing' && <span className="dim" data-coverage-progress>计算中</span>}
       </div>
       <div className="cov-bar" style={{ background: GRADIENT }} />
       <div className="cov-row cov-ticks"><span>Pd 0</span><span>0.5</span><span>1</span></div>
@@ -47,11 +49,15 @@ export function CoverageLegend({ siteNames, dev }: { siteNames: Array<{ id: stri
         )}
       </label>
       {r && <div className="cov-row dim" data-coverage-target>目标 {r.targetName} · {r.height_agl_m.toFixed(0)} m</div>}
+      {/* 传播档位与计入的损耗项：与框图「传播信道」卡片同一套名字，只摆事实 */}
+      {r && <div className="cov-row dim" data-coverage-terms>{r.prop_level} · {terms}</div>}
+      {/* 引擎读的是已保存的场景：有未保存的改动时照实写一句事实 */}
+      {r && dirty && <div className="cov-row dim" data-coverage-saved>按已保存的场景</div>}
       {oob.length > 0 && <div className="cov-row cov-warn" data-coverage-oob>频段外：{oob.join('、')}</div>}
       {st.status === 'error' && <div className="cov-row cov-warn" data-coverage-error>{st.error}</div>}
       {dev && r && (
         <div className="cov-row dim" data-dev="coverage-meta">
-          {r.nx}×{r.ny} 格 · {r.ms} ms（建筑 {r.buildingsMs} ms）· M {Object.values(r.m_bins).join('/')}
+          {r.nx}×{r.ny} 格 · 引擎 {Math.round(r.ms)} ms · 往返 {r.wallMs} ms · M {r.sites.map((x) => x.m_bins).join('/')}
         </div>
       )}
     </div>

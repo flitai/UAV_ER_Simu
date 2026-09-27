@@ -245,6 +245,38 @@
 `server/src/datasets.test.ts` 里有一条断言逐个盯着这些子串，**夹具也故意把它们都造了进去**——
 不造的话那条断言会在什么都没挡住的情况下通过。
 
+### 3.1f 覆盖场（探测范围，2026-09-27，D-080）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/coverage` | 同步调 `cuav_run --field`，返回逐站与合并的检出概率网格 |
+
+**请求体**（`cuav-field-request/1` + `scenario_id`，≤ 64 KiB）：
+
+```json
+{ "schema_version": "cuav-field-request/1", "scenario_id": "golden-01", "emitter_id": "uav-1",
+  "height_agl_m": 120, "res_m": 100,
+  "propagation": { "prop_level": "E3" },
+  "detectors": { "site-1": { "nfft": 1024, "pfa": 0.001, "band_lo_Hz": -225000, "band_hi_Hz": 225000 } },
+  "points": [[116.40, 39.99], [116.41, 39.98, 30]] }
+```
+
+- `propagation` 只收 `ScenarioSource` 的十五个传播参数，类型、取值范围与跨参数约束按组件目录与
+  `engine/src/propagation_params.cpp` 校验（与框图同一套规则，E1 却开效应、E3 与阴影同开等一律拒）。
+- `detectors` 须覆盖场景里的**每一个**站；频段相对站的接收中心频率。
+- `points` 可选：逐点求值（对拍用），第三个数是该点的离地高度，缺省取 `height_agl_m`。
+- 发射功率、天线增益、频率与站的参数由引擎从**已保存的**场景文件读；服务端把 `scenario_id` 解析成仓库内路径，
+  浏览器见不到路径（D-037）。
+
+**响应**：`200 application/octet-stream`，float32 小端，先合并、再按场景站序逐站，每层 `nx × ny`、行主序、第 0 行在北；
+响应头 `X-CUAV-Field` 是 `encodeURIComponent` 过的 JSON 摘要（`cuav-field/1`）：
+`{scenario_id, scenario_sha256, emitter_id, height_agl_m, res_m, nx, ny, bbox, layers, sites[{id, m_bins, eta, noise_bw_Hz,
+out_of_band, blocked, degraded, shadow_sigma_dB}], prop_level, included_loss_terms, points[], notes, ms, engine_version}`。
+错误：`400 bad_json / bad_scenario_id / field_invalid{detail: {code, node_id, port, message}}`、`404 not_found`、
+`405`（只收 POST）、`503 engine_unavailable`。临时文件在 `data/tmp/coverage/`，回响应之前即删。
+
+实测（macOS，原型阶段验证值）：观测区域 200 × 200 格、E3 三站引擎内 ≈ 0.4–0.75 s（含取 47662 栋建筑）、往返 ≈ 0.74 s；E1 ≈ 10 ms。
+
 ### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b，G-4 的场景端点已于 2026-09-06 实现并移入 3.1c）
 
 **本表已空**：`/api/v1/datasets/{data_id}` 已于 2026-09-19 由 U-4 实现并移入 3.1e。
@@ -374,6 +406,6 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 ## 6. 待写清单
 
 - [ ] 第 1 节 版本策略
-- [x] 第 3 节 端点清单：3.1a（B-5、B-6）、3.1b（B-7）、3.1c（G-4）、3.1d（C-6）、3.1e（D-056 + U-4）均已实现；3.3 已清空
+- [x] 第 3 节 端点清单：3.1a（B-5、B-6）、3.1b（B-7）、3.1c（G-4）、3.1d（C-6）、3.1e（D-056 + U-4）、3.1f（D-080）均已实现；3.3 已清空
 - [x] 第 4 节 WebSocket 事件：已冻结并由 B-6 实现（4.0 实现约定，2026-09-05）
 - [ ] 鉴权与审计（P2 阶段）

@@ -2,9 +2,24 @@
 //
 // 做法同 em-demo `models/coverage.ts` 的 buildDetectionEnvelope：四角按「≥ level」编 4 位码，
 // 边上线性插值；鞍点（5 与 10 两种码）按四角均值决定连法，免得两段交叉。
-// 格心坐标由 field.ts 的 cellCenter 给，本文件只认 (i, j) 与插值比例。
+// 网格与格心的约定与引擎 engine/src/field.cpp 相同：包围盒等分、第 0 行在北、格心在等分格中点。
 
-import { cellCenter, type GridGeom } from './field.js'
+export interface GridGeom {
+  nx: number
+  ny: number
+  bbox: [number, number, number, number]
+  dLon: number
+  dLat: number
+}
+
+export function gridGeom(nx: number, ny: number, bbox: [number, number, number, number]): GridGeom {
+  return { nx, ny, bbox, dLon: (bbox[2] - bbox[0]) / nx, dLat: (bbox[3] - bbox[1]) / ny }
+}
+
+/** 第 (i, j) 格的格心；j = 0 在北。 */
+export function cellCenter(g: GridGeom, i: number, j: number): { lon: number; lat: number } {
+  return { lon: g.bbox[0] + (i + 0.5) * g.dLon, lat: g.bbox[3] - (j + 0.5) * g.dLat }
+}
 
 export type Segment = [[number, number], [number, number]]
 

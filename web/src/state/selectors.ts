@@ -98,6 +98,8 @@ export interface ProbeExtras {
   coverage?: {
     on: boolean; status: string; site: string; height_agl_m: number | null; cells: number
     pdMax: number | null; contourSegments: number; target: string | null; ms: number | null
+    /** 引擎用的传播档位与计入的损耗项（D-080） */
+    propLevel: string | null; terms: string[]
   }
   /** 最近一次视距探测（D3-7），由 scene/losProbe.ts 给；没探测过时 status = 'idle'、其余为 null */
   losProbe?: {

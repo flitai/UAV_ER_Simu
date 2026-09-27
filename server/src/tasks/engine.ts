@@ -330,6 +330,32 @@ export class Engine {
     }
   }
 
+  /**
+   * 覆盖场（探测范围，D-080）：`cuav_run --field <请求> --scenario <场景> --out <网格>`。
+   * 三个路径都相对仓库根（约定 2）。成功返回 field 事件的摘要，网格在 outRel 那个文件里。
+   */
+  async field(requestRel: string, scenarioRel: string, outRel: string):
+      Promise<{ ok: true; meta: Record<string, unknown> } | { ok: false; error: DiagramError }> {
+    const args = ['--field', requestRel, '--scenario', scenarioRel, '--out', outRel, '--scene-root', 'data/scene']
+    const events: EngineEvent[] = []
+    const ep = spawnEngine(this.cfg, args, {
+      onLine: (l) => {
+        const e = parseEvent(l)
+        if (e) events.push(e)
+      },
+    })
+    const exit = await ep.done
+    if (exit.error) throw new EngineUnavailableError(`引擎起不来：${exit.error}`)
+    const meta = events.find((e) => e.type === 'field')
+    if (exit.code === 0 && meta) return { ok: true, meta: meta.payload }
+    const err = events.find((e) => e.type === 'error')
+    if (err) return { ok: false, error: asDiagramError(err.payload) }
+    return {
+      ok: false,
+      error: { code: 'field', node_id: '', port: '', message: `cuav_run --field 退出码 ${exit.code ?? exit.signal}：${exit.stderrTail.trim()}` },
+    }
+  }
+
   /** 拉起 `--run`。参数由调用方按约定拼好（相对路径、`/` 分隔、显式 `--task-id`）。 */
   run(args: string[], h: SpawnHandlers): EngineProcess {
     return spawnEngine(this.cfg, ['--run', ...args], h)

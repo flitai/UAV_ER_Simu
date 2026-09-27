@@ -629,3 +629,49 @@ export async function getDetectionsIndex(task: string, base = ''): Promise<Detec
   if (r.status === 404) return { status: 404 }
   return { status: r.status, message: `detections/index HTTP ${r.status}` }
 }
+
+// ---------------------------------------------------------------- 覆盖场（探测范围，D-080）
+
+/** POST /api/v1/coverage 的事实摘要（响应头 X-CUAV-Field）。字段见 docs/api-versions.md §3.1f。 */
+export interface FieldMeta {
+  schema_version: string
+  scenario_id: string
+  emitter_id: string
+  height_agl_m: number
+  res_m: number
+  nx: number
+  ny: number
+  bbox: [number, number, number, number]
+  layers: string[]
+  sites: Array<{ id: string; m_bins: number; eta: number; noise_bw_Hz: number; out_of_band: boolean; blocked: number; degraded: number; shadow_sigma_dB: number }>
+  prop_level: string
+  included_loss_terms: string[]
+  notes: string[]
+  ms: number
+}
+
+export type CoverageReply =
+  | { ok: true; meta: FieldMeta; layers: Record<string, Float32Array> }
+  | { ok: false; status: number; message: string }
+
+/** 算一张覆盖场。网格按 layers 的顺序切：先 combined、再逐站，每层 nx × ny。 */
+export async function postCoverage(body: Record<string, unknown>, signal?: AbortSignal, base = ''): Promise<CoverageReply> {
+  const r = await fetch(`${base}/api/v1/coverage`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal,
+  })
+  if (!r.ok) {
+    let message = `HTTP ${r.status}`
+    try {
+      const j = await r.json() as { message?: string; detail?: { message?: string } }
+      message = j.detail?.message ?? j.message ?? message
+    } catch { /* 非 JSON 错误体 */ }
+    return { ok: false, status: r.status, message }
+  }
+  const meta = JSON.parse(decodeURIComponent(r.headers.get('x-cuav-field') ?? '')) as FieldMeta
+  const all = new Float32Array(await r.arrayBuffer())
+  const n = meta.nx * meta.ny
+  if (all.length !== n * meta.layers.length) return { ok: false, status: 502, message: `网格长度 ${all.length} 与摘要 ${meta.layers.length} × ${n} 对不上` }
+  const layers: Record<string, Float32Array> = {}
+  meta.layers.forEach((id, i) => { layers[id] = all.subarray(i * n, (i + 1) * n) })
+  return { ok: true, meta, layers }
+}

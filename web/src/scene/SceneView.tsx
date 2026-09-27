@@ -352,16 +352,15 @@ export function SceneView({ active }: { active: boolean }) {
   useEffect(() => { coverageStore.reset() }, [s.scene.scenario.id])
   const cov = useSyncExternalStore(coverageStore.subscribe, coverageStore.get)
   const focusId = focusTargetId(s)
-  // 触发重算：开关、固定高度、场景文档、焦点目标、框图（检测器参数）、组件目录。
+  // 触发重算（D-080：计算在引擎）：开关、固定高度、场景（**以已保存的哈希为准**——引擎读的是盘上的
+  // 场景文件，内存里没保存的改动进不了这张图）、焦点目标、框图（传播档位与检测器参数）、组件目录。
   // **时间不在里面**：回放时焦点目标的高度每帧都在变，跟着它就是每帧重算一张 40000 格的图；
   // 缺省高度只在这些事件发生的那一刻取一次。去抖 300 ms：拖着改参数时只算最后一次。
   useEffect(() => {
-    if (!cov.on || !ready || !scene) return
-    const t = window.setTimeout(() => {
-      requestCoverage(live.current.state, scene.buildingsUrl, [scene.center[0], scene.center[1]], scene.bbox)
-    }, 300)
+    if (!cov.on || !ready) return
+    const t = window.setTimeout(() => { void requestCoverage(live.current.state) }, 300)
     return () => window.clearTimeout(t)
-  }, [cov.on, cov.heightOverride, ready, scene, s.scene.scenario.doc, focusId, s.diagram.text, s.components.catalog])
+  }, [cov.on, cov.heightOverride, ready, s.scene.scenario.id, s.scene.scenario.sha256, focusId, s.diagram.text, s.components.catalog])
   // 画：订阅那个小 store，开关、站选择或结果一变就重画
   useEffect(() => {
     if (!ready) return
@@ -459,7 +458,7 @@ export function SceneView({ active }: { active: boolean }) {
       center={
         <div className="scene">
           <div ref={box} className="scene-map" />
-          <CoverageLegend dev={dev} siteNames={scenarioSites(s.scene.scenario.doc).map((x) => ({ id: String(x.id), name: String(x.name ?? x.id) }))} />
+          <CoverageLegend dev={dev} dirty={s.scene.dirty} siteNames={scenarioSites(s.scene.scenario.doc).map((x) => ({ id: String(x.id), name: String(x.name ?? x.id) }))} />
           <MapToolbar hill={hill} onHill={setHill} bySrc={bySrc} onBySrc={setBySrc} flat={flat} onFlat={onFlat}
                       situation={situation} onSituation={setSituation} fix={fix} onFix={setFix}
                       bearingStyle={bearingStyle} onBearingStyle={setBearingStyle}

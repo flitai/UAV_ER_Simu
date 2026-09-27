@@ -25,6 +25,7 @@ import { createTaskManager } from './tasks/manager.js'
 import { handleTaskRoutes } from './tasks/routes.js'
 import { handleResultRoutes } from './products/routes.js'
 import { handleScenarioRoutes } from './scenarios.js'
+import { handleCoverageRoutes } from './coverage.js'
 import { handleDiagramRoutes } from './diagrams.js'
 import { handleDatasetRoutes } from './datasets.js'
 import { DataIndex, ScenarioIndex } from './tasks/resolve.js'
@@ -107,6 +108,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   // 场景读写（G-4）：路由自己管方法（PUT 只在这里放行）
   if (path === '/api/v1/scenarios' || path.startsWith('/api/v1/scenarios/')) {
     if (handleScenarioRoutes({ root: ROOT, index: scenarioIndex, engine }, req, res, path)) return
+  }
+  // 覆盖场（探测范围，D-080）：同步调引擎，POST 只在这里放行
+  if (path === '/api/v1/coverage') {
+    if (handleCoverageRoutes({ root: ROOT, index: scenarioIndex, engine }, req, res, path)) return
   }
   // 框图读写（C-6）：路由自己管方法（PUT / DELETE 只在这里放行）
   if (path === '/api/v1/diagrams' || path.startsWith('/api/v1/diagrams/')) {

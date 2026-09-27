@@ -7974,3 +7974,28 @@ golden-02 全图 Pd = 虚警率——拿了属于 golden-01 的框图里的检�
 
 浏览器 200 × 200 格三站约 0.5 s；跨侧锚点（覆盖图 vs E3 链路帧）200 个时刻最差 3.8e-10 dB。web 322、引擎 doctest 与 17 ctest、
 七套 e2e 405 项（slice2 56）全过；`build-all.sh` 全绿；零黄金基准变更。
+
+## 2026-09-27　探测范围改到引擎算：cuav_run --field（D-080）
+
+**起因**：用户问探测范围「引擎侧算好还是浏览器里算好」。复盘时看清 D-079 浏览器版的缺口：只复刻了自由空间 + 建筑遮挡，
+框图里选的 E2 效应它一样都看不见、界面上还看不出来。用户决定立即切到引擎；并在「跟随框图 / 图例另设档位 / 自动补建筑」
+三选一里定「跟随框图」。
+
+**做了什么**：
+1. 引擎：传播参数解析从 `ScenarioSource::configure()` 抽到 `engine/src/propagation_params.cpp` 两处共用；
+   `engine/src/field.cpp`（每格 `link_geometry` + `link_budget`，Pd 用新加的 `dsp::pd_random`，统计阴影查表平均）；
+   `cuav_run --field`；单测 `test_field.cpp`；跨侧对拍 `tests/regression/coverage_field.py`（接进 `build-all.sh`）。
+2. 服务：`POST /api/v1/coverage`（`server/src/coverage.ts`，同步调引擎），单测 `coverage.test.ts`。
+3. 浏览器：`coverage/store.ts` 改为拼请求调端点；删掉 `cell / field / worker` 与其单测；图例加传播档位与计入项、「按已保存的场景」。
+4. 文档：`docs/api-versions.md` §3.1f、模型卡 §7a、`display-route.md` §4.3、13 报告 V-5 补注。
+
+**实测中逮到的三处**：① 阴影平均第一版用 16 点 Gauss–Hermite，单测挑的点 Pd 恒为 1、什么也没测；改成必须落在陡坡上后，
+求积 0.451 对蒙特卡洛 0.435（差 14 倍标准误）——M ≈ 921 时 Pd 是一两 dB 宽的陡坎；改为细格卷积查表（0.4346 对 0.4351）。
+② 端点在 `finally` 里删临时文件，客户端先拿到响应——改为回响应之前就删。③ slice2 的探测范围一段在缺省 E1 框图下全图 Pd = 1、
+等值线 0 段——这是「跟随框图」的正确行为，端到端改为先载入保存的 E3 典型链路再看。
+
+### 实测
+
+跨侧对拍 200 个时刻（72 非视距）路损差 0、网格逐字节可复现；与浏览器版在 golden-03 E3 上 4 × 40000 格逐位相同；
+golden-01 单站 120 m 的 Pd ≥ 0.9 面积 E1 100% / E3 55.3% / E2 dense_urban + 阴影 13.1%。引擎 325 doctest + 17 ctest、
+server 141、web 314、七套 e2e 406 项、`build-all.sh` 全绿；零黄金基准变更。

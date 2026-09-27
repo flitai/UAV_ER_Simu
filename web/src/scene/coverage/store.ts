@@ -1,80 +1,79 @@
-// 覆盖场的主线程侧（D-079）：从界面状态拼出计算输入、驱动后台线程、把结果留给图层与探针。
+// 覆盖场（探测范围）的浏览器侧：拼请求、调引擎、把结果留给图层与探针（D-080）。
 //
-// 外部小 store（同 losProbe / cursorStore 范式），不进主 reducer：结果是几十万个浮点数，
-// 进 reducer 会让整棵界面树跟着重渲染。
+// **物理全在引擎**（`cuav_run --field`，经 POST /api/v1/coverage）：每一格走的是链路帧同一条
+// link_geometry + link_budget，框图里选的传播档位与效应（E1 / E2 的双径、城市经验、阴影、天气 / E3 的建筑遮挡）
+// 一个不少。浏览器只做三件事：从场景与框图里拼出请求、把网格画出来、画等值线。
+// D-079 那一版在浏览器里复刻了一份自由空间 + 刀口衍射，E2 的效应它看不见——这是改道的原因。
 //
-// 参数从哪来（只取场景与框图里已经有的，不编缺省值，铁律 15）：
-//   - 目标：**焦点目标**（focus.ts，与右栏焦点卡同一条规则）的 emission.{tx_power_dBm, antenna_gain_dBi, center_Hz}；
-//   - 高度：缺省取焦点目标此刻的离地高，**用户改过即固定住**（与视距探测同一口径，免得换焦点时图悄悄变了尺子）；
-//   - 站：场景 antenna.gain_dBi、receiver.{nf_dB, fs_Hz, center_Hz}；
-//   - 检测器：框图里绑定到这个站的 EnergyDetector 的 nfft / pfa / band_lo_Hz / band_hi_Hz；
-//     框图里没有这个站的检测器时，nfft / pfa 取组件目录缺省（就是引擎自己的缺省），
-//     频段按 compile.ts 的同式 ±0.45·fs 派生。组件目录没到手就报「无法确定检测器参数」，不猜。
+// 外部小 store（同 losProbe / cursorStore 范式），不进主 reducer：结果是几十万个浮点数。
+//
+// 请求里放什么（只取场景与框图里已经有的，不编缺省值，铁律 15）：
+//   - scenario_id / emitter_id：当前场景与**焦点目标**（focus.ts，与右栏焦点卡同一条规则）；
+//     发射功率、天线增益、频率、站的参数都由引擎从**已保存的**场景文件读——浏览器里没保存的改动不进这张图；
+//   - height_agl_m：缺省取焦点目标此刻的离地高，用户改过即固定（与视距探测同口径）；
+//   - propagation：框图里 ScenarioSource 的十五个传播参数；
+//   - detectors：框图里绑到各站的 EnergyDetector 的 nfft / pfa / 频段。
+//   框图必须属于当前场景（各场景的站 id 重名：拿 golden-01 那条链去套 golden-02 的 site-1，
+//   目标会整个落在频段外）；框图不属于当前场景时传播按缺省 E1、检测器按组件目录缺省与 ±0.45·fs。
 
 import type { AppState, ScenarioDoc } from '../../state/types.js'
+import { postCoverage, type FieldMeta } from '../../api/client.js'
 import { emitters, posOf, sites, type Obj } from '../editor/scenarioOps.js'
 import { currentSituation } from '../situationView.js'
 import { focusTargetId } from '../focus.js'
-import type { CoverageSite, DetectorParams, FieldInput } from './field.js'
-import type { ComputeMsg, WorkerReply } from './worker.js'
-import { contourSegments, type Segment } from './contour.js'
+import { contourSegments, gridGeom, type Segment } from './contour.js'
 
 /** 网格边长（m）。观测区域 20 × 20 km → 200 × 200 格。 */
 export const COVERAGE_RES_M = 100
 /** 等值线取的检测概率 */
 export const COVERAGE_LEVEL = 0.9
 
+/** ScenarioSource 上的十五个传播参数（与 engine/src/propagation_params.cpp 的名单一致）。 */
+const PROP_KEYS = [
+  'prop_level', 'prop_primary', 'prop_shadow', 'prop_weather', 'env_class', 'ground_type',
+  'ground_roughness_m', 'coherence_rho', 'max_fade_depth_dB', 'path_loss_exponent',
+  'ref_distance_m', 'urban_loss_mode', 'shadow_sigma_dB', 'shadow_corr_distance_m', 'rain_rate_mmh',
+]
+
 export interface CoverageState {
   on: boolean
-  /** 'off' 没开 | 'computing' 在算（含首次取建筑几何）| 'ready' 有结果 | 'error' 说得出缘由 */
+  /** 'off' 没开 | 'computing' 引擎在算 | 'ready' 有结果 | 'error' 说得出缘由 */
   status: 'off' | 'computing' | 'ready' | 'error'
-  progress: number
   /** 'all' = 各站合并；否则为站 id */
   site: string
   /** 用户固定的目标离地高度；null = 跟随焦点目标 */
   heightOverride: number | null
   error: string | null
-  /** 最近一次结果的事实摘要（图例与探针用）；数组本身在模块变量里 */
-  result: null | {
-    targetId: string
-    targetName: string
-    height_agl_m: number
-    nx: number
-    ny: number
-    bbox: [number, number, number, number]
-    siteIds: string[]
-    m_bins: Record<string, number>
-    outOfBand: Record<string, boolean>
-    blocked: Record<string, number>
-    ms: number
-    buildingsMs: number
-  }
+  /** 最近一次结果的事实摘要（图例与探针用）；网格在模块变量里 */
+  result: null | (FieldMeta & { targetName: string; wallMs: number })
 }
 
-const INITIAL: CoverageState = { on: false, status: 'off', progress: 0, site: 'all', heightOverride: null, error: null, result: null }
+const INITIAL: CoverageState = { on: false, status: 'off', site: 'all', heightOverride: null, error: null, result: null }
 let state: CoverageState = INITIAL
 const subs = new Set<() => void>()
 function emit(): void { for (const f of subs) f() }
 function set(patch: Partial<CoverageState>): void { state = { ...state, ...patch }; emit() }
 
-let arrays: { perSite: Record<string, Float32Array>; combined: Float32Array } | null = null
-let worker: Worker | null = null
-let seq = 0
+let layers: Record<string, Float32Array> | null = null
+let inflight: AbortController | null = null
 
 export const coverageStore = {
   get: (): CoverageState => state,
   subscribe(f: () => void): () => void { subs.add(f); return () => { subs.delete(f) } },
-  setOn(on: boolean): void { set(on ? { on, status: state.result ? 'ready' : 'off' } : { on, status: 'off', progress: 0 }) },
+  setOn(on: boolean): void {
+    if (!on) inflight?.abort()
+    set(on ? { on, status: state.result ? 'ready' : 'off' } : { on, status: 'off' })
+  },
   setSite(site: string): void { set({ site }) },
   setHeight(h: number | null): void { set({ heightOverride: h }) },
-  /** 换场景：旧结果属于上一份场景，清掉；开关与站选择的意图也回到缺省 */
-  reset(): void { seq++; arrays = null; state = INITIAL; emit() },
+  /** 换场景：旧结果属于上一份场景，清掉 */
+  reset(): void { inflight?.abort(); layers = null; state = INITIAL; emit() },
 }
 
 /** 当前选择下要画的那一层 Pd（合并或某一站），没有结果时为 null。 */
 export function coverageValues(): Float32Array | null {
-  if (!arrays) return null
-  return state.site === 'all' ? arrays.combined : arrays.perSite[state.site] ?? null
+  if (!layers) return null
+  return layers[state.site === 'all' ? 'combined' : state.site] ?? null
 }
 
 /** 当前选择下 Pd = COVERAGE_LEVEL 的等值线。 */
@@ -82,7 +81,7 @@ export function coverageContour(): Segment[] {
   const v = coverageValues()
   const r = state.result
   if (!v || !r) return []
-  return contourSegments({ nx: r.nx, ny: r.ny, bbox: r.bbox, dLon: (r.bbox[2] - r.bbox[0]) / r.nx, dLat: (r.bbox[3] - r.bbox[1]) / r.ny }, v, COVERAGE_LEVEL)
+  return contourSegments(gridGeom(r.nx, r.ny, r.bbox), v, COVERAGE_LEVEL)
 }
 
 function num(v: unknown): number | null {
@@ -102,114 +101,112 @@ function catalogDetectorDefaults(catalog: unknown): { nfft: number; pfa: number 
   return nfft !== null && pfa !== null ? { nfft, pfa } : null
 }
 
-/**
- * 框图里绑定到某站的 EnergyDetector 的参数（没有就返回 null）。
- * **框图必须属于当前场景**：站的 id（site-1…）在各份场景里重名，拿 golden-01 那条链的检测器
- * （500 kS/s、±225 kHz）去套 golden-02 的 site-1（10 MS/s），目标会整个落在频段外、全图 Pd = 虚警率
- * ——第一次在浏览器里跑就是这样。
- */
-function diagramDetector(text: string, scenarioId: string | null, siteId: string): Record<string, unknown> | null {
+type DiagramNode = { type?: string; scene_binding?: { site_id?: string }; params?: Record<string, unknown> }
+
+/** 当前框图——**必须属于当前场景**，否则返回 null（站 id 各场景重名）。 */
+function diagramOfScenario(text: string, scenarioId: string | null): DiagramNode[] | null {
   try {
-    const doc = JSON.parse(text) as {
-      scenario_ref?: { scenario_id?: string }
-      nodes?: Array<{ type?: string; scene_binding?: { site_id?: string }; params?: Record<string, unknown> }>
-    }
+    const doc = JSON.parse(text) as { scenario_ref?: { scenario_id?: string }; nodes?: DiagramNode[] }
     if (!scenarioId || doc.scenario_ref?.scenario_id !== scenarioId) return null
-    const nodes = (doc.nodes ?? []).filter((n) => n.type === 'EnergyDetector')
-    const bound = nodes.find((n) => n.scene_binding?.site_id === siteId)
-    // 单站链的检测器不带 site_id（绑定由装载器按唯一站补），此时它就是这个站的
-    return (bound ?? (nodes.length === 1 && !nodes[0]!.scene_binding?.site_id ? nodes[0]! : null))?.params ?? null
+    return doc.nodes ?? []
   } catch {
     return null
   }
 }
 
-/** 从界面状态拼计算输入。拼不出来就说缘由，不拿缺省值顶替（铁律 15）。 */
-export function coverageInputFrom(s: AppState, bbox: [number, number, number, number], heightOverride: number | null):
-    { input: FieldInput; targetId: string; targetName: string } | { error: string } {
+/** 框图里绑到某站的检测器参数。单站链的检测器不带 site_id（装载器按唯一站补），此时它就是这个站的。 */
+function detectorOf(nodes: DiagramNode[] | null, siteId: string): Record<string, unknown> | null {
+  if (!nodes) return null
+  const dets = nodes.filter((n) => n.type === 'EnergyDetector')
+  const bound = dets.find((n) => n.scene_binding?.site_id === siteId)
+  return (bound ?? (dets.length === 1 && !dets[0]!.scene_binding?.site_id ? dets[0]! : null))?.params ?? null
+}
+
+/** 框图里 ScenarioSource 的传播参数（K 个站的 scn 节点参数一致，取第一个）。 */
+function propagationOf(nodes: DiagramNode[] | null): Record<string, unknown> {
+  const scn = nodes?.find((n) => n.type === 'ScenarioSource')
+  const out: Record<string, unknown> = {}
+  for (const k of PROP_KEYS) if (scn?.params && k in scn.params) out[k] = scn.params[k]
+  return out
+}
+
+/** 从界面状态拼引擎请求。拼不出来就说缘由，不拿缺省值顶替（铁律 15）。 */
+export function coverageRequestFrom(s: AppState, heightOverride: number | null):
+    { body: Record<string, unknown>; targetName: string } | { error: string } {
   const doc = s.scene.scenario.doc
-  if (!doc) return { error: '未载入场景' }
+  const scenarioId = s.scene.scenario.id
+  if (!doc || !scenarioId) return { error: '未载入场景' }
   const terrain = terrainHeightM(doc)
   const focusId = focusTargetId(s)
   const em = emitters(doc).find((x) => String(x.id) === focusId) as Obj | undefined
   if (!em || !focusId) return { error: '场景中无辐射源' }
-  const e = (em.emission ?? {}) as Record<string, unknown>
-  const txPower = num(e.tx_power_dBm)
-  const txGain = num(e.antenna_gain_dBi)
-  const center = num(e.center_Hz)
-  if (txPower === null || txGain === null || center === null) return { error: `辐射源 ${focusId} 缺发射功率、天线增益或中心频率` }
   const live = currentSituation(doc).entities.get(focusId)
   const defaultHeight = live ? live.alt_m - terrain : (num(posOf(em)?.alt_m) ?? 0) - terrain
   const defaults = catalogDetectorDefaults(s.components.catalog)
+  const nodes = diagramOfScenario(s.diagram.text, scenarioId)
 
-  const out: CoverageSite[] = []
+  const detectors: Record<string, unknown> = {}
   for (const site of sites(doc)) {
     const id = String(site.id)
-    const p = posOf(site)
-    const ant = (site.antenna ?? {}) as Record<string, unknown>
-    const rx = (site.receiver ?? {}) as Record<string, unknown>
-    const gain = num(ant.gain_dBi), nf = num(rx.nf_dB), fs = num(rx.fs_Hz), rxCenter = num(rx.center_Hz)
-    if (!p || gain === null || nf === null || fs === null || rxCenter === null) return { error: `侦测站 ${id} 缺位置、天线增益、噪声系数、采样率或中心频率` }
-    const dp = diagramDetector(s.diagram.text, s.scene.scenario.id, id)
+    const fs = num((site.receiver as Record<string, unknown> | undefined)?.fs_Hz)
+    const dp = detectorOf(nodes, id)
     const nfft = num(dp?.nfft) ?? defaults?.nfft ?? null
     const pfa = num(dp?.pfa) ?? defaults?.pfa ?? null
     if (nfft === null || pfa === null) return { error: '组件目录未就绪，无法确定检测器参数' }
-    const lo = num(dp?.band_lo_Hz) ?? -0.45 * fs
-    const hi = num(dp?.band_hi_Hz) ?? 0.45 * fs
-    const detector: DetectorParams = { nfft, pfa, band_lo_Hz: lo, band_hi_Hz: hi }
-    out.push({ id, position: { lon: p.lon, lat: p.lat, alt_m: p.alt_m }, gain_dBi: gain, nf_dB: nf, fs_Hz: fs, center_Hz: rxCenter, detector })
+    if (fs === null && (num(dp?.band_lo_Hz) === null || num(dp?.band_hi_Hz) === null)) return { error: `侦测站 ${id} 缺采样率` }
+    detectors[id] = {
+      nfft, pfa,
+      band_lo_Hz: num(dp?.band_lo_Hz) ?? -0.45 * fs!,
+      band_hi_Hz: num(dp?.band_hi_Hz) ?? 0.45 * fs!,
+    }
   }
-  if (!out.length) return { error: '场景中无侦测站' }
+  if (!Object.keys(detectors).length) return { error: '场景中无侦测站' }
   return {
-    targetId: focusId,
     targetName: String(em.name ?? focusId),
-    input: {
-      bbox, res_m: COVERAGE_RES_M, terrain_height_m: terrain, sites: out,
-      target: { tx_power_dBm: txPower, tx_gain_dBi: txGain, center_Hz: center, height_agl_m: heightOverride ?? defaultHeight },
+    body: {
+      schema_version: 'cuav-field-request/1',
+      scenario_id: scenarioId,
+      emitter_id: focusId,
+      height_agl_m: Math.max(0, heightOverride ?? defaultHeight),
+      res_m: COVERAGE_RES_M,
+      propagation: propagationOf(nodes),
+      detectors,
     },
   }
 }
 
-/** 发一次计算。结果按 seq 认领：晚到的旧结果直接丢。 */
-export function requestCoverage(s: AppState, buildingsUrl: string, origin: [number, number], bbox: [number, number, number, number]): void {
-  const built = coverageInputFrom(s, bbox, state.heightOverride)
-  if ('error' in built) { set({ status: 'error', error: built.error, progress: 0 }); return }
-  if (!worker) {
-    worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
-    worker.onmessage = (ev: MessageEvent<WorkerReply>) => onReply(ev.data)
-    worker.onerror = (ev) => set({ status: 'error', error: `后台计算出错：${ev.message}`, progress: 0 })
+/** 发一次计算；新请求一来就中止在飞的旧请求，晚到的旧结果不会覆盖新结果。 */
+export async function requestCoverage(s: AppState): Promise<void> {
+  const built = coverageRequestFrom(s, state.heightOverride)
+  if ('error' in built) { set({ status: 'error', error: built.error }); return }
+  inflight?.abort()
+  const ctl = new AbortController()
+  inflight = ctl
+  set({ status: 'computing', error: null })
+  const t0 = performance.now()
+  try {
+    const r = await postCoverage(built.body, ctl.signal)
+    if (ctl.signal.aborted) return
+    if (!r.ok) { set({ status: 'error', error: r.message }); return }
+    layers = r.layers
+    const site = state.site === 'all' || r.layers[state.site] ? state.site : 'all'
+    set({
+      status: state.on ? 'ready' : 'off', site, error: null,
+      result: { ...r.meta, targetName: built.targetName, wallMs: Math.round(performance.now() - t0) },
+    })
+  } catch (e) {
+    if (ctl.signal.aborted) return
+    set({ status: 'error', error: e instanceof Error ? e.message : String(e) })
+  } finally {
+    if (inflight === ctl) inflight = null
   }
-  const my = ++seq
-  pending = { seq: my, targetId: built.targetId, targetName: built.targetName, height: built.input.target.height_agl_m }
-  set({ status: 'computing', progress: 0, error: null })
-  const msg: ComputeMsg = { kind: 'compute', seq: my, buildingsUrl, origin, input: built.input }
-  worker.postMessage(msg)
-}
-
-let pending: { seq: number; targetId: string; targetName: string; height: number } | null = null
-
-function onReply(m: WorkerReply): void {
-  if (!pending || m.seq !== pending.seq) return   // 过时的结果：已经有更新的请求了
-  if (m.kind === 'progress') { set({ progress: m.done }); return }
-  if (m.kind === 'error') { set({ status: 'error', error: m.message, progress: 0 }); return }
-  arrays = { perSite: m.perSite, combined: m.combined }
-  const siteIds = Object.keys(m.perSite)
-  const site = state.site === 'all' || siteIds.includes(state.site) ? state.site : 'all'
-  set({
-    status: state.on ? 'ready' : 'off', progress: 1, site,
-    result: {
-      targetId: pending.targetId, targetName: pending.targetName, height_agl_m: pending.height,
-      nx: m.nx, ny: m.ny, bbox: m.bbox, siteIds,
-      m_bins: Object.fromEntries(siteIds.map((id) => [id, m.detector[id]!.m_bins])),
-      outOfBand: m.outOfBand, blocked: m.blocked, ms: m.ms, buildingsMs: m.buildingsMs,
-    },
-  })
 }
 
 /** 探针用的摘要（只读，无副作用）。 */
 export function coverageProbe(): {
   on: boolean; status: string; site: string; height_agl_m: number | null; cells: number
   pdMax: number | null; contourSegments: number; target: string | null; ms: number | null
+  propLevel: string | null; terms: string[]
 } {
   const v = coverageValues()
   let pdMax: number | null = null
@@ -218,6 +215,7 @@ export function coverageProbe(): {
   return {
     on: state.on, status: state.status, site: state.site,
     height_agl_m: r?.height_agl_m ?? null, cells: v ? v.length : 0, pdMax,
-    contourSegments: v ? coverageContour().length : 0, target: r?.targetId ?? null, ms: r?.ms ?? null,
+    contourSegments: v ? coverageContour().length : 0, target: r?.emitter_id ?? null, ms: r?.ms ?? null,
+    propLevel: r?.prop_level ?? null, terms: r?.included_loss_terms ?? [],
   }
 }
