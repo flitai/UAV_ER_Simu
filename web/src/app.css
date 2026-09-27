@@ -89,6 +89,13 @@ code.chip { display: inline-block; background: var(--earth); border: 1px solid v
 .badge.result.hollow { background: transparent; border: 1px dashed currentColor; }
 .badge.note { background: var(--earth); border: 1px solid var(--border); color: var(--dim); }
 .run-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+/* 顶栏的场景选择（场景页）：它来占右推的 auto 边距，运行组紧贴在它右边 */
+.topbar .scene-pick-top { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; font-size: var(--fs-read); }
+.topbar .scene-pick-top + .run-group { margin-left: 0; }
+.topbar .scene-pick-label { color: var(--dim); }
+.topbar .scene-pick-top select { max-width: 36ch; min-width: 0; text-overflow: ellipsis; }
+.topbar .scene-pick-top select.bad { border-color: var(--bad); }
+.topbar .scene-pick-err { color: var(--err); font-size: var(--fs-label); max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
 .run-group .btn { padding: 3px 12px; font-weight: 600; }
 .run-group .btn.run { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .run-group .btn.stop { background: var(--bad); color: var(--white); border-color: var(--bad); }

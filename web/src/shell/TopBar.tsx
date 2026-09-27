@@ -11,6 +11,7 @@ import { useAppState, useDispatch } from '../state/store.js'
 import { themeStore } from './theme.js'
 import { ExperimentContext } from './ExperimentContext.js'
 import { RunGroup } from './RunGroup.js'
+import { ScenarioPick } from '../scene/ScenarioPick.js'
 import { ViewSwitch } from './ViewSwitch.js'
 import { resultBadge, runStateGlyph } from './badges.js'
 
@@ -55,6 +56,8 @@ export function TopBar() {
           </span>
         </nav>
       )}
+      {/* 场景选择只在场景页（D-065），靠在运行按钮左边（用户 2026-09-27） */}
+      {s.ui.view === 'scene' && <ScenarioPick />}
       <RunGroup />
       <ViewSwitch />
       {/* 浅色 / 深色（D-078）：每个浏览者自己的偏好，存本机，不进任务 */}
