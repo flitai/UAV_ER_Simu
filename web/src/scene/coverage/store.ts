@@ -1,9 +1,8 @@
 // 覆盖场（探测范围）的浏览器侧：拼请求、调引擎、把结果留给图层与探针（D-080）。
 //
-// **物理全在引擎**（`cuav_run --field`，经 POST /api/v1/coverage）：每一格走的是链路帧同一条
-// link_geometry + link_budget，框图里选的传播档位与效应（E1 / E2 的双径、城市经验、阴影、天气 / E3 的建筑遮挡）
-// 一个不少。浏览器只做三件事：从场景与框图里拼出请求、把网格画出来、画等值线。
-// D-079 那一版在浏览器里复刻了一份自由空间 + 刀口衍射，E2 的效应它看不见——这是改道的原因。
+// **物理全在引擎**（`cuav_run --field`，经 POST /api/v1/coverage，D-080）：每一格走的是链路帧同一条
+// link_geometry + link_budget。**传播一律按 E3（自由空间 + 建筑遮挡）**，不随框图的传播档位变（D-081，
+// 用户 2026-09-27：「作为可视化不做与 E1 和 E2 的对比」）。浏览器只做三件事：拼请求、画网格、画等值线。
 //
 // 外部小 store（同 losProbe / cursorStore 范式），不进主 reducer：结果是几十万个浮点数。
 //
@@ -11,10 +10,10 @@
 //   - scenario_id / emitter_id：当前场景与**焦点目标**（focus.ts，与右栏焦点卡同一条规则）；
 //     发射功率、天线增益、频率、站的参数都由引擎从**已保存的**场景文件读——浏览器里没保存的改动不进这张图；
 //   - height_agl_m：缺省取焦点目标此刻的离地高，用户改过即固定（与视距探测同口径）；
-//   - propagation：框图里 ScenarioSource 的十五个传播参数；
-//   - detectors：框图里绑到各站的 EnergyDetector 的 nfft / pfa / 频段。
+//   - propagation：恒为 E3（D-081）；
+//   - detectors：框图里绑到各站的 EnergyDetector 的 nfft / pfa / 频段（这是检测器的事，不是传播的事，仍跟框图）。
 //   框图必须属于当前场景（各场景的站 id 重名：拿 golden-01 那条链去套 golden-02 的 site-1，
-//   目标会整个落在频段外）；框图不属于当前场景时传播按缺省 E1、检测器按组件目录缺省与 ±0.45·fs。
+//   目标会整个落在频段外）；框图不属于当前场景时检测器按组件目录缺省与 ±0.45·fs。
 
 import type { AppState, ScenarioDoc } from '../../state/types.js'
 import { postCoverage, type FieldMeta } from '../../api/client.js'
@@ -28,12 +27,11 @@ export const COVERAGE_RES_M = 100
 /** 等值线取的检测概率 */
 export const COVERAGE_LEVEL = 0.9
 
-/** ScenarioSource 上的十五个传播参数（与 engine/src/propagation_params.cpp 的名单一致）。 */
-const PROP_KEYS = [
-  'prop_level', 'prop_primary', 'prop_shadow', 'prop_weather', 'env_class', 'ground_type',
-  'ground_roughness_m', 'coherence_rho', 'max_fade_depth_dB', 'path_loss_exponent',
-  'ref_distance_m', 'urban_loss_mode', 'shadow_sigma_dB', 'shadow_corr_distance_m', 'rain_rate_mmh',
-]
+/**
+ * 探测范围的传播配置：**恒为 E3**（自由空间 + 建筑遮挡），不随框图的传播档位变（D-081）。
+ * 只给档位、不带别的效应——E3 与统计阴影、城市经验互斥（闸三闸四），双径与天气不在这张图的口径里。
+ */
+export const COVERAGE_PROPAGATION = { prop_level: 'E3' } as const
 
 export interface CoverageState {
   on: boolean
@@ -122,14 +120,6 @@ function detectorOf(nodes: DiagramNode[] | null, siteId: string): Record<string,
   return (bound ?? (dets.length === 1 && !dets[0]!.scene_binding?.site_id ? dets[0]! : null))?.params ?? null
 }
 
-/** 框图里 ScenarioSource 的传播参数（K 个站的 scn 节点参数一致，取第一个）。 */
-function propagationOf(nodes: DiagramNode[] | null): Record<string, unknown> {
-  const scn = nodes?.find((n) => n.type === 'ScenarioSource')
-  const out: Record<string, unknown> = {}
-  for (const k of PROP_KEYS) if (scn?.params && k in scn.params) out[k] = scn.params[k]
-  return out
-}
-
 /** 从界面状态拼引擎请求。拼不出来就说缘由，不拿缺省值顶替（铁律 15）。 */
 export function coverageRequestFrom(s: AppState, heightOverride: number | null):
     { body: Record<string, unknown>; targetName: string } | { error: string } {
@@ -169,7 +159,7 @@ export function coverageRequestFrom(s: AppState, heightOverride: number | null):
       emitter_id: focusId,
       height_agl_m: Math.max(0, heightOverride ?? defaultHeight),
       res_m: COVERAGE_RES_M,
-      propagation: propagationOf(nodes),
+      propagation: COVERAGE_PROPAGATION,
       detectors,
     },
   }

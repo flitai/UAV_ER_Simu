@@ -570,14 +570,11 @@ try {
     same.physicsTotal === 47662, `${same.physicsTotal} 栋`)
 
   // ---------- 探测范围（D-079 / D-080）：开关 → 引擎算完 → 两层可见；改高度重算；关掉即隐；深色下等值线换色 ----------
-  // 探测范围**跟随框图的传播档位**（用户 2026-09-27 拍板）：缺省 E1 下 27 dBm 的目标全图 Pd = 1、没有等值线，
-  // 所以这一段先载入保存的 E3 典型链路（golden-01），在它上面看建筑遮挡。
-  const covDiag = await loadDiagramViaApi(page, 'tests/regression/diagrams/chain-golden-01-e3.json',
-                                          '?scenario=golden-01#/scene', (d) => {
-    d.diagram_id = 'slice2-coverage-e3'
-    d.name = 'slice2 探测范围 E3（端到端用，跑完即删）'
-  })
-  await waitApp(page, (a) => a.view === 'scene' && a.context.diagramId === covDiag && a.scene.scenarioId === 'golden-01', '载入 E3 框图并回场景页')
+  // 探测范围**一律按 E3 算、不随框图的传播档位变**（D-081，用户 2026-09-27）：这里用缺省框图（传播 E1），
+  // 探测范围照样要按 E3 算出建筑遮挡的边界。
+  await page.send('Page.navigate', { url: reloadUrl('?scenario=golden-01#/scene') })
+  st = await waitApp(page, (a) => a.view === 'scene' && a.scene.scenarioId === 'golden-01' && a.scene.status === 'ok', '缺省框图回场景页')
+  const diagLevel = /"prop_level":\s*"(E[123])"/.exec(st.app.diagram?.text ?? '')?.[1] ?? 'E1'
   const covOpen = () => page.evaluate(`(() => { const b = [...document.querySelectorAll('.map-toolbar button')].find((x) => x.textContent.startsWith('图层')); b.click(); return true })()`)
   await covOpen()
   await page.evaluate(`(document.querySelector('[data-layer=coverage] input').click(), true)`)
@@ -586,10 +583,10 @@ try {
   const cov1 = st.app.coverage
   check('探测范围：打开开关后后台算完，40000 格（20 × 20 km、100 m）、Pd 最大值在 (0, 1]、Pd = 0.9 等值线有线段',
     cov1.status === 'ready' && cov1.cells === 40000 && cov1.pdMax > 0 && cov1.pdMax <= 1 && cov1.contourSegments > 0, JSON.stringify(cov1))
-  check('探测范围：由引擎按框图的档位算（D-080）——E3，计入自由空间与建筑遮挡',
-    cov1.propLevel === 'E3' && JSON.stringify(cov1.terms) === '["free_space","diffraction"]'
+  check('探测范围：框图的传播档位不是 E3 时仍按 E3 算（D-081）——计入自由空间与建筑遮挡',
+    diagLevel !== 'E3' && cov1.propLevel === 'E3' && JSON.stringify(cov1.terms) === '["free_space","diffraction"]'
       && /E3 · 自由空间 \+ 建筑遮挡/.test(await page.evaluate("document.querySelector('[data-coverage-terms]')?.textContent ?? ''")),
-    `${cov1.propLevel} · ${JSON.stringify(cov1.terms)}`)
+    `框图 ${diagLevel} · 探测范围 ${cov1.propLevel} · ${JSON.stringify(cov1.terms)}`)
   const covVis = await page.evaluate(`['cuav-coverage-fill', 'cuav-coverage-contour'].map((id) => window.__map.getLayoutProperty(id, 'visibility'))`)
   check('探测范围：着色图与等值线两层可见，地图左下有图例', JSON.stringify(covVis) === '["visible","visible"]'
     && (await page.evaluate("document.querySelectorAll('[data-coverage-legend]').length")) === 1, JSON.stringify(covVis))
@@ -610,7 +607,6 @@ try {
   await covOpen()
   const covOff = await waitDom(page, "window.__map.getLayoutProperty('cuav-coverage-fill', 'visibility')", 'none')
   check('探测范围：关掉开关两层即隐、图例收起', covOff === 'none' && (await page.evaluate("document.querySelectorAll('[data-coverage-legend]').length")) === 0)
-  await deleteDiagram(page, covDiag)
 
   const shot = join(tmpdir(), 'cuav-slice2-smoke.png')
   await page.screenshot(shot)
@@ -622,7 +618,6 @@ try {
 } finally {
   // 删掉本用例存进去的那份手写框图（同下面恢复场景文件，走 HTTP 不依赖页面还活着）
   await fetch(`${BASE}api/v1/diagrams/slice2-scenario-link`, { method: 'DELETE' }).catch(() => undefined)
-  await fetch(`${BASE}api/v1/diagrams/slice2-coverage-e3`, { method: 'DELETE' }).catch(() => undefined)
   // **本用例不再编辑基准场景**（基准只读，用户 2026-09-19）：编辑都在另存的工作副本上做，
   // 所以从前那套「中途被打断就得用 git 恢复 golden-01」的兜底没有了。删掉工作副本即可。
   // 走文件系统而不是端点：场景端点没有 DELETE，而这是本机跑的测试，删自己造的东西不必绕路。
