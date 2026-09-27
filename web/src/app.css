@@ -164,7 +164,7 @@ code.chip { display: inline-block; background: var(--earth); border: 1px solid v
 .coverage-legend .cov-title { font-weight: 600; font-size: var(--fs-read); }
 .coverage-legend .cov-bar { height: 10px; border-radius: 2px; }
 .coverage-legend .cov-ticks { justify-content: space-between; font-size: 11px; color: var(--dim); }
-.coverage-legend .cov-contour-swatch { display: inline-block; width: 22px; height: 0; border-top: 2px solid #115e59; }
+.coverage-legend .cov-contour-swatch { display: inline-block; width: 22px; height: 0; border-top: 1.5px solid #0f766e; }
 :root[data-theme="dark"] .coverage-legend .cov-contour-swatch { border-top-color: #aaffdd; }
 .coverage-legend select { flex: 1; min-width: 0; }
 .coverage-legend .cov-height { width: 64px; }

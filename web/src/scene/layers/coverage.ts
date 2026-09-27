@@ -27,10 +27,12 @@ function firstSymbol(map: MLMap): string | undefined {
 }
 
 export function coverageLinePaint(): Record<string, unknown> {
-  return { 'line-color': SIT.coverageContour, 'line-width': 2, 'line-opacity': 0.95 }
+  // 1.2 px（2026-09-27 用户：「细一些」，原 2 px）
+  return { 'line-color': SIT.coverageContour, 'line-width': 1.2, 'line-opacity': 0.9 }
 }
 export function coverageHaloPaint(): Record<string, unknown> {
-  return { 'line-color': SIT.halo, 'line-width': 4.5, 'line-opacity': 0.7 }
+  // 晕随线一起收窄、变淡：原 4.5 px / 0.7 让整条线读起来比 2 px 粗得多
+  return { 'line-color': SIT.halo, 'line-width': 2.4, 'line-opacity': 0.5 }
 }
 
 /** 建齐三个图层（可重复调用）。缺省不可见，开关打开才显示。 */
