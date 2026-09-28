@@ -8086,3 +8086,10 @@ z15 那块瓦片里没有楼——那条自检是为城区观测区域写的，�
 区域归档的 bounds 是北京框，MapLibre 不会请求框外瓦片。故新写 `cuavpm://` 协议合成一个数据源：zoom ≤ 概览最高层级取概览、以上取区域底图，TileJSON 给全球范围。
 服务端 `/api/v1/basemap` 加 `overview_url / overview_maxzoom`（只配区域底图；概览放 `overview/` 不进 `regional/`，免得被当成一份可选底图）。
 实测：zoom 4 北京模式与全球底图截图 99.93% 像素差 ≤ 8（差在山体阴影：概览不带 DEM）；zoom 8 北京瓦片范围外空白，照实。server 147、web 318、两种底图下 scene-smoke 15 项全过。
+
+## 2026-09-28　更正：DroneRFa 有 5.8 GHz 通道，只是已有样本里没有信号
+
+用户问「DroneRFa 里没有 5.8G 的数据吗」。核实：论文写明每个文件双通道同时录制（RF0 = 2440 MHz、RF1 = 5800 MHz，100 MS/s；FrSky X20 与 Taranis 为 915 + 2440 MHz），
+本地 24 份原始文件（`Datasets2-DroneRFa/`）都带 5.8 GHz 通道，D-085 与 14 报告写的「本地没有 5.8 GHz 实测」措辞不对。
+实情是：2026-09-03 实测的 7 份 Phantom 4 Pro / MATRICE 200 文件里 5.8 GHz 通道突发帧占比 0%，只有恒定杂散（`download-list.md` 「已确认无价值」一节），
+转换时因此按 DA-2 只转 RF0。O3 类 AVATA、Mavic 3 等机型本地没有，5.8 GHz 上是否有图传活动未核实。已改正 14 报告 §7.2 与 CLAUDE.md D-085 的措辞。
