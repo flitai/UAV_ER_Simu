@@ -8034,3 +8034,13 @@ server 141、web 314、七套 e2e 406 项、`build-all.sh` 全绿；零黄金基
 （`docs/scenario-format.md`），OFDM / 跳频调制原排 P3；接收机相位噪声、IQ 不平衡、直流与小尺度多径都没有；IQ 格式规范已写明与 SigMF 可无损互转（`docs/iq-format.md` §4.5）。
 用户拍板四条：评测方式 = 看信号像不像真的；先补真实调制再交付；SigMF；真值全给。
 据此记 D-082，新增 Q 线（06 §9K，Q-0 至 Q-7），CLAUDE.md 加里程碑 Q 行与一条 OPEN（甲方接收参数、机型、数据量、期限）。实现待 Q-0 方案审定后排期。
+
+## 2026-09-28　Q-0：14 号报告 v1.0（生成 IQ 数据集交付评测）
+
+写出 `14.生成IQ数据集交付评测实施方案_v1.0.md`。核实到的代码现状：波形只有 tone / noise / burst（`engine/src/scenario_json.cpp:92-123`）；
+观测点对 `iq` 报 `product_unsupported`（`engine/src/diagram_json.cpp:1052-1054`）；`ReceiverFrontEnd` 已有 IQ 幅相不平衡与直流偏置，
+相噪、自动增益控制、莱斯 / 瑞利衰落没有；仓库里没有任何 SigMF 代码；没有批量生成脚本（最近的范式是 `tests/regression/crosslayer_pd_chain.py`）。
+公开资料检索结论：DroneID 的数值结构有同行评审出处（NDSS 2023：15 kHz / 1024 点 / 15.36 MS/s / 601 子载波 / CP 72·80 / 九符号 / 640 ms），
+DJI 图传带宽档有厂商文档与 RFUAV 实测（10 MHz），但**图传的子载波数值结构、帧结构无任何公开资料**，报告按 DroneID 同族假定并标为假定；
+第三方遥控参数来自开源协议实现（FrSky ACCST D16 ≈ 70 kbaud / 频偏 ≈ 57 kHz / 47 点 / 9 ms 等）。另有一处待核：DroneRFb 本地清单七型、论文摘要六型。
+Q 线增 Q-0b（实测参数提取，T-0 探针回用），06 §9K 与 CLAUDE.md 同步。§11 八项待用户拍板。
