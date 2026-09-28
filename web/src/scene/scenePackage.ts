@@ -19,6 +19,9 @@ export interface SceneSummary {
   /** 服务端选用的底图（D-084）：`planet` 或区域 id */
   basemapId: string
   basemapUrl: string
+  /** 区域底图之外的全球概览（D-084 补充）；全球底图或概览不在时为 null */
+  overviewUrl: string | null
+  overviewMaxZoom: number | null
   demTiles: string
   buildingsUrl: string
   osmSnapshot: string | null
@@ -41,7 +44,7 @@ export async function listScenes(base = ''): Promise<string[]> {
   return ((await r.json()) as { scenes: string[] }).scenes
 }
 
-interface BasemapChoice { id: string; pmtiles_url: string; dem_tiles: string }
+interface BasemapChoice { id: string; pmtiles_url: string; dem_tiles: string; overview_url: string | null; overview_maxzoom: number | null }
 
 async function loadBasemap(base: string): Promise<BasemapChoice> {
   const r = await fetch(`${base}/api/v1/basemap`)
@@ -76,6 +79,8 @@ export async function loadScene(id: string, base = ''): Promise<SceneSummary> {
     },
     basemapId: bm.id,
     basemapUrl: `${base}${bm.pmtiles_url}`,
+    overviewUrl: bm.overview_url ? `${base}${bm.overview_url}` : null,
+    overviewMaxZoom: bm.overview_maxzoom ?? null,
     demTiles: `${base}${bm.dem_tiles}`,
     buildingsUrl: `${base}/data/scene/${m.aoi.id}/buildings.geojson`,
     osmSnapshot: m.provenance?.osm_snapshot_of_tiles ?? null,

@@ -18,6 +18,11 @@ const layer = (o: unknown): AnyLayer => o as AnyLayer
 export interface ProtomapsStyleOptions {
   /** PMTiles 归档的 URL，会被拼成 `pmtiles://<url>` */
   url: string
+  /**
+   * 直接给数据源地址、不经 `pmtiles://` 拼接（D-084 补充：区域底图 + 全球概览合成成 `cuavpm://<键>`，
+   * 见 compositeTiles.ts）。给了它 `url` 只作说明，不进样式
+   */
+  sourceUrl?: string
   /** 归档的最高缩放级，默认 15 */
   maxzoom?: number
   /**
@@ -34,12 +39,12 @@ export const BASEMAP_LIGHT: BasemapPalette = {
 }
 export const BASEMAP_DARK: BasemapPalette = PM_DARK
 
-export function protomapsStyle({ url, maxzoom = 15, palette = BASEMAP_LIGHT }: ProtomapsStyleOptions): StyleSpecification {
+export function protomapsStyle({ url, sourceUrl, maxzoom = 15, palette = BASEMAP_LIGHT }: ProtomapsStyleOptions): StyleSpecification {
   const P = palette
   const src = {
     pm: {
       type: 'vector' as const,
-      url: 'pmtiles://' + url,
+      url: sourceUrl ?? 'pmtiles://' + url,
       attribution:
         '<a href="https://protomaps.com">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     },

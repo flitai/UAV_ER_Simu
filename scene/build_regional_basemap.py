@@ -5,6 +5,7 @@
 两份并存、互不覆盖，应用服务按环境变量 `CUAV_BASEMAP` 选用哪一份（缺省：全球底图在就用它）。
 
 范围定义在 `scene/regions/<id>.json`。本脚本做两件事：
+    （`"kind": "overview"` 的范围——如 `world-z6`——只抽矢量底图、写到 `data/basemap/overview/`、不带 DEM。）
     1. 矢量底图：调用 `scene/fetch_tiles.py --bbox ... --out data/basemap/regional/<id>.pmtiles`，
        沿用它的 dry-run 估算、六项自检与清单（`<id>.manifest.json`）；
     2. DEM：把 `data/basemap/dem/` 中与范围相交的 zoom 0 至 dem_maxzoom 瓦片原样拷到
@@ -34,6 +35,8 @@ from fetch_tiles import git_commit, repo_path, tile_xy  # noqa: E402
 REGIONS = os.path.join(HERE, "regions")
 BASEMAP = os.path.join(ROOT, "data", "basemap")
 OUT_ROOT = os.path.join(BASEMAP, "regional")
+# 概览底图（kind = overview，D-084 补充）单独放：它不是一份可被单独选用的区域底图，不能让服务端把它数进 regional/
+OVERVIEW_ROOT = os.path.join(BASEMAP, "overview")
 
 
 def die(msg: str) -> None:
@@ -129,16 +132,19 @@ def main() -> int:
     a = ap.parse_args()
     region = load_region(a.region)
     rid = region["id"]
+    overview = region.get("kind") == "overview"
+    out_root = OVERVIEW_ROOT if overview else OUT_ROOT
     planet = os.path.join(BASEMAP, "planet.pmtiles")
     if not os.path.isfile(planet):
         die("全球底图 data/basemap/planet.pmtiles 不在本机：区域底图只能在持有全球底图的开发机上生成")
 
     cmd = [sys.executable, os.path.join(HERE, "fetch_tiles.py"),
-           "--bbox", ",".join(str(v) for v in region["bbox"]), "--name", rid,
+           # 写成 `--bbox=` 一个参数：西经范围以负号开头，分成两个参数会被 argparse 当成选项
+           "--bbox=" + ",".join(str(v) for v in region["bbox"]), "--name", rid,
            "--minzoom", str(region["minzoom"]), "--maxzoom", str(region["maxzoom"]),
-           "--out", os.path.join(OUT_ROOT, f"{rid}.pmtiles")]
+           "--out", os.path.join(out_root, f"{rid}.pmtiles")]
     if region.get("probe"):
-        cmd += ["--probe", ",".join(str(v) for v in region["probe"])]
+        cmd += ["--probe=" + ",".join(str(v) for v in region["probe"])]
     # 全球底图的全文件哈希已记在它的登记清单里，直接带过去，不必再读一遍 137 GB
     pm = os.path.join(BASEMAP, "planet.manifest.json")
     if os.path.isfile(pm):
@@ -150,11 +156,14 @@ def main() -> int:
         cmd.append("--estimate")
     if a.force:
         cmd.append("--force")
-    os.makedirs(OUT_ROOT, exist_ok=True)
+    os.makedirs(out_root, exist_ok=True)
     r = subprocess.run(cmd)
     if r.returncode != 0:
         return r.returncode
-    build_dem(region, a.force, a.estimate)
+    if overview:
+        print("概览底图不带 DEM：山体阴影只在区域内画，全球 DEM 的 zoom 0–6 实测约 303 MB（按 dem.manifest.json 逐层字节），比概览底图本身大六倍多，不随包")
+    else:
+        build_dem(region, a.force, a.estimate)
     return 0
 
 

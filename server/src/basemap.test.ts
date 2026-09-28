@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolveBasemap } from './basemap.js'
 
-function fixture(opts: { planet?: boolean; regional?: string[] }): string {
+function fixture(opts: { planet?: boolean; regional?: string[]; overview?: boolean }): string {
   const root = mkdtempSync(join(tmpdir(), 'cuav-basemap-'))
   const bm = join(root, 'data', 'basemap')
   mkdirSync(join(bm, 'regional'), { recursive: true })
@@ -16,6 +16,11 @@ function fixture(opts: { planet?: boolean; regional?: string[] }): string {
   for (const id of opts.regional ?? []) {
     writeFileSync(join(bm, 'regional', `${id}.pmtiles`), 'x')
     writeFileSync(join(bm, 'regional', `${id}.manifest.json`), JSON.stringify({ output: { bounds: [115.41, 39.44, 117.51, 41.06] } }))
+  }
+  if (opts.overview) {
+    mkdirSync(join(bm, 'overview'), { recursive: true })
+    writeFileSync(join(bm, 'overview', 'world-z6.pmtiles'), 'x')
+    writeFileSync(join(bm, 'overview', 'world-z6.manifest.json'), JSON.stringify({ output: { maxzoom: 6 } }))
   }
   // 抽取中途留下的临时文件不算一份底图
   writeFileSync(join(bm, 'regional', 'beijing.part.pmtiles'), 'x')
@@ -83,5 +88,30 @@ test('多份区域底图又没点名：不猜；什么都没有：说清楚', as
   } finally {
     rmSync(many, { recursive: true, force: true })
     rmSync(none, { recursive: true, force: true })
+  }
+})
+
+test('全球概览只配区域底图：有则给地址与最高层级，全球底图恒为 null，概览不算一份可选底图', async () => {
+  const withOv = fixture({ regional: ['beijing'], overview: true })
+  const noOv = fixture({ regional: ['beijing'] })
+  const planet = fixture({ planet: true, overview: true })
+  try {
+    const r1 = await resolveBasemap(withOv, undefined)
+    assert.ok(r1.ok)
+    assert.equal(r1.choice.id, 'beijing')
+    assert.equal(r1.choice.overview_url, '/data/basemap/overview/world-z6.pmtiles')
+    assert.equal(r1.choice.overview_maxzoom, 6)
+    const r2 = await resolveBasemap(noOv, undefined)
+    assert.ok(r2.ok)
+    assert.equal(r2.choice.overview_url, null)
+    const r3 = await resolveBasemap(planet, undefined)
+    assert.ok(r3.ok)
+    assert.equal(r3.choice.id, 'planet')
+    assert.equal(r3.choice.overview_url, null)
+    // 概览放在 overview/ 而不是 regional/：点名 world-z6 当区域底图是找不到的
+    const r4 = await resolveBasemap(withOv, 'world-z6')
+    assert.equal(r4.ok, false)
+  } finally {
+    for (const d of [withOv, noOv, planet]) rmSync(d, { recursive: true, force: true })
   }
 })

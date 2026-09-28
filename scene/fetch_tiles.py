@@ -296,6 +296,9 @@ def verify(exe: str, part: str, bbox, minzoom: int, maxzoom: int, expected_entri
     layers = {l.get("id"): l for l in meta.get("vector_layers", [])}
     bl = layers.get("buildings")
     ok = bl is not None and bl.get("minzoom") == 11 and bl.get("maxzoom") == 15
+    if maxzoom < 11:
+        # 概览底图不含 zoom 11 以上，图层元数据照抄源文件（仍写 11–15），这条只核对元数据未被改坏
+        pass
     checks.append({"check": "buildings_layer_z11_15", "pass": ok,
                    "got": None if bl is None else {"minzoom": bl.get("minzoom"), "maxzoom": bl.get("maxzoom")},
                    "want": {"minzoom": 11, "maxzoom": 15}})
@@ -305,12 +308,16 @@ def verify(exe: str, part: str, bbox, minzoom: int, maxzoom: int, expected_entri
     cx, cy = probe if probe else ((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2)
     x, y = tile_xy(cx, cy, maxzoom)
     data = fetch_tile(exe, part, maxzoom, x, y)
-    ok = len(data) > 0 and b"buildings" in data
+    # buildings 图层只在 zoom 11–15 有；只抽低层级的概览底图（D-084，world-z6）在最高层上查 earth 图层
+    want_layer = b"buildings" if maxzoom >= 11 else b"earth"
+    ok = len(data) > 0 and want_layer in data
     got = {"z": maxzoom, "x": x, "y": y, "bytes_uncompressed": len(data), "contains_buildings": b"buildings" in data}
+    if maxzoom < 11:
+        got["contains_earth"] = b"earth" in data
     if probe:
         got["probe_lonlat"] = list(probe)
     checks.append({"check": "center_tile_has_buildings_layer", "pass": ok, "got": got,
-                   "want": "bytes > 0 且含 buildings"})
+                   "want": "bytes > 0 且含 buildings" if maxzoom >= 11 else "bytes > 0 且含 earth（zoom < 11 无 buildings 图层）"})
 
     return hdr, meta, checks
 

@@ -23,6 +23,13 @@ export interface BasemapChoice {
   dem_tiles: string
   /** 区域底图的覆盖范围 [W, S, E, N]；全球底图为 null */
   bounds: [number, number, number, number] | null
+  /**
+   * 区域底图之外的全球概览（D-084 补充）：`data/basemap/overview/world-z6.pmtiles`，zoom 0–6。
+   * 只配区域底图用——前端把两份合成一个数据源，zoom ≤ overview_maxzoom 取概览、以上取区域底图；
+   * 全球底图本身就全，恒为 null。概览不在盘上也是 null（区域外空白照实，不报错）
+   */
+  overview_url: string | null
+  overview_maxzoom: number | null
   selected_by: 'env' | 'auto'
 }
 
@@ -53,19 +60,38 @@ async function regionalBounds(root: string, id: string): Promise<[number, number
   }
 }
 
+const OVERVIEW_ID = 'world-z6'
+
+/** 全球概览底图：文件与清单都在才算数，最高层级取清单里自检过的 maxzoom，不写死 */
+async function overview(root: string): Promise<{ url: string; maxzoom: number } | null> {
+  const dir = join(root, 'data', 'basemap', 'overview')
+  if (!(await exists(join(dir, `${OVERVIEW_ID}.pmtiles`)))) return null
+  try {
+    const m = JSON.parse(await fsp.readFile(join(dir, `${OVERVIEW_ID}.manifest.json`), 'utf8')) as { output?: { maxzoom?: number } }
+    const z = m.output?.maxzoom
+    return typeof z === 'number' && Number.isInteger(z) && z >= 0 ? { url: `/data/basemap/overview/${OVERVIEW_ID}.pmtiles`, maxzoom: z } : null
+  } catch {
+    return null
+  }
+}
+
 export async function resolveBasemap(root: string, env: string | undefined = process.env.CUAV_BASEMAP): Promise<BasemapResult> {
   const want = env?.trim() || ''
   const planetOk = await exists(join(root, 'data', 'basemap', 'planet.pmtiles'))
   const planet = (by: 'env' | 'auto'): BasemapResult => ({
     ok: true,
     choice: { id: 'planet', kind: 'planet', pmtiles_url: '/data/basemap/planet.pmtiles',
-      dem_tiles: '/data/basemap/dem/{z}/{x}/{y}.png', bounds: null, selected_by: by },
+      dem_tiles: '/data/basemap/dem/{z}/{x}/{y}.png', bounds: null, overview_url: null, overview_maxzoom: null, selected_by: by },
   })
-  const regional = async (id: string, by: 'env' | 'auto'): Promise<BasemapResult> => ({
-    ok: true,
-    choice: { id, kind: 'regional', pmtiles_url: `/data/basemap/regional/${id}.pmtiles`,
-      dem_tiles: `/data/basemap/regional/${id}-dem/{z}/{x}/{y}.png`, bounds: await regionalBounds(root, id), selected_by: by },
-  })
+  const regional = async (id: string, by: 'env' | 'auto'): Promise<BasemapResult> => {
+    const ov = await overview(root)
+    return {
+      ok: true,
+      choice: { id, kind: 'regional', pmtiles_url: `/data/basemap/regional/${id}.pmtiles`,
+        dem_tiles: `/data/basemap/regional/${id}-dem/{z}/{x}/{y}.png`, bounds: await regionalBounds(root, id),
+        overview_url: ov?.url ?? null, overview_maxzoom: ov?.maxzoom ?? null, selected_by: by },
+    }
+  }
 
   if (want === 'planet') {
     return planetOk ? planet('env')

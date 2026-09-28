@@ -8076,3 +8076,13 @@ S4 在 20 MHz 档抽取 2 为 40 MS/s，40 MHz 档不抽取——抽取 2 后 DD
 实测：48567 块、96534098 字节；DEM 19 块、1592703 字节。**第一次跑第六项自检没过**：北京外包框中心约 (116.46, 40.25) 在郊野，
 z15 那块瓦片里没有楼——那条自检是为城区观测区域写的，隐含「中心必有楼」；加 `--probe` 让区域文件给城区探针点（观测区域中心），不放宽判据。
 两种底图下 scene-smoke 15 项全过（新增一项：前端用的底图就是服务端选的那份）；观测区域视图截图 99.9995% 像素相同。server 146（+5）、web 316 全过。
+
+## 2026-09-28　W-3 补：全球概览底图（zoom 0–6）
+
+用户定另带全球低缩放级别底图补区域外空白。`scene/regions/world-z6.json`（`kind: overview`）经同一脚本抽到 `data/basemap/overview/world-z6.pmtiles`：
+3400 块、44779778 字节、六项自检全过（zoom 6 没有 buildings 图层，第六项改查 earth，`fetch_tiles.py` 按 maxzoom 自动选）。
+西经范围以负号开头，`--bbox -180,...` 被 argparse 当成选项——改成 `--bbox=` 一个参数。不带 DEM：全球 zoom 0–6 实测 303 MB（起初写成 90 MB，按清单逐层字节核对后改正）。
+**不能直接挂第二个 pmtiles 数据源**：底图 60 层都绑 `pm`，复制一套会破坏与 Airports 的逐层对照；pmtiles 自带协议又按归档 bounds 出 TileJSON，
+区域归档的 bounds 是北京框，MapLibre 不会请求框外瓦片。故新写 `cuavpm://` 协议合成一个数据源：zoom ≤ 概览最高层级取概览、以上取区域底图，TileJSON 给全球范围。
+服务端 `/api/v1/basemap` 加 `overview_url / overview_maxzoom`（只配区域底图；概览放 `overview/` 不进 `regional/`，免得被当成一份可选底图）。
+实测：zoom 4 北京模式与全球底图截图 99.93% 像素差 ≤ 8（差在山体阴影：概览不带 DEM）；zoom 8 北京瓦片范围外空白，照实。server 147、web 318、两种底图下 scene-smoke 15 项全过。

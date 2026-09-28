@@ -27,8 +27,12 @@
 | `regional/beijing.manifest.json` | 来源（全球底图的 sha256 与 planetiler 构建）、抽取命令、六项自检、产物 sha256 | 是 |
 | `regional/beijing-dem/{z}/{x}/{y}.png` | 与范围相交的 DEM，zoom 0 至 8，19 块，1592703 字节 | 否 |
 | `regional/beijing-dem.manifest.json` | 逐层计数与字节、索引哈希 | 是 |
+| `overview/world-z6.pmtiles` | **全球概览** zoom 0 至 6，3400 块，44779778 字节：配区域底图用，缩小到北京以外不再空白 | 否 |
+| `overview/world-z6.manifest.json` | 同上的清单（第六项自检在 zoom 6 查 `earth` 图层，那一级没有 `buildings`） | 是 |
 
-生成：`uv run python scene/build_regional_basemap.py --region beijing`（范围定义 `scene/regions/beijing.json`，只读本地文件、不联网）。
+生成：`uv run python scene/build_regional_basemap.py --region beijing` 与 `--region world-z6`（范围定义 `scene/regions/*.json`，只读本地文件、不联网）。
+
+**概览与区域底图合成一个数据源**（`web/src/scene/style/compositeTiles.ts`，协议 `cuavpm://`）：zoom ≤ 6 取概览、以上取区域底图。两份出自同一快照，北京范围内 zoom ≤ 6 的瓦片相同；样式 60 层照旧只绑一个 `pm` 数据源。zoom 7 以上、北京瓦片范围之外仍是空白。概览不带 DEM（全球 zoom 0–6 约 303 MB），山体阴影只在北京范围内。
 
 **用哪一份由应用服务决定**（`server/src/basemap.ts`，端点 `GET /api/v1/basemap`，前端照它取、不写死）：
 环境变量 `CUAV_BASEMAP=planet` 或 `=beijing` 点名；**不设时全球底图在就用它**（开发机的行为与以前逐字相同），

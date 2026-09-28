@@ -140,6 +140,10 @@ scene/aoi/<aoi>.json             观测区域定义，是上述目录的输入�
   全球底图留在开发机，两份并存。应用服务按 `CUAV_BASEMAP`（`planet` 或区域 id；缺省全球底图在就用它）选一份，
   经 `GET /api/v1/basemap` 告诉前端，前端不写死底图地址；点名却缺文件即 503，不退回另一份。
   实测：北京市区域底图与全球底图在观测区域视图上的截图 99.9995% 像素相同。
+- **全球概览**（同日补充）：`data/basemap/overview/world-z6.pmtiles`（zoom 0–6，约 45 MB）配区域底图，
+  前端经自定义协议 `cuavpm://` 合成一个数据源——zoom ≤ 6 取概览、以上取区域底图（`web/src/scene/style/compositeTiles.ts`）；
+  pmtiles 自带协议按归档 bounds 出 TileJSON，区域归档的 bounds 是北京框，MapLibre 不会去要框外瓦片，故不能直接用。
+  实测 zoom 4 与全球底图截图 99.93% 像素差 ≤ 8；zoom 7 以上北京瓦片范围外空白。
 
 ## 5. 三份清单的字段（已冻结）
 

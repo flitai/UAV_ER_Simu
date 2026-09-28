@@ -223,6 +223,8 @@ export function probeApp(s: AppState, x: ProbeExtras) {
       scenarioId: s.scene.scenario.id,
       /** 服务端选用的底图（D-084）：`planet` 或区域 id；未载入为 null */
       basemap: s.scene.summary?.basemapId ?? null,
+      /** 全球概览的最高层级（D-084 补充）；没配概览为 null */
+      basemapOverviewMaxZoom: s.scene.summary?.overviewMaxZoom ?? null,
       scenarioSha256: s.scene.scenario.sha256,
       status: s.scene.scenario.status,
       dirty: s.scene.dirty,

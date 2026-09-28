@@ -38,6 +38,7 @@ import { themeStore } from '../shell/theme.js'
 import { addCoverageLayers, setCoverage, setCoverageVisible } from './layers/coverage.js'
 import { coverageContour, coverageStore, coverageValues, requestCoverage } from './coverage/store.js'
 import { CoverageLegend } from './CoverageLegend.js'
+import { registerComposite } from './style/compositeTiles.js'
 import { applyMapTheme, basemapPalette } from './layers/mapTheme.js'
 import { setSituationTheme } from './style/situation.js'
 
@@ -86,7 +87,14 @@ export function SceneView({ active }: { active: boolean }) {
     setBuildingsBaseColor(null, basemapPalette(theme0).bldg)
     const map = newMap({
       container: box.current,
-      style: protomapsStyle({ url: scene.basemapUrl, maxzoom: 15, palette: basemapPalette(theme0) }),
+      style: protomapsStyle({
+        url: scene.basemapUrl, maxzoom: 15, palette: basemapPalette(theme0),
+        // 区域底图配了全球概览时，两份合成一个数据源（D-084 补充）；全球底图照旧走 pmtiles://
+        sourceUrl: scene.overviewUrl && scene.overviewMaxZoom !== null
+          ? registerComposite(scene.basemapId, { regionalUrl: scene.basemapUrl, overviewUrl: scene.overviewUrl,
+              overviewMaxZoom: scene.overviewMaxZoom, maxzoom: 15 })
+          : undefined,
+      }),
       center: scene.center,
       zoom: 14.2,
     })

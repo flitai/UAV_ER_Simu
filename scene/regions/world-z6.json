@@ -1,0 +1,14 @@
+{
+  "id": "world-z6",
+  "name": "全球概览（zoom 0–6）",
+  "kind": "overview",
+  "role": "交付包里补在区域底图之外的全球低缩放级别底图（D-084 补充）：缩小到北京以外时不再是一片空白。前端把它与区域底图合成一个数据源——zoom ≤ 6 取它，zoom > 6 取区域底图",
+  "bbox": [-180, -85.0511, 180, 85.0511],
+  "bbox_order": "west, south, east, north",
+  "probe": [116.405, 39.99],
+  "probe_note": "自检探针点取观测区域中心；zoom 6 没有 buildings 图层，第六项改查 earth 图层",
+  "minzoom": 0,
+  "maxzoom": 6,
+  "decided_on": "2026-09-28",
+  "decision": "D-084"
+}
