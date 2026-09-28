@@ -1,11 +1,11 @@
 {
   "schema": "cuav-batch-index/1",
-  "created_utc": "2026-09-06T04:18:53Z",
+  "created_utc": "2026-09-28T08:58:38Z",
   "producer": "tools/build_batch_index.py 0.1.0",
   "directory": "data/iq/measured/dronerfa",
-  "product_count": 24,
+  "product_count": 80,
   "datasets": {
-    "DroneRFa": 24
+    "DroneRFa": 80
   },
   "calibration": {
     "DroneRFa": {
@@ -13,11 +13,11 @@
       "source": "paper",
       "status": "prototype",
       "estimated_utc": "2026-09-06T04:16:45Z",
-      "product_count": 24
+      "product_count": 80
     }
   },
   "quality_distribution": {
-    "degraded": 24
+    "degraded": 80
   },
   "note": "逐产物清单 <data_id>.manifest.json 与样点文件 <data_id>.iq 留在盘上不入库；本索引的 content_sha256 用于核对盘上产物与入库时是否一致。重建方式见 tools/iq_convert.py",
   "products": [
@@ -412,6 +412,156 @@
       }
     },
     {
+      "data_id": "dronerfa_T10010_S0001_RF0_S4",
+      "source_file": "T10010_S0001.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "83a6392a2e08d6b1c1947edfd6ac6f4a24529253de24a8f59c27936b0fb9c8b9",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0001_RF1_S4",
+      "source_file": "T10010_S0001.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "1e9a737823895af090287fa83550ac94b8499dd47dc0d44ef63d21a6535ae475",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0010_RF0_S4",
+      "source_file": "T10010_S0010.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "fc31a9293ff85b4fa5f2d184a6f8ceeff633600bbb3bdbebd20abfc01bbe0949",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0010_RF1_S4",
+      "source_file": "T10010_S0010.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "e2eff89ad89a886ff419d9fe0fbdfe17fc9d96d3795ef38c94c9879b48b99915",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0011_RF0_S4",
+      "source_file": "T10010_S0011.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "71bb697fdc3e6a8b45be45973b70bb28544bc80b0533d2a6a85df6c2f85630db",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0011_RF1_S4",
+      "source_file": "T10010_S0011.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "437bf58540d4a9316c2ec5363c0f6a543c773af197d290619357533c1bf3e457",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0100_RF0_S4",
+      "source_file": "T10010_S0100.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "c4ae82dcc22f9a0cf103ba33ee066a0b80ca3a31c1c8e443854bc6f8bd4dffcc",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0100_RF1_S4",
+      "source_file": "T10010_S0100.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "7b0fc3f70f362952e2477db401af1f55d44772e7ab39ec74e82490985593dde1",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0101_RF0_S4",
+      "source_file": "T10010_S0101.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "cc4b8ff061dafba7c09801c304c99623a6d863c76bdd01a768f0d141b88a815e",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0101_RF1_S4",
+      "source_file": "T10010_S0101.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "e8219d82421760a50d4580ccfd430a44d8a7deb4ae348f7f9e0ca6cf3c578dbd",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
       "data_id": "dronerfa_T10010_S0110_RF0_S4",
       "source_file": "T10010_S0110.mat",
       "channel_id": "RF0",
@@ -438,6 +588,336 @@
       "truth": {
         "class_code": "T10010",
         "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0111_RF0_S4",
+      "source_file": "T10010_S0111.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "10431f03f939bb887043a6bc4ee3de5c668eeefc4aa8e7a0769418129d236c0b",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S0111_RF1_S4",
+      "source_file": "T10010_S0111.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "fdf67f6ac2e662611e5f11e3cc580c58cf3b2b0e40e7832ff6500fddcffa441e",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S1000_RF0_S4",
+      "source_file": "T10010_S1000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "669262c5fc50d787f6eac745b823ab7e608c87f9130108a8d0d7cd76419fe0de",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S1000_RF1_S4",
+      "source_file": "T10010_S1000.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "2ec26ab4c703917850e68f9d2977fd2a06f4bd0b1d7183fd9150c889a9867ded",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S1001_RF0_S4",
+      "source_file": "T10010_S1001.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "7b60ebc9ba91a87367ac0808f053dc64a893e7949199596cb8964d0f5a34a95d",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S1001_RF1_S4",
+      "source_file": "T10010_S1001.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "a728ac788b895655d0fd7ceab8e7072aaaf93c84d3592c932c3540c3a22cda01",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S1010_RF0_S4",
+      "source_file": "T10010_S1010.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 915000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "91ce964bf941e0d5659dca1b55f9e4162b5de2e73a0be20b5673d198d5c61ead",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T10010_S1010_RF1_S4",
+      "source_file": "T10010_S1010.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "2629f8145d871b691dfb1fa2c773c777037e164c3ffce1363e221ec07d863eea",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T10010",
+        "class_name": "FrSky X20 飞控器",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0000_RF0_S4",
+      "source_file": "T1010_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 120000000,
+      "segments": 2,
+      "content_sha256": "40cb2f5963b0136e07bd197d530141d67371b8d786a89f1ba85a39dfa40b2b50",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0000_RF1_S4",
+      "source_file": "T1010_S0000.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 120000000,
+      "segments": 2,
+      "content_sha256": "d2af4a9b5fe4cee63f7c5f46d816a9bbcc0911bc3d8358dc62dd89b81c4bb526",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0001_RF0_S4",
+      "source_file": "T1010_S0001.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 130000000,
+      "segments": 2,
+      "content_sha256": "3bcbc80b3dbfdd6de90f02ddf1939a8fada39774841a69b798844a319edd1f22",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0001_RF1_S4",
+      "source_file": "T1010_S0001.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 130000000,
+      "segments": 2,
+      "content_sha256": "8033fedda0bfd6d3579e35d7c99eba7859acb813641383cec80b0811c29c5c4c",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0010_RF0_S4",
+      "source_file": "T1010_S0010.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "120e89e213ea41deff397a61e473a8296c3d34a1a152447235c6b80894a95628",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0010_RF1_S4",
+      "source_file": "T1010_S0010.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "3c9f8cc5602b7bf8fd54eb5c8924d9a1345d2a4b61f8ea5421b4926e1a9512da",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0011_RF0_S4",
+      "source_file": "T1010_S0011.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "f70b935b884f8ecd8608fe0d211608e4a4ddb65e1a0923f141f0e3c4e4366e5d",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0011_RF1_S4",
+      "source_file": "T1010_S0011.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "b6dcffa0b14e2ccbccd2badfac4705d2e78bc1e6fb5dc5e872627913e986a5a5",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0100_RF0_S4",
+      "source_file": "T1010_S0100.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "a91201f66beb9e7004bec1aedc62f3bcc6304ed713d24ab20a6419a05a66fc18",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0100_RF1_S4",
+      "source_file": "T1010_S0100.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "f0f8305361f2e8ac2a0e4efb4b94ae48fe7a7629108d2ab61705a215dfb00e48",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0101_RF0_S4",
+      "source_file": "T1010_S0101.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 110000000,
+      "segments": 2,
+      "content_sha256": "433d1953534beb8ac3bebf69d987850b6d366a2edc0b49c352e1ff201396f9be",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0101_RF1_S4",
+      "source_file": "T1010_S0101.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 110000000,
+      "segments": 2,
+      "content_sha256": "1a0ce65afbdfc6c89baf85b95c20c8dd3aee4c72a83aa7125ad02e39d52f5715",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0110_RF0_S4",
+      "source_file": "T1010_S0110.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "4d797b333ae1c2536bb9465cbed7bc3efa2a6bbe231594003bb9adb9cb93208a",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1010_S0110_RF1_S4",
+      "source_file": "T1010_S0110.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 140000000,
+      "segments": 3,
+      "content_sha256": "9844fde1760fb47c10ef67991fe4bf1ef96231c821fdbf64573225745573b584",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1010",
+        "class_name": "DJI Mavic 3",
         "band_state": "initial"
       }
     },
@@ -469,6 +949,366 @@
         "class_code": "T10110",
         "class_name": "Futaba T14SG 飞控器",
         "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S0000_RF0_S4",
+      "source_file": "T1110_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "22c56b2632c9d8a54811d5d59033e6082f49d0bc6a72768319c28648e1a561ff",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S0000_RF1_S4",
+      "source_file": "T1110_S0000.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "5b3877ec4b8439fea8415baf3b56779bf50165153707e29bcd526e76e68bbbaf",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1000_RF0_S4",
+      "source_file": "T1110_S1000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "f5c397bdbdf86834ec3e19ce4e2542642c26111fb8fdf7e19f2f9d70cf297c88",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1000_RF1_S4",
+      "source_file": "T1110_S1000.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "fd34db46ef8c08e87acdbaecf03e65144f19c29fd43d48ffd8a126362f3ccea1",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1001_RF0_S4",
+      "source_file": "T1110_S1001.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 210000000,
+      "segments": 4,
+      "content_sha256": "69889d9721ac5082489d7a00379876a653a8a97b6fdbba0b3ad4bede51a32e1b",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1001_RF1_S4",
+      "source_file": "T1110_S1001.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 210000000,
+      "segments": 4,
+      "content_sha256": "4469b0a9069dfbef04365b0e02001286eac15da79d4686040489078e898f1a60",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1010_RF0_S4",
+      "source_file": "T1110_S1010.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "3725a70e24e61f6e1b7b2507cd240e5b359fc4387424c496ab08228569cb6c81",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1010_RF1_S4",
+      "source_file": "T1110_S1010.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "7058b4f124c5f0ba4369d1d60cb3c2c96eb02c5a1584f7371611087514888ff4",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1011_RF0_S4",
+      "source_file": "T1110_S1011.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "00f5a0c1ae11313cd7b3a7436f7d1db3c1d45cc2e69d0705abf0eabb23968de7",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1110_S1011_RF1_S4",
+      "source_file": "T1110_S1011.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "56936a381de4f49f10cc355a3851e7d7553c43ccc6416e4bba88262bf17cc0bc",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1110",
+        "class_name": "DJI AVATA",
+        "band_state": "switched"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0000_RF0_S4",
+      "source_file": "T1111_S0000.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "363f2aac0cc7a597edbfd29bb24f77bfcda16c3706caaa313e728002e5f2b673",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0000_RF1_S4",
+      "source_file": "T1111_S0000.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "9e5b3128ada928c1eb4c3c722847be48977d085650840be6c717a78ce0dd7d40",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0001_RF0_S4",
+      "source_file": "T1111_S0001.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "d59c262b4a11c6f2abe34b46fe94940bc7c0ad0179c6fc165be5789db02cb9b9",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0001_RF1_S4",
+      "source_file": "T1111_S0001.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "9317d1d83604cfb657cecfde6ec21acdb004f12cb06659cb888c39574ace6985",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0010_RF0_S4",
+      "source_file": "T1111_S0010.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "15a656100a7c4c4486cace28b461741c65831a746748493a528dec115bcb36fd",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0010_RF1_S4",
+      "source_file": "T1111_S0010.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "38549e3118eb2a0f95dfbedaa4a5f55407e8004241b38fe94705cce68d222ee5",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0011_RF0_S4",
+      "source_file": "T1111_S0011.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "4ce3867dfbe73a324e70a2b180ae60b09fe676764d6ce977ebeb717e6c576762",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0011_RF1_S4",
+      "source_file": "T1111_S0011.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "34985dd5efe34b037af54cf292cd2af79ecabefc5637feb3e6c51f33273508e8",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0100_RF0_S4",
+      "source_file": "T1111_S0100.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "f79efee8615bee0a617aead446c72bbb2c8260f28c99e8381f8ab0f4d3cf8f53",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0100_RF1_S4",
+      "source_file": "T1111_S0100.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 150000000,
+      "segments": 3,
+      "content_sha256": "06548d4d693dd6dc2c6ce7e252ef9de207cb2d306d30f294a806300eafd95863",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0101_RF0_S4",
+      "source_file": "T1111_S0101.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "1cde277ee93faca8d8c8c1b90d56200b4f62a9d9698b5d1477317a3270cd1f12",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0101_RF1_S4",
+      "source_file": "T1111_S0101.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 160000000,
+      "segments": 3,
+      "content_sha256": "888029754df89b65eafd918a18abe976a33af3f9f8cc5c331ddf52a782c85323",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0110_RF0_S4",
+      "source_file": "T1111_S0110.mat",
+      "channel_id": "RF0",
+      "center_frequency_Hz": 2440000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "5074729a8bace49a97444b189a322149446b0e2bacc9ec9b305ec9d5182d07cd",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
+      }
+    },
+    {
+      "data_id": "dronerfa_T1111_S0110_RF1_S4",
+      "source_file": "T1111_S0110.mat",
+      "channel_id": "RF1",
+      "center_frequency_Hz": 5800000000.0,
+      "sample_count": 170000000,
+      "segments": 3,
+      "content_sha256": "b240f4850c3b0ed9714591c7a4491cf75fc3d2f3a76f1572781b59f99024c4b4",
+      "quality": "degraded",
+      "truth": {
+        "class_code": "T1111",
+        "class_name": "DJI通信模块自组机",
+        "band_state": "initial"
       }
     }
   ]

@@ -20,6 +20,8 @@ DS-6/DS-7 的背景源），因此**没有一片可以充当验收集**。这不
 用法：
     # 冻结（生成清单）
     uv run --project tools python tools/freeze_holdout.py --freeze
+    # 追加后续批次（冻结后补下的片；只追加，不改已有条目）
+    uv run --project tools python tools/freeze_holdout.py --add-batches
     # 检查一批将要用于调参的产物是否与验收集相交
     uv run --project tools python tools/freeze_holdout.py --check data/iq/measured/dronerfb/*.iq
 """
@@ -52,6 +54,24 @@ USED_IN_EXPERIMENTS = {
     },
 }
 NEVER_IN_TRAIN = {"A3", "C3", "D3", "E3", "F3", "G3"}
+
+# DroneRFa 后续补下的批次（冻结清单只做一次，之后的批次**只追加、不改已有条目**，`--add-batches`）。
+# 每批的划分规则必须在看信号之前写定；看过信号的片如实列进 seen，不得追认为验收集。
+DRONERFA_BATCHES = [
+    {
+        "batch_id": "dronerfa-2026-09-28",
+        "date": "2026-09-28",
+        "rule": "FrSky X20（T10010）新到 9 片只做过文件完整性检查、未看信号：按源文件名排序每三取一"
+                "（第 3、6、9 个）进验收集，两个通道（RF0 915 MHz / RF1 2440 MHz）同进同出。"
+                "Mavic 3（T1010）、AVATA（T1110）、DJI 通信模块自组机（T1111）三批在冻结前已被实测"
+                "（突发帧占比、带宽、时长，为核实 5.8 GHz 通道有无图传），按规矩不能进验收集",
+        "holdout_sources": ["T10010_S0011.mat", "T10010_S0111.mat", "T10010_S1010.mat"],
+        "seen_before_freeze": {
+            "prefixes": ["T1010_", "T1110_", "T1111_"],
+            "reason": "冻结前已做信号分析（2026-09-28 核实 5.8 GHz 通道），流程失误：应先冻结再看",
+        },
+    },
+]
 
 
 def collect(directory: str) -> list[store.Product]:
@@ -128,6 +148,56 @@ def freeze() -> dict:
     return doc
 
 
+def add_batches(path: str) -> int:
+    """把 DRONERFA_BATCHES 里尚未登记的批次追加进已冻结的清单；已有条目一个字节不动。"""
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    rfa = doc["datasets"]["DroneRFa"]
+    done = {b["batch_id"] for b in rfa.get("additions", [])}
+    products = collect(os.path.join(ROOT, "data/iq/measured/dronerfa"))
+    added = 0
+    for b in DRONERFA_BATCHES:
+        if b["batch_id"] in done:
+            continue
+        rows, seen = [], []
+        for p in products:
+            src = (p.manifest or {}).get("origin", {}).get("source_file") or ""
+            t = p.truth or {}
+            row = {
+                "data_id": p.stem, "dataset": "DroneRFa", "source_file": src, "batch": b["batch_id"],
+                "class_code": t.get("class_code"), "individual": t.get("individual"),
+                "visibility": t.get("visibility"), "original_name": t.get("original_name"),
+                "sample_count": (p.manifest or {}).get("sampling", {}).get("sample_count"),
+                "content_sha256": (p.manifest or {}).get("identity", {}).get("content_sha256"),
+            }
+            if src in b["holdout_sources"]:
+                rows.append(row)
+            elif any(src.startswith(x) for x in b["seen_before_freeze"]["prefixes"]):
+                seen.append({**row, "excluded_because": b["seen_before_freeze"]["reason"]})
+        want = 2 * len(b["holdout_sources"])
+        if len(rows) != want:
+            print(f"{b['batch_id']}：验收集应有 {want} 个产物（每片两个通道），实得 {len(rows)}；"
+                  "先把这批转换完再追加", file=sys.stderr)
+            return 2
+        doc["holdout"] = doc["holdout"] + sorted(rows, key=lambda r: r["data_id"])
+        doc["excluded_from_holdout"] = doc["excluded_from_holdout"] + sorted(seen, key=lambda r: r["data_id"])
+        rfa.setdefault("additions", []).append({
+            "batch_id": b["batch_id"], "date": b["date"], "added_utc": M.utc_now(),
+            "producer": f"tools/freeze_holdout.py {VERSION}", "rule": b["rule"],
+            "holdout_count": len(rows), "seen_before_freeze_count": len(seen),
+        })
+        rfa["holdout_count"] = rfa.get("holdout_count", 0) + len(rows)
+        added += 1
+        print(f"追加 {b['batch_id']}：验收集 +{len(rows)}，冻结前已看过而排除 {len(seen)}")
+    if added:
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+    else:
+        print("没有待追加的批次")
+    return 0
+
+
 def check(paths: list[str]) -> int:
     if not os.path.exists(OUT):
         print(f"没有冻结清单 {OUT}，先跑 --freeze", file=sys.stderr)
@@ -165,10 +235,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--freeze", action="store_true")
     ap.add_argument("--check", nargs="*", default=None)
     ap.add_argument("--out", default=OUT)
+    ap.add_argument("--add-batches", action="store_true", help="往已冻结的清单追加 DRONERFA_BATCHES 里的新批次（已有条目不动）")
     args = ap.parse_args(argv)
 
     if args.check is not None:
         return check(args.check)
+    if args.add_batches:
+        return add_batches(args.out)
     if not args.freeze:
         ap.print_help()
         return 2

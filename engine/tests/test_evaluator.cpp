@@ -440,6 +440,13 @@ TEST_CASE("评价器：配置约束——scenario 模式缺场景路径或多站
     CHECK(Evaluator::label_for_class_code("T10010", bg) == "rc_hopping"); CHECK_FALSE(bg);
     CHECK(Evaluator::label_for_class_code("D1", bg) == "video_link");
     CHECK(Evaluator::label_for_class_code("T0010", bg) == "video_link");
+    // 无人机类码后半截以 1 开头的不是飞控器（2026-09-28 补下 Mavic 3 / AVATA 时暴露）
+    CHECK(Evaluator::label_for_class_code("T1010", bg) == "video_link");   // DJI Mavic 3
+    CHECK(Evaluator::label_for_class_code("T1110", bg) == "video_link");   // DJI AVATA
+    CHECK(Evaluator::label_for_class_code("T1111", bg) == "video_link");   // DJI 通信模块自组机
+    CHECK(Evaluator::label_for_class_code("T10000", bg) == "video_link");  // DJI MATRICE 600 Pro
+    CHECK(Evaluator::label_for_class_code("T10110", bg) == "rc_hopping");  // Futaba T14SG
+    CHECK(Evaluator::label_for_class_code("T11000", bg) == "rc_hopping");  // 云卓 T10
     // 连线约束：scenario 模式至少一路 scene 口
     std::unique_ptr<Evaluator> ev = make_eval({{"truth_source", "scenario"}});
     CHECK_FALSE(ev->check_wiring({"det", "rec"}, err));

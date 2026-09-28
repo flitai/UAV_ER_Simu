@@ -116,7 +116,11 @@ std::string Evaluator::label_for_waveform(const std::string& waveform, double bw
 std::string Evaluator::label_for_class_code(const std::string& code, bool& is_background) {
     is_background = (code == "B" || code == "T0000");
     if (is_background) return std::string();
-    if (code.size() >= 2 && code[0] == 'T' && code[1] == '1') return "rc_hopping";   // DroneRFa 的飞控器类
+    // DroneRFa 的飞控器（遥控器）类，按论文表 3 逐个列出。**不能按「T1 开头」判**：无人机的类码是 T + 四位，
+    // 后半截同样有 1 开头的（T1010 Mavic 3、T1110 AVATA、T1001 Mini 2……），T10000 也是无人机（M600 Pro）。
+    // 旧写法「T1 开头即飞控器」在本地只有 T0010 / T0011 两型无人机时看不出错，2026-09-28 补下 Mavic 3 与 AVATA 才暴露。
+    static const char* const kControllers[] = {"T10001", "T10010", "T10011", "T10100", "T10101", "T10110", "T10111", "T11000"};
+    for (const char* c : kControllers) if (code == c) return "rc_hopping";
     return "video_link";
 }
 

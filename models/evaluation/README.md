@@ -39,8 +39,9 @@
 | 类码 | 含义 | 标签 |
 |---|---|---|
 | `B`（DroneRFb-DIR）、`T0000`（DroneRFa） | 背景，现场无无人机 | 全片为假 |
-| `T1xxxx`（DroneRFa） | 飞控器（FrSky X20、Futaba T14SG，915 MHz） | `rc_hopping` |
-| 其余（DroneRFb-DIR `A1`–`G3`，DroneRFa `T0010` / `T0011`） | 无人机机载链路 | `video_link` |
+| `T10001`–`T11000` 八类（DroneRFa，逐个列出） | 飞控器（本地有 FrSky X20、Futaba T14SG） | `rc_hopping` |
+| `T0001`–`T1111`、`T10000`（DroneRFa） | 无人机（含 `T1010` Mavic 3、`T1110` AVATA——**不能按「`T1` 开头」判成飞控器**，2026-09-28 补下这两型时暴露并更正） | `video_link` |
+| DroneRFb-DIR `A1`–`G3` | 无人机机载链路 | `video_link` |
 
 回放模式全片一段、无频率——帧级指标只剩「命中率」（非背景片段没有负样本，Pfa 为 `null`；背景片段没有正样本，Pd 为 `null`），突发级与识别指标对公开数据集意义有限（10 报告 §10 风险表「回放真值粗」）。
 
