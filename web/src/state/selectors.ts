@@ -98,6 +98,8 @@ export interface ProbeExtras {
   coverage?: {
     on: boolean; status: string; site: string; height_agl_m: number | null; cells: number
     pdMax: number | null; contourSegments: number; target: string | null; ms: number | null
+    /** 分界线开关（2026-09-28） */
+    showContour?: boolean
     /** 引擎用的传播档位与计入的损耗项（D-080） */
     propLevel: string | null; terms: string[]
   }

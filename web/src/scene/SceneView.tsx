@@ -368,7 +368,7 @@ export function SceneView({ active }: { active: boolean }) {
       const map = mapRef.current
       if (!map) return
       const st = coverageStore.get()
-      setCoverageVisible(map, st.on)
+      setCoverageVisible(map, st.on, st.showContour)
       const v = coverageValues()
       setCoverage(map, st.on && st.result ? st.result : null, st.on ? v : null, st.on ? coverageContour() : [])
     }

@@ -597,6 +597,14 @@ try {
   st = await waitApp(page, (a) => a.coverage?.status === 'ready' && a.coverage?.height_agl_m === 1.5, '按 1.5 m 重算', 60000)
   check('探测范围：目标高度改成 1.5 m 后重算，等值线与之前不同', st.app.coverage.contourSegments !== cov1.contourSegments,
     `${cov1.height_agl_m?.toFixed(1)} m → 1.5 m：等值线 ${cov1.contourSegments} → ${st.app.coverage.contourSegments} 段`)
+  // 分界线开关（2026-09-28）：取消勾选只藏等值线与晕，着色图还在；再勾上就回来
+  const covLayers = "['cuav-coverage-fill', 'cuav-coverage-contour-halo', 'cuav-coverage-contour'].map((id) => window.__map.getLayoutProperty(id, 'visibility')).join()"
+  await page.evaluate("(document.querySelector('[data-field=coverage-contour]').click(), true)")
+  const offVis = await waitDom(page, covLayers, 'visible,none,none')
+  await page.evaluate("(document.querySelector('[data-field=coverage-contour]').click(), true)")
+  const onVis = await waitDom(page, covLayers, 'visible,visible,visible')
+  check('探测范围：分界线开关只管等值线与晕，着色图不受影响', offVis === 'visible,none,none' && onVis === 'visible,visible,visible',
+    `关：${offVis} / 开：${onVis}`)
   await page.evaluate("(document.querySelector('[data-act=theme]').click(), true)")
   const contourDark = await waitDom(page, "window.__map.getPaintProperty('cuav-coverage-contour', 'line-color')", '#aaffdd')
   await page.evaluate("(document.querySelector('[data-act=theme]').click(), true)")

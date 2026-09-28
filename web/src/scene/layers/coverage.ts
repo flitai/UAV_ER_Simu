@@ -61,10 +61,12 @@ export function addCoverageLayers(map: MLMap): void {
   } catch { /* 地图正在拆除 */ }
 }
 
-export function setCoverageVisible(map: MLMap, on: boolean): void {
+/** 着色图跟开关走；分界线（等值线与晕）还要看 contour 那个开关（2026-09-28）。 */
+export function setCoverageVisible(map: MLMap, on: boolean, contour = true): void {
   if (!alive(map)) return
   for (const id of COVERAGE_LAYER_IDS) {
-    try { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none') } catch { /* 拆除中 */ }
+    const vis = on && (id === 'cuav-coverage-fill' || contour)
+    try { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis ? 'visible' : 'none') } catch { /* 拆除中 */ }
   }
 }
 

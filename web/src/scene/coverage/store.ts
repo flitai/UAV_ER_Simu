@@ -41,12 +41,14 @@ export interface CoverageState {
   site: string
   /** 用户固定的目标离地高度；null = 跟随焦点目标 */
   heightOverride: number | null
+  /** 显示 Pd 分界线（等值线与它的晕）；缺省开（2026-09-28 用户：「给 Pd 分界线设一个开关」） */
+  showContour: boolean
   error: string | null
   /** 最近一次结果的事实摘要（图例与探针用）；网格在模块变量里 */
   result: null | (FieldMeta & { targetName: string; wallMs: number })
 }
 
-const INITIAL: CoverageState = { on: false, status: 'off', site: 'all', heightOverride: null, error: null, result: null }
+const INITIAL: CoverageState = { on: false, status: 'off', site: 'all', heightOverride: null, showContour: true, error: null, result: null }
 let state: CoverageState = INITIAL
 const subs = new Set<() => void>()
 function emit(): void { for (const f of subs) f() }
@@ -64,8 +66,9 @@ export const coverageStore = {
   },
   setSite(site: string): void { set({ site }) },
   setHeight(h: number | null): void { set({ heightOverride: h }) },
-  /** 换场景：旧结果属于上一份场景，清掉 */
-  reset(): void { inflight?.abort(); layers = null; state = INITIAL; emit() },
+  setShowContour(v: boolean): void { set({ showContour: v }) },
+  /** 换场景：旧结果属于上一份场景，清掉；分界线开关是浏览者的显示偏好，留着 */
+  reset(): void { inflight?.abort(); layers = null; state = { ...INITIAL, showContour: state.showContour }; emit() },
 }
 
 /** 当前选择下要画的那一层 Pd（合并或某一站），没有结果时为 null。 */
@@ -194,7 +197,7 @@ export async function requestCoverage(s: AppState): Promise<void> {
 
 /** 探针用的摘要（只读，无副作用）。 */
 export function coverageProbe(): {
-  on: boolean; status: string; site: string; height_agl_m: number | null; cells: number
+  on: boolean; status: string; site: string; height_agl_m: number | null; cells: number; showContour: boolean
   pdMax: number | null; contourSegments: number; target: string | null; ms: number | null
   propLevel: string | null; terms: string[]
 } {
@@ -203,7 +206,7 @@ export function coverageProbe(): {
   if (v) { pdMax = 0; for (const x of v) if (x > pdMax) pdMax = x }
   const r = state.result
   return {
-    on: state.on, status: state.status, site: state.site,
+    on: state.on, status: state.status, site: state.site, showContour: state.showContour,
     height_agl_m: r?.height_agl_m ?? null, cells: v ? v.length : 0, pdMax,
     contourSegments: v ? coverageContour().length : 0, target: r?.emitter_id ?? null, ms: r?.ms ?? null,
     propLevel: r?.prop_level ?? null, terms: r?.included_loss_terms ?? [],

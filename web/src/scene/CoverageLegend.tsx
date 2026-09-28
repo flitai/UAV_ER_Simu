@@ -26,7 +26,11 @@ export function CoverageLegend({ siteNames, dev, dirty }: { siteNames: Array<{ i
       </div>
       <div className="cov-bar" style={{ background: GRADIENT }} />
       <div className="cov-row cov-ticks"><span>Pd 0</span><span>0.5</span><span>1</span></div>
-      <div className="cov-row"><span className="cov-contour-swatch" /> <span>Pd = {COVERAGE_LEVEL}</span></div>
+      <label className="cov-row" title="显示或隐藏 Pd 分界线">
+        <input type="checkbox" data-field="coverage-contour" checked={st.showContour}
+               onChange={(e) => coverageStore.setShowContour(e.target.checked)} />
+        <span className="cov-contour-swatch" /> <span>分界线 Pd = {COVERAGE_LEVEL}</span>
+      </label>
       <label className="cov-row">
         <span className="dim">站</span>
         <select data-field="coverage-site" value={st.site} onChange={(e) => coverageStore.setSite(e.target.value)}>
