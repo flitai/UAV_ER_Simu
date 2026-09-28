@@ -221,6 +221,8 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     // 场景与态势（切片 ②）。实体与链路是高频量，存在 sceneStore 里，探针取当前快照。
     scene: {
       scenarioId: s.scene.scenario.id,
+      /** 服务端选用的底图（D-084）：`planet` 或区域 id；未载入为 null */
+      basemap: s.scene.summary?.basemapId ?? null,
       scenarioSha256: s.scene.scenario.sha256,
       status: s.scene.scenario.status,
       dirty: s.scene.dirty,

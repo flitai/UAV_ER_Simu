@@ -8,7 +8,8 @@
 // 依赖策略：运行时只加 ws 一个包（锁版本、进 THIRD-PARTY-NOTICES，D-032），其余只用 Node 内置模块。
 //
 // 环境变量：PORT、HOST；CUAV_RUN（引擎二进制，缺省 engine/build/cuav_run）；
-// CUAV_MAX_CONCURRENT_TASKS（同时运行的任务数，缺省 1）。
+// CUAV_MAX_CONCURRENT_TASKS（同时运行的任务数，缺省 1）；CUAV_BASEMAP（`planet` 或区域 id，缺省全球底图在就用它，
+// 见 src/basemap.ts，D-084）。
 //
 // 三条硬约束：
 //   1. 底图必须经 Range 下发（铁律 7）。整份全球底图 137 GB，不支持 Range 等于不可用。
@@ -28,6 +29,7 @@ import { handleScenarioRoutes } from './scenarios.js'
 import { handleCoverageRoutes } from './coverage.js'
 import { handleDiagramRoutes } from './diagrams.js'
 import { handleDatasetRoutes } from './datasets.js'
+import { handleBasemapRoute, resolveBasemap } from './basemap.js'
 import { DataIndex, ScenarioIndex } from './tasks/resolve.js'
 import { WsHub } from './ws/hub.js'
 
@@ -140,6 +142,8 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       engine: { available: await engine.available(), ...(cat ? { version: cat.engine_version } : {}) },
     })
   }
+  // 底图选用（D-084）：全球底图与区域底图并存，由环境变量或盘上现状挑一份
+  if (await handleBasemapRoute(ROOT, req, res, path)) return
   if (path === '/api/v1/scenes') {
     return sendJson(res, 200, { scenes: await listScenes() })
   }
@@ -185,6 +189,9 @@ export async function start(): Promise<void> {
     console.log(`  仓库根目录 ${ROOT}`)
     console.log(`  暴露的数据目录：${ROOTS.map((r) => r.prefix).join('  ')}`)
     console.log(`  前端产物 ${WEB_DIST}`)
+    void resolveBasemap(ROOT).then((b) => console.log(b.ok
+      ? `  底图 ${b.choice.id}（${b.choice.selected_by === 'env' ? 'CUAV_BASEMAP 点名' : '自动'}）${b.choice.pmtiles_url}`
+      : `  底图不可用：${b.message}`))
     console.log(`  引擎 ${engine.cfg.bin}${engineOk ? '' : '（不存在或不可执行：任务提交将返回 503）'}`)
     console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.count()} 个`)
     console.log(`  视窗抽取 GET /api/v1/results/{task}/{op}/{spectrum|envelope}?t0&t1&f0&f1&px&py&stat`)

@@ -1,0 +1,72 @@
+{
+  "schema": "cuav-dem-manifest/1",
+  "role": "区域 DEM（北京市，D-084）：只作山体阴影视觉，不进视距计算（铁律 2）",
+  "canonical_path": "data/basemap/regional/beijing-dem",
+  "storage": "in_place",
+  "region": {
+    "id": "beijing",
+    "name": "北京市",
+    "bbox": [
+      115.41,
+      39.44,
+      117.51,
+      41.06
+    ],
+    "bbox_order": "west, south, east, north"
+  },
+  "region_definition_file": "scene/regions/beijing.json",
+  "source": {
+    "canonical_path": "data/basemap/dem",
+    "manifest": "data/basemap/dem.manifest.json"
+  },
+  "encoding": "terrarium: 高程 m = (R * 256 + G + B / 256) - 32768",
+  "vertical_datum": "OPEN（CLAUDE.md 铁律 2：DEM 垂直基准未决）",
+  "attribution": "AWS Terrain Tiles (Mapzen terrarium), https://registry.opendata.aws/terrain-tiles/",
+  "per_zoom": {
+    "0": {
+      "files": 1,
+      "bytes": 106274
+    },
+    "1": {
+      "files": 1,
+      "bytes": 97258
+    },
+    "2": {
+      "files": 1,
+      "bytes": 107585
+    },
+    "3": {
+      "files": 2,
+      "bytes": 203471
+    },
+    "4": {
+      "files": 2,
+      "bytes": 181209
+    },
+    "5": {
+      "files": 2,
+      "bytes": 132328
+    },
+    "6": {
+      "files": 2,
+      "bytes": 138935
+    },
+    "7": {
+      "files": 2,
+      "bytes": 162384
+    },
+    "8": {
+      "files": 6,
+      "bytes": 463259
+    }
+  },
+  "tiles": 19,
+  "bytes": 1592703,
+  "index_sha256": "c3f311301740de4ebb49708dd55970cd7a455bc46b18d3e5c81700770e1e53c3",
+  "index_sha256_note": "按 zoom、x、y 顺序逐行 `z/x/y <文件 sha256>` 的 sha256",
+  "generated_at_utc": "2026-09-28T07:54:28Z",
+  "generator": {
+    "script": "scene/build_regional_basemap.py",
+    "git_commit": "e19a7c5-dirty"
+  }
+}

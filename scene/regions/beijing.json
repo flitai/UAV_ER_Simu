@@ -1,0 +1,23 @@
+{
+  "id": "beijing",
+  "name": "北京市",
+  "role": "交付用区域底图的范围（D-084）：可安装软件只带这一片的底图与 DEM，全球底图 planet.pmtiles 不随包",
+  "bbox": [
+    115.41,
+    39.44,
+    117.51,
+    41.06
+  ],
+  "bbox_order": "west, south, east, north",
+  "bbox_note": "北京市行政区的外包框，取整到 0.01 度；框外为空白、不降级（铁律 15）",
+  "probe": [
+    116.405,
+    39.99
+  ],
+  "probe_note": "自检探针点取观测区域 beijing-yayuncun 的中心（城区，必有楼）；外包框中心约 (116.46, 40.25) 落在郊野，z15 那块瓦片里没有楼（2026-09-28 实测）",
+  "minzoom": 0,
+  "maxzoom": 15,
+  "dem_maxzoom": 8,
+  "decided_on": "2026-09-28",
+  "decision": "D-084"
+}

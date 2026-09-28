@@ -926,7 +926,7 @@ test('频率计划新增第 14 项：E3 要有观测区域建筑几何（D3-7）
     bbox: [116.288, 39.9, 116.522, 40.08] as [number, number, number, number],
     center: [116.405, 39.99] as [number, number], extentKm: [19.96, 19.97] as [number, number],
     buildings: { features: 47582, srcPct: {}, heightQ50: 20, heightMax: 528 },
-    basemapUrl: '', demTiles: '', buildingsUrl: '', osmSnapshot: null, attribution: null,
+    basemapId: '', basemapUrl: '', demTiles: '', buildingsUrl: '', osmSnapshot: null, attribution: null,
   }
   const e1 = synthetic()
   // E1 / E2 不要建筑几何，这一项根本不出现

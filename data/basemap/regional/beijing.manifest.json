@@ -1,0 +1,204 @@
+{
+  "schema": "cuav-scene-basemap-manifest/1",
+  "product": "beijing.pmtiles",
+  "aoi": {
+    "id": "beijing",
+    "status": {
+      "extent": "ad_hoc",
+      "note": "命令行直接给的范围，没有 AOI 定义文件"
+    },
+    "crs": "EPSG:4326",
+    "bbox": [
+      115.41,
+      39.44,
+      117.51,
+      41.06
+    ]
+  },
+  "aoi_definition_file": null,
+  "crs": "EPSG:4326",
+  "coord_version": "交换用 WGS-84 经纬度（度，EPSG:4326）；瓦片网格为 Web Mercator（EPSG:3857）XYZ 方案，y 轴自北向南；CLAUDE.md 铁律 1",
+  "source": {
+    "path": "data/basemap/planet.pmtiles",
+    "size_bytes": 137370745450,
+    "mtime_utc": "2026-09-04T00:45:14Z",
+    "header_sha256_first_bytes": 16384,
+    "header_sha256": "d8e1473c4a6944e6e4a51bd6ece2723a0d04a60c980c8f91b1895260ab65b84b",
+    "sha256": "b4c4674234ae75c8fea8a10c23f1cce49626155f56a437eda89b006f1e02b2b7",
+    "sha256_note": "由 --source-sha256 传入",
+    "pmtiles_spec_version": "3",
+    "tile_type": "mvt",
+    "minzoom": 0,
+    "maxzoom": 15,
+    "planetiler_version": "0.10.2",
+    "planetiler_githash": "0e5588c4a6e8c29a270a33afe8df62027d889604",
+    "planetiler_buildtime": "2026-03-28T14:41:39.524Z",
+    "osm_replication_time": "2026-08-17T04:00:00Z",
+    "osm_replication_seq": "122085",
+    "osm_replication_url": "https://planet.osm.org/replication/hour/",
+    "basemap_name": "Protomaps Basemap",
+    "basemap_version": "4.15.2",
+    "attribution": "<a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">&copy; OpenStreetMap</a>"
+  },
+  "extract": {
+    "tool": "pmtiles CLI (go-pmtiles)",
+    "tool_version": "pmtiles dev, commit none, built at unknown",
+    "command": [
+      "pmtiles",
+      "extract",
+      "data/basemap/planet.pmtiles",
+      "data/basemap/regional/beijing.part.pmtiles",
+      "--bbox=115.410000,39.440000,117.510000,41.060000",
+      "--minzoom=0",
+      "--maxzoom=15"
+    ],
+    "bbox": [
+      115.41,
+      39.44,
+      117.51,
+      41.06
+    ],
+    "minzoom": 0,
+    "maxzoom": 15,
+    "overfetch": 0.05,
+    "dry_run_region_tiles": 50130,
+    "dry_run_tile_entries": 48567,
+    "dry_run_archive_size_text": "96 MB"
+  },
+  "output": {
+    "file": "beijing.pmtiles",
+    "size_bytes": 96534098,
+    "sha256": "6b7a5166c52894a23ff603332710e238d9253b516145c0b394aa2fad6e746a1c",
+    "bounds": [
+      115.41,
+      39.44,
+      117.51,
+      41.06
+    ],
+    "minzoom": 0,
+    "maxzoom": 15,
+    "addressed_tiles": 50130,
+    "tile_entries": 48567,
+    "tile_contents": 46789,
+    "tile_compression": "gzip",
+    "vector_layers": [
+      {
+        "id": "boundaries",
+        "minzoom": 0,
+        "maxzoom": 15
+      },
+      {
+        "id": "buildings",
+        "minzoom": 11,
+        "maxzoom": 15
+      },
+      {
+        "id": "earth",
+        "minzoom": 0,
+        "maxzoom": 15
+      },
+      {
+        "id": "landcover",
+        "minzoom": 0,
+        "maxzoom": 7
+      },
+      {
+        "id": "landuse",
+        "minzoom": 2,
+        "maxzoom": 15
+      },
+      {
+        "id": "places",
+        "minzoom": 1,
+        "maxzoom": 15
+      },
+      {
+        "id": "pois",
+        "minzoom": 5,
+        "maxzoom": 15
+      },
+      {
+        "id": "roads",
+        "minzoom": 3,
+        "maxzoom": 15
+      },
+      {
+        "id": "water",
+        "minzoom": 0,
+        "maxzoom": 15
+      }
+    ],
+    "checks": [
+      {
+        "check": "bounds_cover_bbox",
+        "pass": true,
+        "got": [
+          115.41,
+          39.44,
+          117.51,
+          41.06
+        ],
+        "want": [
+          115.41,
+          39.44,
+          117.51,
+          41.06
+        ]
+      },
+      {
+        "check": "minzoom",
+        "pass": true,
+        "got": 0,
+        "want": 0
+      },
+      {
+        "check": "maxzoom",
+        "pass": true,
+        "got": 15,
+        "want": 15
+      },
+      {
+        "check": "tile_entries_equal_dry_run",
+        "pass": true,
+        "got": 48567,
+        "want": 48567
+      },
+      {
+        "check": "buildings_layer_z11_15",
+        "pass": true,
+        "got": {
+          "minzoom": 11,
+          "maxzoom": 15
+        },
+        "want": {
+          "minzoom": 11,
+          "maxzoom": 15
+        }
+      },
+      {
+        "check": "center_tile_has_buildings_layer",
+        "pass": true,
+        "got": {
+          "z": 15,
+          "x": 26979,
+          "y": 12406,
+          "bytes_uncompressed": 22177,
+          "contains_buildings": true,
+          "probe_lonlat": [
+            116.405,
+            39.99
+          ]
+        },
+        "want": "bytes > 0 且含 buildings"
+      }
+    ]
+  },
+  "generated_at_utc": "2026-09-28T07:54:28Z",
+  "generator": {
+    "script": "scene/fetch_tiles.py",
+    "git_commit": "e19a7c5-dirty",
+    "python": "3.13.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "note": "在 macOS 开发机生成；按 D-015 / D-016，macOS 结果不作验收依据，数据包本身与平台无关"
+  }
+}

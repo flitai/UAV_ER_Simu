@@ -277,7 +277,7 @@ def mtime_utc(path: str) -> str:
 # ---------------------------------------------------------------------------
 # 自检
 # ---------------------------------------------------------------------------
-def verify(exe: str, part: str, bbox, minzoom: int, maxzoom: int, expected_entries: int):
+def verify(exe: str, part: str, bbox, minzoom: int, maxzoom: int, expected_entries: int, probe=None):
     hdr = show_header(exe, part)
     meta = show_metadata(exe, part)
     checks = []
@@ -300,12 +300,16 @@ def verify(exe: str, part: str, bbox, minzoom: int, maxzoom: int, expected_entri
                    "got": None if bl is None else {"minzoom": bl.get("minzoom"), "maxzoom": bl.get("maxzoom")},
                    "want": {"minzoom": 11, "maxzoom": 15}})
 
-    cx, cy = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
+    # 探针点缺省取范围中心（观测区域都在城区，中心必有楼）；区域底图的外包框中心可能落在郊野、
+    # 那块瓦片里本来就没有楼，故允许显式给一个城区探针点（--probe），清单里记下用的是哪一点
+    cx, cy = probe if probe else ((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2)
     x, y = tile_xy(cx, cy, maxzoom)
     data = fetch_tile(exe, part, maxzoom, x, y)
     ok = len(data) > 0 and b"buildings" in data
-    checks.append({"check": "center_tile_has_buildings_layer", "pass": ok,
-                   "got": {"z": maxzoom, "x": x, "y": y, "bytes_uncompressed": len(data), "contains_buildings": b"buildings" in data},
+    got = {"z": maxzoom, "x": x, "y": y, "bytes_uncompressed": len(data), "contains_buildings": b"buildings" in data}
+    if probe:
+        got["probe_lonlat"] = list(probe)
+    checks.append({"check": "center_tile_has_buildings_layer", "pass": ok, "got": got,
                    "want": "bytes > 0 且含 buildings"})
 
     return hdr, meta, checks
@@ -328,7 +332,15 @@ def main() -> int:
     ap.add_argument("--force", action="store_true", help="覆盖已存在的产物（否则拒绝，铁律 10）")
     ap.add_argument("--hash-source", action="store_true", help="计算源文件全文件 sha256（128 GB 约 5 分钟）")
     ap.add_argument("--source-sha256", help="事先算好的源文件 sha256，直接写入清单")
+    ap.add_argument("--probe", help="LON,LAT：第六项自检取这一点的最高层瓦片（缺省取范围中心）")
     a = ap.parse_args()
+    probe = None
+    if a.probe:
+        try:
+            probe = tuple(float(v) for v in a.probe.split(","))
+            assert len(probe) == 2
+        except (ValueError, AssertionError):
+            die(f"--probe 格式应为 LON,LAT：{a.probe}")
 
     aoi = load_aoi(a)
     aid = aoi["id"]
@@ -344,8 +356,11 @@ def main() -> int:
     ver = pmtiles_version(exe)
     out = a.out or os.path.join(OUT_ROOT, aid, "basemap-slice.pmtiles")
     out_dir = os.path.dirname(out)
-    part = os.path.join(out_dir, "basemap-slice.part.pmtiles")
-    manifest_path = os.path.join(out_dir, "basemap-slice.manifest.json")
+    # 临时文件与清单跟着产物文件名走：缺省产物 basemap-slice.pmtiles 时与原来逐字相同；
+    # 区域底图（D-084，scene/build_regional_basemap.py 用 --out 指到 data/basemap/regional/）各有各的清单
+    stem = os.path.basename(out)[:-len(".pmtiles")] if out.endswith(".pmtiles") else os.path.basename(out)
+    part = os.path.join(out_dir, f"{stem}.part.pmtiles")
+    manifest_path = os.path.join(out_dir, f"{stem}.manifest.json")
 
     info(f"区域 {aid}  bbox {bbox}  约 {extent_km(bbox)[0]} x {extent_km(bbox)[1]} km  zoom {a.minzoom}-{a.maxzoom}")
     info(f"源文件 {a.planet}")
@@ -373,7 +388,7 @@ def main() -> int:
     info(f"  写入 {part}  {os.path.getsize(part)} 字节")
 
     info("自检……")
-    hdr, meta, checks = verify(exe, part, bbox, a.minzoom, a.maxzoom, est["tile_entries"])
+    hdr, meta, checks = verify(exe, part, bbox, a.minzoom, a.maxzoom, est["tile_entries"], probe)
     for c in checks:
         info(f"  [{'通过' if c['pass'] else '失败'}] {c['check']}  得到 {c['got']}")
     if not all(c["pass"] for c in checks):
@@ -396,7 +411,7 @@ def main() -> int:
 
     manifest = {
         "schema": MANIFEST_SCHEMA,
-        "product": "basemap-slice.pmtiles",
+        "product": os.path.basename(out),
         "aoi": {k: v for k, v in aoi.items() if not k.startswith("_")},
         "aoi_definition_file": aoi.get("_definition_file"),
         "crs": "EPSG:4326",

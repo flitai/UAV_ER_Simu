@@ -281,6 +281,7 @@ export interface SceneSummaryLite {
   center: [number, number]
   extentKm: [number, number]
   buildings: { features: number; srcPct: Record<string, number>; heightQ50: number | null; heightMax: number | null }
+  basemapId: string
   basemapUrl: string
   demTiles: string
   buildingsUrl: string

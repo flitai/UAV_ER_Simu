@@ -28,6 +28,7 @@
 | `fetch_osm_buildings.py` | 从 Overpass 拉原始 OSM 标签与几何。**本项目唯一的联网脚本**，只允许建库阶段跑 | D0-4 | 已完成 2026-09-04 |
 | `quality_report.py` | 与原始 OSM 逐项对拍，现算生成质量报告 | D0-4、D0-7 | 已完成 2026-09-04 |
 | `make_manifest.py` | 生成区域总清单，含所引用底图与 DEM 的 sha256 与复跑命令 | D0-6 | 已完成 2026-09-04 |
+| `build_regional_basemap.py` | 按 `regions/<id>.json` 从全球底图与 DEM 抽**交付用区域底图**：调 `fetch_tiles.py --out data/basemap/regional/<id>.pmtiles`（沿用六项自检，探针点可由区域文件给出），再拷相交的 DEM 瓦片并写清单。全球底图留在开发机，交付包只带区域底图 | W-3（D-084） | 已完成 2026-09-28：北京市 48567 块 96534098 字节、DEM 19 块 |
 
 步骤详情见 `06.首期实施备忘录_v1.0.md` §4。
 
@@ -38,5 +39,6 @@
 ```
 uv run python scene/register_basemap.py --planet data/basemap/planet.pmtiles --dem data/basemap/dem --sha256 <hex>
 uv run python scene/fetch_tiles.py --aoi beijing-yayuncun --estimate
+uv run python scene/build_regional_basemap.py --region beijing [--estimate] [--force]
 uv run python scene/fetch_tiles.py --aoi beijing-yayuncun [--force] [--source-sha256 <hex>]
 ```

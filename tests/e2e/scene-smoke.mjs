@@ -37,6 +37,10 @@ try {
   check('样式图层齐全（底图 60 + 建筑 + 山体阴影 + AOI 边界 + 态势 13 + 视距探测 2 + 探测范围 3 = 81）', st.layers.length === 81,
     `实际 ${st.layers.length} 层`)
   check('底图数据源已挂载', st.sources.includes('pm'))
+  // D-084：用哪一份底图（开发机的全球底图 / 交付包的区域底图）由服务端说了算，前端照它取、不写死
+  const bm = await (await fetch(new globalThis.URL('/api/v1/basemap', URL_))).json()
+  check('前端用的底图就是服务端选用的那一份（D-084）', !!bm.id && st.app?.scene?.basemap === bm.id,
+    `服务端 ${bm.id}（${bm.selected_by}）、前端 ${st.app?.scene?.basemap}`)
   check('高程数据源已挂载', st.sources.includes('dem'))
   check('观测区域建筑数据源已挂载', st.sources.includes('aoi-buildings'))
   check('建筑三维拉伸图层存在', st.layers.includes('aoi-buildings-3d'))
