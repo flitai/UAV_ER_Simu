@@ -1,0 +1,156 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "gfsk-emitter",
+  "name": "波形源测试用：GFSK 族两种（Q-3）",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 1
+  },
+  "seed": 20260929,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "测试站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 80000000,
+        "center_Hz": 2440000000,
+        "bw_Hz": 64000000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "frsky",
+      "name": "FrSky D16 v2 FCC，定频",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.41,
+        "lat": 39.99,
+        "alt_m": 1.5
+      },
+      "emission": {
+        "center_Hz": 2441300000,
+        "bw_Hz": 191223.14453125,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "gfsk",
+          "preset_id": "frsky-d16v2-fcc"
+        }
+      }
+    },
+    {
+      "id": "sfhss",
+      "name": "Futaba S-FHSS，定频，帧起点 2.1 ms",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.41,
+        "lat": 39.99,
+        "alt_m": 1.5
+      },
+      "emission": {
+        "center_Hz": 2438700000,
+        "bw_Hz": 204315.185546875,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "gfsk",
+          "preset_id": "futaba-sfhss",
+          "frame_offset_s": 0.0021
+        }
+      }
+    },
+    {
+      "id": "sfhss-gated",
+      "name": "Futaba S-FHSS，1.5 ms 处开、7 ms 处关",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.41,
+        "lat": 39.99,
+        "alt_m": 1.5
+      },
+      "emission": {
+        "center_Hz": 2438700000,
+        "bw_Hz": 204315.185546875,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "gfsk",
+          "preset_id": "futaba-sfhss"
+        }
+      }
+    },
+    {
+      "id": "frsky-hop",
+      "name": "FrSky D16 v2 FCC，三点跳频",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.41,
+        "lat": 39.99,
+        "alt_m": 1.5
+      },
+      "emission": {
+        "center_Hz": 2410000000,
+        "bw_Hz": 191223.14453125,
+        "tx_power_dBm": 20,
+        "antenna_gain_dBi": 0,
+        "waveform": {
+          "type": "gfsk",
+          "preset_id": "frsky-d16v2-fcc"
+        }
+      }
+    }
+  ],
+  "routes": [],
+  "activities": [
+    {
+      "emitter_id": "frsky-hop",
+      "t_s": 0,
+      "event": "hop",
+      "args": {
+        "sequence": [
+          2410000000,
+          2470000000,
+          2425000000
+        ],
+        "dwell_s": 0.007
+      }
+    },
+    {
+      "emitter_id": "sfhss-gated",
+      "t_s": 0.0015,
+      "event": "tx_on"
+    },
+    {
+      "emitter_id": "sfhss-gated",
+      "t_s": 0.007,
+      "event": "tx_off"
+    }
+  ],
+  "trace": {
+    "created_by": "实施方（Q-3 步骤 5，D-089）",
+    "created_at": "2026-09-29T00:00:00Z",
+    "notes": "SceneEmitterSource 的 GFSK 族单测夹具：80 MS/s @ 2440 MHz；frsky 定频偏 +1.3 MHz（GFSK 路径），sfhss 定频偏 −1.3 MHz、帧起点 2.1 ms（2-FSK 路径），这两个不设活动，Python 全路径复刻只需常数频偏；sfhss-gated 在 1.5 ms 开、7 ms 关——0 ms 的包起点时关着（整包不发），1.625 ms 的包整包发，6.8 ms 的包起点开着、终点 8.24 ms 已过关断时刻（仍整包发），8.425 ms 的包不发；frsky-hop 三点跳频、停留 = 帧周期 7 ms，每包一个频点。"
+  }
+}

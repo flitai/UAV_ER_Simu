@@ -1207,6 +1207,90 @@ def write_gfsk_frame(args) -> int:
     return 0
 
 
+def write_scene_gfsk(args) -> int:
+    """SceneEmitterSource 的 GFSK 路径（Q-3，D-089）：组件尺度的对拍基准（complex64，判据 1e-6）。
+
+    整条路径逐步复刻，与引擎共享的只有比特（预设表、种子）：
+      帧排布 gfsk_ref.frame_bursts → 支撑 [sample_at(t0), sample_at(t1)) → 包载荷种子 mix64(key ^ mix64(包序号))
+      → 比特 gfsk_ref.packet_bits → 闭式相位 ψ(m/fs − t0)（gfsk_ref.Modulator，与 C++ 同式同序）
+      → exp(j·(载波相位 + 2π·frac ψ)) → 相位累加器（弧度、逐样点加、单次回卷）→ float32。
+    场景是 engine/tests/fixtures/gfsk-emitter.scenario.json 的两个定频辐射源（无活动，频偏为常数）：
+    frsky 走 GFSK 路径，sfhss 走 2-FSK 路径、帧起点 2.1 ms。共享随机流 Xoshiro256pp(7) 取一个数建私有子流，
+    私有子流再取一个数作载荷键——与单测、与 OFDM 路径同式。
+    """
+    import gfsk_ref
+
+    doc_p = gfsk_ref.load_presets()
+    fs, fc = 80e6, 2.44e9
+    N = args.sg_samples
+    two_pi = 2.0 * math.pi
+    sub_seed = Xoshiro256pp(7).next_u64()
+    key = Xoshiro256pp(sub_seed).next_u64()
+    cases = []
+    for eid, pid, f_em, off in (("frsky", "frsky-d16v2-fcc", 2.4413e9, 0.0), ("sfhss", "futaba-sfhss", 2.4387e9, 0.0021)):
+        p = gfsk_ref.Preset(doc_p, pid)
+        mod = gfsk_ref.Modulator.of(p)
+        bursts = gfsk_ref.frame_bursts(p, off, N / fs)
+        sup = [(int(t0 * fs + 0.5) if t0 > 0.0 else 0, int(t1 * fs + 0.5)) for (_k, _q, _i, t0, t1, _nb) in bursts]
+        dphi = two_pi * (f_em - fc) / fs
+        phase = 0.0
+        out = np.zeros(N, dtype=np.complex64)
+        k = 0
+        cache = (-1, None, None)
+        for m in range(N):
+            while k < len(sup) and sup[k][1] <= m:
+                k += 1
+            if k < len(sup) and sup[k][0] <= m:
+                _fr, _q, idx, t0, _t1, nb = bursts[k]
+                if cache[0] != idx:
+                    a = gfsk_ref.packet_bits(p, nb, gfsk_ref.mix64(key ^ gfsk_ref.mix64(idx)))
+                    cache = (idx, a, gfsk_ref.prefix_sums(a))
+                psi = mod.phase_cycles(cache[1], cache[2], m / fs - t0)
+                ang = phase + two_pi * (psi - math.floor(psi))
+                out[m] = complex(np.float32(math.cos(ang)), np.float32(math.sin(ang)))
+            phase += dphi
+            if phase >= two_pi:
+                phase -= two_pi
+            elif phase < 0.0:
+                phase += two_pi
+        keep = args.sg_keep
+        m0, m1 = sup[0]
+        energy = float(np.sum(np.abs(out.astype(np.complex128)) ** 2))
+        cases.append({
+            "entity_id": eid, "preset": pid, "emitter_center_Hz": f_em, "frame_offset_s": off,
+            "n_bursts": len(bursts), "supports": [[a, b] for a, b in sup],
+            "segments": [
+                {"start": m0, "samples": [[float(v.real), float(v.imag)] for v in out[m0:m0 + keep]]},
+                {"start": m1 - keep, "samples": [[float(v.real), float(v.imag)] for v in out[m1 - keep:m1]]},
+            ],
+            "energy": energy,
+        })
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "SceneEmitterSource 的 GFSK 路径对拍基准（Q-3，D-089），组件尺度（complex64）",
+        "generator": "algos/reference/gen_engine_golden.py --mode scene_gfsk",
+        "scenario": "engine/tests/fixtures/gfsk-emitter.scenario.json",
+        "sample_rate_Hz": fs, "center_frequency_Hz": fc, "shared_seed": 7, "total_samples": N,
+        "cases": cases,
+        "tolerance": {"sample_abs": 1e-6, "energy_rel": 1e-6,
+                      "note": "恒包络，样点模为 1，判据取绝对差 1e-6（complex64 的 eps 1.2e-7）；算法核那一层的 1e-9 由 gfsk.json 守"},
+    }
+    arrays = {}
+    for ci, c in enumerate(doc["cases"]):
+        for si, seg in enumerate(c["segments"]):
+            tag = f"@@{ci}_{si}@@"
+            arrays[tag] = seg["samples"]
+            seg["samples"] = tag
+    text = json.dumps(doc, ensure_ascii=False, indent=1)
+    for tag, pairs in arrays.items():
+        text = text.replace(json.dumps(tag), "[\n" + ",\n".join(json.dumps(pr) for pr in pairs) + "\n]", 1)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(text + "\n")
+    print(f"写出 {args.out}：{N} 个样点；" + "，".join(f"{c['entity_id']} {c['n_bursts']} 包、能量 {c['energy']:.3f}"
+                                                  for c in cases))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -1220,7 +1304,7 @@ def main(argv=None) -> int:
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
                                       "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk",
-                                      "gfsk_frame"),
+                                      "gfsk_frame", "scene_gfsk"),
                     default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
@@ -1285,6 +1369,8 @@ def main(argv=None) -> int:
     ap.add_argument("--gfsk-points", type=int, default=160, help="gfsk：每个算例的随机时刻数")
     ap.add_argument("--gfsk-frame-offset", type=float, default=0.00123, help="gfsk_frame：帧起点（秒）")
     ap.add_argument("--gfsk-frame-end", type=float, default=60.0, help="gfsk_frame：铺到多少秒")
+    ap.add_argument("--sg-samples", type=int, default=480000, help="scene_gfsk：输出样点数（80 MS/s 下 6 ms）")
+    ap.add_argument("--sg-keep", type=int, default=512, help="scene_gfsk：首个包的首尾各存多少样点")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
@@ -1307,6 +1393,8 @@ def main(argv=None) -> int:
         return write_gfsk(args)
     if args.mode == "gfsk_frame":
         return write_gfsk_frame(args)
+    if args.mode == "scene_gfsk":
+        return write_scene_gfsk(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

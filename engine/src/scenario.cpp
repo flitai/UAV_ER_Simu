@@ -10,6 +10,7 @@
 #include "cuav/coder_provenance.h"
 #include "cuav/scenario_json.h"
 #include "cuav_geo/activity.h"
+#include "cuav_geo/gfsk_frame.h"
 #include "cuav_geo/ofdm_frame.h"
 
 namespace cuav {
@@ -457,7 +458,9 @@ ComponentInfo SceneEmitterSource::describe() const {
                     "emission.center_Hz；bw_Hz 不小于采样带宽时不带限、输出全带白噪声并标降级。"
                     "ofdm / droneid（Q-2）的结构取自机型预设表：原生率逐符号 IFFT 加 CP，"
                     "有理重采样到站点采样率（算法核是 Coder 产物），按帧排布逐突发发射，"
-                    "频点按突发取、突发起点发射机开着即整突发发完。";
+                    "频点按突发取、突发起点发射机开着即整突发发完。"
+                    "gfsk（Q-3）的调制与帧取自 GFSK 族预设表：相位按任意时刻闭式求值（不经重采样），"
+                    "每个包起点发射机开着即整包发完、频点取包中点，包内恒包络。";
     i.model_layer = "M3";
     i.model_level = "E2";
     i.model_id = "EM-B-09";
@@ -607,11 +610,7 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
         }
     }
     if (geo::is_ofdm_family(waveform_.type) && !configure_ofdm(err)) return false;
-    if (geo::is_gfsk(waveform_.type)) {
-        // 生成路径随 Q-3 step 5；在此之前明说不支持，别让它落进下面的单音分支（铁律 15）
-        err = "SceneEmitterSource：gfsk 波形的生成路径尚未接入（Q-3 step 5）";
-        return false;
-    }
+    if (geo::is_gfsk(waveform_.type) && !configure_gfsk(err)) return false;
     return true;
 }
 
@@ -681,6 +680,40 @@ bool SceneEmitterSource::configure_ofdm(std::string& err) {
     return true;
 }
 
+bool SceneEmitterSource::configure_gfsk(std::string& err) {
+    gpreset_ = geo::gfsk_preset_v1(waveform_.preset_id);
+    if (gpreset_ == 0) {
+        err = "SceneEmitterSource：预设 " + waveform_.preset_id + " 不在 GFSK 族预设表 v1 里";
+        return false;
+    }
+    const geo::GfskPreset& p = *gpreset_;
+    if (!gmod_.init(p, err)) return false;
+    geo::EmitterRuntime rt;
+    if (!rt.build(scene_, entity_id_, err)) return false;
+    // 铺到最后一个站点样点所在的时刻为止：帧排布只按时刻铺、与终点无关，于是 N 个样点的运行
+    // 恰是 2N 个样点运行的前 N 个（前缀性质）
+    const double end_s = static_cast<double>(total_samples_) / sample_rate_Hz_;
+    geo::GfskSchedule gs;
+    gs.build(p, waveform_.frame_offset_s, end_s);
+    gfsk_bursts_.clear();
+    const std::vector<geo::GfskBurst>& bs = gs.bursts();
+    for (std::size_t i = 0; i < bs.size(); ++i) {
+        GfskBurstRt b;
+        b.index = bs[i].index;
+        b.t0_s = bs[i].t0_s;
+        b.n_bits = bs[i].n_bits;
+        b.on = rt.tx_on_at(bs[i].t0_s);
+        const double mid = bs[i].t0_s + 0.5 * (bs[i].t1_s - bs[i].t0_s);
+        b.dphi = kTwoPi * (rt.center_Hz_at(mid) + waveform_.offset_Hz - center_frequency_Hz_) / sample_rate_Hz_;
+        // 支撑两端与评价器同一取整口径（geo::sample_at，四舍五入）
+        b.m_lo = static_cast<std::int64_t>(geo::sample_at(bs[i].t0_s, sample_rate_Hz_));
+        b.m_hi = static_cast<std::int64_t>(geo::sample_at(bs[i].t1_s, sample_rate_Hz_));
+        // m_hi > m_lo 恒成立：铁律 4 已要求 fs 大于占用带宽（≥ 191 kHz），最短的包 1.44 ms 也有几百个样点
+        gfsk_bursts_.push_back(b);
+    }
+    return true;
+}
+
 const std::vector<std::complex<double>>& SceneEmitterSource::ofdm_native(std::size_t k) {
     const std::int64_t key = static_cast<std::int64_t>(k);
     if (native_idx_[0] == key) return native_[0];
@@ -732,6 +765,13 @@ bool SceneEmitterSource::init(IRandom& rng, std::string& err) {
     produced_ = 0;
     phase_ = 0.0;
     band_note_done_ = false;
+    if (geo::is_gfsk(waveform_.type)) {
+        // 同 OFDM 族：载荷键只在私有子流里取一次，共享流的消耗不变
+        payload_key_ = sub_rng_.next_u64();
+        gfsk_cursor_ = 0;
+        gfsk_cached_ = -1;
+        gfsk_note_done_ = false;
+    }
     if (geo::is_ofdm_family(waveform_.type)) {
         // 只在私有子流里取一次，别的波形一个数不取（共享流的消耗不变，D-058 ④ 同一纪律）
         payload_key_ = sub_rng_.next_u64();
@@ -788,6 +828,7 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
         const double dphi = kTwoPi * offset / sample_rate_Hz_;
 
         const bool ofdm = geo::is_ofdm_family(waveform_.type);
+        const bool gfsk = geo::is_gfsk(waveform_.type);
         for (std::uint64_t idx = s0 + i; idx < stop; ++idx, ++i) {
             bool on = seg.tx_on;
             if (on && waveform_.type == geo::WaveformType::Burst)
@@ -816,6 +857,37 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
                     }
                 } else {
                     d.iq.samples[i] = Complex(0.0f, 0.0f);
+                }
+                phase_ += step;
+                if (phase_ >= kTwoPi) phase_ -= kTwoPi;
+                else if (phase_ < 0.0) phase_ += kTwoPi;
+                continue;
+            }
+            if (gfsk) {
+                // GFSK 族（D-089）：同 OFDM 族按包取开关与频点；包内是恒包络 exp(j·(载波相位 + 2π·ψ(τ)))，
+                // ψ 由调制核按包内时刻 τ = m/fs − t0 闭式求值，只是样点号的函数（与块长无关）。
+                const std::int64_t m = static_cast<std::int64_t>(idx);
+                while (gfsk_cursor_ < gfsk_bursts_.size() && gfsk_bursts_[gfsk_cursor_].m_hi <= m) ++gfsk_cursor_;
+                const bool in = gfsk_cursor_ < gfsk_bursts_.size() && gfsk_bursts_[gfsk_cursor_].m_lo <= m;
+                double step = dphi;
+                d.iq.samples[i] = Complex(0.0f, 0.0f);
+                if (in) {
+                    const GfskBurstRt& b = gfsk_bursts_[gfsk_cursor_];
+                    step = b.dphi;
+                    if (b.on) {
+                        if (gfsk_cached_ != b.index) {
+                            const std::uint64_t seed =
+                                geo::mix64(payload_key_ ^ geo::mix64(static_cast<std::uint64_t>(b.index)));
+                            gfsk::packet_bits(*gpreset_, b.n_bits, seed, gfsk_bits_);
+                            gfsk::Modulator::prepare(gfsk_bits_, gfsk_pk_);
+                            gfsk_cached_ = b.index;
+                        }
+                        const double tau = static_cast<double>(m) / sample_rate_Hz_ - b.t0_s;
+                        const double psi = gmod_.phase_cycles(gfsk_pk_, tau);
+                        const double ang = phase_ + kTwoPi * (psi - std::floor(psi));
+                        d.iq.samples[i] = Complex(static_cast<float>(std::cos(ang)) * a,
+                                                  static_cast<float>(std::sin(ang)) * a);
+                    }
                 }
                 phase_ += step;
                 if (phase_ >= kTwoPi) phase_ -= kTwoPi;
@@ -871,6 +943,20 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
         }
     }
 
+    if (gpreset_ != 0 && geo::is_gfsk(waveform_.type)) {
+        // 溯源写明预设（D-089）；可信度取预设（S / M 档为主的写 V2）
+        d.iq.meta.trace.parameter_version = std::string(geo::waveform_type_name(waveform_.type)) + "-" + gpreset_->id;
+        d.iq.meta.trace.credibility = gpreset_->credibility;
+        if (!gfsk_note_done_) {
+            status_.notes.push_back(std::string("GFSK 族：预设 ") + gpreset_->id + "，" +
+                                    (gpreset_->gaussian ? "GFSK BT " + numstr(gpreset_->bt) : std::string("2-FSK")) +
+                                    "、符号率 " + numstr(gpreset_->symbol_rate_Hz) + " Hz、频偏 " +
+                                    numstr(gpreset_->deviation_Hz) + " Hz，相位闭式求值；帧排布 " +
+                                    std::to_string(gfsk_bursts_.size()) + " 个包");
+            gfsk_note_done_ = true;
+        }
+    }
+
     // 带限的三种处境摆到台面上（铁律 15，不静默）。C-8 之前只有第一支，且是无条件降级。
     if (waveform_.type == geo::WaveformType::Noise) {
         if (!band_limit_) {
@@ -911,6 +997,9 @@ void SceneEmitterSource::reset() {
     native_idx_[0] = native_idx_[1] = -1;
     cycle_valid_ = false;
     ofdm_note_done_ = false;
+    gfsk_cursor_ = 0;
+    gfsk_cached_ = -1;
+    gfsk_note_done_ = false;
     status_ = ComponentStatus();
 }
 

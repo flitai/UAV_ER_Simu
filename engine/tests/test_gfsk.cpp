@@ -7,16 +7,25 @@
 //      （黄金基准 engine/tests/golden/gfsk.json，算法核尺度 1e-9）、对 MATLAB 一方（gfsk.matlab.json，可选）、
 //      长游程斜率 = h/2、2-FSK 相位分段线性、瞬时频率是相位的导数。
 //   ③ 帧排布（geo/src/gfsk_frame.cpp）：整张包表对 Python 复刻逐位（黄金基准 gfsk_frame.json）。
+//   ④ 源的生成路径（SceneEmitterSource 的 gfsk）：对 Python 全路径复刻（组件尺度 1e-6，scene_gfsk.json）、
+//      块长无关、前缀性质、重新 init 复现、包内恒包络 |x| = 1、包外恰为零、整包开关、逐包频点、溯源。
 
 #include <cmath>
+#include <complex>
 #include <fstream>
 #include <iterator>
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "cuav/components/scenario.h"
 #include "cuav/gfsk.h"
+#include "cuav/random.h"
+#include "cuav/scenario_json.h"
 #include "cuav/sha256.h"
 #include "cuav_geo/gfsk_frame.h"
+#include "cuav_geo/ofdm_frame.h"
 #include "cuav_geo/gfsk_presets.h"
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
@@ -333,4 +342,198 @@ TEST_CASE("GFSK 帧排布：整张包表对 Python 复刻逐位（gfsk_frame.jso
         // 包内不重叠、相邻包之间有空档
         for (std::size_t i = 1; i < bs.size(); ++i) CHECK(bs[i - 1].t1_s < bs[i].t0_s);
     }
+}
+
+// ---------------------------------------------------------------- ④ 源的生成路径
+
+namespace {
+const char* kGfskFixture = "engine/tests/fixtures/gfsk-emitter.scenario.json";
+const double kFs = 80e6, kFc = 2.44e9;
+
+std::unique_ptr<SceneEmitterSource> make_gfsk_source(const std::string& entity, std::uint64_t total,
+                                                     std::size_t block, std::uint64_t shared_seed = 7) {
+    std::unique_ptr<SceneEmitterSource> s(new SceneEmitterSource());
+    std::map<std::string, double> num;
+    num["sample_rate_Hz"] = kFs;
+    num["total_samples"] = static_cast<double>(total);
+    num["block_samples"] = static_cast<double>(block);
+    num["center_frequency_Hz"] = kFc;
+    std::map<std::string, std::string> txt;
+    txt["scenario_path"] = repo_path(kGfskFixture);
+    txt["scenario_id"] = "gfsk-emitter";
+    txt["entity_id"] = entity;
+    std::string err;
+    REQUIRE_MESSAGE(s->configure(num, txt, err), err);
+    Xoshiro256pp rng(shared_seed);
+    REQUIRE_MESSAGE(s->init(rng, err), err);
+    return s;
+}
+
+std::vector<Complex> run_gfsk(SceneEmitterSource& s, std::vector<BlockMeta>* metas = 0) {
+    std::vector<Complex> all;
+    std::string err;
+    for (;;) {
+        PortMap in, out;
+        const Step st = s.process(in, out, err);
+        REQUIRE_MESSAGE(st != Step::Error, err);
+        if (st != Step::Produced) break;
+        const std::vector<Complex>& x = out["out"].iq.samples;
+        all.insert(all.end(), x.begin(), x.end());
+        if (metas) metas->push_back(out["out"].iq.meta);
+    }
+    return all;
+}
+
+bool same_bits_g(const std::vector<Complex>& a, const std::vector<Complex>& b, std::size_t n) {
+    for (std::size_t i = 0; i < n; ++i)
+        if (!(a[i].real() == b[i].real() && a[i].imag() == b[i].imag())) return false;
+    return true;
+}
+
+// 该辐射源的包表与站点样点支撑（与源同一口径：GfskSchedule + sample_at）
+std::vector<geo::GfskBurst> fixture_bursts(const std::string& entity, double end_s) {
+    LoadedScenario ls;
+    std::string err;
+    REQUIRE(load_scenario_file(repo_path(kGfskFixture), ls, err));
+    const geo::Emitter* e = ls.scenario.find_emitter(entity);
+    REQUIRE(e != 0);
+    const geo::GfskPreset* p = geo::gfsk_preset_v1(e->emission.waveform.preset_id);
+    REQUIRE(p != 0);
+    geo::GfskSchedule gs;
+    gs.build(*p, e->emission.waveform.frame_offset_s, end_s);
+    return gs.bursts();
+}
+}  // namespace
+
+TEST_CASE("GFSK 源：对 Python 全路径复刻的组件尺度黄金基准（complex64，1e-6）") {
+    const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/scene_gfsk.json")));
+    const std::uint64_t N = g.at("total_samples").get<std::uint64_t>();
+    const double tol = g.at("tolerance").at("sample_abs").get<double>();
+    for (const auto& c : g.at("cases")) {
+        const std::string ent = c.at("entity_id").get<std::string>();
+        CAPTURE(ent);
+        std::unique_ptr<SceneEmitterSource> s = make_gfsk_source(ent, N, 65536, g.at("shared_seed").get<std::uint64_t>());
+        const std::vector<Complex> y = run_gfsk(*s);
+        REQUIRE(y.size() == N);
+        double worst = 0.0;
+        for (const auto& seg : c.at("segments")) {
+            const std::size_t st = seg.at("start").get<std::size_t>();
+            const auto& js = seg.at("samples");
+            for (std::size_t i = 0; i < js.size(); ++i) {
+                const std::complex<double> want(js[i][0].get<double>(), js[i][1].get<double>());
+                worst = std::max(worst, std::abs(std::complex<double>(y[st + i].real(), y[st + i].imag()) - want));
+            }
+        }
+        CHECK(worst <= tol);
+        double energy = 0.0;
+        for (std::size_t i = 0; i < y.size(); ++i) energy += std::norm(std::complex<double>(y[i].real(), y[i].imag()));
+        const double er = std::fabs(energy - c.at("energy").get<double>()) / c.at("energy").get<double>();
+        CHECK(er <= g.at("tolerance").at("energy_rel").get<double>());
+        MESSAGE(ent << " 对 Python：样点最差 " << worst << "、能量相对差 " << er);
+        // 支撑之外恰为零，支撑之内恒包络
+        const auto& sup = c.at("supports");
+        std::size_t outside_nonzero = 0, k = 0;
+        double env = 0.0;
+        for (std::int64_t m = 0; m < static_cast<std::int64_t>(y.size()); ++m) {
+            while (k < sup.size() && sup[k][1].get<std::int64_t>() <= m) ++k;
+            const bool in = k < sup.size() && sup[k][0].get<std::int64_t>() <= m;
+            const std::size_t u = static_cast<std::size_t>(m);
+            if (!in && (y[u].real() != 0.0f || y[u].imag() != 0.0f)) ++outside_nonzero;
+            if (in) env = std::max(env, std::fabs(std::abs(std::complex<double>(y[u].real(), y[u].imag())) - 1.0));
+        }
+        CHECK(outside_nonzero == 0u);
+        CHECK(env < 1e-6);
+    }
+}
+
+TEST_CASE("GFSK 源：块长无关、前缀性质、重新 init 逐位复现") {
+    const std::uint64_t N = 800000;                          // 10 ms
+    for (const char* ent : {"frsky", "sfhss", "frsky-hop"}) {
+        CAPTURE(ent);
+        std::unique_ptr<SceneEmitterSource> a = make_gfsk_source(ent, N, 65536);
+        const std::vector<Complex> ref = run_gfsk(*a);
+        REQUIRE(ref.size() == N);
+        for (std::size_t blk : {std::size_t(7), std::size_t(997), std::size_t(125), std::size_t(N)}) {
+            const std::vector<Complex> got = run_gfsk(*make_gfsk_source(ent, N, blk));
+            REQUIRE(got.size() == N);
+            CHECK_MESSAGE(same_bits_g(got, ref, N), "块长 " << blk);
+        }
+        const std::vector<Complex> half = run_gfsk(*make_gfsk_source(ent, N / 2, 65536));
+        CHECK(same_bits_g(half, ref, N / 2));
+        std::string err;
+        Xoshiro256pp rng(7);
+        REQUIRE(a->init(rng, err));
+        CHECK(same_bits_g(run_gfsk(*a), ref, N));
+    }
+    // 块长 1（S-FHSS 头两包）
+    const std::uint64_t n1 = 450000;
+    const std::vector<Complex> r1 = run_gfsk(*make_gfsk_source("sfhss", n1, 65536));
+    CHECK(same_bits_g(run_gfsk(*make_gfsk_source("sfhss", n1, 1)), r1, n1));
+}
+
+TEST_CASE("GFSK 源：整包开关——1.5 ms 开、7 ms 关，包起点开着就整包发完") {
+    const std::uint64_t N = 800000;                          // 10 ms
+    const std::vector<Complex> y = run_gfsk(*make_gfsk_source("sfhss-gated", N, 65536));
+    const std::vector<geo::GfskBurst> bs = fixture_bursts("sfhss-gated", N / kFs);
+    REQUIRE(bs.size() == 4);                                  // 0 / 1.625 / 6.8 / 8.425 ms
+    const bool want[4] = {false, true, true, false};
+    for (std::size_t i = 0; i < bs.size(); ++i) {
+        const std::size_t lo = static_cast<std::size_t>(geo::sample_at(bs[i].t0_s, kFs));
+        const std::size_t hi = static_cast<std::size_t>(geo::sample_at(bs[i].t1_s, kFs));
+        std::size_t nonzero = 0;
+        for (std::size_t m = lo; m < hi; ++m) nonzero += (y[m].real() != 0.0f || y[m].imag() != 0.0f) ? 1u : 0u;
+        CAPTURE(i);
+        CHECK(nonzero == (want[i] ? hi - lo : 0u));
+    }
+    // 第 3 个包（6.8 ms 起）终点 8.236 ms 已过 7 ms 的关断时刻，仍整包发完
+    CHECK(bs[2].t1_s > 0.007);
+}
+
+TEST_CASE("GFSK 源：逐包频点取包中点时刻的 hop 值（去掉调制后量载波频率）") {
+    const std::uint64_t N = 1680000;                         // 21 ms：三帧，恰好走完一轮三点跳频
+    std::unique_ptr<SceneEmitterSource> s = make_gfsk_source("frsky-hop", N, 65536);
+    const std::vector<Complex> y = run_gfsk(*s);
+    const std::vector<geo::GfskBurst> bs = fixture_bursts("frsky-hop", N / kFs);
+    REQUIRE(bs.size() == 3);
+    const geo::GfskPreset* p = geo::gfsk_preset_v1("frsky-d16v2-fcc");
+    gfsk::Modulator mod;
+    std::string err;
+    REQUIRE(mod.init(*p, err));
+    // 载荷键：与源同法从共享种子 7 派生
+    Xoshiro256pp shared(7);
+    Xoshiro256pp sub(shared.next_u64());
+    const std::uint64_t key = sub.next_u64();
+    const double want[3] = {2410e6, 2470e6, 2425e6};
+    for (std::size_t i = 0; i < bs.size(); ++i) {
+        std::vector<signed char> a;
+        gfsk::packet_bits(*p, bs[i].n_bits, geo::mix64(key ^ geo::mix64(static_cast<std::uint64_t>(bs[i].index))), a);
+        gfsk::Packet pk;
+        gfsk::Modulator::prepare(a, pk);
+        const std::size_t lo = static_cast<std::size_t>(geo::sample_at(bs[i].t0_s, kFs));
+        const std::size_t hi = static_cast<std::size_t>(geo::sample_at(bs[i].t1_s, kFs));
+        // 去调制：乘 exp(−j2πψ)，剩下的是载波；相邻样点相位差的均值即载波频率
+        std::complex<double> prev(0.0, 0.0), acc(0.0, 0.0);
+        for (std::size_t m = lo; m < hi; ++m) {
+            const double psi = mod.phase_cycles(pk, static_cast<double>(m) / kFs - bs[i].t0_s);
+            const std::complex<double> c = std::complex<double>(y[m].real(), y[m].imag()) *
+                                           std::polar(1.0, -2.0 * 3.14159265358979323846 * (psi - std::floor(psi)));
+            if (m > lo) acc += c * std::conj(prev);
+            prev = c;
+        }
+        const double f = std::arg(acc) * kFs / (2.0 * 3.14159265358979323846);
+        CAPTURE(i);
+        CHECK(std::fabs(f - (want[i] - kFc)) < 1.0);          // 1 Hz：float32 样点的相位噪声远小于它
+    }
+}
+
+TEST_CASE("GFSK 源：溯源写预设与可信度，状态记一条说明") {
+    std::vector<BlockMeta> metas;
+    std::unique_ptr<SceneEmitterSource> s = make_gfsk_source("sfhss", 200000, 65536);
+    run_gfsk(*s, &metas);
+    REQUIRE(!metas.empty());
+    CHECK(metas[0].trace.parameter_version == "gfsk-futaba-sfhss");
+    CHECK(metas[0].trace.credibility == "V2");
+    bool noted = false;
+    for (const std::string& n : s->status().notes) noted = noted || n.find("GFSK 族：预设 futaba-sfhss") != std::string::npos;
+    CHECK(noted);
 }

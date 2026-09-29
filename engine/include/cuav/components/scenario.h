@@ -24,6 +24,7 @@
 #include "cuav/observer.h"
 #include "cuav/random.h"
 #include "cuav/dsp.h"
+#include "cuav/gfsk.h"
 #include "cuav/ofdm.h"
 #include "cuav/resampler.h"
 #include "cuav_geo/activity.h"
@@ -178,6 +179,27 @@ private:
     bool cycle_valid_ = false;
     std::vector<std::complex<double>> cycle_out_, win_;
     bool ofdm_note_done_ = false;
+
+    // GFSK 族（Q-3，D-089）：gfsk。调制与帧来自 GFSK 族预设表，帧排布来自 geo::GfskSchedule（确定、不抽签），
+    // 相位按任意时刻闭式求值（gfsk.cpp，不经重采样）→ 整包开关 → 相位搬移。每个包在 configure() 里展开成一行：
+    // 起止（秒）、开没开、频偏、站点样点支撑 [m_lo, m_hi)（两端经 geo::sample_at，与评价器同一取整口径）。
+    struct GfskBurstRt {
+        std::int64_t index = 0;     // 全局包序号：载荷种子 = mix64(payload_key_ ^ mix64(index))
+        double t0_s = 0.0;
+        int n_bits = 0;
+        bool on = true;             // 包起点时刻发射机开着就整包发完（同 D-088 ⑥）
+        double dphi = 0.0;          // 包中点时刻的中心频率 + offset_Hz − 观测中心，折成弧度 / 样点（同 ⑦）
+        std::int64_t m_lo = 0, m_hi = 0;
+    };
+    bool configure_gfsk(std::string& err);
+    const geo::GfskPreset* gpreset_ = nullptr;
+    gfsk::Modulator gmod_;
+    std::vector<GfskBurstRt> gfsk_bursts_;
+    std::size_t gfsk_cursor_ = 0;
+    std::int64_t gfsk_cached_ = -1;                          // gfsk_pk_ 是哪个包的比特
+    gfsk::Packet gfsk_pk_;
+    std::vector<signed char> gfsk_bits_;
+    bool gfsk_note_done_ = false;
 
     Xoshiro256pp sub_rng_{0};             // 私有随机子流，见 .cpp 里的理由
     bool sub_ready_ = false;
