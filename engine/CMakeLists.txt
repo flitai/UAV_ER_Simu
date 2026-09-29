@@ -62,6 +62,7 @@ add_library(cuav_engine STATIC
   src/dsp.cpp
   src/ofdm.cpp
   src/gfsk.cpp
+  src/fading.cpp
   src/ddc_taps.cpp
   src/pfb_taps.cpp
   src/rx_taps.cpp

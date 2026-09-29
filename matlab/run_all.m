@@ -24,6 +24,8 @@ gen_rsmp_golden(repo);
 gen_gfsk_golden(repo);
 % Q-4（D-091）：本振相位噪声的 MATLAB 一方（系数独立书写 + filter 递推），读 phase_noise.json 的驱动正态
 gen_phase_noise_golden(repo);
+% Q-4（D-091）：小尺度衰落生成核的 MATLAB 一方（正弦和与时延谱独立书写），读 fading.json 的随机量
+gen_fading_golden(repo);
 % DDC 的抗混叠低通：冻结表由 scripts/design_ddc_fir.py 生产，这里只独立校验一遍（M-2，D-070）
 check_ddc_fir(fullfile(repo, 'models', 'adc-ddc', 'fir_lp_v1.json'));
 end

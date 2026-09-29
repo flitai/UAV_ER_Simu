@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "cuav/components/receiver.h"
+#include "cuav/fading.h"
 #include "cuav/components/scenario.h"
 #include "cuav/platform.h"
 #include "cuav/random.h"
@@ -455,4 +456,174 @@ TEST_CASE("相位噪声 · MATLAB 一方：同一串驱动正态，引擎递推�
     }
     MESSAGE("引擎对 MATLAB：φ 最大差 " << fmt(worst / k.sigma_phi) << "·σφ（" << phi.size() << " 个样点）");
     CHECK(worst <= tol * k.sigma_phi);
+}
+
+// ================================================================= C. 小尺度衰落 · 生成核
+
+TEST_CASE("衰落生成核：取数顺序、抽头布局与散射复增益对 Python 参考（fading.json）") {
+    const nlohmann::json g = read_json(repo("engine/tests/golden/fading.json"));
+    CHECK(fading::rms_ratio() == doctest::Approx(g["rms_ratio"].get<double>()).epsilon(1e-12));
+    for (int l = 0; l < fading::kTaps; ++l)
+        CHECK(fading::tap_power(l) == doctest::Approx(g["tap_power"][l].get<double>()).epsilon(1e-12));
+
+    // ① 取数顺序：抽头 0…7 各 θ 与 16 个 φ，最后 θ0；均匀数逐位
+    Xoshiro256pp rng(g["seed"].get<std::uint64_t>());
+    fading::Draws d;
+    fading::draw(rng, d);
+    const nlohmann::json& gd = g["draws"];
+    std::size_t bad = 0;
+    double worst_ca = 0.0;
+    for (int l = 0; l < fading::kTaps; ++l) {
+        if (d.theta[l] != gd["theta"][l].get<double>()) ++bad;
+        for (int n = 0; n < fading::kSinusoids; ++n) {
+            if (d.phi[l][n] != gd["phi"][l][n].get<double>()) ++bad;
+            worst_ca = std::max(worst_ca, std::fabs(d.cos_alpha[l][n] - gd["cos_alpha"][l][n].get<double>()));
+        }
+    }
+    if (d.los_phase != gd["los_phase"].get<double>()) ++bad;
+    CHECK_MESSAGE(bad == 0u, "取数顺序或取值与 Python 参考不一致：" << bad << " 处");
+    CHECK(worst_ca <= 1e-12);
+
+    // ② 抽头布局
+    for (const auto& L : g["layouts"]) {
+        fading::Layout lay;
+        std::string err;
+        const double spread = L["delay_spread_ns"].get<double>() * 1e-9, fs = L["fs_Hz"];
+        REQUIRE_MESSAGE(fading::layout(spread, fs, lay, err), err);
+        CAPTURE(spread);
+        CAPTURE(fs);
+        REQUIRE(lay.delay.size() == L["delay"].size());
+        for (std::size_t k = 0; k < lay.delay.size(); ++k) {
+            CHECK(lay.delay[k] == L["delay"][k].get<std::uint64_t>());
+            CHECK(lay.members[k] == L["members"][k].get<std::vector<int> >());
+            CHECK(lay.power[k] == doctest::Approx(L["power"][k].get<double>()).epsilon(1e-12));
+        }
+        CHECK(lay.rms_delay_spread_s == doctest::Approx(L["rms_delay_spread_s"].get<double>()).epsilon(1e-12));
+    }
+
+    // ③ 散射复增益（含 1e5 量级的大相位）
+    fading::Layout lay;
+    std::string err;
+    REQUIRE(fading::layout(g["diffuse"]["delay_spread_ns"].get<double>() * 1e-9, g["diffuse"]["fs_Hz"], lay, err));
+    double worst = 0.0;
+    std::vector<std::complex<double> > v;
+    for (std::size_t j = 0; j < g["diffuse"]["Phi"].size(); ++j) {
+        fading::diffuse_at(d, lay, g["diffuse"]["Phi"][j].get<double>(), v);
+        const auto& want = g["diffuse"]["values"][j];
+        REQUIRE(v.size() == want.size());
+        for (std::size_t k = 0; k < v.size(); ++k)
+            worst = std::max(worst, std::abs(v[k] - std::complex<double>(want[k][0].get<double>(), want[k][1].get<double>())));
+    }
+    MESSAGE("散射复增益对 Python 参考最大绝对差 " << fmt(worst));
+    CHECK(worst <= g["tolerance"]["diffuse_abs"].get<double>());
+}
+
+namespace {
+double bessel_j0(double x) {
+    double s = 1.0, term = 1.0;
+    for (int k = 1; k < 80; ++k) {
+        term *= -(x * x / 4.0) / (static_cast<double>(k) * k);
+        s += term;
+        if (std::fabs(term) < 1e-17) break;
+    }
+    return s;
+}
+}  // namespace
+
+TEST_CASE("衰落生成核：系综功率为 1、自相关 = J0(Δ)、莱斯 K 的矩法估计对设定值、多抽头的频率相关对离散时延谱") {
+    const std::size_t ns = 4000;
+    const double Phi0 = 12.345;
+    const double deltas[] = {0.0, 1.0, 2.405, 4.0};
+    std::vector<fading::Draws> ds(ns);
+    for (std::size_t s = 0; s < ns; ++s) {
+        Xoshiro256pp r(1000 + s);
+        fading::draw(r, ds[s]);
+    }
+    const double se = std::sqrt(1.0 / static_cast<double>(ns));
+    // 自相关：对 θ 取系综平均时 α 在 [0, 2π) 上恰好均匀，E[g(Φ+Δ)g*(Φ)] = J0(Δ) 是精确等式
+    for (double dd : deltas) {
+        std::complex<double> acc(0.0, 0.0);
+        for (std::size_t s = 0; s < ns; ++s)
+            acc += fading::diffuse(ds[s], 0, Phi0 + dd) * std::conj(fading::diffuse(ds[s], 0, Phi0));
+        acc /= static_cast<double>(ns);
+        MESSAGE("自相关 Δ = " << fmt(dd) << "：" << fmt(acc.real()) << "，J0 = " << fmt(bessel_j0(dd)));
+        CHECK(std::abs(acc - bessel_j0(dd)) < 5.0 * se);
+    }
+    // 莱斯 K：平坦（8 抽头合并）加视距分量，矩法 K̂ = sqrt(1−γ)/(1−sqrt(1−γ))，γ = Var|h|²/E²|h|²
+    fading::Layout flat;
+    std::string err;
+    REQUIRE(fading::layout(0.0, 1e6, flat, err));
+    std::vector<std::complex<double> > v;
+    for (double k_dB : {6.0, 9.0, 12.0}) {
+        const double K = std::pow(10.0, k_dB / 10.0);
+        double m1 = 0.0, m2 = 0.0;
+        for (std::size_t s = 0; s < ns; ++s) {
+            fading::diffuse_at(ds[s], flat, Phi0, v);
+            const std::complex<double> h = std::sqrt(K / (K + 1.0)) * std::polar(1.0, ds[s].los_phase) +
+                                           std::sqrt(1.0 / (K + 1.0)) * v[0];
+            const double p = std::norm(h);
+            m1 += p;
+            m2 += p * p;
+        }
+        m1 /= ns;
+        m2 /= ns;
+        const double gam = (m2 - m1 * m1) / (m1 * m1);
+        const double kh = std::sqrt(1.0 - gam) / (1.0 - std::sqrt(1.0 - gam));
+        MESSAGE("莱斯 K 设定 " << fmt(k_dB) << " dB：矩法估计 " << fmt(10.0 * std::log10(kh)) << " dB，E|h|² = " << fmt(m1));
+        CHECK(std::fabs(10.0 * std::log10(kh) - k_dB) < 1.0);
+        CHECK(std::fabs(m1 - 1.0) < 5.0 * se);
+    }
+    // 频率相关：H(f) = Σ_d D_d·e^{−j2π·f·τ_d}，E[H(f+Δf)H*(f)] = Σ_d P_d·e^{−j2π·Δf·τ_d}
+    fading::Layout lay;
+    const double fs = 80e6;
+    REQUIRE(fading::layout(100e-9, fs, lay, err));
+    for (double df : {1e6, 2e6, 5e6}) {
+        std::complex<double> acc(0.0, 0.0), want(0.0, 0.0);
+        for (std::size_t k = 0; k < lay.delay.size(); ++k)
+            want += lay.power[k] * std::polar(1.0, -kTwoPi * df * static_cast<double>(lay.delay[k]) / fs);
+        for (std::size_t s = 0; s < ns; ++s) {
+            fading::diffuse_at(ds[s], lay, Phi0, v);
+            std::complex<double> h1(0.0, 0.0), h0(0.0, 0.0);
+            for (std::size_t k = 0; k < v.size(); ++k) {
+                h1 += v[k] * std::polar(1.0, -kTwoPi * df * static_cast<double>(lay.delay[k]) / fs);
+                h0 += v[k];
+            }
+            acc += h1 * std::conj(h0);
+        }
+        acc /= static_cast<double>(ns);
+        MESSAGE("频率相关 Δf = " << fmt(df) << " Hz：|R| = " << fmt(std::abs(acc)) << "，离散时延谱 " << fmt(std::abs(want)));
+        CHECK(std::abs(acc - want) < 5.0 * se);
+    }
+}
+
+TEST_CASE("衰落生成核 · MATLAB 一方：同一组随机量，引擎散射复增益对 fading.matlab.json（1e-9）") {
+    const std::string in_path = repo("engine/tests/golden/fading.json");
+    const nlohmann::json g = read_json(in_path);
+    const nlohmann::json m = read_json(repo("engine/tests/golden/fading.matlab.json"));
+    std::ifstream f(in_path.c_str(), std::ios::binary);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    CHECK(m["input_sha256"].get<std::string>() == sha256_hex(ss.str()));
+    const double tol = m["tolerance"]["kernel_abs"].get<double>();
+    CHECK_MESSAGE(tol <= 1e-9, "判据被放宽了");
+    CHECK(fading::rms_ratio() == doctest::Approx(m["rms_ratio"].get<double>()).epsilon(1e-12));
+
+    Xoshiro256pp rng(g["seed"].get<std::uint64_t>());
+    fading::Draws d;
+    fading::draw(rng, d);
+    fading::Layout lay;
+    std::string err;
+    REQUIRE(fading::layout(g["diffuse"]["delay_spread_ns"].get<double>() * 1e-9, g["diffuse"]["fs_Hz"], lay, err));
+    REQUIRE(lay.delay.size() == m["delays"].size());
+    for (std::size_t k = 0; k < lay.delay.size(); ++k) CHECK(lay.delay[k] == m["delays"][k].get<std::uint64_t>());
+    double worst = 0.0;
+    std::vector<std::complex<double> > v;
+    for (std::size_t j = 0; j < m["Phi"].size(); ++j) {
+        fading::diffuse_at(d, lay, m["Phi"][j].get<double>(), v);
+        for (std::size_t k = 0; k < v.size(); ++k)
+            worst = std::max(worst, std::abs(v[k] - std::complex<double>(m["values_re"][j][k].get<double>(),
+                                                                         m["values_im"][j][k].get<double>())));
+    }
+    MESSAGE("引擎对 MATLAB：散射复增益最大绝对差 " << fmt(worst));
+    CHECK(worst <= tol);
 }

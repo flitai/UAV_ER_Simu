@@ -462,6 +462,48 @@ def write_phase_noise(args) -> int:
     return 0
 
 
+def write_fading(args) -> int:
+    """小尺度衰落生成核（Q-4，D-091）：engine/src/fading.cpp 对 algos/reference/fading.py。
+
+    只做算法核尺度（double 进 double 出）：
+      ① 取数顺序：给定私有流种子，θ_l、φ_{l,n}、θ0 逐个相等（均匀数是整数运算，判逐位）；cos α 判 1e-12；
+      ② 抽头布局：六组（时延扩展, 采样率）的样点时延、合并成员、合并功率与实际均方根时延扩展；
+      ③ 散射复增益 D_d(Φ)：一组 Φ（含 1e5 量级的大相位），判绝对差 1e-9（单位平均功率的量）。
+    """
+    import fading as fd
+
+    X = fd._xoshiro()
+    d = fd.Draws(X(args.fd_seed))
+    layouts = []
+    for spread_ns, fs in [(0.0, 80e6), (50.0, 80e6), (100.0, 80e6), (100.0, 10e6), (100.0, 500e3), (300.0, 20e6)]:
+        lay = fd.Layout(spread_ns * 1e-9, fs)
+        layouts.append({"delay_spread_ns": spread_ns, "fs_Hz": fs, "delay": lay.delay, "members": lay.members,
+                        "power": lay.power, "rms_delay_spread_s": lay.rms_delay_spread_s})
+    lay = fd.Layout(100e-9, 80e6)
+    phis = [0.0, 0.3, 2.405, 17.2, 1234.5678, 98765.4321]
+    values = []
+    for Phi in phis:
+        values.append([[v.real, v.imag] for v in fd.diffuse_at(d, lay, Phi)])
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "小尺度衰落生成核（统计型正弦和 + 指数时延谱抽头）对拍基准（Q-4，D-091）",
+        "generator": "algos/reference/gen_engine_golden.py --mode fading",
+        "tolerance": {"draw": "逐位", "cos_alpha_abs": 1e-12, "diffuse_abs": 1e-9, "rms_rel": 1e-12,
+                      "note": "随机量是整数运算后乘常数，逐位；三角函数与乘加可能被融合，判 1e-9（单位平均功率）"},
+        "seed": args.fd_seed,
+        "rms_ratio": fd.rms_ratio(),
+        "tap_power": [fd.tap_power(l) for l in range(fd.TAPS)],
+        "draws": {"theta": d.theta, "phi": d.phi, "cos_alpha": d.cos_alpha, "los_phase": d.los_phase},
+        "layouts": layouts,
+        "diffuse": {"delay_spread_ns": 100.0, "fs_Hz": 80e6, "Phi": phis, "values": values},
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print(f"写出 {args.out}：{len(layouts)} 组抽头布局、{len(phis)} 个多普勒相位")
+    return 0
+
+
 def write_ddc(args) -> int:
     """DDC：数控振荡混频 + 抗混叠低通 + 抽取（04 §7.7；M-2，D-070）。
 
@@ -1365,7 +1407,7 @@ def main(argv=None) -> int:
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
                                       "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk",
-                                      "gfsk_frame", "scene_gfsk", "phase_noise"),
+                                      "gfsk_frame", "scene_gfsk", "phase_noise", "fading"),
                     default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
@@ -1436,8 +1478,11 @@ def main(argv=None) -> int:
     ap.add_argument("--pn-samples", type=int, default=20000, help="phase_noise：每个算例的样点数")
     ap.add_argument("--pn-drive", type=int, default=2048, help="phase_noise：第一个算例另存多少个驱动正态")
     ap.add_argument("--pn-shared-seed", type=int, default=20261002, help="phase_noise：组件算例的共享流种子")
+    ap.add_argument("--fd-seed", type=int, default=20261003, help="fading：私有流种子")
     args = ap.parse_args(argv)
 
+    if args.mode == "fading":
+        return write_fading(args)
     if args.mode == "phase_noise":
         return write_phase_noise(args)
     if args.mode == "scene_noise":
