@@ -1093,6 +1093,84 @@ def write_scene_ofdm(args) -> int:
     return 0
 
 
+def write_gfsk(args) -> int:
+    """GFSK / 2-FSK 调制核（Q-3，D-089）：引擎 engine/src/gfsk.cpp 对 algos/reference/gfsk_ref.py 的
+    **独立**高精度实现（mpmath 40 位、全部符号直接求和、不截窗口、不裂项）。
+
+    只做**算法核尺度**（double 进 double 出，判据 1e-9 圈）。每个算例存：调制参数、比特（预设算例由
+    packet_bits 按种子生成，引擎须逐位复现）、一组包内时刻 τ 与该时刻的相位（圈）与瞬时频率（Hz）。
+    τ 含随机点、符号边界、包前包后；2-FSK 的瞬时频率在符号边界上是跳变，那几点只比相位（频率记 null）。
+    另加一个不在预设表里的 BT = 0.5 算例，窗口 K = 4（预设的 BT = 1 是 K = 3），两条路径都盖到。
+    """
+    import hashlib
+    import gfsk_ref
+
+    doc_p = gfsk_ref.load_presets()
+    with open(os.path.join(gfsk_ref._ROOT, gfsk_ref.PRESETS_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+
+    rng = np.random.default_rng(args.gfsk_seed)
+    cases = []
+    plan = [("frsky-d16v2-fcc", None), ("futaba-sfhss", None), ("frsky-d16v2-fcc", 0.5)]
+    for pid, bt_override in plan:
+        p = gfsk_ref.Preset(doc_p, pid)
+        n = p.packets[0][1]
+        bits = gfsk_ref.packet_bits(p, n, args.gfsk_seed)
+        gaussian = 1 if bt_override is not None else p.gaussian
+        bt = bt_override if bt_override is not None else p.bt
+        T = 1.0 / p.R
+        taus = sorted(set(
+            [float(t) for t in rng.uniform(-3 * T, (n + 3) * T, args.gfsk_points)] +
+            [0.0, 1 * T, 2 * T, 40 * T, 63.5 * T, (n - 1) * T, n * T, (n + 0.5) * T, -0.5 * T]))
+        ph = [gfsk_ref.phase_cycles_mp(gaussian, bt, p.R, p.fdev, bits, t) for t in taus]
+        fq = []
+        for t in taus:
+            s_ = t * p.R
+            if not gaussian and abs(s_ - round(s_)) < 1e-6:
+                fq.append(None)
+            else:
+                fq.append(gfsk_ref.inst_freq_mp(gaussian, bt, p.R, p.fdev, bits, t))
+        cases.append({
+            "name": pid if bt_override is None else f"{pid}-bt{bt_override}",
+            "preset": pid, "seed": args.gfsk_seed, "n_bits": n,
+            "gaussian": gaussian, "bt": bt, "symbol_rate_Hz": p.R, "deviation_Hz": p.fdev,
+            "bits": "".join("1" if b > 0 else "0" for b in bits),
+            "tau_s": taus, "phase_cycles": ph, "inst_freq_Hz": fq,
+        })
+
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "GFSK / 2-FSK 调制核的对拍基准（Q-3，D-089）：引擎 engine/src/gfsk.cpp（窗口裂项的闭式）对 "
+                   "algos/reference/gfsk_ref.py 的 mpmath 不截断全和；MATLAB 一方读本文件的比特与时刻，"
+                   "写 gfsk.matlab.json",
+        "generator": "algos/reference/gen_engine_golden.py --mode gfsk",
+        "presets": {"source": gfsk_ref.PRESETS_REL.replace(os.sep, "/"), "sha256": table_sha},
+        "contract": "比特：前导 1010…（起于 1）+ 同步字高位先发 + Xoshiro256pp(seed) 每 64 位一个 next_u64 高位先用；"
+                    "'1' → +f_dev；包外 a = 0；相位 ψ = (f_dev/R)·Σ_k a_k·P(τR − k) 圈，P 为 [0,1) 矩形"
+                    "（GFSK 再卷 σ = √ln2/(2π·BT) 的高斯核）的积分",
+        "cases": cases,
+        "tolerance": {
+            "phase_cycles_abs": 1e-9,
+            "inst_freq_abs_over_deviation": 1e-9,
+            "note": "bits 须逐位相同（整数随机源）；inst_freq 为 null 的点是 2-FSK 的符号边界（跳变点），只比相位",
+        },
+    }
+    arrays = {}
+    for ci, c in enumerate(cases):
+        for key in ("tau_s", "phase_cycles", "inst_freq_Hz"):
+            tag = f"@@{ci}_{key}@@"
+            arrays[tag] = c[key]
+            c[key] = tag
+    text = json.dumps(doc, ensure_ascii=False, indent=1)
+    for tag, vals in arrays.items():
+        body = ",\n".join(json.dumps(v) for v in vals)
+        text = text.replace(json.dumps(tag), "[\n" + body + "\n]", 1)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(text + "\n")
+    print(f"写出 {args.out}：{len(cases)} 个算例，每例 {len(taus)} 个时刻，GFSK 预设表 sha256 {table_sha[:16]}…")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -1105,7 +1183,8 @@ def main(argv=None) -> int:
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
-                                      "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm"), default="probe")
+                                      "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk"),
+                    default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -1165,6 +1244,8 @@ def main(argv=None) -> int:
     ap.add_argument("--frame-slots", type=int, default=100000, help="ofdm_frame：每个预设铺多少时隙")
     ap.add_argument("--so-samples", type=int, default=200000, help="scene_ofdm：输出样点数（80 MS/s 下 2.5 ms）")
     ap.add_argument("--so-keep", type=int, default=512, help="scene_ofdm：首个突发支撑的首尾各存多少样点")
+    ap.add_argument("--gfsk-seed", type=int, default=20260930, help="gfsk：载荷种子与随机时刻")
+    ap.add_argument("--gfsk-points", type=int, default=160, help="gfsk：每个算例的随机时刻数")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
@@ -1183,6 +1264,8 @@ def main(argv=None) -> int:
         return write_ofdm_frame(args)
     if args.mode == "scene_ofdm":
         return write_scene_ofdm(args)
+    if args.mode == "gfsk":
+        return write_gfsk(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

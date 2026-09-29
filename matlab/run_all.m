@@ -20,6 +20,8 @@ gen_rx_filter_golden(repo);
 gen_ofdm_golden(repo);
 % Q-2（D-088）：OFDM 有理重采样的 MATLAB 一方（codegen 入口 + upfirdn 互证），读 rsmp.json 的显式窗口
 gen_rsmp_golden(repo);
+% Q-3（D-089）：GFSK / 2-FSK 调制核的 MATLAB 一方（基础 erf 闭式 + CPFSKModulator + CPMModulator），读 gfsk.json
+gen_gfsk_golden(repo);
 % DDC 的抗混叠低通：冻结表由 scripts/design_ddc_fir.py 生产，这里只独立校验一遍（M-2，D-070）
 check_ddc_fir(fullfile(repo, 'models', 'adc-ddc', 'fir_lp_v1.json'));
 end
