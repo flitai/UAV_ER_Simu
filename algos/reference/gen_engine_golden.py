@@ -401,6 +401,67 @@ def write_scene_noise(args) -> int:
     return 0
 
 
+def write_phase_noise(args) -> int:
+    """接收机本振相位噪声（Q-4，D-091）：ReceiverFrontEnd 的锁相环单极点相噪对 algos/reference/phase_noise.py。
+
+    两个尺度：
+      ① 算法核（double 进 double 出）：离散化系数 a / σw / σφ 相对 1e-9；相噪序列 φ[n] 绝对差 ≤ 1e-9·σφ
+         （φ 过零时相对差没有意义，按自身尺度量）。三个算例覆盖 a 接近 1（80 MS/s）、a 远离 1（500 kS/s、
+         转角 100 kHz，离散谱已不像洛伦兹）与中间一档。第一个算例另存驱动正态序列，供 MATLAB 一方
+         只复算滤波（共享比特不共享公式）。
+      ② 组件：单位幅度直流输入过 ReceiverFrontEnd（不注入热噪声、增益 0），输出相角 = φ[n]，
+         引擎存 complex64，判 1e-6 弧度。相噪流种子由共享流取出的子种子经 mix64 派生，这里照同一条路算。
+    """
+    import phase_noise as pn
+
+    def pick(n: int) -> list[int]:
+        idx = set(range(64)) | set(range(64, n, 97)) | set(range(n - 16, n))
+        return sorted(idx)
+
+    cases = []
+    plan = [("fs80M-fc100k", 80e6, 1e5, -95.0), ("fs500k-fc100k", 500e3, 1e5, -95.0),
+            ("fs10M-fc5k", 10e6, 5e3, -85.0)]
+    n = args.pn_samples
+    for k, (name, fs, fc, level) in enumerate(plan):
+        seed = pn.pn_seed(args.pn_seed + k)
+        a, sw, sp = pn.coeffs(fs, fc, level)
+        phi = pn.generate(seed, n, fs, fc, level)
+        idx = pick(n)
+        c = {"name": name, "fs_Hz": fs, "corner_Hz": fc, "level_dBc_Hz": level, "seed": seed, "n": n,
+             "a": a, "sigma_w": sw, "sigma_phi": sp, "idx": idx, "phi": [float(phi[i]) for i in idx]}
+        if k == 0:
+            rng = pn._xoshiro()(seed)
+            drive = [rng.normal() for _ in range(args.pn_drive + 1)]
+            c["drive"] = {"note": "w[0] 是平稳起点的正态（φ[−1] = σφ·w[0]），其后逐样点一个",
+                          "w": drive, "phi_head": [float(v) for v in phi[:args.pn_drive]]}
+        cases.append(c)
+
+    # ② 组件
+    shared = args.pn_shared_seed
+    sub = Xoshiro256pp(shared).next_u64()
+    fs, fc, level = 20e6, 2e5, -90.0
+    comp_n = args.pn_samples
+    phi = pn.generate(pn.pn_seed(sub), comp_n, fs, fc, level)
+    idx = pick(comp_n)
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "接收机本振相位噪声（锁相环单极点、奥恩斯坦—乌伦贝克精确离散）对拍基准（Q-4，D-091）",
+        "generator": "algos/reference/gen_engine_golden.py --mode phase_noise",
+        "tolerance": {"coeff_rel": 1e-9, "phi_abs_over_sigma": 1e-9, "component_phase_abs_rad": 1e-6,
+                      "note": "核两侧 float64 同式同序（乘加可能被编译器融合，故不判逐位）；组件输出存 complex64"},
+        "pn_tag": "0x706e5f6c6f5f7631",
+        "cases": cases,
+        "component": {"shared_seed": shared, "sub_seed": sub, "pn_seed": pn.pn_seed(sub),
+                      "fs_Hz": fs, "corner_Hz": fc, "level_dBc_Hz": level, "n": comp_n,
+                      "input": "1 + 0j（每样点）", "idx": idx, "phase_rad": [float(phi[i]) for i in idx]},
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print(f"写出 {args.out}：{len(cases)} 个算法核算例 × {n} 样点、组件算例 {comp_n} 样点")
+    return 0
+
+
 def write_ddc(args) -> int:
     """DDC：数控振荡混频 + 抗混叠低通 + 抽取（04 §7.7；M-2，D-070）。
 
@@ -1304,7 +1365,7 @@ def main(argv=None) -> int:
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
                                       "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk",
-                                      "gfsk_frame", "scene_gfsk"),
+                                      "gfsk_frame", "scene_gfsk", "phase_noise"),
                     default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
@@ -1371,8 +1432,14 @@ def main(argv=None) -> int:
     ap.add_argument("--gfsk-frame-end", type=float, default=60.0, help="gfsk_frame：铺到多少秒")
     ap.add_argument("--sg-samples", type=int, default=480000, help="scene_gfsk：输出样点数（80 MS/s 下 6 ms）")
     ap.add_argument("--sg-keep", type=int, default=512, help="scene_gfsk：首个包的首尾各存多少样点")
+    ap.add_argument("--pn-seed", type=int, default=20261001, help="phase_noise：算法核算例的相噪流种子基")
+    ap.add_argument("--pn-samples", type=int, default=20000, help="phase_noise：每个算例的样点数")
+    ap.add_argument("--pn-drive", type=int, default=2048, help="phase_noise：第一个算例另存多少个驱动正态")
+    ap.add_argument("--pn-shared-seed", type=int, default=20261002, help="phase_noise：组件算例的共享流种子")
     args = ap.parse_args(argv)
 
+    if args.mode == "phase_noise":
+        return write_phase_noise(args)
     if args.mode == "scene_noise":
         return write_scene_noise(args)
     if args.mode == "ddc":

@@ -1639,7 +1639,7 @@
     },
     {
       "category": "receiver",
-      "description": "接收机射频前端等效模型（04 §7.5）。按顺序施加：等效输入热噪声（由噪声系数生成，N0 = −174 dBm/Hz + 10·log10(T/290) + nf_dB，与场景参数帧里的链路噪声底同一常数）、总增益、本振频偏（相位累加器跨块连续）、IQ 幅相不平衡（K1·y + K2·conj(y) 形式，与 MATLAB comm.IQImbalance 同定义）、直流偏置。噪声加在增益之前，即噪声系数是输入折合的。本组件不做接收滤波：幅频响应与群时延是 M-3 的 Coder 产物，串在本组件之前。相位噪声、增益压缩与自动增益控制的动态过程随 P3（04 §7.5 的其余项）。noise_mode = none 用于混合增强模式：实测背景片段自带接收机噪声，再注入即重复计入。",
+      "description": "接收机射频前端等效模型（04 §7.5）。按顺序施加：等效输入热噪声（由噪声系数生成，N0 = −174 dBm/Hz + 10·log10(T/290) + nf_dB，与场景参数帧里的链路噪声底同一常数）、总增益、本振频偏（相位累加器跨块连续）、IQ 幅相不平衡（K1·y + K2·conj(y) 形式，与 MATLAB comm.IQImbalance 同定义）、直流偏置。噪声加在增益之前，即噪声系数是输入折合的。本组件不做接收滤波：幅频响应与群时延是 M-3 的 Coder 产物，串在本组件之前。本振相位噪声（phase_noise = pll，Q-4）：锁相环单极点，带内平台 pn_level_dBc_Hz、转角（环路带宽）pn_corner_Hz 以上 −20 dB/十倍频，按奥恩斯坦—乌伦贝克精确离散，均方根相位误差 sqrt(π·fc·L0) 与采样率无关；L(f) 取双边相位谱 S_φ(f)。增益压缩与自动增益控制的动态过程随 P3（04 §7.5 的其余项）。noise_mode = none 用于混合增强模式：实测背景片段自带接收机噪声，再注入即重复计入。",
       "display_name": "接收机前端",
       "implementation": "cpp",
       "model_id": "EM-B-11",
@@ -1723,6 +1723,37 @@
           "required": false,
           "type": "number",
           "unit": "mW"
+        },
+        {
+          "default": "off",
+          "description": "本振相位噪声：关，或锁相环单极点（带内平台 + 环路带宽，其上 −20 dB/十倍频）",
+          "enum": [
+            "off",
+            "pll"
+          ],
+          "name": "phase_noise",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": -95.0,
+          "description": "相噪带内平台 L0（转角以下的平坦段；双边相位谱口径）。取值 assumed，典型软件无线电量级",
+          "max": -40.0,
+          "min": -160.0,
+          "name": "pn_level_dBc_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "dBc/Hz"
+        },
+        {
+          "default": 100000.0,
+          "description": "相噪转角，即锁相环环路带宽；须小于采样率的一半",
+          "min": 1.0,
+          "name": "pn_corner_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
         }
       ],
       "ports": {

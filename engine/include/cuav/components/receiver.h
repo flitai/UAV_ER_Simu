@@ -49,6 +49,17 @@ public:
     double noise_psd_dBm_per_Hz() const;
     double noise_power_dBm(double fs_Hz) const;
 
+    // 本振相位噪声的离散化系数（Q-4，D-091）。连续模型是锁相环单极点：双边相位谱
+    // S_φ(f) = L0 / (1 + (f/fc)²)，L0 = 10^(level/10)，即奥恩斯坦—乌伦贝克过程；按精确离散
+    // φ[n] = a·φ[n−1] + σw·w[n]，a = exp(−2π·fc/fs)，σw = sqrt(π·fc·L0·(1 − a²))，
+    // 平稳方差 σφ² = π·fc·L0（与采样率无关）。供单测、Python 参考与解析锚点共用这一处定义。
+    struct PhaseNoiseCoeffs {
+        double a = 0.0, sigma_w = 0.0, sigma_phi = 0.0;
+    };
+    static PhaseNoiseCoeffs phase_noise_coeffs(double fs_Hz, double corner_Hz, double level_dBc_Hz);
+    // 相噪私有流的种子由前端已取的子种子派生（不从共享流多取，热噪声实现不变）
+    static std::uint64_t phase_noise_seed(std::uint64_t sub_seed);
+
 private:
     std::string noise_mode_ = "thermal";
     double nf_dB_ = 0.0;
@@ -58,6 +69,13 @@ private:
     double iq_gain_imbalance_dB_ = 0.0;
     double iq_phase_imbalance_deg_ = 0.0;
     double dc_offset_mW_ = 0.0;
+    // 本振相位噪声（Q-4，D-091）：缺省关
+    bool pn_on_ = false;
+    double pn_level_dBc_Hz_ = -95.0;
+    double pn_corner_Hz_ = 1e5;
+    PhaseNoiseCoeffs pn_;
+    double pn_phi_ = 0.0;        // 上一样点的相位噪声（弧度），跨块连续
+    Xoshiro256pp pn_rng_{0};     // 相噪私有流
 
     Xoshiro256pp sub_rng_{0};    // 私有随机子流，与 SceneEmitterSource 同法（08 §11.1）
     bool sub_ready_ = false;

@@ -15,10 +15,12 @@
 #include <string>
 #include <vector>
 
+#include "cuav/components/receiver.h"
 #include "cuav/components/scenario.h"
 #include "cuav/platform.h"
 #include "cuav/random.h"
 #include "cuav/scenario_json.h"
+#include "cuav/sha256.h"
 #include "cuav_geo/activity.h"
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
@@ -248,4 +250,209 @@ TEST_CASE("载频偏差：OFDM 与 GFSK 的突发与空档一起偏——y_cfo[n
         CHECK(live > 100000u);
         CHECK(worst < 1e-5);
     }
+}
+
+// ================================================================= B. 本振相位噪声
+
+namespace {
+
+std::unique_ptr<ReceiverFrontEnd> make_fe(const std::string& noise_mode, const std::string& pn, double level,
+                                          double corner, std::uint64_t shared_seed, double lo_offset = 0.0) {
+    std::unique_ptr<ReceiverFrontEnd> fe(new ReceiverFrontEnd());
+    std::map<std::string, double> num;
+    num["nf_dB"] = 6.0;
+    num["pn_level_dBc_Hz"] = level;
+    num["pn_corner_Hz"] = corner;
+    num["lo_offset_Hz"] = lo_offset;
+    std::map<std::string, std::string> txt;
+    txt["noise_mode"] = noise_mode;
+    txt["phase_noise"] = pn;
+    std::string err;
+    REQUIRE_MESSAGE(fe->configure(num, txt, err), err);
+    Xoshiro256pp rng(shared_seed);
+    REQUIRE_MESSAGE(fe->init(rng, err), err);
+    return fe;
+}
+
+// 常数输入 x 过前端，按 block 切块；返回全部输出
+std::vector<Complex> run_fe(ReceiverFrontEnd& fe, double fs, std::size_t n, std::size_t block, Complex x) {
+    std::vector<Complex> all;
+    all.reserve(n);
+    std::string err;
+    for (std::size_t s0 = 0; s0 < n; s0 += block) {
+        const std::size_t m = std::min(block, n - s0);
+        PortMap in, out;
+        PortData d;
+        d.type = PortType::IQStream;
+        d.has_data = true;
+        d.iq.samples.assign(m, x);
+        d.iq.meta.sample_rate_Hz = fs;
+        d.iq.meta.start_sample = s0;
+        in["in"] = d;
+        const Step st = fe.process(in, out, err);
+        REQUIRE_MESSAGE(st == Step::Produced, err);
+        const std::vector<Complex>& y = out["out"].iq.samples;
+        all.insert(all.end(), y.begin(), y.end());
+    }
+    return all;
+}
+
+nlohmann::json pn_golden() { return read_json(repo("engine/tests/golden/phase_noise.json")); }
+
+}  // namespace
+
+TEST_CASE("相位噪声 · 算法核：离散化系数与 φ 序列对 Python 参考（rel 1e-9；φ 按自身尺度 1e-9·σφ）") {
+    const nlohmann::json g = pn_golden();
+    const double coeff_rel = g["tolerance"]["coeff_rel"].get<double>();
+    const double phi_tol = g["tolerance"]["phi_abs_over_sigma"].get<double>();
+    for (const auto& c : g["cases"]) {
+        const std::string name = c["name"].get<std::string>();
+        CAPTURE(name);
+        const double fs = c["fs_Hz"], fc = c["corner_Hz"], level = c["level_dBc_Hz"];
+        const ReceiverFrontEnd::PhaseNoiseCoeffs k = ReceiverFrontEnd::phase_noise_coeffs(fs, fc, level);
+        CHECK(std::fabs(k.a - c["a"].get<double>()) <= coeff_rel * std::fabs(c["a"].get<double>()));
+        CHECK(std::fabs(k.sigma_w - c["sigma_w"].get<double>()) <= coeff_rel * c["sigma_w"].get<double>());
+        CHECK(std::fabs(k.sigma_phi - c["sigma_phi"].get<double>()) <= coeff_rel * c["sigma_phi"].get<double>());
+        // 闭式锚点：σφ² = π·fc·L0，与采样率无关
+        CHECK(k.sigma_phi * k.sigma_phi == doctest::Approx(3.14159265358979323846 * fc * std::pow(10.0, level / 10.0)).epsilon(1e-12));
+
+        Xoshiro256pp rng(c["seed"].get<std::uint64_t>());
+        const std::size_t n = c["n"].get<std::size_t>();
+        std::vector<double> phi(n);
+        double p = k.sigma_phi * rng.normal();
+        for (std::size_t i = 0; i < n; ++i) { p = k.a * p + k.sigma_w * rng.normal(); phi[i] = p; }
+        double worst = 0.0;
+        const auto& idx = c["idx"];
+        const auto& want = c["phi"];
+        for (std::size_t j = 0; j < idx.size(); ++j)
+            worst = std::max(worst, std::fabs(phi[idx[j].get<std::size_t>()] - want[j].get<double>()));
+        MESSAGE(name << "：a = " << fmt(k.a) << "，σφ = " << fmt(k.sigma_phi * 180.0 / 3.14159265358979323846)
+                     << " deg，φ 最大绝对差 " << fmt(worst) << "（" << fmt(worst / k.sigma_phi) << "·σφ）");
+        CHECK(worst <= phi_tol * k.sigma_phi);
+    }
+}
+
+TEST_CASE("相位噪声 · 组件：单位直流过前端，输出相角 = 参考 φ[n]（complex64，1e-6 rad）；种子由子种子派生") {
+    const nlohmann::json g = pn_golden();
+    const nlohmann::json& c = g["component"];
+    const std::uint64_t shared = c["shared_seed"].get<std::uint64_t>();
+    CHECK(Xoshiro256pp(shared).next_u64() == c["sub_seed"].get<std::uint64_t>());
+    CHECK(ReceiverFrontEnd::phase_noise_seed(c["sub_seed"].get<std::uint64_t>()) == c["pn_seed"].get<std::uint64_t>());
+    const double fs = c["fs_Hz"];
+    std::unique_ptr<ReceiverFrontEnd> fe = make_fe("none", "pll", c["level_dBc_Hz"], c["corner_Hz"], shared);
+    const std::vector<Complex> y = run_fe(*fe, fs, c["n"].get<std::size_t>(), 4096, Complex(1.0f, 0.0f));
+    double worst = 0.0;
+    for (std::size_t j = 0; j < c["idx"].size(); ++j) {
+        const std::size_t i = c["idx"][j].get<std::size_t>();
+        const double ang = std::atan2(static_cast<double>(y[i].imag()), static_cast<double>(y[i].real()));
+        worst = std::max(worst, std::fabs(ang - c["phase_rad"][j].get<double>()));
+    }
+    MESSAGE("组件相角最大差 " << fmt(worst) << " rad");
+    CHECK(worst <= g["tolerance"]["component_phase_abs_rad"].get<double>());
+    // 相噪参数与均方根相位写进 note（产品索引里 trace 会被后级覆写，D-091）
+    bool noted = false;
+    for (const std::string& s : fe->status().notes) noted = noted || s.find("本振相位噪声") != std::string::npos;
+    CHECK(noted);
+}
+
+TEST_CASE("相位噪声：长序列的经验方差对闭式 π·fc·L0（容差按 AR(1) 有效样本数算）；单音过前端的均方根相位同一个数") {
+    const double fs = 20e6, fc = 2e5, level = -90.0;
+    const std::size_t n = 2000000;
+    std::unique_ptr<ReceiverFrontEnd> fe = make_fe("none", "pll", level, fc, 77);
+    const std::vector<Complex> y = run_fe(*fe, fs, n, 65536, Complex(1.0f, 0.0f));
+    double acc = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        const double ang = std::atan2(static_cast<double>(y[i].imag()), static_cast<double>(y[i].real()));
+        acc += ang * ang;
+    }
+    const ReceiverFrontEnd::PhaseNoiseCoeffs k = ReceiverFrontEnd::phase_noise_coeffs(fs, fc, level);
+    const double var = acc / static_cast<double>(n);
+    const double want = k.sigma_phi * k.sigma_phi;
+    const double sd = want * std::sqrt(2.0 * (1.0 + k.a * k.a) / ((1.0 - k.a * k.a) * static_cast<double>(n)));
+    MESSAGE("均方根相位误差 " << fmt(std::sqrt(var) * 180.0 / 3.14159265358979323846) << " deg，闭式 "
+                             << fmt(k.sigma_phi * 180.0 / 3.14159265358979323846) << " deg；差 "
+                             << fmt((var - want) / sd) << " 个标准差");
+    CHECK(std::fabs(var - want) < 5.0 * sd);
+}
+
+TEST_CASE("相位噪声：五种块长逐位相同；开相噪不改热噪声的样本实现（y_on·e^{−jφ} = y_off）") {
+    const double fs = 20e6, fc = 2e5, level = -85.0;
+    const std::size_t n = 300000;
+    const Complex x(0.3f, -0.2f);
+    std::unique_ptr<ReceiverFrontEnd> r = make_fe("thermal", "pll", level, fc, 5);
+    const std::vector<Complex> ref = run_fe(*r, fs, n, 65536, x);
+    for (std::size_t block : {4096u, 1000u, 4096u * 10u + 123u, 250000u, 1u << 20}) {
+        CAPTURE(block);
+        std::unique_ptr<ReceiverFrontEnd> f = make_fe("thermal", "pll", level, fc, 5);
+        const std::vector<Complex> y = run_fe(*f, fs, n, block, x);
+        std::size_t diffs = 0;
+        for (std::size_t i = 0; i < n; ++i)
+            if (!(y[i].real() == ref[i].real() && y[i].imag() == ref[i].imag())) ++diffs;
+        CHECK_MESSAGE(diffs == 0u, "块长 " << block << " 与 65536 差 " << diffs << " 个样点");
+    }
+    // 关相噪的同种子前端：热噪声实现相同，差的只是一个旋转
+    std::unique_ptr<ReceiverFrontEnd> off = make_fe("thermal", "off", level, fc, 5);
+    const std::vector<Complex> y0 = run_fe(*off, fs, n, 65536, x);
+    const std::uint64_t sub = Xoshiro256pp(5).next_u64();
+    Xoshiro256pp prng(ReceiverFrontEnd::phase_noise_seed(sub));
+    const ReceiverFrontEnd::PhaseNoiseCoeffs k = ReceiverFrontEnd::phase_noise_coeffs(fs, fc, level);
+    double p = k.sigma_phi * prng.normal(), worst = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        p = k.a * p + k.sigma_w * prng.normal();
+        const std::complex<double> on(ref[i].real(), ref[i].imag()), o(y0[i].real(), y0[i].imag());
+        worst = std::max(worst, std::abs(on * std::polar(1.0, -p) - o) / std::max(1e-3, std::abs(o)));
+    }
+    MESSAGE("去掉相噪旋转后与关相噪的输出最大相对差 " << fmt(worst));
+    CHECK(worst < 1e-5);
+}
+
+TEST_CASE("相位噪声：转角不小于采样率的一半即报错、不钳位；关着时与改动前的前端逐位相同") {
+    std::unique_ptr<ReceiverFrontEnd> fe = make_fe("none", "pll", -90.0, 300e3, 1);
+    PortMap in, out;
+    PortData d;
+    d.type = PortType::IQStream;
+    d.has_data = true;
+    d.iq.samples.assign(16, Complex(1.0f, 0.0f));
+    d.iq.meta.sample_rate_Hz = 500e3;
+    in["in"] = d;
+    std::string err;
+    CHECK(fe->process(in, out, err) == Step::Error);
+    CHECK(err.find("pn_corner_Hz") != std::string::npos);
+
+    // off：本振频偏为零时旋转分支整个不进，输出就是输入（×增益 0 dB），逐位
+    std::unique_ptr<ReceiverFrontEnd> a = make_fe("none", "off", -90.0, 300e3, 1);
+    const std::vector<Complex> y = run_fe(*a, 500e3, 1000, 256, Complex(0.25f, -0.5f));
+    for (std::size_t i = 0; i < y.size(); ++i) {
+        CHECK(y[i].real() == 0.25f);
+        CHECK(y[i].imag() == -0.5f);
+    }
+}
+
+TEST_CASE("相位噪声 · MATLAB 一方：同一串驱动正态，引擎递推对 phase_noise.matlab.json（1e-9·σφ）") {
+    const std::string in_path = repo("engine/tests/golden/phase_noise.json");
+    const nlohmann::json g = read_json(in_path);
+    const nlohmann::json m = read_json(repo("engine/tests/golden/phase_noise.matlab.json"));
+    // 输入被改过而没重跑 MATLAB，当场红
+    std::ifstream f(in_path.c_str(), std::ios::binary);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    CHECK(m["input_sha256"].get<std::string>() == sha256_hex(ss.str()));
+    const double tol = m["tolerance"]["kernel_rel"].get<double>();
+    CHECK_MESSAGE(tol <= 1e-9, "判据被放宽了");
+
+    const nlohmann::json& c = g["cases"][0];
+    const ReceiverFrontEnd::PhaseNoiseCoeffs k =
+        ReceiverFrontEnd::phase_noise_coeffs(c["fs_Hz"], c["corner_Hz"], c["level_dBc_Hz"]);
+    CHECK(std::fabs(k.a - m["a"].get<double>()) <= tol * k.a);
+    CHECK(std::fabs(k.sigma_w - m["sigma_w"].get<double>()) <= tol * k.sigma_w);
+    const nlohmann::json& w = c["drive"]["w"];
+    const nlohmann::json& phi = m["phi"];
+    REQUIRE(w.size() == phi.size() + 1);
+    double p = k.sigma_phi * w[0].get<double>(), worst = 0.0;
+    for (std::size_t i = 0; i < phi.size(); ++i) {
+        p = k.a * p + k.sigma_w * w[i + 1].get<double>();
+        worst = std::max(worst, std::fabs(p - phi[i].get<double>()));
+    }
+    MESSAGE("引擎对 MATLAB：φ 最大差 " << fmt(worst / k.sigma_phi) << "·σφ（" << phi.size() << " 个样点）");
+    CHECK(worst <= tol * k.sigma_phi);
 }

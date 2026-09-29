@@ -6,6 +6,7 @@
 #include <cstdlib>
 
 #include "cuav_geo/link_budget.h"
+#include "cuav_geo/ofdm_frame.h"   // geo::mix64（相噪私有流的种子派生）
 
 namespace cuav {
 namespace {
@@ -52,7 +53,10 @@ ComponentInfo ReceiverFrontEnd::describe() const {
         "总增益、本振频偏（相位累加器跨块连续）、IQ 幅相不平衡（K1·y + K2·conj(y) 形式，"
         "与 MATLAB comm.IQImbalance 同定义）、直流偏置。噪声加在增益之前，即噪声系数是输入折合的。"
         "本组件不做接收滤波：幅频响应与群时延是 M-3 的 Coder 产物，串在本组件之前。"
-        "相位噪声、增益压缩与自动增益控制的动态过程随 P3（04 §7.5 的其余项）。"
+        "本振相位噪声（phase_noise = pll，Q-4）：锁相环单极点，带内平台 pn_level_dBc_Hz、"
+        "转角（环路带宽）pn_corner_Hz 以上 −20 dB/十倍频，按奥恩斯坦—乌伦贝克精确离散，"
+        "均方根相位误差 sqrt(π·fc·L0) 与采样率无关；L(f) 取双边相位谱 S_φ(f)。"
+        "增益压缩与自动增益控制的动态过程随 P3（04 §7.5 的其余项）。"
         "noise_mode = none 用于混合增强模式：实测背景片段自带接收机噪声，再注入即重复计入。";
     i.model_layer = "M3";
     i.model_level = "E2";
@@ -78,6 +82,14 @@ ComponentInfo ReceiverFrontEnd::describe() const {
             .def(0.0).at_least(-20.0).at_most(20.0),
         ParamSpec::number("dc_offset_mW", "mW", "直流分量功率，I、Q 各占一半；0 为关")
             .def(0.0).at_least(0.0),
+        ParamSpec::choice("phase_noise", {"off", "pll"},
+                          "本振相位噪声：关，或锁相环单极点（带内平台 + 环路带宽，其上 −20 dB/十倍频）")
+            .def_text("off"),
+        ParamSpec::number("pn_level_dBc_Hz", "dBc/Hz",
+                          "相噪带内平台 L0（转角以下的平坦段；双边相位谱口径）。取值 assumed，典型软件无线电量级")
+            .def(-95.0).at_least(-160.0).at_most(-40.0),
+        ParamSpec::number("pn_corner_Hz", "Hz", "相噪转角，即锁相环环路带宽；须小于采样率的一半")
+            .def(1e5).at_least(1.0),
     };
     return i;
 }
@@ -107,7 +119,33 @@ bool ReceiverFrontEnd::configure(const std::map<std::string, double>& params,
     iq_phase_imbalance_deg_ = get_num(params, "iq_phase_imbalance_deg", 0.0);
     dc_offset_mW_ = get_num(params, "dc_offset_mW", 0.0);
     if (dc_offset_mW_ < 0.0) { err = "ReceiverFrontEnd 的 dc_offset_mW 不得为负（它是功率）"; return false; }
+
+    std::string pn = "off";
+    get_text(text_params, "phase_noise", pn);
+    if (pn.empty()) pn = "off";
+    if (pn != "off" && pn != "pll") { err = "ReceiverFrontEnd 的 phase_noise 必须是 off / pll"; return false; }
+    pn_on_ = (pn == "pll");
+    pn_level_dBc_Hz_ = get_num(params, "pn_level_dBc_Hz", -95.0);
+    pn_corner_Hz_ = get_num(params, "pn_corner_Hz", 1e5);
+    if (pn_on_ && !(pn_corner_Hz_ > 0.0)) { err = "ReceiverFrontEnd 的 pn_corner_Hz 必须为正"; return false; }
+    if (pn_on_ && !std::isfinite(pn_level_dBc_Hz_)) { err = "ReceiverFrontEnd 的 pn_level_dBc_Hz 必须是有限值"; return false; }
     return true;
+}
+
+ReceiverFrontEnd::PhaseNoiseCoeffs ReceiverFrontEnd::phase_noise_coeffs(double fs_Hz, double corner_Hz,
+                                                                        double level_dBc_Hz) {
+    PhaseNoiseCoeffs c;
+    const double L0 = std::pow(10.0, level_dBc_Hz / 10.0);
+    c.a = std::exp(-kTwoPi * corner_Hz / fs_Hz);
+    const double var = kPi * corner_Hz * L0;
+    c.sigma_w = std::sqrt(var * (1.0 - c.a * c.a));
+    c.sigma_phi = std::sqrt(var);
+    return c;
+}
+
+std::uint64_t ReceiverFrontEnd::phase_noise_seed(std::uint64_t sub_seed) {
+    // 标签只为与热噪声子流区分开（"pn_lo_v1"）；改它会换掉所有相噪实现，等同基准变更
+    return geo::mix64(sub_seed ^ 0x706e5f6c6f5f7631ULL);
 }
 
 double ReceiverFrontEnd::noise_psd_dBm_per_Hz() const {
@@ -124,8 +162,13 @@ double ReceiverFrontEnd::noise_power_dBm(double fs_Hz) const {
 
 bool ReceiverFrontEnd::init(IRandom& rng, std::string& err) {
     (void)err;
-    // 私有子流：与节点书写顺序解耦（08 报告 §11.1、§15 ⑨）
-    sub_rng_ = Xoshiro256pp(rng.next_u64());
+    // 私有子流：与节点书写顺序解耦（08 报告 §11.1、§15 ⑨）。
+    // 相噪流由同一个子种子派生，不从共享流多取一个数——开不开相噪，下游节点的子种子与
+    // 本组件的热噪声实现都逐位不变，可以做开 / 关对照（Q-4，D-091）。
+    const std::uint64_t s = rng.next_u64();
+    sub_rng_ = Xoshiro256pp(s);
+    pn_rng_ = Xoshiro256pp(phase_noise_seed(s));
+    pn_phi_ = 0.0;
     sub_ready_ = true;
     phase_ = 0.0;
     fs_ = 0.0;
@@ -149,6 +192,20 @@ Step ReceiverFrontEnd::process(PortMap& in, PortMap& out, std::string& err) {
                                     " dBm（噪声系数 " + numstr(nf_dB_) + " dB，带宽 " +
                                     numstr(fs_) + " Hz）");
         }
+        if (pn_on_) {
+            // 转角要在奈奎斯特以内，否则谱形根本看不见（整个平台都绕折进来），不钳位（铁律 15）
+            if (!(pn_corner_Hz_ < fs_ / 2.0)) {
+                err = "ReceiverFrontEnd 的相噪转角 pn_corner_Hz = " + numstr(pn_corner_Hz_) +
+                      " Hz 不小于采样率的一半 " + numstr(fs_ / 2.0) + " Hz；请取 (0, " + numstr(fs_ / 2.0) + ") 之内";
+                return Step::Error;
+            }
+            pn_ = phase_noise_coeffs(fs_, pn_corner_Hz_, pn_level_dBc_Hz_);
+            // 平稳起点：不从 0 起步，免得开头 1/(2π·fc) 的暖机段方差偏低
+            pn_phi_ = pn_.sigma_phi * pn_rng_.normal();
+            status_.notes.push_back("本振相位噪声：平台 " + numstr(pn_level_dBc_Hz_) + " dBc/Hz、转角 " +
+                                    numstr(pn_corner_Hz_) + " Hz，均方根相位误差 " +
+                                    numstr(pn_.sigma_phi * 180.0 / kPi) + " deg（锁相环单极点，参数 assumed）");
+        }
     } else if (src.meta.sample_rate_Hz != fs_) {
         err = "ReceiverFrontEnd 中途收到不同采样率的块";
         return Step::Error;
@@ -159,6 +216,11 @@ Step ReceiverFrontEnd::process(PortMap& in, PortMap& out, std::string& err) {
     d.has_data = true;
     d.iq.meta = src.meta;
     d.iq.meta.trace = make_trace("EM-B-11", noise_mode_);
+    if (pn_on_) {
+        // A 档参数主导（14 §9）：开相噪时降到 V1。之后的 ADC / 天线会覆写 trace，相噪参数另经 note 与导出带出
+        d.iq.meta.trace.parameter_version += "-pn";
+        d.iq.meta.trace.credibility = "V1";
+    }
     const std::size_t n = src.samples.size();
     d.iq.samples.resize(n);
 
@@ -185,8 +247,14 @@ Step ReceiverFrontEnd::process(PortMap& in, PortMap& out, std::string& err) {
         }
         re *= g;
         im *= g;
-        if (lo_offset_Hz_ != 0.0) {
-            const double c = std::cos(phase_), s = std::sin(phase_);
+        if (lo_offset_Hz_ != 0.0 || pn_on_) {
+            // 相噪并在本振旋转里：角度 = 本振相位 + φ[n]。不开相噪时 ang 就是 phase_，与改动前逐位相同
+            double ang = phase_;
+            if (pn_on_) {
+                pn_phi_ = pn_.a * pn_phi_ + pn_.sigma_w * pn_rng_.normal();
+                ang += pn_phi_;
+            }
+            const double c = std::cos(ang), s = std::sin(ang);
             const double r2 = re * c - im * s;
             const double i2 = re * s + im * c;
             re = r2; im = i2;
@@ -217,6 +285,7 @@ Step ReceiverFrontEnd::process(PortMap& in, PortMap& out, std::string& err) {
 
 void ReceiverFrontEnd::reset() {
     phase_ = 0.0;
+    pn_phi_ = 0.0;
     fs_ = 0.0;
     have_fs_ = false;
     status_ = ComponentStatus();
