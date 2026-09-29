@@ -55,6 +55,21 @@ uv run --quiet --with numpy --with scipy python tests/regression/ofdm_waveforms.
 约 30 s；运行目录 `data/runs/q2-ofdm-waveforms/` 约 2 GB（三个观测点写原始 IQ），不入 git。
 ④ 那一项要 `data/iq/measured/q0b-params.json`（入 git），不读实测数据本身。
 
+### GFSK 族波形（Q-3，D-089）
+
+`gfsk_waveforms.py` 跑 `diagrams/chain-gfsk.json`（场景 `scenarios/gfsk-80m.scenario.json`：FrSky D16 v2 FCC 与 Futaba S-FHSS
+两个地面遥控器同时跳频，80 MS/s @ 2440 MHz，1 s），在内存里给 S0 两路与 S3 加 `iq` 产品，核五件事：
+真值一包一行、与帧排布复刻逐位相同；无噪 S0 上逐样点相位增量对闭式解析式（实测最坏 2.3e-8 周）、解调出的前导与同步字逐包对上、
+估出的频偏与符号率对预设；**拿 Q-0b 的提取器量 S3**、按真值把突发分给两个遥控器，FrSky 对 X20 录音逐项给数（包长、间隔、频点数、
+逐跳步进、带宽；只按宽松的物理界判，带宽差距进 Q-5），S-FHSS 对 T14SG 录音只报数（协议不同）；SigMF 注记带 `cuav:preset_id`；
+40 MS/s 站点装不下跳频跨度、场景载入即拒。实时因子照实打印（0.055）。
+
+```
+uv run --quiet --with numpy --with scipy python tests/regression/gfsk_waveforms.py    # 已接进 scripts/build-all.sh
+```
+
+约 30 s；运行目录 `data/runs/q3-gfsk-waveforms/` 约 2 GB，不入 git。③ 那一项要 `data/iq/measured/q0b-params.json`（入 git）。
+
 ### E3 建筑遮挡（D3-5，D-074）
 
 `e3_occlusion_chain.py` 跑 `diagrams/chain-demo-01-e3.json`（就是全合成那份，只把传播档位

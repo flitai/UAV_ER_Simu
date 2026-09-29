@@ -99,7 +99,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 | 组件 | 类别 | M / E | 实现 |
 |---|---|---|---|
 | `ScenarioSource` 场景参数源 | data | M2 / E2 | cpp，`scene_bindable`，绑站点；**动态输出口** `link:<emitter_id>`，每条链路一路 `SceneParamFrame`；内部参数 `scenario_path` / `scenario_id` / `site_id`；实体与链路读数经观察者上报；**传播效应的十五个参数在这里声明**（D-058，见 §8） |
-| `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | **coder**（自 Q-2：OFDM 族的有理重采样算法核是 Coder 产物，`source_ref` 指向 `models/radiator/coder/`；其余波形手写），`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst / **ofdm / droneid**（Q-2，D-088：结构取自机型预设表 `models/radiator/presets-v1.json`，原生率 IFFT + CP → 125/M 有理重采样 → 整突发开关 → 按突发中点定频点，模型卡 `models/radiator/README.md` §7），**归一化到发射期间单位功率（0 dBm）**；守铁律 4（**跳频序列里每个频点逐个过闸**，C-8）。**活动时间线按样点施加**（G-6，D-069）：`tx_on` / `tx_off` / `hop` 的边界折到绝对样点号上，与块长无关；相位累加器跨跳频点不重置（DDS 型相位连续跳频，非相干跳频本期不做）。**noise 按 `emission.bw_Hz` 做 4 阶巴特沃斯带限并搬移到 `emission.center_Hz`**（C-8）：截止 `bw_Hz/2`、状态跨块保持、按冲激响应的 Σ\|h\|² 归回单位功率；无任何新用户参数，一切从场景派生；`bw_Hz` 不小于采样带宽时不带限并标降级，奈奎斯特处抑制不足 40 dB 时同样标降级。参考实现 `algos/reference/gen_engine_golden.py --mode scene_noise`，黄金基准 `engine/tests/golden/scene_noise_bandlimit.json` |
+| `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | **coder**（自 Q-2：OFDM 族的有理重采样算法核是 Coder 产物，`source_ref` 指向 `models/radiator/coder/`；其余波形手写），`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst / **ofdm / droneid**（Q-2，D-088：结构取自机型预设表 `models/radiator/presets-v1.json`，原生率 IFFT + CP → 125/M 有理重采样 → 整突发开关 → 按突发中点定频点，模型卡 `models/radiator/README.md` §7）/ **gfsk**（Q-3，D-089：调制与帧取自 GFSK 族预设表 `models/radiator/gfsk-presets-v1.json`，相位按任意时刻闭式求值、手写、不经重采样，整包开关、按包中点定频点，包内恒包络，模型卡 §8），**归一化到发射期间单位功率（0 dBm）**；守铁律 4（**跳频序列里每个频点逐个过闸**，C-8）。**活动时间线按样点施加**（G-6，D-069）：`tx_on` / `tx_off` / `hop` 的边界折到绝对样点号上，与块长无关；相位累加器跨跳频点不重置（DDS 型相位连续跳频，非相干跳频本期不做）。**noise 按 `emission.bw_Hz` 做 4 阶巴特沃斯带限并搬移到 `emission.center_Hz`**（C-8）：截止 `bw_Hz/2`、状态跨块保持、按冲激响应的 Σ\|h\|² 归回单位功率；无任何新用户参数，一切从场景派生；`bw_Hz` 不小于采样带宽时不带限并标降级，奈奎斯特处抑制不足 40 dB 时同样标降级。参考实现 `algos/reference/gen_engine_golden.py --mode scene_noise`，黄金基准 `engine/tests/golden/scene_noise_bandlimit.json` |
 | `SceneBoundChannel` 场景绑定信道 | channel | M3 / E2 | cpp，`scene_bindable`；施加增益、整数样点时延、多普勒相位斜坡；帧内零阶保持；拒回放数据（防线二、三） |
 | `FreeSpaceChannel` 自由空间信道 | channel | M3 / E2 | cpp，定参 FSPL，原 P1-3 欠项，供解析锚点与标准算例用 |
 
@@ -185,6 +185,7 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
 - [x] D-051 的信道化与接收滤波（M-3，2026-09-16，D-071）：新增 `Channelizer` 与 `RxFilter`（均 receiver 类，`implementation = coder`），组件 23 → 25；黄金基准据此更新一次，差异是**纯插入**（109 行新增、零删除），`port_types` / `port_compat` / `engine_version` 与既有 23 条逐条未变
 - [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
 - [x] D-088 的 OFDM 族（Q-2，2026-09-29）：`SceneEmitterSource` 的 `description` 加一句、`implementation` 由 `cpp` 改 `coder`、新增 `source_ref`——**三处声明过的变化**，组件数、端口表、参数与其余组件一字未变
+- [x] D-089 的 GFSK 族（Q-3，2026-09-29）：`SceneEmitterSource` 的 `description` 加一句——**只此一行**，组件数、端口表、参数、`implementation` / `source_ref` 与其余组件一字未变（GFSK 调制核是手写的，不是新的 Coder 产物）
 - [x] D-074 的建筑通路（D3-4，2026-09-18）：`ScenarioSource` 新增**一个内部参数** `scene_root`（见 §8 末），组件数、端口表与其余组件一字未变。黄金基准据此更新一次，差异是**纯插入的 8 行**；全库内部参数 32 → 33
 
 ## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）
