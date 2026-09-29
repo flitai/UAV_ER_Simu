@@ -539,6 +539,8 @@ button.mini { font-size: 11px; padding: 0 5px; }
 .tap.dim { color: var(--poi); cursor: not-allowed; }
 .tap.dim input { cursor: not-allowed; }
 .tap-hint { margin-left: auto; font-size: 11px; }
+/* 另存原始 IQ（D-090）：紧跟在所属观测点后面，字小一号，读成那个点的附属选项 */
+.tap-iq { margin-left: -10px; font-size: 11px; }
 
 /* 观测点与当前任务不一致：勾选只改框图，产品要下次运行才有 */
 .chain-stale { font-size: 11px; color: var(--warn-ink); background: var(--stale-bg);
@@ -667,3 +669,7 @@ button.mini { font-size: 11px; padding: 0 5px; }
 /* 「正在给谁画航点」（2026-09-19 用户反馈：画串了看不出来）。跟在工具按钮后面，不另起一行。 */
 .tool-note { font-size: var(--fs-label); color: var(--dim); padding: 0 6px; white-space: nowrap; }
 .tool-note b { color: var(--ink); }
+
+/* 数据导出页签（D-090）：与任务页签同一套表格与表头行，进度条收窄 */
+.export-panel progress { width: 160px; vertical-align: middle; }
+.export-panel .site-table-wrap + .site-table-wrap { margin-top: 12px; }

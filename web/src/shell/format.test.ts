@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fmtAgo, fmtDb, fmtDelta, fmtHz, fmtInstant } from './format.js'
+import { fmtAgo, fmtBytes, fmtDb, fmtDelta, fmtHz, fmtInstant } from './format.js'
 
 test('fmtDb / fmtDelta', () => {
   assert.equal(fmtDb(-68.24), '-68.2 dB')
@@ -26,4 +26,14 @@ test('fmtInstant / fmtAgo：时区可注入，认不出来写「—」不拿当�
   assert.equal(fmtAgo('2026-06-19T00:00:00Z', now), '3 个月前')
   assert.equal(fmtAgo('2026-09-19T01:00:00Z', now), '刚刚', '未来时刻不写负数')
   assert.equal(fmtAgo(null), '—')
+})
+
+test('fmtBytes：十进制单位、三位有效数字（D-090）', () => {
+  assert.equal(fmtBytes(640_000_000), '640 MB')
+  assert.equal(fmtBytes(1_600_000_000), '1.6 GB')
+  assert.equal(fmtBytes(39_999_892), '40 MB')
+  assert.equal(fmtBytes(9_999_892), '10 MB')
+  assert.equal(fmtBytes(400_000), '400 kB')
+  assert.equal(fmtBytes(999), '999 B')
+  assert.equal(fmtBytes(null), '—')
 })

@@ -1207,3 +1207,21 @@ test('OFDM 族（Q-2，D-088）：回归夹具 chain-ofdm 解得开、频率计�
   assert.equal(bad.ok, false)
   assert.match(bad.detail, /没有重采样档位；可取 /)
 })
+
+test('另存原始 IQ（D-090）：只在观测点勾上时写 iq；往返逐字节；缺省链一个字节不变', () => {
+  const c = parseChain(parseOk(DEFAULT_CHAIN_TEXT))!
+  assert.deepEqual(TAP_ORDER.filter((t) => c.tapIq[t]), [], '缺省链没有任何观测点存原始 IQ')
+  assert.equal(serialize(compile(c, cat, scenario).doc, cat), DEFAULT_CHAIN_TEXT)
+  // 缺省链勾的是 S4；给它开原始 IQ，再给没勾的 S3 开（不该出现）
+  const d: ChainState = { ...c, tapIq: { ...c.tapIq, s4: true, s3: true } }
+  const doc = compile(d, cat, scenario).doc
+  const ops = (doc.observation_points ?? []).map((o) => [o.id, o.products])
+  assert.deepEqual(ops, [['s4', ['spectrum', 'envelope', 'iq']]], '只勾了 S4，iq 只写在 S4 上')
+  const text = serialize(doc, cat)
+  const back = parseChain(parseOk(text))!
+  assert.equal(back.tapIq.s4, true)
+  assert.equal(back.tapIq.s3, false, '没勾的观测点解回来是关的')
+  assert.equal(serialize(compile(back, cat, scenario).doc, cat), text, '往返逐字节相同')
+  // 关掉原始 IQ：回到缺省链原文
+  assert.equal(serialize(compile({ ...back, tapIq: { ...back.tapIq, s4: false } }, cat, scenario).doc, cat), DEFAULT_CHAIN_TEXT)
+})

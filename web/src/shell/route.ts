@@ -1,5 +1,5 @@
 // 手写 hash 路由（D-032；09 §4.1）：#/scene（默认）、#/diagram、
-// #/results[/signal|/detections|/tasks]、#/data。
+// #/results[/signal|/detections|/evaluation|/tasks|/export]、#/data（`export` 是数据导出页签，D-090）。
 // 路由只表达「看哪个页面」，?aoi=、?scenario=（D-061：打开时载入指定场景，优先于最近任务的场景）与 ?dev=1 留在 location.search 里不动。
 //
 // `#/diagram` 是**典型链路视图**（C-7，D-051），也是框图页唯一的形态：
@@ -11,7 +11,7 @@ import type { ResultsTab, View } from '../state/types.js'
 
 export interface Route { view: View; resultsTab: ResultsTab }
 
-const TABS: ResultsTab[] = ['signal', 'detections', 'evaluation', 'tasks']
+const TABS: ResultsTab[] = ['signal', 'detections', 'evaluation', 'tasks', 'export']
 
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)

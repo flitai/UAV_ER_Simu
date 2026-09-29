@@ -1,4 +1,4 @@
-// 结果视图（09 §7.1，10 报告 §5.7）：信号 / 检测识别 / 评价 / 任务四页签。
+// 结果视图（09 §7.1，10 报告 §5.7）：信号 / 检测识别 / 评价 / 任务 / 数据导出五页签（数据导出自 D-090）。
 // 信号页是 U-3（频谱、瀑布、包络）；检测识别页自 C-9 起是时间线三行 + 检测列表（突发 / 帧）+ 识别列表；
 // 评价页是 C-9 新增的指标卡、混淆矩阵与 ROC；任务页是 U-4 的任务列表与摘要（D-075）。
 
@@ -15,6 +15,7 @@ import { TaskList } from './TaskList.js'
 import { TaskSummary } from './TaskSummary.js'
 import { useTaskList } from './taskListStore.js'
 import { EvaluationAside, EvaluationSummary, EvaluationView } from './EvaluationView.js'
+import { ExportView } from './ExportView.js'
 import { useDetections } from './detectionStore.js'
 import { useRecognitions } from './recognitionStore.js'
 import { useMetrics } from './metricsStore.js'
@@ -24,7 +25,7 @@ import { stateBadge } from '../shell/badges.js'
 
 const TABS: Array<{ id: ResultsTab; label: string }> = [
   { id: 'signal', label: '信号' }, { id: 'detections', label: '检测识别' },
-  { id: 'evaluation', label: '评价' }, { id: 'tasks', label: '任务' },
+  { id: 'evaluation', label: '评价' }, { id: 'tasks', label: '任务' }, { id: 'export', label: '数据导出' },
 ]
 
 export function ResultsView() {
@@ -103,6 +104,7 @@ export function ResultsView() {
           {s.ui.resultsTab === 'detections' && <DetectionView />}
           {s.ui.resultsTab === 'evaluation' && <EvaluationView />}
           {s.ui.resultsTab === 'tasks' && <TaskList />}
+          {s.ui.resultsTab === 'export' && <ExportView />}
         </div>
       }
       right={

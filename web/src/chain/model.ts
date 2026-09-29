@@ -366,7 +366,15 @@ export interface ChainState {
   run: { duration_s: number; seed: number; block_size?: number }
   slots: Record<SlotId, SlotConfig>
   taps: Record<TapId, boolean>
+  /**
+   * 该观测点另存原始 IQ（复 float32 样点，供结果页「数据导出」导成 SigMF，D-090）。只在观测点本身勾上时生效；
+   * 界面只对 ADC 之后的 S3 / S4 / S5 给开关（导出要满量程，ADC 之前没有）。全关时编译出的框图与从前逐字节相同。
+   */
+  tapIq: Record<TapId, boolean>
 }
+
+/** 可以另存原始 IQ 并导出的观测点：ADC 之后（D-090） */
+export const IQ_TAPS: readonly TapId[] = ['s3', 's4', 's5']
 
 /** 某个槽位在当前模式与目录下的实际状态。 */
 export function slotState(chain: ChainState, id: SlotId, cat: Catalog | null): SlotState {
@@ -514,6 +522,7 @@ export function emptyChain(mode: ChainMode = 'synthetic', id = 'chain-1'): Chain
     run: { duration_s: 20, seed: 20260907 },
     slots,
     taps: { s0: false, s1: false, s2: false, s3: false, s4: true, s5: false },
+    tapIq: { s0: false, s1: false, s2: false, s3: false, s4: false, s5: false },
   }
 }
 

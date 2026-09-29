@@ -78,6 +78,46 @@ export async function cancelTask(id: string, base = ''): Promise<{ status: 200; 
   return { status: r.status, message: String(body['message'] ?? body['error'] ?? `HTTP ${r.status}`) }
 }
 
+// ---------------------------------------------------------------- 数据导出（D-090）
+// 两个端点只回摘要：观测点、样点数、大小、进度、文件名与字节数；原始 IQ 不进浏览器（铁律 7）。
+
+export interface ExportableOp {
+  op_id: string; point: string; label: string; sample_rate_Hz: number; center_Hz: number
+  samples: number; duration_s: number; bytes_raw: number; bytes_export: number
+}
+export interface ExportOpResult {
+  op_id: string; point: string; stem: string; samples: number; state: string; lossless: boolean
+  export_clipped: number; requant_margin_dB: number | null; annotations: number
+  files: Array<{ name: string; bytes: number }>
+}
+export interface ExportJob {
+  job_id: string; state: 'running' | 'done' | 'failed'; ops: string[]
+  started_utc: string; ended_utc?: string
+  progress: { done_bytes: number; total_bytes: number }
+  error?: string; results?: ExportOpResult[]
+}
+export interface TaskExport {
+  task_id: string; run_state: string; dir: string
+  exportable: ExportableOp[]; job: ExportJob | null; files: Array<{ name: string; bytes: number }>
+}
+
+export async function getTaskExport(id: string, base = ''): Promise<TaskExport | null> {
+  const r = await fetch(`${base}/api/v1/tasks/${encodeURIComponent(id)}/export`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`export HTTP ${r.status}`)
+  return json<TaskExport>(r)
+}
+
+export async function postTaskExport(id: string, ops: string[], base = ''): Promise<{ ok: true; job: ExportJob } | { ok: false; status: number; message: string }> {
+  const r = await fetch(`${base}/api/v1/tasks/${encodeURIComponent(id)}/export`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops }),
+  })
+  let body: Record<string, unknown> = {}
+  try { body = await json<Record<string, unknown>>(r) } catch { /* 非 JSON 错误体 */ }
+  if (r.status === 202) return { ok: true, job: body['job'] as ExportJob }
+  return { ok: false, status: r.status, message: String(body['message'] ?? body['error'] ?? `HTTP ${r.status}`) }
+}
+
 export interface EventsPage { task_id: string; since: number; events: WsTextEvent[]; last_seq: number; run_state: string }
 
 export async function getEvents(id: string, since: number, limit = 1000, base = ''): Promise<EventsPage> {

@@ -68,6 +68,8 @@ const near = (a, b, tol) => Number.isFinite(a) && Number.isFinite(b) && Math.abs
 
 let chrome, page, dir
 const pageErrors = []
+/** 本用例导出的目录（D-090），收尾时删掉 */
+const exportDirs = []
 try {
   dir = await mkdtemp(join(tmpdir(), 'cuav-e2e-slice4-'))
   chrome = await launchChrome({ userDataDir: dir, windowSize: '1920,1200' })
@@ -404,6 +406,17 @@ try {
   st = await page.waitFor((s) => (s.app?.chain?.taps ?? []).includes('s1') && (s.app?.chain?.taps ?? []).includes('s2'), { label: '观测点勾上' })
   check('S1 与 S2 观测点可勾选', st.app.chain.taps.join(',').includes('s1') && st.app.chain.taps.includes('s2'), st.app.chain.taps.join(','))
 
+  // ---------- 另存原始 IQ（D-090）：只对 ADC 之后的观测点给开关，旁边写这次运行要写多大 ----------
+  const iqToggles = await page.evaluate("JSON.stringify([...document.querySelectorAll('[data-tap-iq-toggle]')].map((e) => e.dataset.tapIqToggle))")
+  check('「原始 IQ」只出现在勾着的 ADC 之后的观测点旁（S1 / S2 在 ADC 之前，没有）', iqToggles === '["s4"]', iqToggles)
+  // 缺省链 DDC 旁路：S4 在 ADC 输出上，500 kS/s × 8 字节 × 6 s = 24 MB
+  const iqSize = await waitDom(page, "document.querySelector('[data-tap-iq-size=s4]')?.textContent ?? ''", '24 MB')
+  check('「原始 IQ」旁写出这次运行要写的大小（采样率 × 8 字节 × 时长）', iqSize === '24 MB', iqSize)
+  await page.evaluate(`(() => { const el = document.querySelector('[data-tap-iq-toggle=s4]');
+    if (el && !el.checked) el.click(); return true })()`)
+  st = await page.waitFor((s) => (s.app?.chain?.tapIq ?? []).includes('s4'), { label: 'S4 另存原始 IQ' })
+  check('勾上 S4 的「原始 IQ」即进框图', st.app.chain.tapIq.join(',') === 's4', st.app.chain.tapIq.join(','))
+
   // 勾选只改框图，产品要下次运行才有——不说清楚会让人以为勾了没生效（2026-09-08 用户反馈）
   // 有在先的任务时才有「不一致」可言：第一次跑这套用例时页面上还没有任务，此时不该提示
   // 探针读的是 store、提示读的是 DOM，React 重绘落后一帧，两边可能短暂不一致
@@ -413,12 +426,18 @@ try {
   // 上一个任务的观测点恰好与现在相同时，本来就不该提示（切片 ⑥b 留下别的任务后才发现
   // 这条断言原来读的是恒为 undefined 的 app.task.id，等于一直没生效）。
   // 在跑的观测点从任务端点取，去掉多站的实例后缀再比（D-053 §2.6）。
+  // 另存原始 IQ 也算进勾选（D-090）：S3–S5 勾了原始 IQ 记作 `s4+iq`，与任务里产品含 iq 的观测点比
   const hadTask = await evalJson(page, 'window.__probe().app.context.taskId')
-  const wantTaps = (await evalJson(page, 'window.__probe().app.chain.taps')) ?? []
+  const iqNow = (await evalJson(page, 'window.__probe().app.chain.tapIq')) ?? []
+  const wantTaps = ((await evalJson(page, 'window.__probe().app.chain.taps')) ?? [])
+    .map((t) => (iqNow.includes(t) && ['s3', 's4', 's5'].includes(t) ? `${t}+iq` : t))
   let ranBases = []
   if (hadTask) {
     const rec = await page.evaluateAsync(`fetch('/api/v1/tasks/${hadTask}').then(r => r.ok ? r.json() : null)`)
-    ranBases = [...new Set((rec?.observation_points ?? []).map((o) => String(o.op_id).split('__')[0]))]
+    ranBases = [...new Set((rec?.observation_points ?? []).map((o) => {
+      const b = String(o.op_id).split('__')[0]
+      return (o.products ?? []).includes('iq') && ['s3', 's4', 's5'].includes(b) ? `${b}+iq` : b
+    }))]
   }
   const shouldWarn = !!hadTask && JSON.stringify(wantTaps) !== JSON.stringify(ranBases)
   const stale = await waitDom(page,
@@ -705,6 +724,36 @@ try {
   await page.evaluate("(document.querySelector('[data-tap-toggle=s2]').click(), true)")
   check('勾回去之后提示消失',
     (await waitDom(page, "document.querySelector('[data-chain-taps-stale]') === null", true)) === true)
+
+  // ---------- ③g 数据导出（D-090）：S4 另存了原始 IQ → 结果页导出 SigMF → 文件落在本机目录 ----------
+  await page.evaluate("(location.hash = '#/results/export', true)")
+  await waitDom(page, "document.querySelector('[data-export=ready]') !== null", true, 15000)
+  const expOps = await page.evaluate("JSON.stringify([...document.querySelectorAll('[data-export-op]')].map((e) => e.dataset.exportOp))")
+  check('数据导出页签只列另存了原始 IQ 的观测点', expOps === '["s4"]', expOps)
+  const expDir = await page.evaluate("document.querySelector('[data-export-dir]')?.textContent ?? ''")
+  check('导出目录按相对安装目录给出，不给服务器绝对路径', expDir === `data/exports/${taskId}/`, expDir)
+  await page.evaluate("(document.querySelector('[data-act=export-sigmf]').click(), true)")
+  const expDone = await waitDom(page, "document.querySelector('[data-export-state=done]') !== null", true, 60000)
+  check('点「导出 SigMF」后作业跑完', expDone === true, await page.evaluate("document.querySelector('[data-export-error], [data-export-state=failed]')?.textContent ?? ''"))
+  const expFiles = await page.evaluate("JSON.stringify([...document.querySelectorAll('[data-export-file]')].map((e) => e.dataset.exportFile))")
+  check('导出目录里是一组 SigMF（数据、元数据）加链路旁挂',
+    expFiles === JSON.stringify([`${taskId}_s4.cuav-links.jsonl`, `${taskId}_s4.sigmf-data`, `${taskId}_s4.sigmf-meta`]), expFiles)
+  const expApi = await page.evaluateAsync(`fetch('/api/v1/tasks/${taskId}/export').then(r => r.json())`)
+  const expN4 = expApi.exportable[0]?.samples ?? 0
+  const expDataBytes = expApi.files.find((f) => f.name.endsWith('.sigmf-data'))?.bytes
+  check('数据文件恰为 样点数 × 4 字节（复 int16）', expN4 > 0 && expDataBytes === 4 * expN4, `${expN4} 样点，${expDataBytes} 字节`)
+  const expRes = expApi.job?.results?.[0]
+  check('缺省链 DDC 旁路：S4 在 ADC 输出上，导出无损且带真值注记',
+    !!expRes && expRes.point === 'S3' && expRes.lossless === true && expRes.annotations > 0, JSON.stringify(expRes ?? null).slice(0, 160))
+  const expMeta = await readFile(join(ROOT, 'data', 'exports', taskId, `${taskId}_s4.sigmf-meta`), 'utf8').then(JSON.parse).catch(() => null)
+  check('文件真的在服务器本机目录里（元数据可读、样点率对得上）',
+    !!expMeta && expMeta.global['core:datatype'] === 'ci16_le' && expMeta.global['core:sample_rate'] === expApi.exportable[0].sample_rate_Hz,
+    expMeta ? `${expMeta.global['core:datatype']} @ ${expMeta.global['core:sample_rate']}` : '读不到')
+  const expLeak = await page.evaluateAsync(`Promise.all([
+    fetch('/data/runs/${taskId}/s4/iq.cf32').then(r => r.status),
+    fetch('/data/exports/${taskId}/${taskId}_s4.sigmf-data').then(r => r.status)]).then(JSON.stringify)`)
+  check('原始样点与导出文件都不经浏览器可取（铁律 7）', expLeak === '[404,404]', expLeak)
+  exportDirs.push(join(ROOT, 'data', 'exports', taskId))
 
   // ---------- ③ 框图能存能再开 ----------
   await page.evaluate("(document.querySelector('[data-action=chain-save]').click(), true)")
@@ -1096,6 +1145,7 @@ try {
   if (page && chrome) await page.close(chrome.port)
   if (chrome) chrome.proc.kill()
   if (dir) await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  for (const d of exportDirs) await rm(d, { recursive: true, force: true }).catch(() => undefined)
 }
 
 let bad = 0

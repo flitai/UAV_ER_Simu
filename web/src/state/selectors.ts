@@ -214,6 +214,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
           }),
         ),
         taps: TAP_ORDER.filter((t) => chain.taps[t]),
+        tapIq: TAP_ORDER.filter((t) => chain.taps[t] && chain.tapIq[t]),
         plan: { fs_rf: plan.fs_rf, f_rx: plan.f_rx, fs_s4: plan.fs_s4, decim: plan.decim },
         checks: Object.fromEntries(checks.map((k) => [k.id, k.ok])),
       }

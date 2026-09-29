@@ -513,7 +513,8 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
       taps.push({
         id: tapOpId(t, at.inst, at.inst ? 2 : 1),
         node: at.node, port: at.port,
-        products: ['spectrum', 'envelope'],
+        // 另存原始 IQ（D-090）：只在勾了时多写一项，全关时与从前逐字节相同
+        products: chain.tapIq[t] ? ['spectrum', 'envelope', 'iq'] : ['spectrum', 'envelope'],
         label: TAP_ANCHOR[t].label + (at.inst ? ` · ${at.inst}` : ''),
       })
     }
@@ -777,11 +778,17 @@ export function parseChain(doc: DiagramDoc): ChainState | null {
 
   if (mode === 'replay') chain.slots.tx.variant = def_replay_variant()
 
-  for (const t2 of TAP_ORDER) chain.taps[t2] = false
+  for (const t2 of TAP_ORDER) {
+    chain.taps[t2] = false
+    chain.tapIq[t2] = false
+  }
   for (const op of doc.observation_points ?? []) {
     const i = op.id.indexOf(INST_SEP)
     const base = i < 0 ? op.id : op.id.slice(0, i)
-    if ((TAP_ORDER as readonly string[]).includes(base)) chain.taps[base as TapId] = true
+    if ((TAP_ORDER as readonly string[]).includes(base)) {
+      chain.taps[base as TapId] = true
+      if ((op.products ?? []).includes('iq')) chain.tapIq[base as TapId] = true
+    }
   }
   return chain
 }

@@ -20,6 +20,22 @@ export function fmtHz(f: number): string {
   return `${f.toFixed(0)} Hz`
 }
 
+/** 文件大小，十进制单位、三位有效数字：640 MB、1.6 GB、39.9 MB（D-090 数据导出用） */
+export function fmtBytes(b: number | null | undefined): string {
+  if (b === null || b === undefined || !Number.isFinite(b) || b < 0) return '—'
+  const units = ['B', 'kB', 'MB', 'GB', 'TB']
+  let v = b
+  let u = 0
+  while (v >= 1000 && u < units.length - 1) {
+    v /= 1000
+    u++
+  }
+  if (u === 0) return `${Math.round(v)} B`
+  let s = v.toPrecision(3)
+  if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, '')
+  return `${s} ${units[u]}`
+}
+
 export function fmtLngLat(lng: number, lat: number): string {
   return `${Math.abs(lng).toFixed(5)}°${lng >= 0 ? 'E' : 'W'} ${Math.abs(lat).toFixed(5)}°${lat >= 0 ? 'N' : 'S'}`
 }

@@ -8,7 +8,7 @@
 // **本视图不持有第二份状态**：链路状态由 `parseChain()` 从 `s.diagram.text` 解出，
 // 改完由 `compile()` 编译回框图再 `diagram/setDoc`。撤销重做与脏标记因此沿用 U-2 的那一套。
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { useAppState, useDispatch, useStore } from '../state/store.js'
 import { saveDiagram, saveScenario } from '../shell/actions.js'
@@ -19,7 +19,7 @@ import { Field, range } from '../diagram/Field.js'
 import { DataIdField } from '../data/DataIdField.js'
 import { getDataset } from '../api/client.js'
 import { formatEng } from '../diagram/format.js'
-import { fmtHz } from '../shell/format.js'
+import { fmtBytes, fmtHz } from '../shell/format.js'
 import { emitters as sceneEmitters, setPath, sites as sceneSites, type Obj } from '../scene/editor/scenarioOps.js'
 import { fieldsFor, modelOf, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
 import { paramLabel, paramTitle } from './paramLabels.js'
@@ -27,7 +27,7 @@ import { DeviceRow } from '../scene/ObjectForm.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { compile, parseChain, switchMode } from './compile.js'
 import {
-  INST_SEP,
+  INST_SEP, IQ_TAPS,
   MODE_LABEL, SLOTS, SLOT_BY_ID, TAP_ANCHOR, TAP_ORDER, GRID_SLOTS,
   DERIVED_PARAMS,
   emptyChain, fromSceneOf, groupMembers, missingParams, ownerOf, paramScope, proxyOf, retiredNote, slotState,
@@ -282,16 +282,29 @@ export function ChainView() {
 
   // 勾选观测点只改框图，不会动已经跑完的任务——产品要下次运行才有。
   // 不提示的话，勾完切到结果页看不到新观测点，会以为勾选没生效（2026-09-08 用户反馈）。
-  const wantTaps = TAP_ORDER.filter((t) => chain.taps[t] && tapAt[t])
-  const ranTaps = s.task.observationPoints.map((o: { op_id: string }) => o.op_id)
+  // 另存原始 IQ 也算进「勾选」：勾了原始 IQ 却没重新运行，结果页的数据导出里就没有它（D-090）
+  const withIq = (t: TapId, iq: boolean) => (iq && IQ_TAPS.includes(t) ? `${t}+iq` : t)
+  const wantTaps = TAP_ORDER.filter((t) => chain.taps[t] && tapAt[t]).map((t) => withIq(t, chain.tapIq[t]))
   // 多站下产品目录名带实例后缀（`s1__site-2`，D-053 §2.6）。比较的是「勾了哪几个观测点」，
   // 所以先去掉后缀再去重——不去的话每个实例化的 id 都落在 TAP_ORDER 之外被整批丢掉，
   // 结果是「跑完就一直提示不一致」。
-  const ranBases = [...new Set(ranTaps
-    .map((x: string) => { const i = x.indexOf(INST_SEP); return i < 0 ? x : x.slice(0, i) })
-    .filter((x: string) => (TAP_ORDER as readonly string[]).includes(x)))]
-  ranBases.sort((a, b) => TAP_ORDER.indexOf(a as TapId) - TAP_ORDER.indexOf(b as TapId))
+  const ranBases = [...new Set(s.task.observationPoints
+    .map((o: { op_id: string; products: string[] }) => {
+      const i = o.op_id.indexOf(INST_SEP)
+      const base = i < 0 ? o.op_id : o.op_id.slice(0, i)
+      return (TAP_ORDER as readonly string[]).includes(base) ? withIq(base as TapId, (o.products ?? []).includes('iq')) : null
+    })
+    .filter((x): x is string => x !== null))]
+  const order = (x: string) => TAP_ORDER.indexOf(x.split('+')[0] as TapId)
+  ranBases.sort((a, b) => order(a) - order(b))
   const tapsStale = !!s.task.id && wantTaps.join(',') !== ranBases.join(',')
+  // 另存原始 IQ 的体积：该点采样率 × 8 字节（复 float32）× 运行时长 × 实例数
+  const iqBytes: Partial<Record<TapId, number>> = {}
+  for (const t of IQ_TAPS) {
+    const fs = t === 's3' ? plan.fs_rf : t === 's4' ? plan.fs_s4 : plan.fs_s5
+    const k = tapAt[t]?.length ?? 0
+    if (fs > 0 && k > 0) iqBytes[t] = 8 * fs * chain.run.duration_s * k
+  }
 
   return (
     <div className="chain-view" data-chain="ready">
@@ -392,8 +405,10 @@ export function ChainView() {
             })}
           </div>
 
-          <TapRow chain={chain} tapAt={tapAt} onToggle={(t, on) =>
-            commit({ ...chain, taps: { ...chain.taps, [t]: on } }, on ? `打开 ${t}` : `关掉 ${t}`)} />
+          <TapRow chain={chain} tapAt={tapAt} iqBytes={iqBytes}
+            onToggle={(t, on) => commit({ ...chain, taps: { ...chain.taps, [t]: on } }, on ? `打开 ${t}` : `关掉 ${t}`)}
+            onToggleIq={(t, on) => commit({ ...chain, tapIq: { ...chain.tapIq, [t]: on } },
+              on ? `${t} 另存原始 IQ` : `${t} 不存原始 IQ`)} />
           </div>
 
           {(s.diagram.validation?.errors.length ?? 0) > 0 && (
@@ -878,28 +893,45 @@ function PropagationGroup(p: {
 function TapRow(p: {
   chain: ChainState
   tapAt: Partial<Record<TapId, unknown>>
+  iqBytes: Partial<Record<TapId, number>>
   onToggle: (t: TapId, on: boolean) => void
+  onToggleIq: (t: TapId, on: boolean) => void
 }) {
   return (
     <div className="tap-row" data-tap-row>
       <span className="tap-lead dim">观测点</span>
       {TAP_ORDER.map((t) => {
         const at = !!p.tapAt[t]
+        // 另存原始 IQ 只对 ADC 之后的观测点给（D-090），且观测点本身要勾上
+        const iqOk = at && !!p.chain.taps[t] && IQ_TAPS.includes(t)
         return (
-          <label key={t} className={`tap${at ? '' : ' dim'}`} data-tap={t}
-            title={at ? '在该环节输出处取样，下次运行输出频谱与包络' : '该观测点无对应节点：所在环节已旁路或尚未实现'}>
-            <input
-              type="checkbox"
-              data-tap-toggle={t}
-              disabled={!at}
-              checked={!!p.chain.taps[t] && at}
-              onChange={(e) => p.onToggle(t, e.target.checked)}
-            />
-            {TAP_ANCHOR[t].label}
-          </label>
+          <Fragment key={t}>
+            <label className={`tap${at ? '' : ' dim'}`} data-tap={t}
+              title={at ? '在该环节输出处取样，下次运行输出频谱与包络' : '该观测点无对应节点：所在环节已旁路或尚未实现'}>
+              <input
+                type="checkbox"
+                data-tap-toggle={t}
+                disabled={!at}
+                checked={!!p.chain.taps[t] && at}
+                onChange={(e) => p.onToggle(t, e.target.checked)}
+              />
+              {TAP_ANCHOR[t].label}
+            </label>
+            {iqOk && (
+              <label className="tap tap-iq" data-tap-iq={t} title="下次运行另存该点的原始样点，结果页「数据导出」可导成 SigMF">
+                <input
+                  type="checkbox"
+                  data-tap-iq-toggle={t}
+                  checked={!!p.chain.tapIq[t]}
+                  onChange={(e) => p.onToggleIq(t, e.target.checked)}
+                />
+                原始 IQ <span className="dim mono" data-tap-iq-size={t}>{fmtBytes(p.iqBytes[t])}</span>
+              </label>
+            )}
+          </Fragment>
         )
       })}
-      <span className="tap-hint dim">勾选的观测点在下次运行时输出频谱与包络，结果页按观测点分列</span>
+      <span className="tap-hint dim">勾选的观测点在下次运行时输出频谱与包络，结果页按观测点分列；S3–S5 可另存原始 IQ，在结果页「数据导出」导成 SigMF</span>
     </div>
   )
 }
