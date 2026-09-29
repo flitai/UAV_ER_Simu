@@ -1,16 +1,23 @@
 // OFDM 族波形的单测（Q-2，14 号报告 §2，决策 D-088）。
 //
-// 这一份先只有一组：
+// 分组：
 //   ① 预设表：geo/src/radiator_presets.cpp 与 models/radiator/presets-v1.json 逐项相同，
-//      且表文件的 sha256 与生成时记下的一致（防「改了 JSON 忘了重生成」）。
-// 调制器、重采样、帧排布、源的生成路径各自的用例随后续步骤加在这里。
+//      且表文件的 sha256 与生成时记下的一致（防「改了 JSON 忘了重生成」）；
+//   ② 原生率调制器（engine/src/ofdm.cpp）：缓存旋转因子的 FFT 与原版逐位相同、结构性质
+//      （子载波数、CP、ZC 功率）、对 Python 参考与 MATLAB 一方的黄金基准（算法核尺度 1e-9）。
+// 重采样、帧排布、源的生成路径各自的用例随后续步骤加在这里。
 
+#include <cmath>
+#include <complex>
 #include <cstdint>
 #include <fstream>
 #include <iterator>
 #include <string>
 #include <vector>
 
+#include "cuav/dsp.h"
+#include "cuav/ofdm.h"
+#include "cuav/random.h"
 #include "cuav/sha256.h"
 #include "cuav_geo/radiator_presets.h"
 #include "doctest/doctest.h"
@@ -129,4 +136,142 @@ TEST_CASE("预设表：DroneID 的结构逐项对 NDSS 2023 §III-B") {
     }
     CHECK(b.length_n == 9880);                   // 643.23 µs
     CHECK(d->slot_n == 9830400);                 // 640 ms
+}
+
+// ---------------------------------------------------------------- ② 原生率调制器
+
+TEST_CASE("FftPlan：与 fft_inplace(double) 逐位相同") {
+    Xoshiro256pp rng(77);
+    for (std::size_t n : {std::size_t(8), std::size_t(1024), std::size_t(2048), std::size_t(4096)}) {
+        std::vector<std::complex<double>> a(n);
+        for (std::size_t i = 0; i < n; ++i) a[i] = std::complex<double>(rng.normal(), rng.normal());
+        std::vector<std::complex<double>> b = a;
+        dsp::fft_inplace(a);
+        dsp::FftPlan plan(n);
+        plan.forward(b);
+        bool same = true;
+        for (std::size_t i = 0; i < n; ++i)
+            same = same && a[i].real() == b[i].real() && a[i].imag() == b[i].imag();
+        CHECK_MESSAGE(same, "n = " << n);
+    }
+    CHECK_THROWS(dsp::FftPlan(1000));
+}
+
+TEST_CASE("调制器：每个符号恰 2K 个非零子载波、直流空、CP 逐位循环、ZC 符号功率恰为 1") {
+    for (std::size_t pi = 0; pi < geo::radiator_preset_v1_count(); ++pi) {
+        const geo::RadiatorPreset& p = geo::radiator_preset_v1_at(pi);
+        CAPTURE(p.id);
+        ofdm::Modulator m;
+        std::string err;
+        REQUIRE(m.init(p, err));
+        for (int v = 0; v < p.n_bursts; ++v) {
+            std::vector<std::complex<double>> y;
+            m.burst(v, 12345u + static_cast<unsigned>(v), y);
+            REQUIRE(static_cast<std::int64_t>(y.size()) == p.bursts[v].length_n);
+            const std::size_t N = static_cast<std::size_t>(p.fft_size);
+            std::size_t off = 0;
+            for (int s = 0; s < p.bursts[v].n_symbols; ++s) {
+                const std::size_t cp = static_cast<std::size_t>(p.bursts[v].cp[s]);
+                std::vector<std::complex<double>> sym(y.begin() + static_cast<long>(off + cp),
+                                                      y.begin() + static_cast<long>(off + cp + N));
+                for (std::size_t i = 0; i < cp; ++i) REQUIRE(y[off + i] == sym[N - cp + i]);
+                std::vector<std::complex<double>> X = sym;
+                dsp::fft_inplace(X);
+                int nz = 0;
+                for (std::size_t i = 0; i < N; ++i) nz += std::abs(X[i]) > 1e-6 ? 1 : 0;
+                CHECK(nz == 2 * p.half_subcarriers);
+                CHECK(std::abs(X[0]) < 1e-9);
+                if (p.bursts[v].zc_root[s] != 0) {
+                    double pw = 0.0;
+                    for (std::size_t i = 0; i < N; ++i) pw += std::norm(sym[i]);
+                    CHECK(std::fabs(pw / static_cast<double>(N) - 1.0) < 1e-12);
+                }
+                off += cp + N;
+            }
+        }
+    }
+}
+
+TEST_CASE("调制器：ZC 相位下标按整数取模（大下标不失真）") {
+    // n = 2400、根 29、长 2401：u·n(n+1) ≈ 1.7e8，直接乘 π 再取 cos 会在 1e-9 量级上失真
+    const std::complex<double> z = ofdm::zc_value(29, 2401, 2400);
+    CHECK(std::fabs(std::abs(z) - 1.0) < 1e-15);
+    // n(n+1) = 2400·2401 ≡ 0 (mod 2·2401) —— 恰为 1
+    CHECK(z.real() == 1.0);
+    CHECK(z.imag() == 0.0);
+}
+
+namespace {
+void check_ofdm_golden(const nlohmann::json& g, const std::string& who) {
+    const double tol = g.at("tolerance").at("kernel_rel").get<double>();
+    double worst_all = 0.0;
+    for (const auto& c : g.at("cases")) {
+        const std::string pid = c.at("preset").get<std::string>();
+        CAPTURE(who);
+        CAPTURE(pid);
+        const geo::RadiatorPreset* p = geo::radiator_preset_v1(pid);
+        REQUIRE(p != 0);
+        ofdm::Modulator m;
+        std::string err;
+        REQUIRE(m.init(*p, err));
+        const int v = c.at("variant").get<int>();
+        std::vector<std::complex<double>> y;
+        m.burst(v, c.at("seed").get<std::uint64_t>(), y);
+        if (c.count("burst_length")) CHECK(static_cast<int>(y.size()) == c.at("burst_length").get<int>());
+        Xoshiro256pp rng(c.at("seed").get<std::uint64_t>());
+        std::vector<std::complex<double>> carriers;
+        int next_sym = 0;
+        for (const auto& sym : c.at("symbols")) {
+            const int s = sym.at("symbol").get<int>();
+            // 把随机源推进到第 s 个符号：前面的数据符号每个耗 2K 个 next_u64
+            for (; next_sym <= s; ++next_sym) m.symbol_carriers(v, next_sym, rng, carriers);
+            if (sym.count("carriers")) {
+                const auto& jc = sym.at("carriers");
+                REQUIRE(jc.size() == carriers.size());
+                bool same = true;
+                for (std::size_t i = 0; i < carriers.size(); ++i)
+                    same = same && carriers[i].real() == jc[i][0].get<double>() &&
+                           carriers[i].imag() == jc[i][1].get<double>();
+                CHECK_MESSAGE(same, "符号 " << s << " 的子载波值应逐位相同");
+            }
+            const std::size_t start = sym.at("start").get<std::size_t>();
+            const auto& js = sym.at("samples");
+            double ss = 0.0, worst = 0.0;
+            for (std::size_t i = 0; i < js.size(); ++i) {
+                const std::complex<double> w(js[i][0].get<double>(), js[i][1].get<double>());
+                ss += std::norm(w);
+                worst = std::max(worst, std::abs(y[start + i] - w));
+            }
+            const double rms = std::sqrt(ss / static_cast<double>(js.size()));
+            CHECK_MESSAGE(worst / rms <= tol, "符号 " << s << "：max|差|/rms = " << worst / rms);
+            worst_all = std::max(worst_all, worst / rms);
+        }
+    }
+    MESSAGE(who << "：max|差|/rms 最差 " << worst_all);
+}
+}  // namespace
+
+TEST_CASE("调制器：对 Python 参考（numpy ifft）的黄金基准，算法核尺度 1e-9") {
+    const std::string raw = read_bytes(repo_path("engine/tests/golden/ofdm.json"));
+    const nlohmann::json g = nlohmann::json::parse(raw);
+    CHECK_MESSAGE(g.at("presets").at("sha256").get<std::string>() ==
+                      std::string(geo::radiator_presets_v1_sha256()),
+                  "黄金基准是按旧预设表生成的：uv run --quiet --with numpy python "
+                  "algos/reference/gen_engine_golden.py --mode ofdm -o engine/tests/golden/ofdm.json");
+    check_ofdm_golden(g, "python");
+}
+
+TEST_CASE("调制器：对 MATLAB 一方（通信工具箱 ofdmmod）的黄金基准，算法核尺度 1e-9") {
+    const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/ofdm.matlab.json")));
+    // 防陈旧：MATLAB 一方记着它生成那一刻读到的预设表与脚本的 sha256
+    CHECK_MESSAGE(g.at("guards").at("presets_sha256").get<std::string>() ==
+                      std::string(geo::radiator_presets_v1_sha256()),
+                  "预设表变了而 MATLAB 一方没重跑：MATLAB_ROOT=<MATLAB 安装目录> sh matlab/run_matlab.sh");
+    for (const auto& h : g.at("guards").at("source_m_sha256")) {
+        const std::string rel = h.at("path").get<std::string>();
+        CHECK_MESSAGE(sha256_hex(read_bytes(repo_path(rel))) == h.at("sha256").get<std::string>(),
+                      rel << " 改过而 MATLAB 一方没重跑");
+    }
+    CHECK(g.at("matlab_vs_python_max_rel").get<double>() <= 1e-9);
+    check_ofdm_golden(g, "matlab");
 }

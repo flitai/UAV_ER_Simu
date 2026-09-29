@@ -30,6 +30,21 @@ void fft_inplace(std::vector<std::complex<double>>& x);
 void fftshift(std::vector<std::complex<double>>& x);
 void fftshift(std::vector<double>& x);
 
+// 同一个 double FFT，旋转因子按级缓存一次（Q-2，D-088）。OFDM 调制每个符号都要一次
+// 2048 / 4096 点变换，每秒上万次；fft_inplace 每次调用都重算全部旋转因子。
+// **算术与 fft_inplace(double) 逐位相同**：位反转、逐级旋转因子的求值式与蝶形次序一字不差，
+// 只是把旋转因子挪到构造时算，由 engine/tests/test_ofdm.cpp 逐位核对。fft_inplace 本身不动。
+class FftPlan {
+public:
+    FftPlan() : n_(0) {}
+    explicit FftPlan(std::size_t n);               // n 必须是 2 的幂，否则抛 invalid_argument
+    std::size_t size() const { return n_; }
+    void forward(std::vector<std::complex<double>>& x) const;   // x.size() 必须等于 size()
+private:
+    std::size_t n_;
+    std::vector<std::vector<std::complex<double>>> tw_;         // 第 s 级（len = 2^(s+1)）的旋转因子
+};
+
 // 正则化上不完全伽马函数 Q(a,x)=Γ(a,x)/Γ(a)。
 // 与 algos/reference/energy_detector.py 的 regularized_gamma_q 同算法同分支条件。
 double regularized_gamma_q(double a, double x);

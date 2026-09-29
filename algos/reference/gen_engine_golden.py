@@ -788,6 +788,79 @@ def write_rx_filter(args) -> int:
     return 0
 
 
+def write_ofdm(args) -> int:
+    """原生采样率 OFDM 调制（Q-2，D-088）：algos/reference/ofdm_ref.py 与引擎 ofdm.cpp 的对拍。
+
+    只做**算法核尺度**（double 进 double 出，判据 1e-9，同 D-071 ③）。每个算例存若干个符号：
+    子载波值（显式数据，MATLAB 一方直接读它做 ofdmmod）与该符号带 CP 的时域样点。
+    子载波值本身由整数随机源定出（Xoshiro 的 next_u64 → 电平表），三方共享的是比特。
+    """
+    import hashlib
+    import ofdm_ref
+
+    doc_p = ofdm_ref.load_presets()
+    with open(os.path.join(ofdm_ref._ROOT, ofdm_ref.PRESETS_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+
+    plan = [("dji-droneid", 0, [3, 8]), ("dji-uplink-2m", 0, [0, 1]),
+            ("dji-video-10m", 0, [1]), ("dji-video-20m-a", 0, [2])]
+    cases = []
+    for pid, variant, syms in plan:
+        p = ofdm_ref.Preset(doc_p, pid)
+        y, carriers = ofdm_ref.burst(p, variant, args.ofdm_seed, want_carriers=True)
+        cps = p.bursts[variant]["cp"]
+        symbols = []
+        for s in syms:
+            start = sum(p.fft + c for c in cps[:s])
+            seg = y[start: start + cps[s] + p.fft]
+            symbols.append({
+                "symbol": s,
+                "start": start,
+                "cp": cps[s],
+                "zc_root": p.bursts[variant]["zc"][s],
+                "carriers": [[c.real, c.imag] for c in carriers[s]],
+                "samples": [[float(v.real), float(v.imag)] for v in seg],
+            })
+        cases.append({
+            "preset": pid, "variant": variant, "seed": args.ofdm_seed,
+            "fft_size": p.fft, "half_subcarriers": p.K, "gain": p.gain,
+            "burst_length": int(len(y)), "symbols": symbols,
+        })
+
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "原生采样率 OFDM 调制的对拍基准（Q-2，D-088）：引擎 engine/src/ofdm.cpp 对 "
+                   "algos/reference/ofdm_ref.py（numpy ifft）；MATLAB 一方读本文件的子载波值做 ofdmmod，"
+                   "写 ofdm.matlab.json",
+        "generator": "algos/reference/gen_engine_golden.py --mode ofdm",
+        "presets": {"source": ofdm_ref.PRESETS_REL.replace(os.sep, "/"), "sha256": table_sha},
+        "contract": "子载波 k = -K..-1,+1..+K；数据：每突发 Xoshiro256pp(seed)，逐数据符号逐子载波一个 next_u64，"
+                    "低 b 位给 I、再往上 b 位给 Q；ZC 删去中间一项；x[n] = g·Σ X_k·e^{+j2πkn/N}，g = 1/√(2K)；"
+                    "先 CP（符号尾部）再符号本体",
+        "cases": cases,
+        "tolerance": {
+            "kernel_rel": 1e-9,
+            "note": "max|差| / 该符号样点的均方根；carriers 须逐位相同（整数随机源 + 同一电平表）",
+        },
+    }
+    # 一对 [实, 虚] 占一行：indent=1 会把两万多个数各占一行，文件翻倍而 diff 更难读
+    arrays = {}
+    for ci, c in enumerate(cases):
+        for si, sym in enumerate(c["symbols"]):
+            for key in ("carriers", "samples"):
+                tag = f"@@{ci}_{si}_{key}@@"
+                arrays[tag] = sym[key]
+                sym[key] = tag
+    text = json.dumps(doc, ensure_ascii=False, indent=1)
+    for tag, pairs in arrays.items():
+        body = ",\n".join(json.dumps(pr) for pr in pairs)
+        text = text.replace(json.dumps(tag), "[\n" + body + "\n]", 1)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(text + "\n")
+    print(f"写出 {args.out}：{len(cases)} 个算例，预设表 sha256 {table_sha[:16]}…")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -800,7 +873,7 @@ def main(argv=None) -> int:
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
-                                      "channelizer", "rx_filter"), default="probe")
+                                      "channelizer", "rx_filter", "ofdm"), default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -852,6 +925,7 @@ def main(argv=None) -> int:
     # 0.2 档抽头 57 = 表内最大值（不补零），0.8 档 55（末尾补两个零）：两条路径都盖到
     ap.add_argument("--rx-kernel-bw-rels", type=float, nargs="+", default=[0.2, 0.8])
     ap.add_argument("--rx-kernel-block", type=int, default=1024)
+    ap.add_argument("--ofdm-seed", type=int, default=20260929, help="ofdm：突发载荷种子")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
@@ -862,6 +936,8 @@ def main(argv=None) -> int:
         return write_channelizer(args)
     if args.mode == "rx_filter":
         return write_rx_filter(args)
+    if args.mode == "ofdm":
+        return write_ofdm(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

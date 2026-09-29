@@ -73,6 +73,44 @@ void fft_inplace(std::vector<std::complex<double>>& x) {
     }
 }
 
+FftPlan::FftPlan(std::size_t n) : n_(n) {
+    if (n == 0 || (n & (n - 1)) != 0) throw std::invalid_argument("FFT 长度必须是 2 的幂");
+    const double kTwoPi = 6.28318530717958647692;       // 与 fft_inplace(double) 同一个常数
+    for (std::size_t len = 2; len <= n; len <<= 1) {
+        const std::size_t half = len / 2;
+        std::vector<std::complex<double>> tw(half);
+        for (std::size_t k = 0; k < half; ++k) {
+            const double ang = -kTwoPi * static_cast<double>(k) / static_cast<double>(len);
+            tw[k] = std::complex<double>(std::cos(ang), std::sin(ang));
+        }
+        tw_.push_back(tw);
+    }
+}
+
+void FftPlan::forward(std::vector<std::complex<double>>& x) const {
+    const std::size_t n = n_;
+    if (x.size() != n) throw std::invalid_argument("FftPlan::forward：长度与计划不符");
+    for (std::size_t i = 1, j = 0; i < n; ++i) {
+        std::size_t bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) std::swap(x[i], x[j]);
+    }
+    std::size_t stage = 0;
+    for (std::size_t len = 2; len <= n; len <<= 1, ++stage) {
+        const std::size_t half = len / 2;
+        const std::vector<std::complex<double>>& tw = tw_[stage];
+        for (std::size_t i = 0; i < n; i += len) {
+            for (std::size_t k = 0; k < half; ++k) {
+                const std::complex<double> u = x[i + k];
+                const std::complex<double> v = x[i + k + half] * tw[k];
+                x[i + k] = u + v;
+                x[i + k + half] = u - v;
+            }
+        }
+    }
+}
+
 void fftshift(std::vector<std::complex<double>>& x) {
     const std::size_t n = x.size();
     if (n < 2) return;
