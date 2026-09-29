@@ -51,6 +51,15 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== SigMF 导出的两份实现逐项一致（D-090）===\n'
+# 服务端 TypeScript（界面「数据导出」用，交付包没有 Python）对 Python 参考：数据文件逐字节、元数据与链路逐值、
+# 官方包校验。两次真引擎运行覆盖 S3 无损与 S4 / S5 重量化两条路径。约 20 s。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ] && [ -f "$root/server/dist/exports/cli.js" ]; then
+  uv run --quiet --with numpy --with sigmf python tests/regression/export_parity.py
+else
+  echo "跳过：需要 uv、engine/build/cuav_run 与 server/dist（缺一）" >&2
+fi
+
 printf '=== 机型预设表（Q-2，D-088）===\n'
 # 生成的 C++ 与 models/radiator/presets-v1.json 一致；表里每个 M 档数能从 q0b-params.json 复算。只用标准库。
 if command -v uv >/dev/null 2>&1; then
