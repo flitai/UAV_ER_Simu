@@ -511,6 +511,13 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
     for (std::size_t i = 0; i < sched_.notes().size(); ++i)
         status_.notes.push_back(sched_.notes()[i]);
     waveform_ = em->emission.waveform;
+    if (geo::is_ofdm_family(waveform_.type)) {
+        // Q-2 分步落地（D-088）：生成路径在第 7 步接通。此前明确拒绝——落到下面的分支会被当成单音
+        // 生成，而且不会有任何提示（铁律 15）。
+        err = "SceneEmitterSource：辐射源 " + entity_id_ + " 的波形 " + geo::waveform_type_name(waveform_.type) +
+              " 的生成路径尚未接通（Q-2 第 7 步）";
+        return false;
+    }
     emitter_center_Hz_ = em->emission.center_Hz;
     bw_Hz_ = em->emission.bw_Hz;
     emit_at_tx_power_ = get_num(params, "emit_at_tx_power", 0.0) != 0.0;

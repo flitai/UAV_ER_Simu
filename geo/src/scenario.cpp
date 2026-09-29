@@ -6,6 +6,8 @@
 #include <sstream>
 
 #include "cuav_geo/activity.h"
+#include "cuav_geo/ofdm_frame.h"
+#include "cuav_geo/radiator_presets.h"
 
 namespace cuav {
 namespace geo {
@@ -36,6 +38,71 @@ const RouteSpec* Scenario::find_route(const std::string& emitter_id) const {
         if (routes[i].emitter_id == emitter_id) return &routes[i];
     return 0;
 }
+
+const char* waveform_type_name(WaveformType t) {
+    switch (t) {
+    case WaveformType::Tone: return "tone";
+    case WaveformType::Noise: return "noise";
+    case WaveformType::Burst: return "burst";
+    case WaveformType::Ofdm: return "ofdm";
+    case WaveformType::DroneId: return "droneid";
+    }
+    return "";   // 走不到：上面穷举，漏一个编译器按 -Wswitch 报
+}
+
+namespace {
+// OFDM 族（D-088）的场景级规则：预设存在、类型对得上、带宽等于占用带宽、帧起点是整数个原生样点、
+// 每个站的采样率在重采样档位里。铁律 4 本身由上面那道逐跳的 |Δf| + B/2 < Fs/2 管（B 此时恰是
+// 预设占用带宽）。**不再另设「按重采样阻带边 0.5·fs_n」的闸**——规划时设过，写夹具时发现它会拒掉
+// 实测里就存在的配置：C/E 族图传 2457.5–2475.5 MHz、上行 2402–2477 MHz 的跳频跨度在 80 MS/s @ 2440 MHz
+// 下都过不了，而 DroneRFb 正是这样录到它们的。越过带边的只有符号旁瓣经滤波过渡带衰减后的残余，
+// 记在模型卡的已知边界里，不当作混叠去拒。
+bool check_ofdm_emitter(const Scenario& sc, const Emitter& e, std::string& err) {
+    const Waveform& w = e.emission.waveform;
+    const RadiatorPreset* p = radiator_preset_v1(w.preset_id);
+    if (p == 0) {
+        std::string ids;
+        for (std::size_t i = 0; i < radiator_preset_v1_count(); ++i)
+            ids += (i ? " / " : "") + std::string(radiator_preset_v1_at(i).id);
+        err = "辐射源 " + e.id + " 的 preset_id「" + w.preset_id + "」不在机型预设表 v1 里（可取 " + ids + "）";
+        return false;
+    }
+    if (std::string(p->type) != waveform_type_name(w.type)) {
+        err = "辐射源 " + e.id + " 的波形类型 " + waveform_type_name(w.type) + " 与预设 " + p->id +
+              " 的类型 " + p->type + " 对不上";
+        return false;
+    }
+    if (std::fabs(e.emission.bw_Hz - p->occupied_bw_Hz) > 1e-6) {
+        std::ostringstream os;
+        os.precision(12);
+        os << "辐射源 " << e.id << " 的 emission.bw_Hz 必须等于预设 " << p->id << " 的占用带宽 "
+           << p->occupied_bw_Hz << " Hz（结构由预设给出，带宽不单独设；D-088）";
+        err = os.str();
+        return false;
+    }
+    const double off_n = w.frame_offset_s * p->fs_native_Hz;
+    if (std::fabs(off_n - std::floor(off_n + 0.5)) > 1e-6) {
+        std::ostringstream os;
+        os.precision(12);
+        os << "辐射源 " << e.id << " 的 frame_offset_s 必须是整数个原生样点（1 / " << p->fs_native_Hz << " s 的整数倍）";
+        err = os.str();
+        return false;
+    }
+    for (std::size_t si = 0; si < sc.sites.size(); ++si) {
+        const Receiver& r = sc.sites[si].receiver;
+        if (rsmp_decim_for(*p, r.fs_Hz) == 0) {
+            std::ostringstream os;
+            os.precision(12);
+            os << "辐射源 " << e.id << " 用预设 " << p->id << "（原生采样率 " << p->fs_native_Hz
+               << " Hz），站点 " << sc.sites[si].id << " 的采样率 " << r.fs_Hz
+               << " Hz 不在有理重采样的档位里；可取 " << rsmp_allowed_fs_text(*p);
+            err = os.str();
+            return false;
+        }
+    }
+    return true;
+}
+}  // namespace
 
 bool Scenario::cross_check(std::string& err) const {
     std::set<std::string> ids;
@@ -156,6 +223,10 @@ bool Scenario::cross_check(std::string& err) const {
                 return false;
             }
         }
+    }
+    for (std::size_t ei = 0; ei < emitters.size(); ++ei) {
+        if (is_ofdm_family(emitters[ei].emission.waveform.type) && !check_ofdm_emitter(*this, emitters[ei], err))
+            return false;
     }
     return true;
 }

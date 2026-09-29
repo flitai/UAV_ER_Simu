@@ -1,9 +1,38 @@
 #include "cuav_geo/ofdm_frame.h"
 
 #include <algorithm>
+#include <cmath>
+#include <sstream>
 
 namespace cuav {
 namespace geo {
+
+namespace {
+const int kRsmpDecim[] = {24, 48, 96};
+}
+
+int rsmp_decim_for(const RadiatorPreset& p, double fs_Hz) {
+    for (std::size_t i = 0; i < sizeof(kRsmpDecim) / sizeof(kRsmpDecim[0]); ++i) {
+        const double fs = p.fs_native_Hz * kRsmpInterp / kRsmpDecim[i];
+        if (fs < p.fs_native_Hz) continue;                       // 只升采样
+        if (std::fabs(fs_Hz - fs) <= 1e-9 * fs) return kRsmpDecim[i];
+    }
+    return 0;
+}
+
+std::string rsmp_allowed_fs_text(const RadiatorPreset& p) {
+    std::ostringstream os;
+    os.precision(12);
+    bool first = true;
+    for (int i = static_cast<int>(sizeof(kRsmpDecim) / sizeof(kRsmpDecim[0])) - 1; i >= 0; --i) {
+        const double fs = p.fs_native_Hz * kRsmpInterp / kRsmpDecim[i];
+        if (fs < p.fs_native_Hz) continue;
+        os << (first ? "" : " / ") << fs;
+        first = false;
+    }
+    os << " Hz";
+    return os.str();
+}
 
 std::uint64_t mix64(std::uint64_t z) {
     z += 0x9E3779B97F4A7C15ULL;

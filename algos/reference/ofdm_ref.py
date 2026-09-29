@@ -177,6 +177,38 @@ def frame_bursts(doc: dict, pid: str, seed: int, emitter_id: str, offset_n: int,
     return out
 
 
+def uplink_hop_sequence(doc: dict, pid: str, seed: int, n_slots: int) -> list:
+    """上行预设的跳频序列（按时隙排，给场景 hop 活动的 sequence，dwell_s = 时隙长）。
+
+    频点按**突发**抽：候选突发时隙（时隙循环里「发」的那几格）上，以概率 hop_repeat_prob 沿用上一跳，
+    否则在 hop_grid 上均匀抽一个（Xoshiro256pp(seed)，每个候选时隙先取一个 uniform 判沿用、
+    不沿用再取一个 next_u64 取模）。空时隙抄**下一个**候选时隙的频点——换频都落在空档里，读起来
+    也像真实的逐跳序列。源与评价器按突发中点时刻取频点（D-088 ⑦），空时隙的值只为可读，不影响结果。
+    跳步的实测分布（2 / 3 / 5 MHz 的倍数居多）不拟合，按栅格均匀抽是 A 档，Q-5 对照里照实给差距。
+    """
+    raw = next(x for x in doc["presets"] if x["id"] == pid)
+    grid = raw["hop_grid"]
+    pts = [grid["start_Hz"] + grid["spacing_Hz"] * i for i in range(grid["n_points"])]
+    rep = raw["hop_repeat_prob"]
+    cycle = raw["frame"]["cycle"]
+    cand = [k for k in range(n_slots) if cycle[k % len(cycle)][0] < 1.0]
+    rng = _xoshiro()(seed)
+    freq = {}
+    prev = None
+    for k in cand:
+        if prev is not None and rng.uniform() < rep:
+            f = prev
+        else:
+            f = pts[rng.next_u64() % len(pts)]
+        freq[k] = f
+        prev = f
+    seq = []
+    for k in range(n_slots):
+        nxt = next((c for c in cand if c >= k), cand[0])
+        seq.append(freq[nxt])
+    return seq
+
+
 def papr_ccdf_dB(x: np.ndarray, prob: float = 1e-3) -> float:
     pw = np.abs(x) ** 2
     return 10.0 * math.log10(float(np.quantile(pw, 1.0 - prob)) / float(np.mean(pw)))
@@ -233,9 +265,15 @@ def _selftest() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--uplink-sequence", metavar="PRESET", help="打印上行预设的按时隙跳频序列（JSON 数组）")
+    ap.add_argument("--seed", type=int, default=20260929)
+    ap.add_argument("--slots", type=int, default=30)
     a = ap.parse_args()
     if a.selftest:
         return _selftest()
+    if a.uplink_sequence:
+        print(json.dumps(uplink_hop_sequence(load_presets(), a.uplink_sequence, a.seed, a.slots)))
+        return 0
     ap.print_help()
     return 0
 

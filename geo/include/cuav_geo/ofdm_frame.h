@@ -31,6 +31,15 @@
 namespace cuav {
 namespace geo {
 
+// 有理重采样的档位（与 models/radiator/fir_rsmp_v1.json 的 interp_L / decim_M_supported 相同；
+// engine/tests/test_ofdm.cpp 核对）。场景载入时就要判「这个站的采样率生成得了这个预设吗」，
+// 而 geo/ 看不见引擎里的系数表，于是把这两件事实在这里声明一次。
+const int kRsmpInterp = 125;
+// 预设在站点采样率 fs 下对应的抽取比 M（fs = fs_n·L/M 且 fs ≥ fs_n）；不在档返回 0。
+int rsmp_decim_for(const RadiatorPreset& p, double fs_Hz);
+// 该预设可取的站点采样率，报错用，如 "20000000 / 40000000 / 80000000 Hz"。
+std::string rsmp_allowed_fs_text(const RadiatorPreset& p);
+
 // splitmix64 的一步（先加黄金比例常数再混合），与 engine/src/random.cpp 的种子铺开同式。
 std::uint64_t mix64(std::uint64_t z);
 // FNV-1a 64 位，按 UTF-8 字节。

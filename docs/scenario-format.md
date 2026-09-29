@@ -44,7 +44,7 @@
 | `aoi` | object | 是 | `{id, manifest_sha256}`：所属场景数据包及其入口清单哈希；不一致时场景状态 `invalid` |
 | `coordinate` | object | 是 | `{crs: "EPSG:4326", alt_ref: "AGL" \| "MSL", terrainHeight_m, coord_version}`。首期 `alt_ref` 固定 `AGL`（离地高），`terrainHeight_m` 是显式平地假设常数（铁律 2） |
 | `time` | object | 是 | `{basis: "LogicalSim", duration_s}`。首期只允许 `LogicalSim`（铁律 3） |
-| `seed` | integer | 是 | 场景内随机量的种子，与框图 `run.seed` 独立，两者都进溯源。**截至 2026-09-20 它没有任何消费者**：引擎解析并校验它（必填、非负整数），但驱动全部随机量的是框图的 `run.seed`——接收机热噪声、统计阴影、测向误差抽样、站钟抖动的子流都从那一个派生（各组件 `init()` 里 `sub_rng_ = Xoshiro256pp(rng.next_u64())`）。字段保留是因为场景侧将来会有自己的随机量（如按场景重抽的阴影实现），**但在那之前界面上不显示它**，免得让人以为换了它结果就会变（同 `antenna.pattern` 与 `receiver.bw_Hz` 两次先例：声明了、校验了、没人用）|
+| `seed` | integer | 是 | 场景内随机量的种子，与框图 `run.seed` 独立，两者都进溯源。取值 0 … 2^53 − 1（上限自 2026-09-29 起，D-088：浏览器里的数是 double，超过即往返失真）。**自 2026-09-29（Q-2，D-088）起有第一个消费者：OFDM 族波形的帧排布**——图传每个时隙发不发、发长发短，按 `splitmix64(seed, 辐射源 id, 时隙号)` 的计数器哈希抽签（`geo/src/ofdm_frame.cpp`），于是同一份场景每次跑出同一张突发表，评价器不必从随机流取数也能记出同样的真值；换了 seed 图传的突发排布就变。其余随机量（接收机热噪声、统计阴影、测向误差、站钟抖动、OFDM 载荷比特）仍由框图的 `run.seed` 派生。界面上仍不显示它（同 `antenna.pattern` 的先例）|
 | `sites` | array | 是 | 站点，至少 1 个。**多站自 D-053（2026-09-09）起启用**（纯软件多站，05 §3.2）：一条任务可以同时跑 K 个站的接收链。约束是同一框图里参与的各站 `receiver.fs_Hz` 与 `center_Hz` 必须一致（与装载器的跨节点同采样率约束同口径，`engine/src/diagram_json.cpp`）。阵列与多通道仍不做 |
 | `emitters` | array | 是 | 辐射源（无人机），至少 1 个 |
 | `routes` | array | 是 | 航线；每个辐射源至多一条，没有航线的辐射源静止在 `emitters[].position` |
@@ -77,7 +77,7 @@
 | `position` | object | 是 | 初始位置 `{lon, lat, alt_m}`；有航线时以航线第一个航点为准 |
 | `emission` | object | 是 | `{center_Hz, bw_Hz, tx_power_dBm, antenna_gain_dBi, polarization?, waveform}` |
 | `emission.polarization` | enum | 否 | `vertical`（缺省）/ `horizontal` / `slant45` / `rhcp` / `lhcp`（2026-09-07，D-051）。极化失配损耗只在接收端算一次：由接收天线组件按自身 `polarization` 与这里注入的发射极化查五档表（10 报告 §3.2）。既有场景文件不写它仍然合法 |
-| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst", ...}`：`tone` 带 `offset_Hz`；`burst` 带 `period_s, duty, offset_Hz`；`noise` 的 `offset_Hz` 可选（缺省 0）。**`offset_Hz` 自 2026-09-15（C-8，D-069）起对三种波形通用**——此前 noise 既不带限也不搬移频率，写了 `center_Hz` 与 `offset_Hz` 都不起作用；现在 noise 按 `bw_Hz` 做 4 阶巴特沃斯带限（阻带非砖墙，裙边比 `bw_Hz` 宽）并搬移到 `center_Hz + offset_Hz`。P3 再扩 `ofdm` / `fhss`；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
+| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst" \| "ofdm" \| "droneid", ...}`：`tone` 带 `offset_Hz`；`burst` 带 `period_s, duty, offset_Hz`；`noise` 的 `offset_Hz` 可选（缺省 0）。**`offset_Hz` 自 2026-09-15（C-8，D-069）起对三种波形通用**——此前 noise 既不带限也不搬移频率，写了 `center_Hz` 与 `offset_Hz` 都不起作用；现在 noise 按 `bw_Hz` 做 4 阶巴特沃斯带限（阻带非砖墙，裙边比 `bw_Hz` 宽）并搬移到 `center_Hz + offset_Hz`。**`ofdm` / `droneid` 自 2026-09-29（Q-2，D-088）起**：`{type, preset_id, offset_Hz?, frame_offset_s?}`，结构（数值结构、子载波数、突发、帧排布、星座）全部取自机型预设表 `models/radiator/presets-v1.json`，场景只写 `preset_id`；**`emission.bw_Hz` 必须等于预设的占用带宽**（不等即拒并给出正确值），站点采样率必须在有理重采样的档位里（原生 15.36 MS/s 的预设取 20 / 40 / 80 MS/s，30.72 取 40 / 80，61.44 取 80），`frame_offset_s` 须为整数个原生样点；DroneID 与图传同一架机时写成两个辐射源（同航线）。`fhss` 与 GFSK 随 Q-3；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
 
 ## 5. 航线 `routes[]`
 
@@ -242,7 +242,8 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
       （2026-09-06，`tests/unit/test_scenario_example.py` 八项：schema、清单哈希、跨引用、航线时长覆盖仿真时长、
       全部位置落在观测区域内）
 - [ ] 多站、阵列与设备字段（05 P0，只作命名预留）
-- [ ] P3 波形类型 `ofdm` / `fhss` 的字段
+- [x] 波形类型 `ofdm` / `droneid`（2026-09-29，Q-2，D-088：见 §4 `emission.waveform` 一行）
+- [ ] 波形类型 `gfsk`（Q-3）与 `fhss`
 - [ ] 波形类型 `template`（`template_id`；模板文件路径是内部参数，画布只见标识，与 D-037 同法；`docs/emitter-template.md` §7；D-045）
 - [ ] `emission.tx_power_dBm` 的来源字段 `tx_power_source ∈ {measured, paper, assumed}`：数据层记账随产物走，界面不显示（铁律 8、14；D-042；D-045）
 - [x] 圆形告警区 `zones[]`（2026-09-12 已落地：`{id, name, kind ∈ alert | warning, shape: circle, center{lon, lat}, radius_m, alt_max_m?}`，可选、可空；引擎收下不解释，与 `equipment_model` 同一先例；schema、本文 §2 表与新节、`engine/src/scenario_json.cpp` 键表三处必须同一提交，否则 `PUT` 一律 400。13 报告 §4.6，D-061；随 V-2 落地）

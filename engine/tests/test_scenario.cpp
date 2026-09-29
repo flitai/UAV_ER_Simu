@@ -1017,3 +1017,113 @@ TEST_CASE("多速率：评价器在窄带 fs 下重建的活动时间线，与�
         }
     }
 }
+
+// ---------------------------------------------------------------- OFDM 族（Q-2，D-088）
+
+namespace {
+const char* kOfdm = "tests/regression/scenarios/ofdm-80m.scenario.json";
+
+nlohmann::json ofdm_json() {
+    std::ifstream f(repo(kOfdm).c_str(), std::ios::binary);
+    REQUIRE(f.good());
+    std::stringstream ss;
+    ss << f.rdbuf();
+    return nlohmann::json::parse(ss.str());
+}
+
+// 解析 + 跨引用校验，失败写 err
+bool load_ofdm(const nlohmann::json& j, std::string& err) {
+    geo::Scenario s;
+    if (!parse_scenario(j, s, err)) return false;
+    return s.cross_check(err);
+}
+}  // namespace
+
+TEST_CASE("场景 · OFDM 族：夹具读得通，preset_id 与帧起点收下") {
+    LoadedScenario ls;
+    std::string err;
+    REQUIRE_MESSAGE(load_scenario_file(repo(kOfdm), ls, err), err);
+    const geo::Scenario& s = ls.scenario;
+    REQUIRE(s.emitters.size() == 3);
+    CHECK(s.emitters[0].emission.waveform.type == geo::WaveformType::Ofdm);
+    CHECK(s.emitters[0].emission.waveform.preset_id == "dji-video-20m-a");
+    CHECK(s.emitters[1].emission.waveform.type == geo::WaveformType::DroneId);
+    CHECK(s.emitters[1].emission.waveform.frame_offset_s == 0.1);
+    CHECK(std::string(geo::waveform_type_name(geo::WaveformType::DroneId)) == "droneid");
+}
+
+TEST_CASE("场景 · OFDM 族：解析层拒掉缺键、未知键与越界的 seed") {
+    std::string err;
+    geo::Scenario s;
+    nlohmann::json a = ofdm_json();
+    a["emitters"][0]["emission"]["waveform"].erase("preset_id");
+    CHECK_FALSE(parse_scenario(a, s, err));
+    CHECK(err.find("preset_id") != std::string::npos);
+
+    nlohmann::json b = ofdm_json();
+    b["emitters"][0]["emission"]["waveform"]["period_s"] = 0.01;
+    CHECK_FALSE(parse_scenario(b, s, err));
+
+    nlohmann::json c = ofdm_json();
+    c["emitters"][1]["emission"]["waveform"]["frame_offset_s"] = -0.1;
+    CHECK_FALSE(parse_scenario(c, s, err));
+
+    nlohmann::json d = ofdm_json();
+    d["seed"] = 9007199254740992ULL;            // 2^53：浏览器往返会失真
+    CHECK_FALSE(parse_scenario(d, s, err));
+    CHECK(err.find("2^53") != std::string::npos);
+    d["seed"] = 9007199254740991ULL;            // 2^53 − 1：刚好可以
+    CHECK(parse_scenario(d, s, err));
+}
+
+TEST_CASE("场景 · OFDM 族：预设不存在、类型对不上、带宽不等于占用带宽，一律拒并说清楚") {
+    std::string err;
+    nlohmann::json a = ofdm_json();
+    a["emitters"][0]["emission"]["waveform"]["preset_id"] = "dji-video-99m";
+    CHECK_FALSE(load_ofdm(a, err));
+    CHECK(err.find("dji-video-20m-a") != std::string::npos);     // 报文列出可取值
+
+    nlohmann::json b = ofdm_json();
+    b["emitters"][0]["emission"]["waveform"]["preset_id"] = "dji-droneid";   // ofdm 配 droneid 预设
+    b["emitters"][0]["emission"]["bw_Hz"] = 9015000;
+    CHECK_FALSE(load_ofdm(b, err));
+    CHECK(err.find("对不上") != std::string::npos);
+
+    nlohmann::json c = ofdm_json();
+    c["emitters"][0]["emission"]["bw_Hz"] = 20000000;             // 带宽档 20 MHz ≠ 占用 18.015 MHz
+    CHECK_FALSE(load_ofdm(c, err));
+    CHECK(err.find("18015000") != std::string::npos);
+}
+
+TEST_CASE("场景 · OFDM 族：帧起点必须是整数个原生样点") {
+    std::string err;
+    nlohmann::json a = ofdm_json();
+    a["emitters"][1]["emission"]["waveform"]["frame_offset_s"] = 1e-9;   // 不到一个原生样点
+    CHECK_FALSE(load_ofdm(a, err));
+    CHECK(err.find("整数个原生样点") != std::string::npos);
+    a["emitters"][1]["emission"]["waveform"]["frame_offset_s"] = 0.25;   // 3840000 个，整数
+    CHECK(load_ofdm(a, err));
+}
+
+TEST_CASE("场景 · OFDM 族：站点采样率不在重采样档位里即拒，报文列出可取值（10 MS/s 是反例）") {
+    std::string err;
+    nlohmann::json a = ofdm_json();
+    a["sites"][0]["receiver"]["fs_Hz"] = 10000000;
+    a["sites"][0]["receiver"]["bw_Hz"] = 8000000;
+    // 18 MHz 的图传在 10 MS/s 下先被既有的占用带宽闸拦下（铁律 4，也对）。只留 9.015 MHz 的 DroneID
+    // 并放到中心：4.5 MHz 的半带宽过得了占用带宽闸，拦它的就只剩档位这一道
+    nlohmann::json only = a["emitters"][1];
+    only["emission"]["center_Hz"] = 2440000000;
+    a["emitters"] = nlohmann::json::array({only});
+    a["activities"] = nlohmann::json::array();
+    CHECK_FALSE(load_ofdm(a, err));
+    CHECK(err.find("档位") != std::string::npos);
+    CHECK(err.find("20000000 / 40000000 / 80000000 Hz") != std::string::npos);
+
+    nlohmann::json b = ofdm_json();
+    b["sites"][0]["receiver"]["fs_Hz"] = 40000000;              // 30.72·125/96：在档
+    b["sites"][0]["receiver"]["bw_Hz"] = 32000000;
+    for (auto& e : b["emitters"]) e["emission"]["center_Hz"] = 2440000000;
+    b["activities"] = nlohmann::json::array();
+    CHECK_MESSAGE(load_ofdm(b, err), err);
+}

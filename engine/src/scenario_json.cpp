@@ -120,7 +120,23 @@ bool parse_waveform(const json& w, const std::string& where, geo::Waveform& out,
         if (!(out.duty > 0.0) || !(out.duty <= 1.0)) return fail(err, where, "的 duty 必须在 (0, 1] 内");
         return true;
     }
-    return fail(err, where, "的 type 必须是 tone / noise / burst 之一（ofdm / fhss / template 随 P3）");
+    if (type == "ofdm" || type == "droneid") {
+        // Q-2（D-088）：结构全部取自机型预设表，场景只写 preset_id；offset_Hz 与帧起点可选。
+        // 预设存在、类型对得上、带宽相等、采样率在档这几条在 Scenario::cross_check（要看站点）。
+        static const std::set<std::string> k = {"type", "preset_id", "offset_Hz", "frame_offset_s"};
+        if (!check_keys(w, k, where, err)) return false;
+        out.type = type == "ofdm" ? geo::WaveformType::Ofdm : geo::WaveformType::DroneId;
+        if (!get_str(w, "preset_id", where, out.preset_id, err)) return false;
+        out.offset_Hz = 0.0;
+        if (w.contains("offset_Hz") && !get_num(w, "offset_Hz", where, out.offset_Hz, err)) return false;
+        out.frame_offset_s = 0.0;
+        if (w.contains("frame_offset_s")) {
+            if (!get_num(w, "frame_offset_s", where, out.frame_offset_s, err)) return false;
+            if (!(out.frame_offset_s >= 0.0)) return fail(err, where, "的 frame_offset_s 必须非负");
+        }
+        return true;
+    }
+    return fail(err, where, "的 type 必须是 tone / noise / burst / ofdm / droneid 之一（fhss / template 随后续）");
 }
 
 // 站钟（D-053，可选）。缺席时 has_clock 保持 false——TDOA 相关组件据此报错而不是
@@ -425,6 +441,10 @@ bool parse_scenario(const json& j, geo::Scenario& out, std::string& err) {
     if (!j["seed"].is_number_unsigned())
         return fail(err, "场景文件", "的 seed 必须是非负整数（铁律 9）");
     out.seed = j["seed"].get<std::uint64_t>();
+    // 上限 2^53 − 1（D-088）：浏览器里的数是 double，超过它的整数经编辑器往返一次就被悄悄改掉，
+    // 而场景 seed 自 Q-2 起驱动 OFDM 的帧排布——改了它结果就变
+    if (out.seed > 9007199254740991ULL)
+        return fail(err, "场景文件", "的 seed 不得超过 2^53 − 1 = 9007199254740991（浏览器里的数是 double，超过即往返失真）");
 
     if (!need(j, "sites", "场景文件", err)) return false;
     if (!j["sites"].is_array() || j["sites"].empty())

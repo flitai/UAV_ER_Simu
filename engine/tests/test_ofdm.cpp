@@ -565,3 +565,18 @@ TEST_CASE("帧排布：占空与长突发占比对预设的拟合目标（10 万
         CHECK(std::fabs(lam - pj.at("frame_fit").at("long_share").get<double>()) < 0.01);
     }
 }
+
+TEST_CASE("重采样档位：geo 里声明的一份与冻结表、封装层三处相同") {
+    CHECK(geo::kRsmpInterp == dsp::rsmp_fir_v1().interp);
+    // geo 的 rsmp_decim_for 认的抽取比，恰是封装层支持的那几个
+    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-10m");   // 15.36 MS/s：三档都升采样
+    REQUIRE(p != 0);
+    std::vector<int> got;
+    for (int m : rsmp_supported_decim()) {
+        const double fs = p->fs_native_Hz * geo::kRsmpInterp / m;
+        got.push_back(geo::rsmp_decim_for(*p, fs));
+    }
+    CHECK(got == rsmp_supported_decim());
+    CHECK(geo::rsmp_decim_for(*p, 10e6) == 0);
+    CHECK(geo::rsmp_allowed_fs_text(*p) == "20000000 / 40000000 / 80000000 Hz");
+}

@@ -1,6 +1,7 @@
 """场景示例与 schema 的一致性测试（06 备忘录 §9C G-0）。
 
-校验 data/scene/<aoi>/scenarios/*.scenario.json 全部满足 docs/schemas/scenario.schema.json，
+校验 data/scene/<aoi>/scenarios/*.scenario.json 与 tests/regression/scenarios/*.scenario.json
+（回归夹具，Q-2 起一并纳入，D-088）全部满足 docs/schemas/scenario.schema.json，
 并核对几条 schema 表达不了的约束：观测区域清单哈希对得上、航线引用的辐射源存在、
 航线总时长不短于仿真时长、航点全部落在观测区域范围内。
 
@@ -23,6 +24,12 @@ import jsonschema
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SCHEMA = os.path.join(_ROOT, "docs", "schemas", "scenario.schema.json")
 _PATTERN = os.path.join(_ROOT, "data", "scene", "*", "scenarios", "*.scenario.json")
+_PATTERN_REGRESSION = os.path.join(_ROOT, "tests", "regression", "scenarios", "*.scenario.json")
+
+
+def _manifest(doc: dict) -> str:
+    """观测区域清单按 aoi.id 找，不按文件所在目录推——回归夹具不住在 data/scene/<aoi>/ 下。"""
+    return os.path.join(_ROOT, "data", "scene", doc["aoi"]["id"], "manifest.json")
 
 # WGS-84，与 geo/ 新写代码同口径（决策 D-009：新代码统一 c = 299792458 与严格 ENU）
 _A = 6378137.0
@@ -61,7 +68,7 @@ class ScenarioExampleTest(unittest.TestCase):
     def setUpClass(cls):
         with open(_SCHEMA, encoding="utf-8") as fh:
             cls.schema = json.load(fh)
-        cls.files = sorted(glob.glob(_PATTERN))
+        cls.files = sorted(glob.glob(_PATTERN)) + sorted(glob.glob(_PATTERN_REGRESSION))
 
     def test_at_least_one_example_exists(self):
         self.assertTrue(self.files, f"没有找到任何场景文件：{_PATTERN}")
@@ -111,7 +118,7 @@ class ScenarioExampleTest(unittest.TestCase):
             with self.subTest(path=os.path.relpath(path, _ROOT)):
                 with open(path, encoding="utf-8") as fh:
                     doc = json.load(fh)
-                manifest = os.path.join(os.path.dirname(os.path.dirname(path)), "manifest.json")
+                manifest = _manifest(doc)
                 self.assertTrue(os.path.exists(manifest), f"缺观测区域清单：{manifest}")
                 self.assertEqual(_sha256(manifest), doc["aoi"]["manifest_sha256"])
                 with open(manifest, encoding="utf-8") as fh:
@@ -163,7 +170,7 @@ class ScenarioExampleTest(unittest.TestCase):
             with self.subTest(path=os.path.relpath(path, _ROOT)):
                 with open(path, encoding="utf-8") as fh:
                     doc = json.load(fh)
-                manifest = os.path.join(os.path.dirname(os.path.dirname(path)), "manifest.json")
+                manifest = _manifest(doc)
                 with open(manifest, encoding="utf-8") as fh:
                     west, south, east, north = json.load(fh)["aoi"]["bbox"]
                 points = [s["position"] for s in doc["sites"]]

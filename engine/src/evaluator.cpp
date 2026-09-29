@@ -27,14 +27,9 @@ bool get_text(const std::map<std::string, std::string>& t, const char* key, std:
     return true;
 }
 
-const char* waveform_name(geo::WaveformType t) {
-    switch (t) {
-        case geo::WaveformType::Tone: return "tone";
-        case geo::WaveformType::Noise: return "noise";
-        case geo::WaveformType::Burst: return "burst";
-    }
-    return "tone";
-}
+// 波形名取 geo::waveform_type_name：它穷举、无兜底。这里从前兜底返回 "tone"，
+// 新增的波形类型会被静默记成单音、标签成 cw_beacon（D-088 堵掉）。
+const char* waveform_name(geo::WaveformType t) { return geo::waveform_type_name(t); }
 
 }  // namespace
 
@@ -181,6 +176,13 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
         has_scene_ = true;
         for (std::size_t i = 0; i < ls.scenario.emitters.size(); ++i) {
             const geo::Emitter& e = ls.scenario.emitters[i];
+            if (geo::is_ofdm_family(e.emission.waveform.type)) {
+                // Q-2 分步落地（D-088）：OFDM 族按突发记真值的那一步还没接上。
+                // 先明确拒绝，免得落到下面按「一段一行」记出一份形状不对的真值（铁律 15）。
+                err = "Evaluator：辐射源 " + e.id + " 的波形 " + geo::waveform_type_name(e.emission.waveform.type) +
+                      " 的真值记法尚未接通（Q-2 第 8 步）";
+                return false;
+            }
             EmitterInfo info;
             info.bw_Hz = e.emission.bw_Hz;
             info.waveform = waveform_name(e.emission.waveform.type);
