@@ -10,6 +10,7 @@
 
 #include "cuav/observer.h"
 #include "cuav/scenario_json.h"
+#include "cuav_geo/gfsk_frame.h"
 #include "cuav_geo/ofdm_frame.h"
 #include "cuav_geo/radiator_presets.h"
 
@@ -131,12 +132,41 @@ bool Evaluator::ofdm_truth_bursts(const geo::Scenario& sc, const geo::Emitter& e
     info.bursts.clear();
     for (std::size_t k = 0; k < fs.bursts().size(); ++k) {
         const geo::FrameBurst& b = fs.bursts()[k];
-        OfdmTruthBurst t;
+        PresetTruthBurst t;
         t.t0 = static_cast<double>(b.start_n) / p->fs_native_Hz;
         t.t1 = static_cast<double>(b.start_n + b.length_n) / p->fs_native_Hz;
         t.on = rt.tx_on_at(t.t0);
         t.center_Hz = rt.center_Hz_at((static_cast<double>(b.start_n) + 0.5 * static_cast<double>(b.length_n)) /
                                       p->fs_native_Hz);
+        info.bursts.push_back(t);
+    }
+    return true;
+}
+
+// GFSK 族（Q-3，D-089）：标签取预设的 role（rc_hopping），包表用与 SceneEmitterSource 同一个 GfskSchedule
+// 与 EmitterRuntime 算，包中点的写法也与源逐字相同（t0 + 0.5·(t1 − t0)），于是真值与 IQ 逐位同源。
+// 同 OFDM 族铺到整场景时长，多铺的包在 build_truth_rows 里被链路可见窗口滤掉。
+bool Evaluator::gfsk_truth_bursts(const geo::Scenario& sc, const geo::Emitter& e, EmitterInfo& info, std::string& err) {
+    const geo::Waveform& w = e.emission.waveform;
+    const geo::GfskPreset* p = geo::gfsk_preset_v1(w.preset_id);
+    if (p == 0) {
+        err = "Evaluator：辐射源 " + e.id + " 的预设 " + w.preset_id + " 不在 GFSK 族预设表 v1 里";
+        return false;
+    }
+    info.label = p->role;
+    info.preset_id = p->id;
+    geo::EmitterRuntime rt;
+    if (!rt.build(sc, e.id, err)) return false;
+    geo::GfskSchedule gs;
+    gs.build(*p, w.frame_offset_s, sc.duration_s);
+    info.bursts.clear();
+    for (std::size_t k = 0; k < gs.bursts().size(); ++k) {
+        const geo::GfskBurst& b = gs.bursts()[k];
+        PresetTruthBurst t;
+        t.t0 = b.t0_s;
+        t.t1 = b.t1_s;
+        t.on = rt.tx_on_at(b.t0_s);
+        t.center_Hz = rt.center_Hz_at(b.t0_s + 0.5 * (b.t1_s - b.t0_s));
         info.bursts.push_back(t);
     }
     return true;
@@ -219,13 +249,21 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
                 const geo::Activity& a = ls.scenario.activities[k];
                 if (a.emitter_id == e.id && a.event == geo::ActivityEvent::Hop) info.has_hop = true;
             }
-            info.label = label_for_waveform(info.waveform, info.bw_Hz, info.has_hop);
-            if (geo::is_ofdm_family(e.emission.waveform.type) && !ofdm_truth_bursts(ls.scenario, e, info, err))
-                return false;
-            if (geo::is_gfsk(e.emission.waveform.type)) {
-                // 按包记真值随 Q-3 step 6；在此之前明说不支持，别让它按类型名当标签（铁律 15）
-                err = "Evaluator：gfsk 波形的真值尚未接入（Q-3 step 6）";
-                return false;
+            // 按波形类型穷举、无 default：新增一种波形而忘了这里，编译器按 -Wswitch 当场报
+            // （从前 label_for_waveform 对不认识的类型回传类型名当标签，是静默的，D-089 堵掉）
+            switch (e.emission.waveform.type) {
+            case geo::WaveformType::Tone:
+            case geo::WaveformType::Noise:
+            case geo::WaveformType::Burst:
+                info.label = label_for_waveform(info.waveform, info.bw_Hz, info.has_hop);
+                break;
+            case geo::WaveformType::Ofdm:
+            case geo::WaveformType::DroneId:
+                if (!ofdm_truth_bursts(ls.scenario, e, info, err)) return false;
+                break;
+            case geo::WaveformType::Gfsk:
+                if (!gfsk_truth_bursts(ls.scenario, e, info, err)) return false;
+                break;
             }
             emitters_[e.id] = info;
         }
@@ -396,7 +434,7 @@ void Evaluator::build_truth_rows() {
         if (ei != emitters_.end()) info = ei->second;
         else { info.waveform = "unknown"; info.label = "unknown_emitter"; }
         if (!info.bursts.empty() || !info.preset_id.empty()) {
-            // OFDM 族（Q-2，D-088）：一个突发一行，时刻精确到原生样点、与检测器采样率无关，
+            // 按预设发射的波形（OFDM 族 Q-2 / D-088、GFSK 族 Q-3 / D-089）：一个突发 / 包一行，时刻由帧排布精确给出、与检测器采样率无关，
             // 所以不需要 ActivitySchedule 的样点细分，也不存在「取不到采样率时退回帧粒度」。
             // 取「起点落在链路可见窗口内、且起点时刻发射机开着」的突发，**整突发一行、不按窗口截断**——
             // 源就是这么发的（D-088 ⑥），截断了真值就与 IQ 对不上。
@@ -408,7 +446,7 @@ void Evaluator::build_truth_rows() {
             }
             std::size_t w = 0;
             for (std::size_t k = 0; k < info.bursts.size(); ++k) {
-                const OfdmTruthBurst& b = info.bursts[k];
+                const PresetTruthBurst& b = info.bursts[k];
                 while (w < windows.size() && windows[w].end <= b.t0) ++w;
                 if (w >= windows.size()) break;
                 if (b.t0 < windows[w].start || !b.on) continue;

@@ -19,6 +19,7 @@
 #include "cuav/components/recognition.h"
 #include "cuav/components/sources.h"
 #include "cuav/scenario_json.h"
+#include "cuav_geo/gfsk_frame.h"
 #include "cuav_geo/ofdm_frame.h"
 #include "cuav_geo/radiator_presets.h"
 
@@ -573,4 +574,79 @@ TEST_CASE("评价器 · OFDM 族：一个突发一行，与源同一张帧排布
         if (r.emitter_id == "uplink" && r.t_end_s > 0.0042) beyond_window = true;
     }
     MESSAGE("OFDM 真值行 " << want.size() << " 行；越过可见窗口末端的整突发：" << (beyond_window ? "有" : "无"));
+}
+
+TEST_CASE("评价器 · GFSK 族：一包一行，S-FHSS 同频两包各一行；开关看包起点、整包不截断、频点看包中点（Q-3，D-089）") {
+    const char* sc = CUAV_SOURCE_DIR "/tests/fixtures/gfsk-emitter.scenario.json";
+    const double fs = 80e6;
+    const std::size_t nfft = 1024;
+    const double dur = 0.021;
+    const std::uint64_t frames = static_cast<std::uint64_t>(dur * fs / nfft);
+    std::unique_ptr<DetStub> ds(new DetStub(frames, 200, 0, fs, nfft));
+    std::unique_ptr<FrameStub> fsb(new FrameStub());
+    fsb->duration = dur;
+    fsb->rate = 1000.0;
+    FrameStub::Spec g;   // sfhss-gated：场景里 1.5 ms 开、7 ms 关；帧里一直可见
+    g.emitter = "sfhss-gated";
+    g.on = [](double) { return true; };
+    g.center = [](double) { return 2.4387e9; };
+    fsb->specs.push_back(g);
+    FrameStub::Spec h;   // frsky-hop：链路只在 [0, 15 ms) 可见——14 ms 起的第三包起点在窗内，整包记下
+    h.emitter = "frsky-hop";
+    h.on = [](double t) { return t < 0.015; };
+    h.center = [](double) { return 2.41e9; };
+    fsb->specs.push_back(h);
+    std::unique_ptr<Evaluator> ev = make_eval({{"truth_source", "scenario"}, {"scenario_path", sc}}, nfft);
+    Graph gr;
+    std::string err;
+    NodeId d = gr.add(std::move(ds), "det");
+    NodeId f = gr.add(std::move(fsb), "scn");
+    NodeId e = gr.add(std::move(ev), "eval");
+    REQUIRE(gr.connect(d, "out", e, "det", err));
+    REQUIRE(gr.connect(f, "link:sfhss-gated", e, "scene1", err));
+    REQUIRE(gr.connect(f, "link:frsky-hop", e, "scene2", err));
+    REQUIRE_MESSAGE(gr.validate(err), err);
+    Collect obs;
+    Xoshiro256pp rng(3);
+    RunReport rep = gr.run(rng, obs);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+
+    // 期望：手写的时刻表（S-FHSS 包起点 0 / 1.625 / 6.8 / 8.425 / 13.6 / 15.225 / 20.4 ms，1.5 ms 开 7 ms 关 →
+    // 只有 1.625 与 6.8 两包；FrSky 包起点 0 / 7 / 14 ms 都在可见窗口内，频点按三点跳频逐包变）
+    const geo::GfskPreset* sf = geo::gfsk_preset_v1("futaba-sfhss");
+    const geo::GfskPreset* fr = geo::gfsk_preset_v1("frsky-d16v2-fcc");
+    REQUIRE(sf != 0);
+    REQUIRE(fr != 0);
+    struct Want { double t0; const char* id; double center; };
+    const Want want[] = {
+        {0.0, "frsky-hop", 2410e6},
+        {0.001625, "sfhss-gated", 2438.7e6},
+        {0.0068, "sfhss-gated", 2438.7e6},
+        {0.007, "frsky-hop", 2470e6},
+        {0.014, "frsky-hop", 2425e6},
+    };
+    REQUIRE(obs.truth.size() == 5);
+    for (std::size_t i = 0; i < 5; ++i) {
+        const TruthRow& r = obs.truth[i].row;
+        CAPTURE(i);
+        const geo::GfskPreset* p = std::string(want[i].id) == "frsky-hop" ? fr : sf;
+        // 起止与源同一处写法（geo::gfsk_burst_t0 / t1）：逐位相同
+        const std::int64_t k = std::string(want[i].id) == "frsky-hop" ? static_cast<std::int64_t>(want[i].t0 / 0.007 + 0.5)
+                                                                     : static_cast<std::int64_t>(want[i].t0 / 0.0068);
+        const int q = std::string(want[i].id) == "frsky-hop" ? 0 : (std::fabs(want[i].t0 - 0.001625) < 1e-9 ? 1 : 0);
+        const double t0 = geo::gfsk_burst_t0(*p, 0.0, k, q);
+        CHECK(r.t_s == t0);
+        CHECK(r.t_s == doctest::Approx(want[i].t0).epsilon(1e-12));
+        CHECK(r.t_end_s == geo::gfsk_burst_t1(*p, t0, q));
+        CHECK(r.emitter_id == want[i].id);
+        CHECK(r.label == "rc_hopping");
+        CHECK(r.waveform == "gfsk");
+        CHECK(r.center_Hz == want[i].center);
+        CHECK(r.bw_Hz == p->occupied_bw_Hz);
+        CHECK(r.preset_id == p->id);
+    }
+    // 第二个 S-FHSS 包起点 6.8 ms 在开、终点 8.236 ms 已过 7 ms 的关断：整包一行，不截断
+    CHECK(obs.truth[2].row.t_end_s > 0.007);
+    // 第三个 FrSky 包起点 14 ms 在可见窗口内、终点 16.85 ms 越过窗口末端 15 ms：整包一行
+    CHECK(obs.truth[4].row.t_end_s > 0.015);
 }
