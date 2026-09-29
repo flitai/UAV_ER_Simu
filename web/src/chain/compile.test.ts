@@ -536,6 +536,38 @@ test('往返：1×1 / 3×1 / 1×3 / 3×3 编译再反解都逐字节相同', () 
   }
 })
 
+test('Q-4 非理想：相噪与衰落参数编进前端与每条链路的信道节点；缺省值不写；往返逐字节（D-091）', () => {
+  // 缺省（关）时一个键都不出现：既有框图因此逐字节不变
+  const plain = compile(multi(['site-1', 'site-2'], ['uav-1', 'uav-2']), cat, scenario3).doc
+  for (const n of plain.nodes) {
+    for (const k of ['phase_noise', 'pn_level_dBc_Hz', 'pn_corner_Hz', 'fading', 'fading_k_los_dB',
+      'fading_min_doppler_Hz', 'fading_delay_spread_ns']) {
+      assert.equal((n.params ?? {})[k], undefined, `${n.id} 不该写 ${k}`)
+    }
+  }
+  const c = multi(['site-1', 'site-2'], ['uav-1', 'uav-2'])
+  c.slots.rx_fe.params = { ...c.slots.rx_fe.params, phase_noise: 'pll', pn_level_dBc_Hz: -90, pn_corner_Hz: 50000 }
+  c.slots.ch.params = { ...c.slots.ch.params, fading: 'rician', fading_k_los_dB: 6, fading_delay_spread_ns: 80 }
+  const doc = compile(c, cat, scenario3).doc
+  const fe = doc.nodes.filter((n) => n.type === 'ReceiverFrontEnd')
+  const ch = doc.nodes.filter((n) => n.type === 'SceneBoundChannel')
+  assert.equal(fe.length, 2)
+  assert.equal(ch.length, 4, '2 源 × 2 站 = 4 条链路')
+  for (const n of fe) assert.equal(n.params!.phase_noise, 'pll')
+  for (const n of ch) {
+    assert.equal(n.params!.fading, 'rician')
+    assert.equal(n.params!.fading_k_los_dB, 6)
+    assert.equal(n.params!.fading_min_doppler_Hz, undefined, '缺省值不写')
+  }
+  const once = serialize(doc, cat)
+  const r = parseDoc(once)
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  const back = parseChain(r.doc)
+  assert.ok(back)
+  assert.equal(serialize(compile(back!, cat, scenario3).doc, cat), once)
+})
+
 test('反解：同一实体的多个实例参数不一致即返回 null（被手改过，不猜）', () => {
   // rx_ant 归**站**（D-054）：同一个站对 N 个源是同一副接收天线，两份参数必须一模一样。
   // 拿馈线损耗做手脚而不是增益——增益已改为由场景带出，不再是链路状态里的参数
