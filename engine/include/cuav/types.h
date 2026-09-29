@@ -159,6 +159,9 @@ struct SceneParamFrame {
     double aoa_az_deg = 0.0;
     double aoa_el_deg = 0.0;
     double tx_heading_deg = 0.0;      // 辐射源平台航向，供随航向指向的天线用
+    // 辐射源平台速度的模长（Q-4，D-091）：小尺度衰落的最大多普勒 v·f/c 由它给。径向速度（已在 doppler_Hz 里）
+    // 只决定视距分量的平移，散射分量的展宽要速度模长。本结构不落盘（links.jsonl 走 LinkFrame），加字段不动任何产品
+    double speed_mps = 0.0;
 
     // 发射活动（G-6 施加结果）。只供评价器取真值与链路读数，**不进被测算法**（04 §5.2）。
     bool tx_on = true;

@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "cuav/components/channel.h"
 #include "cuav/components/receiver.h"
 #include "cuav/fading.h"
 #include "cuav/components/scenario.h"
@@ -626,4 +627,251 @@ TEST_CASE("衰落生成核 · MATLAB 一方：同一组随机量，引擎散射�
     }
     MESSAGE("引擎对 MATLAB：散射复增益最大绝对差 " << fmt(worst));
     CHECK(worst <= tol);
+}
+
+// ================================================================= D. 小尺度衰落 · 接进 SceneBoundChannel
+
+namespace {
+
+struct FadingCfg {
+    std::string fading = "rician";
+    double k_los_dB = 9.0, min_doppler_Hz = 5.0, delay_spread_ns = 0.0;
+    bool doppler = false;
+    std::string delay_mode = "off";
+    double max_delay = 65536.0;
+};
+
+std::unique_ptr<SceneBoundChannel> make_fading_channel(const FadingCfg& c, std::uint64_t shared_seed) {
+    std::unique_ptr<SceneBoundChannel> ch(new SceneBoundChannel());
+    std::map<std::string, double> num;
+    num["apply_gain"] = 1.0;
+    num["apply_doppler"] = c.doppler ? 1.0 : 0.0;
+    num["max_delay_samples"] = c.max_delay;
+    num["fading_k_los_dB"] = c.k_los_dB;
+    num["fading_min_doppler_Hz"] = c.min_doppler_Hz;
+    num["fading_delay_spread_ns"] = c.delay_spread_ns;
+    std::map<std::string, std::string> txt;
+    txt["scenario_path"] = repo(kGolden01);
+    txt["scenario_id"] = "golden-01";
+    txt["entity_id"] = "uav-1";
+    txt["gain_mode"] = "path_loss_only";
+    txt["delay_mode"] = c.delay_mode;
+    txt["fading"] = c.fading;
+    std::string err;
+    REQUIRE_MESSAGE(ch->configure(num, txt, err), err);
+    Xoshiro256pp rng(shared_seed);
+    REQUIRE_MESSAGE(ch->init(rng, err), err);
+    return ch;
+}
+
+// rate Hz 的帧铺满 duration；LOS 与速度按回调
+std::vector<SceneParamFrame> fading_frames(double duration, double rate, const std::function<bool(std::size_t)>& los,
+                                           double speed, double doppler_Hz, double delay_s) {
+    std::vector<SceneParamFrame> v;
+    const std::size_t n = static_cast<std::size_t>(std::ceil(duration * rate)) + 1;
+    for (std::size_t k = 0; k < n; ++k) {
+        SceneParamFrame f;
+        f.valid_from_s = static_cast<double>(k) / rate;
+        f.valid_to_s = static_cast<double>(k + 1) / rate;
+        f.update_rate_Hz = rate;
+        f.path_loss_dB = 0.0;
+        f.line_of_sight = los(k);
+        f.doppler_Hz = doppler_Hz;
+        f.delay_s = delay_s;
+        f.speed_mps = speed;
+        f.tx_center_Hz = 2.44e9;
+        v.push_back(f);
+    }
+    return v;
+}
+
+// 按 block 切块喂信道；第一块把全部帧一起交进去（晚于队尾的帧才入队，游标只前进）
+std::vector<Complex> run_channel(SceneBoundChannel& ch, const std::vector<Complex>& x, double fs,
+                                 const std::vector<SceneParamFrame>& frames, std::size_t block, std::string* err_out = 0) {
+    std::vector<Complex> all;
+    all.reserve(x.size());
+    std::string err;
+    for (std::size_t s0 = 0; s0 < x.size(); s0 += block) {
+        const std::size_t m = std::min(block, x.size() - s0);
+        PortMap in, out;
+        PortData d;
+        d.type = PortType::IQStream;
+        d.has_data = true;
+        d.iq.samples.assign(x.begin() + static_cast<std::ptrdiff_t>(s0), x.begin() + static_cast<std::ptrdiff_t>(s0 + m));
+        d.iq.meta.sample_rate_Hz = fs;
+        d.iq.meta.start_sample = s0;
+        d.iq.meta.time_basis = TimeBasis::LogicalSim;
+        in["in"] = d;
+        PortData sc;
+        sc.type = PortType::SceneParamFrame;
+        sc.has_data = (s0 == 0);
+        if (s0 == 0) sc.scenes = frames;
+        in["scene"] = sc;
+        const Step st = ch.process(in, out, err);
+        if (st == Step::Error && err_out) { *err_out = err; return all; }
+        REQUIRE_MESSAGE(st == Step::Produced, err);
+        const std::vector<Complex>& y = out["out"].iq.samples;
+        all.insert(all.end(), y.begin(), y.end());
+    }
+    return all;
+}
+
+std::vector<Complex> chirp_input(std::size_t n) {
+    std::vector<Complex> x(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        const double ph = 1e-7 * static_cast<double>(i) * static_cast<double>(i) + 0.013 * static_cast<double>(i);
+        x[i] = Complex(static_cast<float>(std::cos(ph)), static_cast<float>(std::sin(ph)));
+    }
+    return x;
+}
+
+}  // namespace
+
+TEST_CASE("衰落信道：五种块长逐位相同（格点插值只用已到手的帧；抽头读历史跨块）") {
+    FadingCfg c;
+    c.delay_spread_ns = 200.0;
+    c.doppler = true;
+    c.delay_mode = "tracking";
+    const double fs = 20e6;
+    const std::size_t n = 400000;   // 20 ms
+    const auto frames = fading_frames(0.02, 1000.0, [](std::size_t k) { return k % 3 != 1; }, 30.0, 150.0, 1e-6);
+    const std::vector<Complex> x = chirp_input(n);
+    std::unique_ptr<SceneBoundChannel> a = make_fading_channel(c, 21);
+    const std::vector<Complex> ref = run_channel(*a, x, fs, frames, 65536);
+    REQUIRE(ref.size() == n);
+    for (std::size_t block : {4096u, 1000u, 4096u * 10u + 123u, 250000u, 7u}) {
+        std::unique_ptr<SceneBoundChannel> b = make_fading_channel(c, 21);
+        const std::vector<Complex> y = run_channel(*b, x, fs, frames, block);
+        std::size_t diffs = 0;
+        for (std::size_t i = 0; i < n; ++i)
+            if (!(y[i].real() == ref[i].real() && y[i].imag() == ref[i].imag())) ++diffs;
+        CHECK_MESSAGE(diffs == 0u, "块长 " << block << " 与 65536 差 " << diffs << " 个样点");
+    }
+    bool noted = false;
+    for (const std::string& s : a->status().notes) noted = noted || s.find("小尺度衰落") != std::string::npos;
+    CHECK(noted);
+}
+
+TEST_CASE("衰落信道：长序列平均功率为 1（不与路损重复计入）；视距帧经验 K 对设定值、非视距帧为瑞利") {
+    const double fs = 200e3;
+    const std::size_t n = 2000000;   // 10 s
+    const std::vector<Complex> one(n, Complex(1.0f, 0.0f));
+    for (bool los : {true, false}) {
+        CAPTURE(los);
+        FadingCfg c;
+        const auto frames = fading_frames(10.0, 20.0, [los](std::size_t) { return los; }, 10.0, 0.0, 0.0);
+        std::vector<double> means;
+        double m1 = 0.0, m2 = 0.0, below = 0.0;
+        std::size_t cnt = 0;
+        for (std::uint64_t seed = 1; seed <= 8; ++seed) {
+            std::unique_ptr<SceneBoundChannel> ch = make_fading_channel(c, seed);
+            const std::vector<Complex> y = run_channel(*ch, one, fs, frames, 65536);
+            double acc = 0.0;
+            for (std::size_t i = 0; i < n; ++i) {
+                const double p = std::norm(std::complex<double>(y[i].real(), y[i].imag()));
+                acc += p;
+                m1 += p;
+                m2 += p * p;
+                if (p < 0.1) below += 1.0;
+                ++cnt;
+            }
+            means.push_back(acc / static_cast<double>(n));
+        }
+        double mu = 0.0, var = 0.0;
+        for (double v : means) mu += v;
+        mu /= static_cast<double>(means.size());
+        for (double v : means) var += (v - mu) * (v - mu);
+        const double se = std::sqrt(var / static_cast<double>(means.size() - 1) / static_cast<double>(means.size()));
+        m1 /= static_cast<double>(cnt);
+        m2 /= static_cast<double>(cnt);
+        const double gam = (m2 - m1 * m1) / (m1 * m1);
+        const double kh = gam < 1.0 ? std::sqrt(1.0 - gam) / (1.0 - std::sqrt(1.0 - gam)) : 0.0;
+        const double frac_below = below / static_cast<double>(cnt);
+        MESSAGE(std::string(los ? "视距" : "非视距") << "：平均功率 " << fmt(mu) << " ± " << fmt(se) << "，矩法 K̂ = "
+                                         << fmt(kh) << "（" << fmt(10.0 * std::log10(std::max(kh, 1e-9))) << " dB），|h|² < 0.1 的比例 "
+                                         << fmt(frac_below));
+        CHECK(std::fabs(mu - 1.0) < std::max(5.0 * se, 0.02));
+        if (los) {
+            CHECK(std::fabs(10.0 * std::log10(kh) - 9.0) < 1.0);
+        } else {
+            CHECK(kh < 0.2);
+            CHECK(std::fabs(frac_below - (1.0 - std::exp(-0.1))) < 0.02);   // 瑞利：P(|h|² < 0.1) = 1 − e^{−0.1}
+        }
+    }
+}
+
+TEST_CASE("衰落信道：抽头延迟线的冲激响应只落在离散时延谱的样点上；开关衰落与共享流取数") {
+    // 速度 0、下限 0 → 最大多普勒 0，信道冻住：冲激响应就是各抽头的复增益
+    FadingCfg c;
+    c.min_doppler_Hz = 0.0;
+    c.delay_spread_ns = 100.0;
+    c.k_los_dB = 0.0;
+    const double fs = 80e6;
+    std::vector<Complex> x(64, Complex(0.0f, 0.0f));
+    x[0] = Complex(1.0f, 0.0f);
+    const auto frames = fading_frames(1e-3, 20.0, [](std::size_t) { return true; }, 0.0, 0.0, 0.0);
+    std::unique_ptr<SceneBoundChannel> ch = make_fading_channel(c, 3);
+    const std::vector<Complex> y = run_channel(*ch, x, fs, frames, 64);
+    fading::Layout lay;
+    std::string err;
+    REQUIRE(fading::layout(100e-9, fs, lay, err));
+    std::vector<bool> tap(64, false);
+    for (std::size_t k = 0; k < lay.delay.size(); ++k) tap[static_cast<std::size_t>(lay.delay[k])] = true;
+    for (std::size_t i = 0; i < 64; ++i) {
+        CAPTURE(i);
+        const bool nz = y[i].real() != 0.0f || y[i].imag() != 0.0f;
+        CHECK(nz == tap[i]);
+    }
+
+    // 关衰落不从共享流取数；开了取一个（D-058 ④ 的先例）
+    Xoshiro256pp fresh(99);
+    const std::uint64_t first = fresh.next_u64(), second = fresh.next_u64();
+    FadingCfg off;
+    off.fading = "off";
+    {
+        std::unique_ptr<SceneBoundChannel> a(new SceneBoundChannel());
+        std::map<std::string, double> num;
+        std::map<std::string, std::string> txt;
+        txt["scenario_path"] = repo(kGolden01);
+        txt["scenario_id"] = "golden-01";
+        txt["entity_id"] = "uav-1";
+        REQUIRE_MESSAGE(a->configure(num, txt, err), err);
+        Xoshiro256pp r(99);
+        REQUIRE(a->init(r, err));
+        CHECK(r.next_u64() == first);
+    }
+    {
+        std::unique_ptr<SceneBoundChannel> a(new SceneBoundChannel());
+        std::map<std::string, double> num;
+        std::map<std::string, std::string> txt;
+        txt["scenario_path"] = repo(kGolden01);
+        txt["scenario_id"] = "golden-01";
+        txt["entity_id"] = "uav-1";
+        txt["fading"] = "rician";
+        REQUIRE_MESSAGE(a->configure(num, txt, err), err);
+        Xoshiro256pp r(99);
+        REQUIRE(a->init(r, err));
+        CHECK(r.next_u64() == second);
+    }
+}
+
+TEST_CASE("衰落信道：历史不够装下「时延 + 最大抽头时延」即报错；多普勒对格点太快即报错；都不截断") {
+    std::string err;
+    {
+        FadingCfg c;
+        c.delay_spread_ns = 300.0;
+        c.max_delay = 10.0;                // 80 MS/s 下 300 ns 的末抽头在 30 多个样点外
+        const auto frames = fading_frames(1e-3, 20.0, [](std::size_t) { return true; }, 0.0, 0.0, 0.0);
+        std::unique_ptr<SceneBoundChannel> ch = make_fading_channel(c, 1);
+        run_channel(*ch, std::vector<Complex>(1000, Complex(1.0f, 0.0f)), 80e6, frames, 1000, &err);
+        CHECK(err.find("衰落抽头") != std::string::npos);
+    }
+    {
+        err.clear();
+        FadingCfg c;                       // 500 kS/s 的格点 5 个样点；1000 m/s 在 2.44 GHz 是 8.1 kHz
+        const auto frames = fading_frames(1e-2, 20.0, [](std::size_t) { return true; }, 1000.0, 0.0, 0.0);
+        std::unique_ptr<SceneBoundChannel> ch = make_fading_channel(c, 1);
+        run_channel(*ch, std::vector<Complex>(5000, Complex(1.0f, 0.0f)), 500e3, frames, 1000, &err);
+        CHECK(err.find("最大多普勒") != std::string::npos);
+    }
 }

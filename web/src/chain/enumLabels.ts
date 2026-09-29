@@ -48,6 +48,7 @@ export const ENUM_LABELS: Readonly<Record<string, string>> = {
   // 接收机与量化
   'noise_mode.none': '不注入', 'noise_mode.thermal': '热噪声',
   'phase_noise.off': '关', 'phase_noise.pll': '锁相环单极点',
+  'fading.off': '关', 'fading.rician': '莱斯 / 瑞利',
   'rounding.nearest': '四舍五入',
 
   // 检测

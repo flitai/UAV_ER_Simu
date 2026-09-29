@@ -25,7 +25,10 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   aspect_az_deg: '固定来波方位', aspect_el_deg: '固定来波俯仰',
   // 信道
   gain_mode: '增益口径', delay_mode: '时延模式', apply_doppler: '施加多普勒', apply_gain: '施加增益',
-  max_delay_samples: '时延缓冲上限', frequency_Hz: '载频', distance_m: '距离',
+  max_delay_samples: '时延缓冲上限',
+  // 小尺度衰落（Q-4，D-091）
+  fading: '小尺度衰落', fading_k_los_dB: '视距 K 因子', fading_min_doppler_Hz: '多普勒下限',
+  fading_delay_spread_ns: '时延扩展', frequency_Hz: '载频', distance_m: '距离',
   tx_power_dBm: '发射功率', tx_gain_dBi: '发射天线增益', rx_gain_dBi: '接收天线增益',
   // 传播效应（声明在 ScenarioSource 上，配在传播信道卡片）
   prop_level: '精度档', prop_primary: '主模型', prop_shadow: '统计阴影', prop_weather: '大气与降雨',

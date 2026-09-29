@@ -364,6 +364,7 @@ Step ScenarioSource::process(PortMap&, PortMap& out, std::string& err) {
             sp.aoa_az_deg = f.azimuth_deg;
             sp.aoa_el_deg = f.elevation_deg;
             sp.tx_heading_deg = f.heading_deg;
+            sp.speed_mps = f.speed_mps;
             sp.tx_on = f.tx_on;
             sp.tx_center_Hz = f.center_Hz;
             // 传播模型自身的降级随帧走到 IQ 块元数据（channel.cpp 用 worst() 汇总），

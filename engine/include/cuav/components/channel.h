@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "cuav/component.h"
+#include "cuav/fading.h"
 #include "cuav_geo/scenario.h"
 
 namespace cuav {
@@ -72,6 +73,22 @@ private:
     std::uint64_t last_delay_ = 0;
     bool have_last_delay_ = false;
     bool held_note_done_ = false;
+
+    // 小尺度衰落（Q-4，D-091）：缺省关，整个分支包在 fading_on_ 里（关时一个样点的算法都不变）
+    bool fading_on_ = false;
+    double fading_k_los_dB_ = 9.0;
+    double fading_min_doppler_Hz_ = 5.0;
+    double fading_delay_spread_ns_ = 0.0;
+    fading::Draws fd_;                    // init() 里一次取完，reset() 不清
+    fading::Layout fl_;                   // 首块知道采样率后定
+    bool fl_ready_ = false;
+    std::uint64_t grid_G_ = 1;            // 格点间隔（样点），floor(fs / 100 kHz)
+    std::uint64_t grid_m_ = 0;            // 当前区间左端格点号
+    bool grid_started_ = false;
+    double grid_phi_next_ = 0.0;          // 右端格点的多普勒相位积分
+    std::vector<std::complex<double> > g_left_, g_right_;   // 两端格点的散射复增益
+    void fading_advance(std::uint64_t m, const SceneParamFrame& f, bool first, std::string& err, bool& ok);
+
     ComponentStatus status_;
 };
 

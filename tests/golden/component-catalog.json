@@ -2092,7 +2092,7 @@
     },
     {
       "category": "channel",
-      "description": "把场景参数帧施加到 IQ 上：增益 = tx_power_dBm + 发射天线增益 + 接收天线增益 − 路损，整数样点时延，多普勒相位斜坡（相位累加器跨块连续）。帧内零阶保持，帧过期而无新帧到达时按上一帧继续并把块标降级。输入应是归一化到单位功率的波形（SceneEmitterSource），否则电平会重复计入。本组件不注入热噪声：帧里的 noise_floor_dBm_per_Hz 目前只供链路读数，热噪声注入待接收机前端。时延为整数样点，delay_s 变化处有 ±1 样点跳变，分数时延随 P3；单站场景里绝对时延在频谱上不可观测，它的意义在于为多站与到达时间差定位预留结构。",
+      "description": "把场景参数帧施加到 IQ 上：增益 = tx_power_dBm + 发射天线增益 + 接收天线增益 − 路损，整数样点时延，多普勒相位斜坡（相位累加器跨块连续）。帧内零阶保持，帧过期而无新帧到达时按上一帧继续并把块标降级。输入应是归一化到单位功率的波形（SceneEmitterSource），否则电平会重复计入。本组件不注入热噪声：帧里的 noise_floor_dBm_per_Hz 目前只供链路读数，热噪声注入待接收机前端。时延为整数样点，delay_s 变化处有 ±1 样点跳变，分数时延随 P3；单站场景里绝对时延在频谱上不可观测，它的意义在于为多站与到达时间差定位预留结构。小尺度衰落（fading = rician，Q-4）：视距帧按 fading_k_los_dB 的莱斯、非视距帧瑞利（K 读帧的 line_of_sight），散射分量为 Jakes 谱的统计型正弦和，最大多普勒取 max(平台速度·f/c, fading_min_doppler_Hz)；fading_delay_spread_ns > 0 时按 8 抽头指数时延谱给出频率选择性。总平均功率为 1，不与路损重复计入。",
       "display_name": "场景绑定信道",
       "implementation": "cpp",
       "model_id": "EM-P-01",
@@ -2148,6 +2148,48 @@
           "required": false,
           "type": "number",
           "unit": ""
+        },
+        {
+          "default": "off",
+          "description": "小尺度衰落：关，或莱斯（视距帧）/ 瑞利（非视距帧），散射分量为 Jakes 谱",
+          "enum": [
+            "off",
+            "rician"
+          ],
+          "name": "fading",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
+          "default": 9.0,
+          "description": "视距帧的莱斯 K 因子；非视距帧固定为瑞利（K = 0）。取值 assumed",
+          "max": 40.0,
+          "min": -10.0,
+          "name": "fading_k_los_dB",
+          "required": false,
+          "type": "number",
+          "unit": "dB"
+        },
+        {
+          "default": 5.0,
+          "description": "最大多普勒的下限：悬停时平台速度为 0，取它代表摆动与地面散射体的运动。取值 assumed",
+          "max": 1000.0,
+          "min": 0.0,
+          "name": "fading_min_doppler_Hz",
+          "required": false,
+          "type": "number",
+          "unit": "Hz"
+        },
+        {
+          "default": 0.0,
+          "description": "均方根时延扩展；0 为平坦衰落，大于 0 时按 8 抽头指数时延谱给出频率选择性。取值 assumed",
+          "max": 5000.0,
+          "min": 0.0,
+          "name": "fading_delay_spread_ns",
+          "required": false,
+          "type": "number",
+          "unit": "ns"
         },
         {
           "description": "场景文件路径，由装载器按 scene_binding 注入",

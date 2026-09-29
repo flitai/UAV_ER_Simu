@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 
+#include "cuav/random.h"
 #include "cuav/scenario_json.h"
 #include "cuav_geo/link_budget.h"
 
@@ -56,7 +58,11 @@ ComponentInfo SceneBoundChannel::describe() const {
                     "本组件不注入热噪声：帧里的 noise_floor_dBm_per_Hz 目前只供链路读数，"
                     "热噪声注入待接收机前端。时延为整数样点，delay_s 变化处有 ±1 样点跳变，"
                     "分数时延随 P3；单站场景里绝对时延在频谱上不可观测，它的意义在于为多站与"
-                    "到达时间差定位预留结构。";
+                    "到达时间差定位预留结构。"
+                    "小尺度衰落（fading = rician，Q-4）：视距帧按 fading_k_los_dB 的莱斯、非视距帧瑞利"
+                    "（K 读帧的 line_of_sight），散射分量为 Jakes 谱的统计型正弦和，最大多普勒取 "
+                    "max(平台速度·f/c, fading_min_doppler_Hz)；fading_delay_spread_ns > 0 时按 8 抽头"
+                    "指数时延谱给出频率选择性。总平均功率为 1，不与路损重复计入。";
     i.model_layer = "M3";
     i.model_level = "E2";
     i.model_id = "EM-P-01";
@@ -76,6 +82,17 @@ ComponentInfo SceneBoundChannel::describe() const {
                           "时延模式：不施加 / 全程用起始时刻的整数时延 / 逐帧跟随").def_text("tracking"),
         ParamSpec::number("max_delay_samples", "", "时延历史缓冲的上限；帧要求超过它即报错，不截断")
             .def(65536.0).at_least(1.0),
+        ParamSpec::choice("fading", {"off", "rician"},
+                          "小尺度衰落：关，或莱斯（视距帧）/ 瑞利（非视距帧），散射分量为 Jakes 谱")
+            .def_text("off"),
+        ParamSpec::number("fading_k_los_dB", "dB", "视距帧的莱斯 K 因子；非视距帧固定为瑞利（K = 0）。取值 assumed")
+            .def(9.0).at_least(-10.0).at_most(40.0),
+        ParamSpec::number("fading_min_doppler_Hz", "Hz",
+                          "最大多普勒的下限：悬停时平台速度为 0，取它代表摆动与地面散射体的运动。取值 assumed")
+            .def(5.0).at_least(0.0).at_most(1000.0),
+        ParamSpec::number("fading_delay_spread_ns", "ns",
+                          "均方根时延扩展；0 为平坦衰落，大于 0 时按 8 抽头指数时延谱给出频率选择性。取值 assumed")
+            .def(0.0).at_least(0.0).at_most(5000.0),
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("scenario_id", "场景标识，由装载器按 scene_binding 注入").internal_only(),
         ParamSpec::text("entity_id", "绑定的辐射源标识，由装载器按 scene_binding 注入").internal_only(),
@@ -111,6 +128,20 @@ bool SceneBoundChannel::configure(const std::map<std::string, double>& params,
     const double md = get_num(params, "max_delay_samples", 65536.0);
     if (!(md >= 1.0)) { err = "max_delay_samples 必须为正"; return false; }
     max_delay_samples_ = static_cast<std::size_t>(md);
+
+    std::string fading = "off";
+    get_text(text_params, "fading", fading);
+    if (fading.empty()) fading = "off";
+    if (fading != "off" && fading != "rician") { err = "fading 必须是 off / rician 之一"; return false; }
+    fading_on_ = (fading == "rician");
+    fading_k_los_dB_ = get_num(params, "fading_k_los_dB", 9.0);
+    fading_min_doppler_Hz_ = get_num(params, "fading_min_doppler_Hz", 5.0);
+    fading_delay_spread_ns_ = get_num(params, "fading_delay_spread_ns", 0.0);
+    if (fading_on_) {
+        if (!std::isfinite(fading_k_los_dB_)) { err = "fading_k_los_dB 必须是有限值"; return false; }
+        if (!(fading_min_doppler_Hz_ >= 0.0)) { err = "fading_min_doppler_Hz 不得为负"; return false; }
+        if (!(fading_delay_spread_ns_ >= 0.0)) { err = "fading_delay_spread_ns 不得为负"; return false; }
+    }
 
     if (scenario_path_.empty()) {
         err = "SceneBoundChannel 缺内部参数 scenario_path。它由装载器按节点的 scene_binding 解析注入"
@@ -155,10 +186,49 @@ bool SceneBoundChannel::configure(const std::map<std::string, double>& params,
     return true;
 }
 
-bool SceneBoundChannel::init(IRandom&, std::string& err) {
+bool SceneBoundChannel::init(IRandom& rng, std::string& err) {
     (void)err;
     reset();
+    // 衰落的随机量只在开衰落时从共享流取一个种子（D-058 ④ 阴影的先例）：不开就一个数不取，
+    // 既有框图下游节点的子种子逐位不变。开了会挪动其后节点（含前端热噪声）的子种子，写在模型卡里。
+    // 个数只由抽头数与正弦数决定、与采样率和时长无关，所以能在 init() 里一次取完。
+    if (fading_on_) {
+        Xoshiro256pp sub(rng.next_u64());
+        fading::draw(sub, fd_);
+    }
     return true;
+}
+
+// 推进到格点 m（Q-4，D-091）。first 为真时以 m 为起点、Φ = 0；否则 m 恰是上一格点加一。
+// 右端格点的相位积分用**本格点所在帧**的最大多普勒推：只看已经到手的帧，不看未来，于是与块长无关。
+void SceneBoundChannel::fading_advance(std::uint64_t m, const SceneParamFrame& f, bool first,
+                                       std::string& err, bool& ok) {
+    ok = true;
+    double phi_m = 0.0;
+    if (first) {
+        fading::diffuse_at(fd_, fl_, 0.0, g_left_);
+    } else {
+        if (m != grid_m_ + 1) {
+            err = "衰落格点不连续（" + numstr(grid_m_) + " → " + numstr(m) + "）";
+            ok = false;
+            return;
+        }
+        phi_m = grid_phi_next_;
+        g_left_.swap(g_right_);
+    }
+    grid_m_ = m;
+    grid_started_ = true;
+    const double fd_max = std::max(f.speed_mps * f.tx_center_Hz / 299792458.0, fading_min_doppler_Hz_);
+    const double step = kTwoPi * fd_max * static_cast<double>(grid_G_) / fs_;
+    if (step > 0.3) {
+        err = "衰落的最大多普勒 " + numstr(fd_max) + " Hz 对格点间隔 " + numstr(static_cast<double>(grid_G_)) +
+              " 个样点（" + numstr(fs_) + " Hz）太快：一个格点相位转 " + numstr(step) +
+              " rad，线性插值误差超出可接受范围（线 0.3 rad）";
+        ok = false;
+        return;
+    }
+    grid_phi_next_ = phi_m + step;
+    fading::diffuse_at(fd_, fl_, grid_phi_next_, g_right_);
 }
 
 // 游标只前进：不做 k = floor(t·R) 的除法取整——t 恰为帧边界时浮点会把它推到上一帧，
@@ -208,6 +278,22 @@ Step SceneBoundChannel::process(PortMap& in, PortMap& out, std::string& err) {
         err = "scene 口没有任何参数帧：场景参数源必须每轮产出（08 报告 §9.3）";
         return Step::Error;
     }
+    if (fading_on_ && !fl_ready_) {
+        if (!fading::layout(fading_delay_spread_ns_ * 1e-9, fs_, fl_, err)) return Step::Error;
+        fl_ready_ = true;
+        grid_G_ = std::max<std::uint64_t>(1, static_cast<std::uint64_t>(std::floor(fs_ / 1e5)));
+        if (fl_.delay.back() > max_delay_samples_) {
+            err = "衰落抽头的最大时延 " + numstr(static_cast<double>(fl_.delay.back())) +
+                  " 个样点超过 max_delay_samples " + numstr(static_cast<double>(max_delay_samples_)) + "（不截断，铁律 15）";
+            return Step::Error;
+        }
+        status_.notes.push_back(
+            "小尺度衰落：视距莱斯 K = " + numstr(fading_k_los_dB_) + " dB、非视距瑞利；最大多普勒 max(速度·f/c, " +
+            numstr(fading_min_doppler_Hz_) + " Hz)；均方根时延扩展 " + numstr(fading_delay_spread_ns_) + " ns → " +
+            numstr(static_cast<double>(fl_.delay.size())) + " 个样点时延、实际 " +
+            numstr(fl_.rms_delay_spread_s * 1e9) + " ns；格点 " + numstr(static_cast<double>(grid_G_)) +
+            " 个样点（参数 assumed）");
+    }
 
     PortData d;
     d.type = PortType::IQStream;
@@ -215,6 +301,16 @@ Step SceneBoundChannel::process(PortMap& in, PortMap& out, std::string& err) {
     d.iq.samples.resize(n);
     d.iq.meta = src.meta;
     d.iq.meta.trace = make_trace("SceneBoundChannel", scenario_id_ + ":" + entity_id_);
+    if (fading_on_) {
+        // A 档参数主导（14 §9）：开衰落时降到 V1
+        d.iq.meta.trace.parameter_version += "-fading";
+        d.iq.meta.trace.credibility = "V1";
+    }
+    // 莱斯两端的权：视距帧 sqrt(K/(K+1)) 与 sqrt(1/(K+1))，非视距帧 0 与 1
+    const double k_lin = std::pow(10.0, fading_k_los_dB_ / 10.0);
+    const double a_los = std::sqrt(k_lin / (k_lin + 1.0)), a_dif_los = std::sqrt(1.0 / (k_lin + 1.0));
+    const std::complex<double> los_phasor = std::polar(1.0, fd_.los_phase);
+    const std::uint64_t fd_dmax = (fading_on_ && fl_ready_) ? fl_.delay.back() : 0;
 
     const std::uint64_t s0 = src.meta.start_sample;
     State frame_state = State::Valid;
@@ -244,6 +340,12 @@ Step SceneBoundChannel::process(PortMap& in, PortMap& out, std::string& err) {
                       "；请调大该参数或检查场景距离（不截断，铁律 15）";
                 return Step::Error;
             }
+            if (fading_on_ && want + fd_dmax > max_delay_samples_) {
+                err = "本帧时延 " + numstr(f->delay_s) + " 秒加衰落抽头的最大时延需要 " + numstr(want + fd_dmax) +
+                      " 个样点的历史，超过 max_delay_samples " + numstr(max_delay_samples_) +
+                      "；请调大该参数（不截断，铁律 15）";
+                return Step::Error;
+            }
             delay = want;
             if (have_last_delay_ && delay != last_delay_) ++delay_steps_;
             last_delay_ = delay;
@@ -251,17 +353,14 @@ Step SceneBoundChannel::process(PortMap& in, PortMap& out, std::string& err) {
         }
 
         // 取延迟后的输入样点：先看本块，再看上一块留下的尾巴，再往前就是流开头，输出精确零。
-        Complex x(0.0f, 0.0f);
-        if (idx >= delay) {
-            const std::uint64_t j = idx - delay;
-            if (j >= s0) {
-                x = src.samples[static_cast<std::size_t>(j - s0)];
-            } else {
-                const std::uint64_t back = s0 - j;              // 往回第 back 个
-                if (back <= tail_.size()) x = tail_[tail_.size() - static_cast<std::size_t>(back)];
-                // 否则仍在时延线预热阶段，保持零
-            }
-        }
+        auto fetch = [&](std::uint64_t dl) -> Complex {
+            if (idx < dl) return Complex(0.0f, 0.0f);
+            const std::uint64_t j = idx - dl;
+            if (j >= s0) return src.samples[static_cast<std::size_t>(j - s0)];
+            const std::uint64_t back = s0 - j;                  // 往回第 back 个
+            if (back <= tail_.size()) return tail_[tail_.size() - static_cast<std::size_t>(back)];
+            return Complex(0.0f, 0.0f);                         // 仍在时延线预热阶段
+        };
 
         double g = 1.0;
         if (apply_gain_) {
@@ -270,6 +369,34 @@ Step SceneBoundChannel::process(PortMap& in, PortMap& out, std::string& err) {
             const double gain_dB = konst - f->path_loss_dB;
             g = std::pow(10.0, gain_dB / 20.0);
         }
+        if (fading_on_) {
+            // 小尺度衰落（Q-4，D-091）：散射分量在格点上求值、格点间线性插值；K 与视距分量逐样点跟本样点的帧
+            const std::uint64_t m = idx / grid_G_;
+            if (!grid_started_ || m != grid_m_) {
+                bool ok = true;
+                fading_advance(m, *f, !grid_started_, err, ok);
+                if (!ok) return Step::Error;
+            }
+            const double frac = static_cast<double>(idx - grid_m_ * grid_G_) / static_cast<double>(grid_G_);
+            const double al = f->line_of_sight ? a_los : 0.0;
+            const double ad = f->line_of_sight ? a_dif_los : 1.0;
+            std::complex<double> acc(0.0, 0.0);
+            for (std::size_t k = 0; k < fl_.delay.size(); ++k) {
+                std::complex<double> h = ad * (g_left_[k] + frac * (g_right_[k] - g_left_[k]));
+                if (k == 0) h += al * los_phasor;      // 视距分量只在 0 号时延（fl_.delay[0] 恒为 0）
+                const Complex xs = fetch(delay + fl_.delay[k]);
+                acc += h * std::complex<double>(xs.real(), xs.imag());
+            }
+            if (apply_doppler_) {
+                acc *= std::complex<double>(std::cos(phase_), std::sin(phase_));
+                phase_ += kTwoPi * f->doppler_Hz / fs_;
+                if (phase_ >= kTwoPi) phase_ -= kTwoPi;
+                else if (phase_ < 0.0) phase_ += kTwoPi;
+            }
+            d.iq.samples[i] = Complex(static_cast<float>(acc.real() * g), static_cast<float>(acc.imag() * g));
+            continue;
+        }
+        Complex x = fetch(delay);
         if (apply_doppler_) {
             const float c = static_cast<float>(std::cos(phase_));
             const float s = static_cast<float>(std::sin(phase_));
@@ -334,6 +461,15 @@ void SceneBoundChannel::reset() {
     have_last_delay_ = false;
     last_delay_ = 0;
     held_note_done_ = false;
+    // 衰落：只清动态状态，init() 取的正弦表与相位不清（reset 后同一次运行逐位复现）
+    fl_ready_ = false;
+    fl_ = fading::Layout();
+    grid_G_ = 1;
+    grid_m_ = 0;
+    grid_started_ = false;
+    grid_phi_next_ = 0.0;
+    g_left_.clear();
+    g_right_.clear();
     ComponentStatus fresh;
     // 时延跳变次数是跨 reset 的累计诊断量，运行结束时汇总进 notes。
     fresh.notes = status_.notes;
