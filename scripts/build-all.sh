@@ -97,6 +97,15 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 非理想与小尺度衰落：从保存的典型链路核对（Q-4，D-091）===\n'
+# 载频平移对 cfo_ppm·f、相噪积分对 π·fc·L0（以相噪关那一次作热噪声底，同一串热噪声）、莱斯 K 与系综平均功率
+# 对链路预算、抽头延迟线对 OFDM 图传平坦度的影响（只报数）。约 25 s。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet --with numpy --with scipy python tests/regression/impairments.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
+fi
+
 printf '=== E3 建筑遮挡：从保存的典型链路核对（D3-5，D-074）===\n'
 # 视距由建筑几何给出、刀口损耗只进 extra_loss_dB、恒等式照旧成立、07 §1.5 的起飞点锚点。
 # 要真实建筑集 data/scene/<aoi>/buildings.geojson（不入 git），缺数据时脚本自己明说跳过、不当作通过。
