@@ -18,6 +18,8 @@ gen_channelizer_golden(repo);
 gen_rx_filter_golden(repo);
 % Q-2（D-088）：原生率 OFDM 调制的 MATLAB 一方（通信工具箱 ofdmmod），读 ofdm.json 的显式子载波值
 gen_ofdm_golden(repo);
+% Q-2（D-088）：OFDM 有理重采样的 MATLAB 一方（codegen 入口 + upfirdn 互证），读 rsmp.json 的显式窗口
+gen_rsmp_golden(repo);
 % DDC 的抗混叠低通：冻结表由 scripts/design_ddc_fir.py 生产，这里只独立校验一遍（M-2，D-070）
 check_ddc_fir(fullfile(repo, 'models', 'adc-ddc', 'fir_lp_v1.json'));
 end

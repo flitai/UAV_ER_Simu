@@ -34,6 +34,8 @@ _SRC_EXT = (".c", ".h")
 _KINDS = {
     "pfb": {"dir": os.path.join("models", "channelizer", "coder"), "label": "Channelizer"},
     "rx": {"dir": os.path.join("models", "receiver", "coder"), "label": "RxFilter"},
+    "rsmp": {"dir": os.path.join("models", "radiator", "coder"),
+             "label": "SceneEmitterSource 的 OFDM 有理重采样（Q-2，D-088）"},
 }
 _OUT_REL = os.path.join("engine", "src", "coder_provenance.cpp")
 
@@ -170,7 +172,7 @@ def main(argv=None) -> int:
                     help="只核对入库的 .cpp 与当前产物是否一致，不写文件")
     a = ap.parse_args(argv)
 
-    infos = [collect(k) for k in ("pfb", "rx")]
+    infos = [collect(k) for k in ("pfb", "rx", "rsmp")]
     text = render(infos)
     out = os.path.join(_ROOT, _OUT_REL)
 

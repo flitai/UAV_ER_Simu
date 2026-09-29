@@ -81,5 +81,33 @@ const FileHash k_rx_files[] = {
 std::size_t rx_file_count() { return sizeof(k_rx_files) / sizeof(k_rx_files[0]); }
 const FileHash& rx_file_at(std::size_t i) { return k_rx_files[i]; }
 
+// SceneEmitterSource 的 OFDM 有理重采样（Q-2，D-088）：models/radiator/coder/
+const char* rsmp_source_ref() {
+    return "matlab/ref/{cuav_rsmp_cycle.m, cuav_rsmp_m24.m, cuav_rsmp_m48.m, cuav_rsmp_m96.m}｜来源集 sha256 9eb99f0d32e44105｜MATLAB 25.1.0.2973910 (R2025a) Update 1｜Coder 25.1 (R2025a)｜codegen 参数 sha256 ceadcf53a85d2c07｜models/radiator/coder/";
+}
+
+const char* rsmp_args_sha256() { return "ceadcf53a85d2c07f9709d89ec39e0cdaa99ba3a69f4f0894217afc85e95607f"; }
+
+namespace {
+const FileHash k_rsmp_files[] = {
+    { "cuav_rsmp_m24.c", "d2e250956e43a57e09b0a078cbe8a5668130c0893a91c7b9001a33256142ec1f" },
+    { "cuav_rsmp_m24.h", "d23d4af89277e626bebd0e21a5f89bbf05f904f0a616a2f09fa1f78b66dae9f1" },
+    { "cuav_rsmp_m24_data.h", "27eca26e249e627745b6315839724235f505bfe707800df59b0457af80ce5cf2" },
+    { "cuav_rsmp_m24_initialize.c", "11167444eb9b0ba7f6770039024fcf9589cc0322da74825b510d12cc678f703f" },
+    { "cuav_rsmp_m24_initialize.h", "d2327e37d264722804e87ab9b36f78258813fa24a74d7ec8c5b53dc242f87cf8" },
+    { "cuav_rsmp_m24_terminate.c", "74d7940705da64917d1222b1354a14ca73444c531123fe04de35366de8adceef" },
+    { "cuav_rsmp_m24_terminate.h", "270251e5e970467dab2b4e3d5e11f4b8361c1033117202795eef1b29d69f18e7" },
+    { "cuav_rsmp_m24_types.h", "c3726d0091164341ea2f14d1f608cfc0a89b632420e510b8382525a535bb43fa" },
+    { "cuav_rsmp_m48.c", "63f5af1efa643fbdcf6303d2914335c590fb84ffd1de329975d1d6d95f58372d" },
+    { "cuav_rsmp_m48.h", "194b2472f4e1ea79715eff75d251af655a0b46cd9c93433494eea2abe50cf871" },
+    { "cuav_rsmp_m96.c", "836f7f7cd296479385039b85e7c6a518924705fa67ff3caf9af907563cbbb5c6" },
+    { "cuav_rsmp_m96.h", "5ab194cf2c1512cad2c50f2da6af7a72cd76c1d974b1ceade452dcc50ea6512f" },
+    { "rtwtypes.h", "1854e8035a03d50340c2a6b0dc21f49fc560b38fcf9cfb0653dbbe44d67ef483" },
+};
+}  // namespace
+
+std::size_t rsmp_file_count() { return sizeof(k_rsmp_files) / sizeof(k_rsmp_files[0]); }
+const FileHash& rsmp_file_at(std::size_t i) { return k_rsmp_files[i]; }
+
 }  // namespace coder_provenance
 }  // namespace cuav

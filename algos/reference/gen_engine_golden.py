@@ -861,6 +861,79 @@ def write_ofdm(args) -> int:
     return 0
 
 
+def write_rsmp(args) -> int:
+    """OFDM 有理重采样（Q-2，D-088）：Coder 核 + 封装 对 algos/reference/resampler.py（直接型）。
+
+    两部分，都是 double 进 double 出（算法核尺度，判据 1e-9）：
+      kernel_check：每个抽取比 M 一拍，窗口是显式数据（Xoshiro 的复正态，逐项写进文件），
+                    期望输出由直接型算出。MATLAB 一方读同一个窗口。
+      burst：一个真实的上行 OFDM 突发（dji-uplink-2m，原生 15.36 MS/s）放在原生序号 n0 处，
+             M = 24 重采样到 80 MS/s，存支撑开头与结尾两段输出。
+    """
+    import hashlib
+    import ofdm_ref
+    import resampler as rs
+
+    tab = rs.load_table()
+    with open(os.path.join(rs._ROOT, rs.TABLE_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+    L, T = tab["L"], tab["T"]
+    rng = Xoshiro256pp(args.rsmp_seed)
+    kc = []
+    for M in tab["M"]:
+        c = 3
+        win = np.array([complex(rng.normal(), rng.normal()) for _ in range(M + T)])
+        y = rs.window_cycle(win, M, c, tab)
+        kc.append({"M": M, "cycle": c, "window_start": c * M - T // 2,
+                   "window": [[v.real, v.imag] for v in win],
+                   "expected": [[v.real, v.imag] for v in y]})
+
+    doc_p = ofdm_ref.load_presets()
+    p = ofdm_ref.Preset(doc_p, "dji-uplink-2m")
+    x = ofdm_ref.burst(p, 0, args.rsmp_seed)
+    n0 = args.rsmp_burst_start
+    M = 24
+    m_lo = -((-(n0 * L - tab["gd"])) // M)              # 支撑的保守下界：ceil((n0·L − gd)/M)
+    m_hi = ((n0 + x.size + T) * L - tab["gd"] - 1) // M + 1   # 窗口仍碰到最后一个原生样点的最后一个 m，再 +1
+    head = rs.resample(x, n0, M, m_lo, m_lo + args.rsmp_keep, tab)
+    tail = rs.resample(x, n0, M, m_hi - args.rsmp_keep, m_hi, tab)
+    burst = {"preset": "dji-uplink-2m", "variant": 0, "seed": args.rsmp_seed, "native_start": n0,
+             "native_length": int(x.size), "M": M, "support": [m_lo, m_hi],
+             "head_start": m_lo, "head": [[v.real, v.imag] for v in head],
+             "tail_start": m_hi - args.rsmp_keep, "tail": [[v.real, v.imag] for v in tail]}
+
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "OFDM 有理重采样的对拍基准（Q-2，D-088）：Coder 核（models/radiator/coder/）+ 封装 "
+                   "engine/src/resampler.cpp 对 algos/reference/resampler.py（直接型）；"
+                   "MATLAB 一方读 kernel_check 的窗口，写 rsmp.matlab.json",
+        "generator": "algos/reference/gen_engine_golden.py --mode rsmp",
+        "fir": {"version": "rsmp_v1", "table_source": rs.TABLE_REL.replace(os.sep, "/"), "table_sha256": table_sha},
+        "time_anchor": "站点样点 m ↔ 原型序号 m·M + gd（gd = L·T/2），即原生时刻 m·M/L；窗口 = 原生 c·M − T/2 起 M+T 个",
+        "kernel_check": kc,
+        "burst": burst,
+        "tolerance": {"kernel_rel": 1e-9,
+                      "note": "max|差| / 期望值的均方根；double 进 double 出，不承诺逐位（两侧累加次序不同）"},
+    }
+    arrays = {}
+    for i, e in enumerate(kc):
+        for key in ("window", "expected"):
+            tag = f"@@k{i}_{key}@@"
+            arrays[tag] = e[key]
+            e[key] = tag
+    for key in ("head", "tail"):
+        tag = f"@@b_{key}@@"
+        arrays[tag] = burst[key]
+        burst[key] = tag
+    text = json.dumps(doc, ensure_ascii=False, indent=1)
+    for tag, pairs in arrays.items():
+        text = text.replace(json.dumps(tag), "[\n" + ",\n".join(json.dumps(pr) for pr in pairs) + "\n]", 1)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(text + "\n")
+    print(f"写出 {args.out}：{len(kc)} 拍核对、突发支撑 {m_hi - m_lo} 个站点样点，表 sha256 {table_sha[:16]}…")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -873,7 +946,7 @@ def main(argv=None) -> int:
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
-                                      "channelizer", "rx_filter", "ofdm"), default="probe")
+                                      "channelizer", "rx_filter", "ofdm", "rsmp"), default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -926,6 +999,9 @@ def main(argv=None) -> int:
     ap.add_argument("--rx-kernel-bw-rels", type=float, nargs="+", default=[0.2, 0.8])
     ap.add_argument("--rx-kernel-block", type=int, default=1024)
     ap.add_argument("--ofdm-seed", type=int, default=20260929, help="ofdm：突发载荷种子")
+    ap.add_argument("--rsmp-seed", type=int, default=20260930, help="rsmp：窗口与突发的种子")
+    ap.add_argument("--rsmp-burst-start", type=int, default=1000, help="rsmp：突发的原生起点")
+    ap.add_argument("--rsmp-keep", type=int, default=400, help="rsmp：支撑首尾各存多少个站点样点")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
@@ -938,6 +1014,8 @@ def main(argv=None) -> int:
         return write_rx_filter(args)
     if args.mode == "ofdm":
         return write_ofdm(args)
+    if args.mode == "rsmp":
+        return write_rsmp(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

@@ -3,13 +3,29 @@
   "generator": "MATLAB_ROOT=<安装目录> sh matlab/run_matlab.sh（matlab/coder/build_coder.m）",
   "matlab_version": "25.1.0.2973910 (R2025a) Update 1",
   "coder_version": "25.1 (R2025a)",
-  "entry_points": {
-    "name": "cuav_rx_fir",
-    "source_m": "matlab/ref/cuav_rx_fir.m",
-    "kind": "rx",
-    "args": "x: complex double [1024 1]; h: double [57 1]; zi: complex double [56 1]"
-  },
-  "shared_m": [],
+  "entry_points": [
+    {
+      "name": "cuav_rsmp_m24",
+      "source_m": "matlab/ref/cuav_rsmp_m24.m",
+      "kind": "rsmp",
+      "args": "win: complex double [44 1]; h: double [2625 1]; M = 24 (coder.Constant)"
+    },
+    {
+      "name": "cuav_rsmp_m48",
+      "source_m": "matlab/ref/cuav_rsmp_m48.m",
+      "kind": "rsmp",
+      "args": "win: complex double [68 1]; h: double [2625 1]; M = 48 (coder.Constant)"
+    },
+    {
+      "name": "cuav_rsmp_m96",
+      "source_m": "matlab/ref/cuav_rsmp_m96.m",
+      "kind": "rsmp",
+      "args": "win: complex double [116 1]; h: double [2625 1]; M = 96 (coder.Constant)"
+    }
+  ],
+  "shared_m": [
+    "matlab/ref/cuav_rsmp_cycle.m"
+  ],
   "config": {
     "TargetLang": "C",
     "GenCodeOnly": "true",

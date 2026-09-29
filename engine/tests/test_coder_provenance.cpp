@@ -10,6 +10,7 @@
 // 因为交付与 CI 都不装 MATLAB，产物是否被动过只能靠哈希说话。
 
 #include <string>
+#include <vector>
 
 #include "cuav/coder_provenance.h"
 #include "cuav/sha256.h"
@@ -60,6 +61,8 @@ void check_files(const char* dir, std::size_t n,
 TEST_CASE("Coder 溯源：source_ref 带齐 08 §13 第 4 条要的四样") {
     check_ref(coder_provenance::pfb_source_ref(), "models/channelizer/coder/");
     check_ref(coder_provenance::rx_source_ref(), "models/receiver/coder/");
+    check_ref(coder_provenance::rsmp_source_ref(), "models/radiator/coder/");
+    CHECK(std::string(coder_provenance::rsmp_args_sha256()).size() == 64u);
     // codegen 参数哈希是完整的 64 位，source_ref 里只截前 16 位便于阅读
     CHECK(std::string(coder_provenance::pfb_args_sha256()).size() == 64u);
     CHECK(std::string(coder_provenance::rx_args_sha256()).size() == 64u);
@@ -73,4 +76,41 @@ TEST_CASE("Coder 溯源：入库的每个产物文件与生成它那一次逐位
                 &coder_provenance::pfb_file_at);
     check_files("models/receiver/coder", coder_provenance::rx_file_count(),
                 &coder_provenance::rx_file_at);
+    check_files("models/radiator/coder", coder_provenance::rsmp_file_count(),
+                &coder_provenance::rsmp_file_at);
+}
+
+TEST_CASE("Coder 溯源：各套产物的 .c 不重名（它们编进同一个静态库 cuav_coder）") {
+    // 每次 codegen 各自独立，工具箱函数会生成不带前缀的公用 C 文件（接收滤波的 filter.c、
+    // 信道化的 sum.c）。第三套产物若再生成一份同名文件，链接时就是重复符号；
+    // 更糟的是只在某个平台的链接器上报。这里在源头拦住（Q-2，D-088）。
+    // 头文件只许 rtwtypes.h 重名，且必须逐字节相同（三份 include 目录都在搜索路径上）。
+    struct Set {
+        std::size_t (*count)();
+        const coder_provenance::FileHash& (*at)(std::size_t);
+    };
+    const Set sets[] = {
+        {&coder_provenance::pfb_file_count, &coder_provenance::pfb_file_at},
+        {&coder_provenance::rx_file_count, &coder_provenance::rx_file_at},
+        {&coder_provenance::rsmp_file_count, &coder_provenance::rsmp_file_at},
+    };
+    std::vector<std::string> names;
+    std::vector<std::string> hashes;
+    std::string rtw;
+    for (const Set& st : sets) {
+        for (std::size_t i = 0; i < st.count(); ++i) {
+            const std::string n = st.at(i).name;
+            const std::string h = st.at(i).sha256;
+            if (n == "rtwtypes.h") {
+                if (rtw.empty()) rtw = h;
+                CHECK_MESSAGE(h == rtw, "各套产物的 rtwtypes.h 必须逐字节相同");
+                continue;
+            }
+            for (std::size_t k = 0; k < names.size(); ++k)
+                CHECK_MESSAGE(names[k] != n, n << " 在两套 Coder 产物里重名");
+            names.push_back(n);
+            hashes.push_back(h);
+        }
+    }
+    CHECK(!rtw.empty());
 }

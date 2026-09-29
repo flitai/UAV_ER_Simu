@@ -1,5 +1,5 @@
 function build_coder(repo)
-%BUILD_CODER  用 MATLAB Coder 生成信道化与接收滤波的 C 算法核（06 §9D M-3；08 §13）。
+%BUILD_CODER  用 MATLAB Coder 生成信道化、接收滤波与 OFDM 有理重采样的 C 算法核（06 §9D M-3；08 §13；Q-2 加重采样，D-088）。
 %
 %   用法：随 matlab/run_all.m 走，或 build_coder('<仓库根>')。
 %   路径一律从本文件位置推导（铁律 17）；不接受任何机器相关的写死路径。
@@ -23,6 +23,10 @@ chans = arrayfun(@(e) double(e.channels), pfb.entries);
 pads  = arrayfun(@(e) double(e.pad_to),   pfb.entries);
 rxN   = max(arrayfun(@(e) double(e.ntaps), rx.entries));   % 各档零填充到同一个长度
 RX_BLOCK = 1024;                                           % 接收滤波每次喂的样点数
+rs  = jsondecode(fileread(fullfile(repo, 'models', 'radiator',    'fir_rsmp_v1.json')));
+RS_L = double(rs.entries(1).interp_L);
+RS_T = double(rs.entries(1).taps_per_phase);
+RS_M = double(rs.spec.decim_M_supported(:)');             % 每个抽取比一个入口
 
 cfg = local_cfg(here);
 
@@ -42,9 +46,20 @@ local_codegen(cfg, {'cuav_rx_fir'}, ...
     {{ coder.typeof(complex(0), [RX_BLOCK 1]), coder.typeof(0, [rxN 1]), ...
        coder.typeof(complex(0), [rxN-1 1]) }}, out_rx);
 
+% ---- OFDM 有理重采样：每个 M 一个入口（窗口长度 M+T 要 codegen 常量）--------
+args = {}; names = {};
+for i = 1:numel(RS_M)
+    m = RS_M(i);
+    names{end+1} = sprintf('cuav_rsmp_m%d', m); %#ok<AGROW>
+    args{end+1}  = { coder.typeof(complex(0), [m + RS_T 1]), coder.typeof(0, [RS_L * (RS_T + 1) 1]) }; %#ok<AGROW>
+end
+out_rs = fullfile(staging, 'radiator');
+local_codegen(cfg, names, args, out_rs);
+
 % ---- 分发到 models/<环节>/coder/，只搬该入库的那几类 -----------------------
 n1 = local_install(out_chan, fullfile(repo, 'models', 'channelizer', 'coder'));
 n2 = local_install(out_rx,   fullfile(repo, 'models', 'receiver',    'coder'));
+n3 = local_install(out_rs,   fullfile(repo, 'models', 'radiator',    'coder'));
 
 % ---- 溯源：记下来源、版本与 codegen 参数，哈希由 Python 侧算（那边有 stdlib）----
 prov = struct();
@@ -52,20 +67,23 @@ prov.schema = 'cuav-coder-provenance/1';
 prov.generator = 'MATLAB_ROOT=<安装目录> sh matlab/run_matlab.sh（matlab/coder/build_coder.m）';
 prov.matlab_version = version;
 prov.coder_version = local_coder_version();
-prov.entry_points = local_entries(chans, pads, rxN, RX_BLOCK);
+prov.entry_points = local_entries(chans, pads, rxN, RX_BLOCK, RS_M, RS_L, RS_T);
 % 共享实现也是源：六个 cuav_pfb_mN.m 都只是把 M 钉死，算法全在 cuav_pfb_cycle.m 里。
 % 不记它，改了算法而没改任何入口文件时溯源哈希会纹丝不动。
-prov.shared_m = struct('pfb', {{'matlab/ref/cuav_pfb_cycle.m'}}, 'rx', {{}});
+prov.shared_m = struct('pfb', {{'matlab/ref/cuav_pfb_cycle.m'}}, 'rx', {{}}, ...
+                       'rsmp', {{'matlab/ref/cuav_rsmp_cycle.m'}});
 prov.config = local_cfg_record(cfg);
-prov.note = ['接口尺寸取自 models/channelizer/fir_pfb_v1.json 与 models/receiver/fir_rx_v1.json；' ...
+prov.note = ['接口尺寸取自 models/channelizer/fir_pfb_v1.json、models/receiver/fir_rx_v1.json 与 models/radiator/fir_rsmp_v1.json；' ...
              '各字段的 sha256 由 scripts/gen_coder_provenance.py 补齐并编进 engine/src/coder_provenance.cpp。'];
 local_write_json(fullfile(repo, 'models', 'channelizer', 'coder', 'PROVENANCE.json'), ...
                  local_pick(prov, 'pfb'));
 local_write_json(fullfile(repo, 'models', 'receiver', 'coder', 'PROVENANCE.json'), ...
                  local_pick(prov, 'rx'));
+local_write_json(fullfile(repo, 'models', 'radiator', 'coder', 'PROVENANCE.json'), ...
+                 local_pick(prov, 'rsmp'));
 
 rmdir(staging, 's');
-fprintf('Coder 产物：信道化 %d 个文件、接收滤波 %d 个文件\n', n1, n2);
+fprintf('Coder 产物：信道化 %d 个文件、接收滤波 %d 个文件、有理重采样 %d 个文件\n', n1, n2, n3);
 fprintf('下一步：uv run --quiet python scripts/gen_coder_provenance.py\n');
 end
 
@@ -127,7 +145,7 @@ a = ver; k = find(strcmp({a.Name}, 'MATLAB Coder'), 1);
 if isempty(k), v = 'unknown'; else, v = sprintf('%s %s', a(k).Version, a(k).Release); end
 end
 
-function e = local_entries(chans, pads, rxN, rxBlock)
+function e = local_entries(chans, pads, rxN, rxBlock, rsM, rsL, rsT)
 e = struct('name', {}, 'source_m', {}, 'kind', {}, 'args', {});
 for i = 1:numel(chans)
     e(end+1) = struct( ...
@@ -140,6 +158,14 @@ end
 e(end+1) = struct('name', 'cuav_rx_fir', 'source_m', 'matlab/ref/cuav_rx_fir.m', 'kind', 'rx', ...
                   'args', sprintf('x: complex double [%d 1]; h: double [%d 1]; zi: complex double [%d 1]', ...
                                   rxBlock, rxN, rxN - 1));
+for i = 1:numel(rsM)
+    e(end+1) = struct( ...
+        'name', sprintf('cuav_rsmp_m%d', rsM(i)), ...
+        'source_m', sprintf('matlab/ref/cuav_rsmp_m%d.m', rsM(i)), ...
+        'kind', 'rsmp', ...
+        'args', sprintf('win: complex double [%d 1]; h: double [%d 1]; M = %d (coder.Constant)', ...
+                        rsM(i) + rsT, rsL * (rsT + 1), rsM(i))); %#ok<AGROW>
+end
 end
 
 function c = local_cfg_record(cfg)

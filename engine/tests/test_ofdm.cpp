@@ -5,7 +5,9 @@
 //      且表文件的 sha256 与生成时记下的一致（防「改了 JSON 忘了重生成」）；
 //   ② 原生率调制器（engine/src/ofdm.cpp）：缓存旋转因子的 FFT 与原版逐位相同、结构性质
 //      （子载波数、CP、ZC 功率）、对 Python 参考与 MATLAB 一方的黄金基准（算法核尺度 1e-9）。
-// 重采样、帧排布、源的生成路径各自的用例随后续步骤加在这里。
+//   ③ 重采样原型表（models/radiator/fir_rsmp_v1.json）：逐位、结构约束、按赫兹的物理锚点；
+//   ④ 有理重采样封装（engine/src/resampler.cpp + Coder 核）：对 Python 与 MATLAB 两方、冲激对齐。
+// 帧排布与源的生成路径的用例随后续步骤加在这里。
 
 #include <cmath>
 #include <complex>
@@ -18,6 +20,7 @@
 #include "cuav/dsp.h"
 #include "cuav/ofdm.h"
 #include "cuav/random.h"
+#include "cuav/resampler.h"
 #include "cuav/sha256.h"
 #include "cuav_geo/radiator_presets.h"
 #include "doctest/doctest.h"
@@ -337,4 +340,148 @@ TEST_CASE("重采样表：物理锚点（按赫兹量，20 MHz 档 fs_n = 30.72 
     CHECK(rsmp_gain_dB(15.36e6 / fs_n) < -60.0);     // 原生奈奎斯特
     CHECK(rsmp_gain_dB((fs_n - edge) / fs_n) < -60.0);   // 第一镜像的下沿 21.72 MHz
     CHECK(rsmp_gain_dB((fs_n + edge) / fs_n) < -60.0);
+}
+
+// ---------------------------------------------------------------- ④ 有理重采样封装
+
+namespace {
+// 站点样点 [m_lo, m_hi) 的输出：原生序列 x 从原生序号 x0 起，其余按 0。逐拍调 Coder 核。
+std::vector<std::complex<double>> resample_range(const RationalResampler& r,
+                                                 const std::vector<std::complex<double>>& x,
+                                                 std::int64_t x0, std::int64_t m_lo, std::int64_t m_hi) {
+    const std::int64_t L = r.interp();
+    std::vector<std::complex<double>> out;
+    std::vector<std::complex<double>> win(static_cast<std::size_t>(r.window_len()));
+    std::vector<std::complex<double>> y(static_cast<std::size_t>(L));
+    std::int64_t have = -1;
+    for (std::int64_t m = m_lo; m < m_hi; ++m) {
+        const std::int64_t c = m >= 0 ? m / L : -((-m + L - 1) / L);
+        if (c != have) {
+            const std::int64_t ws = r.window_start(c);
+            for (std::int64_t j = 0; j < r.window_len(); ++j) {
+                const std::int64_t n = ws + j - x0;
+                win[static_cast<std::size_t>(j)] =
+                    (n >= 0 && n < static_cast<std::int64_t>(x.size())) ? x[static_cast<std::size_t>(n)]
+                                                                         : std::complex<double>(0.0, 0.0);
+            }
+            r.cycle(&win[0], &y[0]);
+            have = c;
+        }
+        out.push_back(y[static_cast<std::size_t>(m - c * L)]);
+    }
+    return out;
+}
+
+double rel_err(const std::vector<std::complex<double>>& got, const nlohmann::json& want) {
+    REQUIRE(got.size() == want.size());
+    double ss = 0.0, worst = 0.0;
+    for (std::size_t i = 0; i < got.size(); ++i) {
+        const std::complex<double> w(want[i][0].get<double>(), want[i][1].get<double>());
+        ss += std::norm(w);
+        worst = std::max(worst, std::abs(got[i] - w));
+    }
+    return worst / std::sqrt(ss / static_cast<double>(got.size()));
+}
+}  // namespace
+
+TEST_CASE("有理重采样：支持的抽取比与冻结表一致，其余报错并列出可取值") {
+    const nlohmann::json j = nlohmann::json::parse(read_bytes(repo_path("models/radiator/fir_rsmp_v1.json")));
+    std::vector<int> want;
+    for (const auto& m : j.at("spec").at("decim_M_supported")) want.push_back(m.get<int>());
+    CHECK(rsmp_supported_decim() == want);
+    RationalResampler r;
+    std::string err;
+    CHECK_FALSE(r.init(25, err));
+    CHECK(err.find("24 / 48 / 96") != std::string::npos);
+    for (int m : want) CHECK(r.init(m, err));
+}
+
+TEST_CASE("有理重采样：Coder 核对 Python 参考（直接型）与 MATLAB 一方（入口 + upfirdn），1e-9") {
+    const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/rsmp.json")));
+    CHECK(g.at("fir").at("table_sha256").get<std::string>() == std::string(dsp::rsmp_fir_v1_sha256()));
+    const nlohmann::json gm = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/rsmp.matlab.json")));
+    CHECK_MESSAGE(gm.at("guards").at("table_sha256").get<std::string>() == std::string(dsp::rsmp_fir_v1_sha256()),
+                  "冻结表变了而 MATLAB 一方没重跑：MATLAB_ROOT=<MATLAB 安装目录> sh matlab/run_matlab.sh");
+    for (const auto& h : gm.at("guards").at("source_m_sha256")) {
+        const std::string rel = h.at("path").get<std::string>();
+        CHECK_MESSAGE(sha256_hex(read_bytes(repo_path(rel))) == h.at("sha256").get<std::string>(),
+                      rel << " 改过而 MATLAB 一方没重跑");
+    }
+    const double tol = g.at("tolerance").at("kernel_rel").get<double>();
+    double worst_py = 0.0, worst_ml = 0.0;
+    const auto& kc = g.at("kernel_check");
+    const auto& kcm = gm.at("kernel_check");
+    REQUIRE(kc.size() == kcm.size());
+    for (std::size_t i = 0; i < kc.size(); ++i) {
+        const int M = kc[i].at("M").get<int>();
+        CAPTURE(M);
+        RationalResampler r;
+        std::string err;
+        REQUIRE(r.init(M, err));
+        const auto& jw = kc[i].at("window");
+        REQUIRE(jw.size() == static_cast<std::size_t>(r.window_len()));
+        std::vector<std::complex<double>> win(jw.size());
+        for (std::size_t k = 0; k < jw.size(); ++k) win[k] = std::complex<double>(jw[k][0].get<double>(), jw[k][1].get<double>());
+        CHECK(kc[i].at("window_start").get<std::int64_t>() == r.window_start(kc[i].at("cycle").get<std::int64_t>()));
+        std::vector<std::complex<double>> y(static_cast<std::size_t>(r.interp()));
+        r.cycle(&win[0], &y[0]);
+        const double ep = rel_err(y, kc[i].at("expected"));
+        const double em = rel_err(y, kcm[i].at("expected"));
+        CHECK(ep <= tol);
+        CHECK(em <= tol);
+        worst_py = std::max(worst_py, ep);
+        worst_ml = std::max(worst_ml, em);
+    }
+    MESSAGE("有理重采样核：对 Python " << worst_py << "、对 MATLAB " << worst_ml);
+}
+
+TEST_CASE("有理重采样：真实上行突发整段重采样，对 Python 参考 1e-9") {
+    const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/rsmp.json")));
+    const auto& b = g.at("burst");
+    const geo::RadiatorPreset* p = geo::radiator_preset_v1(b.at("preset").get<std::string>());
+    REQUIRE(p != 0);
+    ofdm::Modulator mod;
+    std::string err;
+    REQUIRE(mod.init(*p, err));
+    std::vector<std::complex<double>> x;
+    mod.burst(b.at("variant").get<int>(), b.at("seed").get<std::uint64_t>(), x);
+    REQUIRE(static_cast<int>(x.size()) == b.at("native_length").get<int>());
+    RationalResampler r;
+    REQUIRE(r.init(b.at("M").get<int>(), err));
+    const std::int64_t n0 = b.at("native_start").get<std::int64_t>();
+    const std::int64_t hs = b.at("head_start").get<std::int64_t>();
+    const std::int64_t ts = b.at("tail_start").get<std::int64_t>();
+    const std::size_t keep = b.at("head").size();
+    const double tol = g.at("tolerance").at("kernel_rel").get<double>();
+    const double eh = rel_err(resample_range(r, x, n0, hs, hs + static_cast<std::int64_t>(keep)), b.at("head"));
+    const double et = rel_err(resample_range(r, x, n0, ts, ts + static_cast<std::int64_t>(keep)), b.at("tail"));
+    CHECK(eh <= tol);
+    CHECK(et <= tol);
+    MESSAGE("上行突发重采样：支撑开头 " << eh << "、结尾 " << et);
+    // 支撑外恰为零：支撑前一个与后一个站点样点
+    const auto sup = b.at("support");
+    const std::vector<std::complex<double>> before = resample_range(r, x, n0, sup[0].get<std::int64_t>() - 1, sup[0].get<std::int64_t>());
+    const std::vector<std::complex<double>> after = resample_range(r, x, n0, sup[1].get<std::int64_t>(), sup[1].get<std::int64_t>() + 1);
+    CHECK(std::abs(before[0]) == 0.0);
+    CHECK(std::abs(after[0]) == 0.0);
+}
+
+TEST_CASE("有理重采样：冲激对齐偏差 0 样点（三档抽取比）") {
+    for (int M : rsmp_supported_decim()) {
+        CAPTURE(M);
+        RationalResampler r;
+        std::string err;
+        REQUIRE(r.init(M, err));
+        const std::int64_t k = 11;
+        std::vector<std::complex<double>> x(1, std::complex<double>(1.0, 0.0));
+        const std::int64_t lo = 125 * k - 300, hi = 125 * k + 300;
+        const std::vector<std::complex<double>> y = resample_range(r, x, k * M, lo, hi);
+        std::size_t arg = 0;
+        for (std::size_t i = 1; i < y.size(); ++i) if (std::abs(y[i]) > std::abs(y[arg])) arg = i;
+        CHECK(static_cast<std::int64_t>(arg) + lo == 125 * k);
+        // 峰值就是原型中心抽头
+        std::vector<double> h;
+        dsp::rsmp_fir_expand(dsp::rsmp_fir_v1(), h);
+        CHECK(y[arg].real() == h[h.size() / 2]);
+    }
 }

@@ -59,5 +59,5 @@
     "ProdBits": "char 8 short 16 int 32 long 32 longlong 64 pointer 64",
     "CodeTemplate": "matlab/coder/cuav_banner.cgt（默认模板去掉 %<SourceGeneratedOn>）"
   },
-  "note": "接口尺寸取自 models/channelizer/fir_pfb_v1.json 与 models/receiver/fir_rx_v1.json；各字段的 sha256 由 scripts/gen_coder_provenance.py 补齐并编进 engine/src/coder_provenance.cpp。"
+  "note": "接口尺寸取自 models/channelizer/fir_pfb_v1.json、models/receiver/fir_rx_v1.json 与 models/radiator/fir_rsmp_v1.json；各字段的 sha256 由 scripts/gen_coder_provenance.py 补齐并编进 engine/src/coder_provenance.cpp。"
 }

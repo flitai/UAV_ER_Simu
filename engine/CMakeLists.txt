@@ -36,19 +36,22 @@ endif()
 #
 # 三层分工见 08 报告 §13：matlab/ref/*.m 是算法核的来源，这里编的是 Coder 生成的 C，
 # 封装层（参数校验、样点序号换算与群时延扣除、状态持有、溯源、四态传播）是
-# engine/src/{channelizer,rx_filter}.cpp，手写。
+# engine/src/{channelizer,rx_filter,resampler}.cpp，手写（有理重采样是 Q-2 加的第三套，D-088）。
 #
 # 产物在树外（models/<环节>/coder/），路径从 CMAKE_CURRENT_SOURCE_DIR 推导（铁律 17）。
-# 两个目录各有一份 rtwtypes.h，内容逐字节相同（同一套硬件配置），各自自足；
-# 每个 .c 用 #include "..." 找同目录那一份，所以同名不成问题。
+# 三个目录各有一份 rtwtypes.h，内容逐字节相同（同一套硬件配置），各自自足；
+# 每个 .c 用 #include "..." 找同目录那一份，所以同名不成问题。.c 不许跨目录重名
+# （同一个静态库里就是重复符号），由 engine/tests/test_coder_provenance.cpp 拦。
 set(CUAV_CODER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../models)
 file(GLOB CUAV_CODER_SRC
   ${CUAV_CODER_ROOT}/channelizer/coder/*.c
-  ${CUAV_CODER_ROOT}/receiver/coder/*.c)
+  ${CUAV_CODER_ROOT}/receiver/coder/*.c
+  ${CUAV_CODER_ROOT}/radiator/coder/*.c)
 add_library(cuav_coder STATIC ${CUAV_CODER_SRC})
 target_include_directories(cuav_coder PUBLIC
   ${CUAV_CODER_ROOT}/channelizer/coder
-  ${CUAV_CODER_ROOT}/receiver/coder)
+  ${CUAV_CODER_ROOT}/receiver/coder
+  ${CUAV_CODER_ROOT}/radiator/coder)
 # 刻意不给它 -Wall -Wextra / /W4：生成代码的告警改不得也不该改。
 # 真正要守的是「产物没被人动过」，那由 engine/tests/test_coder_provenance.cpp 的 sha256 兜住。
 
@@ -65,6 +68,7 @@ add_library(cuav_engine STATIC
   src/coder_provenance.cpp
   src/rx_filter.cpp
   src/channelizer.cpp
+  src/resampler.cpp
   src/ddc.cpp
   src/graph.cpp
   src/sources.cpp

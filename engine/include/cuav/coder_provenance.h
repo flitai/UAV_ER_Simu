@@ -31,6 +31,12 @@ const char* rx_args_sha256();
 std::size_t rx_file_count();
 const FileHash& rx_file_at(std::size_t i);
 
+// OFDM 有理重采样（models/radiator/coder/；Q-2，D-088）。组件是 SceneEmitterSource。
+const char* rsmp_source_ref();
+const char* rsmp_args_sha256();
+std::size_t rsmp_file_count();
+const FileHash& rsmp_file_at(std::size_t i);
+
 }  // namespace coder_provenance
 }  // namespace cuav
 
