@@ -60,6 +60,16 @@ else
   echo "跳过：需要 uv" >&2
 fi
 
+printf '=== GFSK 族预设表（Q-3，D-089）===\n'
+# 生成的 C++ 与 models/radiator/gfsk-presets-v1.json 一致；S 档由 CC2500 寄存器逐位复算，
+# FrSky 的 M 档能从 q0b-params.json 核回去，S-FHSS 与 T14SG 录音的差距照实钉住。只用标准库。
+if command -v uv >/dev/null 2>&1; then
+  uv run --quiet python scripts/gen_gfsk_presets.py --check
+  uv run --quiet python -m unittest tests/unit/test_gfsk_presets.py
+else
+  echo "跳过：需要 uv" >&2
+fi
+
 printf '=== OFDM 族波形：从保存的典型链路核对（Q-2，D-088）===\n'
 # 真值逐位对帧排布复刻、DroneID 的 ZC 峰（S0 偏差 0）、图传星座 EVM、Q-0b 提取器量合成信号对 14 §7.1、
 # SigMF 注记带预设、10 MS/s 场景载入即拒。约 30 s；运行目录约 2 GB（三个观测点写原始 IQ），不入 git。

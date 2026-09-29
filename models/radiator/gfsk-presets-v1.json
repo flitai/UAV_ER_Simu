@@ -1,0 +1,201 @@
+{
+  "schema": "cuav-gfsk-presets/1",
+  "version": "v1",
+  "decision": "D-089",
+  "status": "原型阶段验证值（D-028）：S 档由开源实现的 CC2500 寄存器按数据手册公式复算，M 档取自公开数据集训练部分（Q-0b，D-086），甲方数据到货后按同一脚本重估；A 档逐项列在 provenance 里，交付文档照实写（14 §9）",
+  "grades": {
+    "V": "厂商文档",
+    "P": "同行评审论文或数据集论文",
+    "S": "开源实现或逆向分析",
+    "A": "本方假定",
+    "D": "由有出处的数算出",
+    "M": "本方从公开数据集实测提取"
+  },
+  "refs": {
+    "MPM": "pascallanger/DIY-Multiprotocol-TX-Module（GitHub）commit ee984c403d6aedf56a2ef66dd27705430c79b302：Multiprotocol/Futaba_cc2500.ino（S-FHSS：寄存器注释第 38–68 行、SFHSS_init_values 第 69 行、CHANNR = 6k+16 第 93 行、SFHSS_calc_next_chan 第 115 行、周期 6800 µs 与第二包 1625 µs 第 236–237 行、fhss_code 第 308 行）；FrSkyDVX_common.ino（FrSkyX2_init_hop 第 146–177 行、FRSKYX_cc2500_conf 第 286 行、FCC 的 MDMCFG3 改写 0x84 第 523 行）；FrSkyX_cc2500.ino（逐包 hopping_frequency_no + chanskip 模 47 第 179 行、FCC 周期 5200 + 3400 + 400 µs 第 185–242 行）",
+    "CC2500": "TI CC2500 数据手册 SWRS040C：§16.1（2-FSK 可经 BT = 1 的高斯滤波成 GFSK）、表 23（'0' → −频偏、'1' → +频偏）、§14.3 与 §15.2（前导 1010…、16 位同步字可重复成 32 位）；寄存器公式见 conventions.registers",
+    "Q0B": "data/iq/measured/q0b-params.json（Q-0b，D-086；摘要见 14 号报告 §7.1）"
+  },
+  "conventions": {
+    "registers": "fosc = 26 MHz；符号率 R = (256 + DRATE_M)·2^DRATE_E·fosc / 2^28（DRATE_E = MDMCFG4[3:0]，DRATE_M = MDMCFG3）；频偏 f_dev = fosc / 2^17·(8 + DEVIATION_M)·2^DEVIATION_E（DEVIATN[2:0] / [6:4]）；信道间隔 = fosc / 2^18·(256 + CHANSPC_M)·2^CHANSPC_E（MDMCFG0 / MDMCFG1[1:0]）；基频 = FREQ·fosc / 2^16；调制 = MDMCFG2[6:4]（000 = 2-FSK，001 = GFSK）；前导字节数 = MDMCFG1[6:4] 查表（010 = 4）；同步位数 = MDMCFG2[2:0] 为 3 或 7 时 32 位（16 位同步字重复一次）",
+    "bits": "每包 = 前导（1010… 起于 1）+ 同步字（0xD391 重复成 32 位，高位先发）+ 随机载荷（不编码、不含身份）；比特 '1' → +f_dev、'0' → −f_dev；包外 a_k = 0（频率回到载波）",
+    "phase": "相位以圈计：ψ(τ) = f_dev·Σ_k a_k·P(τ − kT)，T = 1/R；GFSK 的频率脉冲是 [0, T) 矩形与 σ = √ln2 / (2π·BT·R) 的高斯核之卷积，P 为其积分（闭式：I(x) = x·erf(x/(√2σ)) + σ√(2/π)·exp(−x²/(2σ²))，P(u) = [I(u) − I(u − T)] / 2 + T/2）；2-FSK 时 P(u) = clamp(u, 0, T)",
+    "frame": "突发起点 t0 = frame_offset_s + k·period_s + packets[p].offset_s（按此次序求值）；包长 n_bits / R；站点样点边界一律 geo::sample_at；不抽签、不丢包",
+    "occupied_bw": "Carson 带宽 2·(f_dev + R/2)（D）；场景 emission.bw_Hz 必须等于它（同 D-088 ③）",
+    "hop": "频点写在场景 hop 活动里（sequence + dwell_s，dwell_s = hop.dwell_s）；序列由 algos/reference/gfsk_ref.py --hop-activity 按 hop.rule 生成；源与评价器按突发起点判开关、突发中点取频点（D-088 ⑥⑦）"
+  },
+  "presets": [
+    {
+      "id": "frsky-d16v2-fcc",
+      "type": "gfsk",
+      "role": "rc_hopping",
+      "name": "FrSky ACCST D16 v2（FCC 档，X20 实测时序）",
+      "modulation": "gfsk",
+      "bt": 1.0,
+      "registers": {
+        "MDMCFG4": "0x7B",
+        "MDMCFG3": "0x84",
+        "MDMCFG2": "0x13",
+        "MDMCFG1": "0x23",
+        "MDMCFG0": "0x7A",
+        "DEVIATN": "0x51",
+        "FREQ": "0x5C7627"
+      },
+      "symbol_rate_Hz": 76965.33203125,
+      "deviation_Hz": 57128.90625,
+      "occupied_bw_Hz": 191223.14453125,
+      "preamble_bytes": 4,
+      "sync_word": "0xD391D391",
+      "frame": {
+        "period_s": 0.007,
+        "packets": [
+          {
+            "offset_s": 0.0,
+            "n_bits": 219
+          }
+        ]
+      },
+      "hop": {
+        "dwell_s": 0.007,
+        "rule": "step_mod",
+        "step": 3,
+        "channels_Hz": [
+          2404000000.0,
+          2405500000.0,
+          2407000000.0,
+          2408500000.0,
+          2410000000.0,
+          2411500000.0,
+          2413000000.0,
+          2414500000.0,
+          2416000000.0,
+          2417500000.0,
+          2419000000.0,
+          2420500000.0,
+          2422000000.0,
+          2423500000.0,
+          2425000000.0,
+          2426500000.0,
+          2428000000.0,
+          2429500000.0,
+          2431600000.0,
+          2432500000.0,
+          2434000000.0,
+          2435500000.0,
+          2437000000.0,
+          2438500000.0,
+          2440000000.0,
+          2441500000.0,
+          2443000000.0,
+          2444500000.0,
+          2446000000.0,
+          2447500000.0,
+          2449000000.0,
+          2450500000.0,
+          2452000000.0,
+          2453500000.0,
+          2455000000.0,
+          2456500000.0,
+          2458000000.0,
+          2459500000.0,
+          2461000000.0,
+          2462500000.0,
+          2464000000.0,
+          2465500000.0,
+          2467000000.0,
+          2468500000.0,
+          2470600000.0,
+          2471500000.0,
+          2473000000.0
+        ]
+      },
+      "credibility": "V2",
+      "provenance": {
+        "modulation": "S + D：MPM FRSKYX_cc2500_conf（MDMCFG4 0x7B、MDMCFG2 0x13 = GFSK、DEVIATN 0x51 = 57128.91 Hz）加 FrSkyX_RF_init 对 v2 FCC 的改写 MDMCFG3 0x84（76965.33 baud）；BT = 1 取 CC2500 §16.1。**选 v2 FCC 这一档是推断（D）**：X20 录音的频点集与 FrSkyX2_init_hop 的 FCC 表同构（见 hop），且按 14 §7.1 的判据（取 99% 带宽与实测最接近者）FCC GFSK 合成 183.1 kHz 对实测 207.5 kHz，优于 EU / LBT 档（MPM 里是 2-FSK，不是 GFSK）的 274.7 kHz；v1 FCC（70.02 kbaud）带宽读数相同，靠频点表结构排除。X20 同时支持 ACCESS 与 ACCST，录音用哪一种没有记录",
+        "bits": "S：MPM 配置 MDMCFG1 0x23（前导 4 字节）、MDMCFG2 SYNC_MODE 3（30/32，同步字重复成 32 位）；配置表不写 SYNC1 / SYNC0，取 CC2500 复位缺省 0xD3 / 0x91；载荷随机不编码（A）",
+        "frame": "M + D：Q-0b X20 间隔主峰 7.004 ms（81%）、时长中位 2.845 ms；包长取 round(2.84476 ms × R) = 219 比特 = 2.8454 ms（D）。MPM 的 D16 是 9 ms 周期、40 字节包（77 kbaud 下 4.16 ms），与录音不符，时序以录音为准。不建模丢包：14 ms 间隔（12%）与 +9 MHz 跳步（12%）与被争用剔除的突发（22%）同量级",
+        "hop": "M + S：2404.0 + 1.5·j MHz（j = 0…46），j = 18 / 44 各 +0.6 MHz；对 Q-0b 的 47 个实测点扣掉公共 −54 kHz（器件晶振，属 Q-4 的 cfo_ppm）后残差 ≤ 5 kHz（M）；结构与 MPM FrSkyX2_init_hop 的 FCC 表相同（CC2500 信道 = 5·j + offset，例外 90 → 92、220 → 222 各 +2 个 0.29993 MHz 信道 = 0.59985 MHz，S）；按 CC2500 的 5 × 0.29993 MHz 栅格残差 9.8 kHz，故栅格取实测的 1.500 MHz；基频 2404.0 MHz 是 FREQ 0x5C7627 = 2403.99985 MHz 取到 kHz（D）；逐跳 +3 格（4.5 MHz）取实测主峰 4.4996 MHz（78%，M），协议里它是 inc·chanskip 模 47，随发射机标识变"
+      }
+    },
+    {
+      "id": "futaba-sfhss",
+      "type": "gfsk",
+      "role": "rc_hopping",
+      "name": "Futaba S-FHSS",
+      "modulation": "2fsk",
+      "bt": null,
+      "registers": {
+        "MDMCFG4": "0x7C",
+        "MDMCFG3": "0x43",
+        "MDMCFG2": "0x83",
+        "MDMCFG1": "0x23",
+        "MDMCFG0": "0x3B",
+        "DEVIATN": "0x44",
+        "FREQ": "0x5C4EC4",
+        "PKTLEN": "0x0D",
+        "PKTCTRL0": "0x0C"
+      },
+      "symbol_rate_Hz": 128143.310546875,
+      "deviation_Hz": 38085.9375,
+      "occupied_bw_Hz": 204315.185546875,
+      "preamble_bytes": 4,
+      "sync_word": "0xD391D391",
+      "frame": {
+        "period_s": 0.0068,
+        "packets": [
+          {
+            "offset_s": 0.0,
+            "n_bits": 184
+          },
+          {
+            "offset_s": 0.001625,
+            "n_bits": 184
+          }
+        ]
+      },
+      "hop": {
+        "dwell_s": 0.0068,
+        "rule": "sfhss",
+        "channels_Hz": [
+          2403998657.2265625,
+          2405498291.015625,
+          2406997924.8046875,
+          2408497558.59375,
+          2409997192.3828125,
+          2411496826.171875,
+          2412996459.9609375,
+          2414496093.75,
+          2415995727.5390625,
+          2417495361.328125,
+          2418994995.1171875,
+          2420494628.90625,
+          2421994262.6953125,
+          2423493896.484375,
+          2424993530.2734375,
+          2426493164.0625,
+          2427992797.8515625,
+          2429492431.640625,
+          2430992065.4296875,
+          2432491699.21875,
+          2433991333.0078125,
+          2435490966.796875,
+          2436990600.5859375,
+          2438490234.375,
+          2439989868.1640625,
+          2441489501.953125,
+          2442989135.7421875,
+          2444488769.53125,
+          2445988403.3203125,
+          2447488037.109375
+        ]
+      },
+      "credibility": "V2",
+      "provenance": {
+        "modulation": "S：MPM SFHSS_init_values（MDMCFG4 0x7C / MDMCFG3 0x43 = 128143.31 baud、MDMCFG2 0x83 = 2-FSK、DEVIATN 0x44 = 38085.94 Hz），与 14 §3.1 表一致",
+        "bits": "S：MDMCFG1 0x23（前导 4 字节）、MDMCFG2 SYNC_MODE 3（32 位同步）、SYNC1 / SYNC0 = 0xD3 / 0x91、PKTLEN 0x0D（13 字节定长）、PKTCTRL0 0x0C（带 CRC 2 字节、不白化）；每包 (4 + 4 + 13 + 2) × 8 = 184 比特 = 1.4359 ms（D）；载荷随机不编码（A）",
+        "frame": "S：SFHSS_callback 的工作周期 6800 µs，同一频点先后发两包、第二包晚 1625 µs（SFHSS_DATA2_TIMING），发完第二包才换频",
+        "hop": "S：30 个信道 = FREQ 0x5C4EC4（2399999633.79 Hz）+ (16 + 6k) × 249938.96 Hz（k = 0…29，即 2404.00–2447.49 MHz、间隔 1.49963 MHz）；跳频 k ← k + code + 2，越过 29 时（落在 30 再加一次）减 31，code ∈ [0, 27] 由发射机随机取，每个 code 都是访遍 30 点的 30 格循环。**与本地 Futaba T14SG 录音不是一回事**（录音 36 点、约 2.04 MHz 间距、单包 1.93 ms、−10 dB 宽 1.32 MHz，Q-0b），差距记「协议不同」（14 §3.1）"
+      }
+    }
+  ]
+}
