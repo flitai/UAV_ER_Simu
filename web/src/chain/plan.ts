@@ -99,22 +99,38 @@ function worstEmitter(list: readonly Obj[], site: Obj | undefined,
   return best
 }
 
+/**
+ * 发射机载频偏差把名义频点 f 挪到的实际位置（Q-4，D-091）。与引擎 `geo::cfo_Hz` 同式：
+ * 偏差按瞬时射频（含基带偏移 `offset_Hz`）成比例。场景没写 `cfo_ppm` 时原样返回 f——
+ * 既有场景的每个检查结果与文案逐字不变。
+ * （频点本身不加 `offset_Hz`：前端一直没算它，加上会让缺省链过不了自己的边缘检查，另议。）
+ */
+function actualCenter(doc: ScenarioDoc | null, emitterId: string, f: number): number {
+  const em = emitters(doc).find((e) => String(e.id) === emitterId)
+  const emission = (em?.emission ?? {}) as Record<string, unknown>
+  const ppm = typeof emission.cfo_ppm === 'number' ? emission.cfo_ppm : 0
+  if (ppm === 0) return f
+  const wf = (emission.waveform ?? {}) as Record<string, unknown>
+  const offset = typeof wf.offset_Hz === 'number' ? wf.offset_Hz : 0
+  return f + ppm * 1e-6 * (f + offset)
+}
+
 /** 该源相对站点最远的中心频点（含全部跳频点）与它的出处。 */
 function worstOffset(doc: ScenarioDoc | null, emitterId: string, fTx: number, fRx: number):
     { df: number; where: string } {
-  let df = Math.abs(fTx - fRx)
+  let df = Math.abs(actualCenter(doc, emitterId, fTx) - fRx)
   let where = ''
   for (const f of emitterCenters(doc, emitterId)) {
-    const d = Math.abs(f - fRx)
+    const d = Math.abs(actualCenter(doc, emitterId, f) - fRx)
     if (d > df) { df = d; where = `${(f / 1e6).toFixed(3)} MHz` }
   }
   return { df, where }
 }
 
-/** 辐射源的全部中心频点（基频 + 跳频序列）。顺序照场景，不去重——文案里要按下标指认。 */
+/** 辐射源的全部中心频点（基频 + 跳频序列，按实际载频）。顺序照场景，不去重——文案里要按下标指认。 */
 function centerSet(doc: ScenarioDoc | null, emitterId: string, fTx: number): number[] {
   const hops = emitterCenters(doc, emitterId)
-  return hops.length ? hops.slice() : [fTx]
+  return (hops.length ? hops : [fTx]).map((f) => actualCenter(doc, emitterId, f))
 }
 
 /**

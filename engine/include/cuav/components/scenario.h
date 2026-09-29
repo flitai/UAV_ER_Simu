@@ -134,6 +134,10 @@ private:
     geo::Waveform waveform_;
     double emitter_center_Hz_ = 0.0;
     double bw_Hz_ = 0.0;
+    // 载频偏差（Q-4，D-091）：场景 emission 的副本，只为调 geo::cfo_Hz；cfo_ppm 为零时一处都不进表达式
+    geo::Emission emission_;
+    // 实际载频相对观测中心的基带频偏：名义 + 载频偏差（为零时与改动前逐位相同）
+    double baseband_offset_Hz(double f_nominal_Hz) const;
     std::uint64_t burst_period_n_ = 0, burst_on_n_ = 0;
 
     // noise 波形的带限（C-8 / G-6，D-069）：4 阶巴特沃斯低通，截止 emission.bw_Hz / 2，

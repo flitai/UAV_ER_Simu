@@ -197,6 +197,8 @@ json truth_json(const TruthReport& r) {
     if (!r.site_id.empty()) j["site_id"] = r.site_id;
     // 只在有值时写（Q-2，D-088）：既有的 truth.jsonl 因此逐字节不变
     if (!t.preset_id.empty()) j["preset_id"] = t.preset_id;
+    // 同上（Q-4，D-091）：只在有载频偏差时写
+    if (t.cfo_Hz != 0.0) j["cfo_Hz"] = t.cfo_Hz;
     return j;
 }
 

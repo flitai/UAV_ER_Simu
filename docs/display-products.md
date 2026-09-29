@@ -359,6 +359,8 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `waveform` | `tone / noise / burst`；manifest 模式 `manifest` |
 | `center_Hz` / `bw_Hz` | 该段的中心频率（跳频后的）与场景声明带宽；manifest 模式 `null` |
 | `in_band` | `[center ± bw/2]` 与检测频段相交才为真；为假的行只计 `truth_out_of_band`，不进任何分母（EM-S-02 §10.18 `not_observed`） |
+| `preset_id?` | 按机型预设发射的波形（`ofdm` / `droneid` / `gfsk`，Q-2 / Q-3，D-088 / D-089）才有；其余波形不写这个键 |
+| `cfo_Hz?` | 发射机载频偏差折成的赫兹（Q-4，D-091）：`cfo_ppm·1e-6·(center_Hz + offset_Hz)`，只在场景写了非零 `cfo_ppm` 时出现。**`center_Hz` 仍是名义值**（`in_band` 按名义判）；实际载频 = `center_Hz + offset_Hz + cfo_Hz` |
 
 ### 5.5 评价指标 `metrics.json`（`cuav-metrics/1`，C-5，D-067）
 

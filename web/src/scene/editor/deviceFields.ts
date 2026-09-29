@@ -90,6 +90,8 @@ export const EMITTER_DEVICE_FIELDS: readonly DeviceField[] = [
     key: 'em.polarization', label: '极化', unit: '', rel: 'emission.polarization', type: 'enum',
     options: ['vertical', 'horizontal', 'slant45', 'rhcp', 'lhcp'], fallback: 'vertical',
   },
+  // 发射机载频偏差（Q-4，D-091）：缺席即 0、留空不改；越界（|·| > 100 ppm）由保存时的引擎校验拒
+  { key: 'em.cfo', label: '载频偏差', unit: 'ppm', rel: 'emission.cfo_ppm', type: 'number' },
   { key: 'em.offset', label: '频偏', unit: 'Hz', rel: 'emission.waveform.offset_Hz', type: 'number', when: hasWaveformKey('offset_Hz') },
   { key: 'em.period', label: '突发周期', unit: 's', rel: 'emission.waveform.period_s', type: 'number', when: hasWaveformKey('period_s') },
   { key: 'em.duty', label: '占空比', unit: '', rel: 'emission.waveform.duty', type: 'number', when: hasWaveformKey('duty') },

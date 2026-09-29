@@ -970,6 +970,26 @@ test('频率计划：跳频点也要过铁律 4 的闸（G-6，D-069）', () => 
   assert.ok(e1.detail.includes('最坏跳频点 2440.650 MHz'), e1.detail)
 })
 
+test('频率计划：发射机载频偏差按实际载频计入最坏频偏，与引擎 geo::cfo_Hz 同式（Q-4，D-091）', () => {
+  const c = synthetic()
+  const withCfo = (ppm: number): ScenarioDoc => {
+    const d = JSON.parse(JSON.stringify(scenario)) as ScenarioDoc
+    const em = (d.emitters as Array<Record<string, unknown>>)[0].emission as Record<string, unknown>
+    em.cfo_ppm = ppm
+    return d
+  }
+  // 显式写 0 与不写逐项相同（既有场景的检查结果与文案不变）
+  assert.deepEqual(freqPlan(c, withCfo(0)), freqPlan(c, scenario))
+  // 30 ppm：按瞬时射频（含 offset_Hz）成比例；f_tx 仍是名义值
+  const p = freqPlan(c, withCfo(30))
+  const want = 30e-6 * (2440500000 + 48828.125)
+  assert.equal(p.f_tx, 2440500000)
+  assert.ok(Math.abs(p.df_max - want) < 1e-6, `${p.df_max} vs ${want}`)
+  assert.ok(Math.abs(p.centers[0] - (2440500000 + want)) < 1e-6)
+  // 73.2 k + 200 k + 25 k ≥ 250 k：边缘检查照实不通过
+  assert.equal(planChecks(c, p, withCfo(30)).find((x) => x.id === 'edge')!.ok, false)
+})
+
 // --- C-10：频率计划的抽头版本与信道化 ------------------------------------------
 
 /** 把一条链的某个 DSP 槽位打开并填参数 */

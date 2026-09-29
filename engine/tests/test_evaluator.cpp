@@ -8,9 +8,15 @@
 // `std::function` 在 <functional> 里。macOS 的 libc++ 传递包含了它，MSVC 没有——
 // D3-8 第一次在 Windows / MSVC 上编时当场报「'function': is not a member of 'std'」。
 #include <functional>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
+
+#include "nlohmann/json.hpp"
+#include "cuav/platform.h"
+#include "tmpdir.h"
 
 #include "cuav/graph.h"
 #include "cuav/observer.h"
@@ -357,6 +363,62 @@ TEST_CASE("评价器：跳频源的真值按跳频点切段，每段各自判频
     CHECK(rows[40].center_Hz == doctest::Approx(2440450000.0));
     CHECK(rows[41].center_Hz == doctest::Approx(2440550000.0));
     CHECK(rows[42].center_Hz == doctest::Approx(2440450000.0));
+}
+
+TEST_CASE("评价器：发射机载频偏差进真值行的 cfo_Hz，按每段的瞬时射频成比例；不写时恒为 0（Q-4，D-091）") {
+    // 与上一条同一个场景与桩，只给 uav-4 加 12 ppm：跳频前后两个频点的 cfo_Hz 各按自己的射频算
+    nlohmann::json j;
+    {
+        std::ifstream f(kScenarioGated, std::ios::binary);
+        REQUIRE(f.good());
+        std::stringstream ss;
+        ss << f.rdbuf();
+        j = nlohmann::json::parse(ss.str());
+    }
+    for (auto& e : j["emitters"]) if (e["id"] == "uav-4") e["emission"]["cfo_ppm"] = 12.0;
+    const std::string dir = cuav_test::temp_root("cuav_q4_eval");
+    std::string err;
+    REQUIRE_MESSAGE(platform::make_dirs(dir, err), err);
+    const std::string sc = dir + "/eval-chain-gated.scenario.json";
+    { std::ofstream o(sc.c_str(), std::ios::binary); o << j.dump(2) << "\n"; }
+
+    auto run = [&](const std::string& path) {
+        std::unique_ptr<DetStub> ds(new DetStub(500, 50, 0, 500000.0, 1024));
+        std::unique_ptr<FrameStub> fsb(new FrameStub());
+        fsb->duration = 1.0;
+        FrameStub::Spec a;
+        a.emitter = "uav-4";
+        a.on = [](double) { return true; };
+        a.center = [](double) { return 2.4405e9; };
+        fsb->specs.push_back(a);
+        std::unique_ptr<Evaluator> ev = make_eval({{"truth_source", "scenario"}, {"scenario_path", path}});
+        Graph g;
+        std::string e2;
+        NodeId d = g.add(std::move(ds), "det");
+        NodeId f = g.add(std::move(fsb), "scn");
+        NodeId e = g.add(std::move(ev), "eval");
+        REQUIRE(g.connect(d, "out", e, "det", e2));
+        REQUIRE(g.connect(f, "link:uav-4", e, "scene1", e2));
+        REQUIRE_MESSAGE(g.validate(e2), e2);
+        Collect obs;
+        Xoshiro256pp rng(3);
+        RunReport rep = g.run(rng, obs);
+        REQUIRE_MESSAGE(rep.ok, rep.error);
+        std::vector<TruthRow> rows;
+        for (const auto& t : obs.truth) if (t.row.emitter_id == "uav-4") rows.push_back(t.row);
+        return rows;
+    };
+    const std::vector<TruthRow> plain = run(kScenarioGated);
+    const std::vector<TruthRow> cfo = run(sc);
+    REQUIRE(plain.size() == 50);
+    REQUIRE(cfo.size() == plain.size());
+    for (std::size_t i = 0; i < cfo.size(); ++i) {
+        CHECK(plain[i].cfo_Hz == 0.0);
+        CHECK(cfo[i].center_Hz == plain[i].center_Hz);    // center_Hz 仍是名义值
+        CHECK(cfo[i].in_band == plain[i].in_band);        // in_band 按名义判
+        CHECK(cfo[i].cfo_Hz == doctest::Approx(12e-6 * cfo[i].center_Hz).epsilon(1e-12));   // uav-4 的 offset_Hz 为 0
+    }
+    CHECK(cfo[40].cfo_Hz != cfo[39].cfo_Hz);   // 跳频后换了射频，偏差跟着换
 }
 
 TEST_CASE("评价器：burst 波形按样点域门控切成导通窗，每窗一行真值；manifest 模式全片一行或（背景）没有行") {

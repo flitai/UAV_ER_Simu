@@ -77,6 +77,10 @@ private:
         std::string label;
         std::string preset_id;                   // ofdm / droneid / gfsk
         std::vector<PresetTruthBurst> bursts;    // ofdm / droneid / gfsk：整场景时长的全部突发
+        geo::Emission emission;                  // 只为 geo::cfo_Hz（Q-4，D-091）
+        double cfo_at(double center_Hz) const {
+            return emission.cfo_ppm != 0.0 ? geo::cfo_Hz(emission, center_Hz) : 0.0;
+        }
     };
     bool ofdm_truth_bursts(const geo::Scenario& sc, const geo::Emitter& e, EmitterInfo& info, std::string& err);
     bool gfsk_truth_bursts(const geo::Scenario& sc, const geo::Emitter& e, EmitterInfo& info, std::string& err);

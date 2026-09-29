@@ -238,7 +238,10 @@ bool Scenario::cross_check(std::string& err) const {
             const double offset = w.offset_Hz;
             const std::vector<CenterPoint> centers = emitter_center_set(*this, emitters[ei].id);
             for (std::size_t ci = 0; ci < centers.size(); ++ci) {
-                const double df = std::fabs(centers[ci].Hz + offset - r.center_Hz);
+                // 载频偏差按实际载频计入（Q-4，D-091）；为零时不进表达式，既有场景的判定逐位不变
+                double dfs = centers[ci].Hz + offset - r.center_Hz;
+                if (em.cfo_ppm != 0.0) dfs += cfo_Hz(em, centers[ci].Hz);
+                const double df = std::fabs(dfs);
                 if (df + em.bw_Hz / 2.0 < r.fs_Hz / 2.0) continue;
                 if (centers[ci].where == "emission.center_Hz") {
                     err = "辐射源 " + emitters[ei].id + " 相对站点 " + sites[si].id +

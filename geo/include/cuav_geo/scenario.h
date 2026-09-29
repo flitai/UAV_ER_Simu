@@ -102,10 +102,21 @@ struct Emission {
     // 由接收天线组件按自身 polarization 与这里注入的发射极化查五档表（10 报告 §3.2）。
     std::string polarization;
     Waveform waveform;
+    // 发射机载频偏差（Q-4，D-091），ppm。可缺省（= 0），只收显式值，|·| ≤ 100。
+    // 晶振偏差按比例作用于瞬时名义射频；只偏载频、不偏符号率与子载波间隔（采样时钟偏差不做）。
+    double cfo_ppm;
     Emission()
         : center_Hz(0.0), bw_Hz(0.0), tx_power_dBm(0.0), antenna_gain_dBi(0.0),
-          polarization("vertical") {}
+          polarization("vertical"), cfo_ppm(0.0) {}
 };
+
+// 载频偏差折成赫兹（Q-4，D-091）。**全仓唯一的定义**：源的相位搬移、三道铁律 4 的闸、
+// 评价器的真值行都调它，导出工具照同式复算。f_rf 是瞬时名义射频（含基带偏移）。
+inline double cfo_Hz(double cfo_ppm, double f_rf_Hz) { return cfo_ppm * 1e-6 * f_rf_Hz; }
+// f_nominal 是子段 / 突发的瞬时中心（跳频点或 emission.center_Hz），不含 offset_Hz；这里补上。
+inline double cfo_Hz(const Emission& em, double f_nominal_Hz) {
+    return cfo_Hz(em.cfo_ppm, f_nominal_Hz + em.waveform.offset_Hz);
+}
 
 enum class PlatformType { Multirotor = 0, FixedWing, Racing, Medium };
 

@@ -242,6 +242,7 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
             const geo::Emitter& e = ls.scenario.emitters[i];
             EmitterInfo info;
             info.bw_Hz = e.emission.bw_Hz;
+            info.emission = e.emission;
             info.waveform = waveform_name(e.emission.waveform.type);
             info.period_s = e.emission.waveform.period_s;
             info.duty = e.emission.waveform.duty;
@@ -455,6 +456,7 @@ void Evaluator::build_truth_rows() {
                 r.waveform = info.waveform; r.center_Hz = b.center_Hz; r.bw_Hz = info.bw_Hz;
                 r.in_band = in_band(b.center_Hz, info.bw_Hz);
                 r.preset_id = info.preset_id;
+                r.cfo_Hz = info.cfo_at(b.center_Hz);
                 truth_rows_.push_back(r);
             }
             continue;
@@ -520,6 +522,7 @@ void Evaluator::build_truth_rows() {
                     TruthRow r;
                     r.t_s = part.start; r.t_end_s = part.end; r.emitter_id = em; r.label = info.label;
                     r.waveform = info.waveform; r.center_Hz = part.center_Hz; r.bw_Hz = info.bw_Hz; r.in_band = ib;
+                    r.cfo_Hz = info.cfo_at(part.center_Hz);
                     truth_rows_.push_back(r);
                     continue;
                 }
@@ -533,6 +536,7 @@ void Evaluator::build_truth_rows() {
                     TruthRow r;
                     r.t_s = a; r.t_end_s = b; r.emitter_id = em; r.label = info.label;
                     r.waveform = info.waveform; r.center_Hz = part.center_Hz; r.bw_Hz = info.bw_Hz; r.in_band = ib;
+                    r.cfo_Hz = info.cfo_at(part.center_Hz);
                     truth_rows_.push_back(r);
                 }
             }

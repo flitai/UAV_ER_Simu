@@ -444,6 +444,13 @@ void ScenarioSource::reset() {
 
 SceneEmitterSource::SceneEmitterSource() {}
 
+// 表达式 (f + offset_Hz − 中心) 与改动前逐字相同；载频偏差为零时不进表达式，既有框图逐位不变（Q-4，D-091）
+double SceneEmitterSource::baseband_offset_Hz(double f_nominal_Hz) const {
+    double df = f_nominal_Hz + waveform_.offset_Hz - center_frequency_Hz_;
+    if (emission_.cfo_ppm != 0.0) df += geo::cfo_Hz(emission_, f_nominal_Hz);
+    return df;
+}
+
 ComponentInfo SceneEmitterSource::describe() const {
     ComponentInfo i;
     i.type = type_name();
@@ -460,7 +467,8 @@ ComponentInfo SceneEmitterSource::describe() const {
                     "有理重采样到站点采样率（算法核是 Coder 产物），按帧排布逐突发发射，"
                     "频点按突发取、突发起点发射机开着即整突发发完。"
                     "gfsk（Q-3）的调制与帧取自 GFSK 族预设表：相位按任意时刻闭式求值（不经重采样），"
-                    "每个包起点发射机开着即整包发完、频点取包中点，包内恒包络。";
+                    "每个包起点发射机开着即整包发完、频点取包中点，包内恒包络。"
+                    "场景 emission.cfo_ppm（Q-4）给出发射机载频偏差，按瞬时射频成比例偏移实际载频。";
     i.model_layer = "M3";
     i.model_level = "E2";
     i.model_id = "EM-B-09";
@@ -522,19 +530,24 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
     for (std::size_t i = 0; i < sched_.notes().size(); ++i)
         status_.notes.push_back(sched_.notes()[i]);
     waveform_ = em->emission.waveform;
+    emission_ = em->emission;
     emitter_center_Hz_ = em->emission.center_Hz;
+    if (emission_.cfo_ppm != 0.0) {
+        status_.notes.push_back("载频偏差 " + numstr(emission_.cfo_ppm) + " ppm（基频处 " +
+                                numstr(geo::cfo_Hz(emission_, emission_.center_Hz)) +
+                                " Hz，逐跳按瞬时射频成比例；只偏载频、不偏符号率）");
+    }
     bw_Hz_ = em->emission.bw_Hz;
     emit_at_tx_power_ = get_num(params, "emit_at_tx_power", 0.0) != 0.0;
     tx_power_amp_ = emit_at_tx_power_ ? std::pow(10.0, em->emission.tx_power_dBm / 20.0) : 1.0;
 
     // 铁律 4：|Δf| + B/2 + 保护带 < Fs/2。这里的 Δf 是基带频偏，B 是占用带宽。
     // **跳频点逐个查**（G-6，D-069）：基频过闸不代表序列里每一跳都过得了，跳出奈奎斯特
-    // 不会有任何征兆、只会静默混叠（铁律 15）。
-    const double offset = waveform_.offset_Hz;
+    // 不会有任何征兆、只会静默混叠（铁律 15）。Δf 按实际载频算，含载频偏差（Q-4，D-091）。
     {
         const std::vector<geo::CenterPoint> centers = geo::emitter_center_set(scene_, entity_id_);
         for (std::size_t ci = 0; ci < centers.size(); ++ci) {
-            const double df = centers[ci].Hz + offset - center_frequency_Hz_;
+            const double df = baseband_offset_Hz(centers[ci].Hz);
             if (std::fabs(df) + bw_Hz_ / 2.0 < sample_rate_Hz_ / 2.0) continue;
             if (centers[ci].where == "emission.center_Hz") {
                 err = "辐射源 " + entity_id_ + " 的基带频偏 " + numstr(df) +
@@ -543,7 +556,7 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
                 // 需要多大的采样率才装得下最坏的那个频点——算得出来就别让用户猜
                 double worst = 0.0;
                 for (std::size_t k = 0; k < centers.size(); ++k)
-                    worst = std::max(worst, std::fabs(centers[k].Hz + offset - center_frequency_Hz_));
+                    worst = std::max(worst, std::fabs(baseband_offset_Hz(centers[k].Hz)));
                 const double need = 2.0 * (worst + bw_Hz_ / 2.0);
                 err = "辐射源 " + entity_id_ + " 的跳频点 " + numstr(centers[ci].Hz) +
                       " Hz（" + centers[ci].where + "）折成基带频偏 " + numstr(df) +
@@ -579,8 +592,7 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
         // 带的另一头去。量的是**积分**占比 —— 只看带边那一点的衰减会把物理上没问题的配置
         // 误判成降级（实测带边 39 dB 抑制对应的绕折功率只有 2.4e-5）。
         // |H(f)|² = 1/(1 + (tan(πf/fs)/K)^8)，中点法 4096 格，确定性、与平台无关。
-        const double edge = sample_rate_Hz_ / 2.0 -
-            std::fabs(emitter_center_Hz_ + waveform_.offset_Hz - center_frequency_Hz_);
+        const double edge = sample_rate_Hz_ / 2.0 - std::fabs(baseband_offset_Hz(emitter_center_Hz_));
         const double K = std::tan(kPi * fc / sample_rate_Hz_);
         const std::size_t kGrid = 4096;
         double total = 0.0, tail = 0.0;
@@ -651,7 +663,7 @@ bool SceneEmitterSource::configure_ofdm(std::string& err) {
         b.variant = bs[i].variant;
         b.on = rt.tx_on_at(static_cast<double>(b.start_n) / p.fs_native_Hz);
         const double mid = (static_cast<double>(b.start_n) + 0.5 * static_cast<double>(b.length_n)) / p.fs_native_Hz;
-        b.dphi = kTwoPi * (rt.center_Hz_at(mid) + waveform_.offset_Hz - center_frequency_Hz_) / sample_rate_Hz_;
+        b.dphi = kTwoPi * baseband_offset_Hz(rt.center_Hz_at(mid)) / sample_rate_Hz_;
         // 支撑：窗口碰到本突发任一原生样点的站点样点（与 algos/reference/gen_engine_golden.py 的 rsmp 同式）
         const std::int64_t a = b.start_n * L - gd;
         b.m_lo = a >= 0 ? (a + M - 1) / M : -((-a) / M);
@@ -704,7 +716,7 @@ bool SceneEmitterSource::configure_gfsk(std::string& err) {
         b.n_bits = bs[i].n_bits;
         b.on = rt.tx_on_at(bs[i].t0_s);
         const double mid = bs[i].t0_s + 0.5 * (bs[i].t1_s - bs[i].t0_s);
-        b.dphi = kTwoPi * (rt.center_Hz_at(mid) + waveform_.offset_Hz - center_frequency_Hz_) / sample_rate_Hz_;
+        b.dphi = kTwoPi * baseband_offset_Hz(rt.center_Hz_at(mid)) / sample_rate_Hz_;
         // 支撑两端与评价器同一取整口径（geo::sample_at，四舍五入）
         b.m_lo = static_cast<std::int64_t>(geo::sample_at(bs[i].t0_s, sample_rate_Hz_));
         b.m_hi = static_cast<std::int64_t>(geo::sample_at(bs[i].t1_s, sample_rate_Hz_));
@@ -819,8 +831,9 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
             err = "活动时间线给出的子段长度为零（样点 " + numstr(s0 + i) + "）";
             return Step::Error;
         }
-        // 带限之后 noise 也走同一条相位搬移路径，offset_Hz 对三种波形一视同仁（C-8）
-        const double offset = seg.center_Hz + waveform_.offset_Hz - center_frequency_Hz_;
+        // 带限之后 noise 也走同一条相位搬移路径，offset_Hz 对三种波形一视同仁（C-8）；
+        // 载频偏差同样作用在 OFDM / GFSK 的空档上——空档里累积的相位决定下一突发的起始相位（Q-4，D-091）
+        const double offset = baseband_offset_Hz(seg.center_Hz);
         // 相位用累加器而不是绝对样点号的闭式：跳频后频率会变，闭式重算会在跳频处造出相位跳变。
         // 逐样点累加与逐样点回卷都只是绝对样点号的函数，因此结果与块长无关。
         // 子段之间**不重置相位**——这是 DDS 型的相位连续跳频；非相干跳频（每跳随机相位）

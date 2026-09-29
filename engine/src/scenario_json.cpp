@@ -243,7 +243,7 @@ bool parse_emitter(const json& e, std::size_t i, geo::Emitter& out, std::string&
     if (!need(e, "emission", where, err)) return false;
     const json& em = e["emission"];
     static const std::set<std::string> kEm = {"center_Hz", "bw_Hz", "tx_power_dBm", "antenna_gain_dBi",
-                                              "polarization", "waveform"};
+                                              "polarization", "waveform", "cfo_ppm"};
     if (!check_keys(em, kEm, where + ".emission", err)) return false;
     if (!get_num(em, "center_Hz", where + ".emission", out.emission.center_Hz, err)) return false;
     if (!get_num(em, "bw_Hz", where + ".emission", out.emission.bw_Hz, err)) return false;
@@ -259,6 +259,13 @@ bool parse_emitter(const json& e, std::size_t i, geo::Emitter& out, std::string&
             return fail(err, where + ".emission",
                         "的 polarization 必须是 vertical / horizontal / slant45 / rhcp / lhcp 之一");
         }
+    }
+    // 载频偏差可缺省（= 0，既有场景文件照旧合法），只收显式值（Q-4，D-091）。
+    // 上限 100 ppm：X20 实测 −54 kHz ≈ −22 ppm 要写得出，再大就不是晶振偏差量级了。
+    if (em.contains("cfo_ppm")) {
+        if (!get_num(em, "cfo_ppm", where + ".emission", out.emission.cfo_ppm, err)) return false;
+        if (!(std::fabs(out.emission.cfo_ppm) <= 100.0))
+            return fail(err, where + ".emission", "的 cfo_ppm 必须在 [-100, 100] 之内（ppm）");
     }
     if (!need(em, "waveform", where + ".emission", err)) return false;
     return parse_waveform(em["waveform"], where + ".emission.waveform", out.emission.waveform, err);
