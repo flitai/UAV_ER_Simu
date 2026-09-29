@@ -62,13 +62,22 @@ public:
 
 private:
     // 场景里每个辐射源的静态信息（真值区间的带宽、波形门控与类别都从这里来；帧里没有带宽）
+    // OFDM 族的一个突发（Q-2，D-088）：时刻是原生样点除以原生采样率，精确、与检测器采样率无关；
+    // 开关看突发起点、频点看突发中点，与 SceneEmitterSource 同一个 EmitterRuntime、同一张帧排布表。
+    struct OfdmTruthBurst {
+        double t0 = 0.0, t1 = 0.0, center_Hz = 0.0;
+        bool on = true;
+    };
     struct EmitterInfo {
         double bw_Hz = 0.0;
-        std::string waveform;      // tone / noise / burst
+        std::string waveform;      // tone / noise / burst / ofdm / droneid
         double period_s = 0.0, duty = 0.0;
         bool has_hop = false;
         std::string label;
+        std::string preset_id;                 // ofdm / droneid
+        std::vector<OfdmTruthBurst> bursts;    // ofdm / droneid：整场景时长的全部突发
     };
+    bool ofdm_truth_bursts(const geo::Scenario& sc, const geo::Emitter& e, EmitterInfo& info, std::string& err);
     // 一段活动级的发射区间（tx_on 连续、中心频率不变）。
     // G-6（D-069）之后它的角色是「**链路可见窗口**」：跳频快于帧率时帧里的 tx_center_Hz
     // 只是混叠抽样，按它切段会切出一堆假边界，所以 build_truth_rows 会先把帧域切开的

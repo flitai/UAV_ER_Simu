@@ -10,6 +10,8 @@
 
 #include "cuav/observer.h"
 #include "cuav/scenario_json.h"
+#include "cuav_geo/ofdm_frame.h"
+#include "cuav_geo/radiator_presets.h"
 
 namespace cuav {
 
@@ -108,6 +110,38 @@ std::string Evaluator::label_for_waveform(const std::string& waveform, double bw
     return waveform;
 }
 
+// OFDM 族（Q-2，D-088）：标签取预设的 role（图传 video_link、上行 rc_hopping、DroneID droneid），
+// 突发表用与 SceneEmitterSource 同一个 FrameSchedule 与 EmitterRuntime 算（逐位同源）。
+// 铺到整场景时长：评价器不知道框图时长，多铺的突发在 build_truth_rows 里被链路可见窗口滤掉。
+bool Evaluator::ofdm_truth_bursts(const geo::Scenario& sc, const geo::Emitter& e, EmitterInfo& info, std::string& err) {
+    const geo::Waveform& w = e.emission.waveform;
+    const geo::RadiatorPreset* p = geo::radiator_preset_v1(w.preset_id);
+    if (p == 0) {
+        err = "Evaluator：辐射源 " + e.id + " 的预设 " + w.preset_id + " 不在机型预设表 v1 里";
+        return false;
+    }
+    info.label = p->role;
+    info.preset_id = p->id;
+    geo::EmitterRuntime rt;
+    if (!rt.build(sc, e.id, err)) return false;
+    const std::int64_t off_n = static_cast<std::int64_t>(std::floor(w.frame_offset_s * p->fs_native_Hz + 0.5));
+    const std::int64_t end_n = static_cast<std::int64_t>(std::ceil(sc.duration_s * p->fs_native_Hz)) + 1;
+    geo::FrameSchedule fs;
+    fs.build(*p, sc.seed, e.id, off_n, end_n);
+    info.bursts.clear();
+    for (std::size_t k = 0; k < fs.bursts().size(); ++k) {
+        const geo::FrameBurst& b = fs.bursts()[k];
+        OfdmTruthBurst t;
+        t.t0 = static_cast<double>(b.start_n) / p->fs_native_Hz;
+        t.t1 = static_cast<double>(b.start_n + b.length_n) / p->fs_native_Hz;
+        t.on = rt.tx_on_at(t.t0);
+        t.center_Hz = rt.center_Hz_at((static_cast<double>(b.start_n) + 0.5 * static_cast<double>(b.length_n)) /
+                                      p->fs_native_Hz);
+        info.bursts.push_back(t);
+    }
+    return true;
+}
+
 std::string Evaluator::label_for_class_code(const std::string& code, bool& is_background) {
     is_background = (code == "B" || code == "T0000");
     if (is_background) return std::string();
@@ -176,13 +210,6 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
         has_scene_ = true;
         for (std::size_t i = 0; i < ls.scenario.emitters.size(); ++i) {
             const geo::Emitter& e = ls.scenario.emitters[i];
-            if (geo::is_ofdm_family(e.emission.waveform.type)) {
-                // Q-2 分步落地（D-088）：OFDM 族按突发记真值的那一步还没接上。
-                // 先明确拒绝，免得落到下面按「一段一行」记出一份形状不对的真值（铁律 15）。
-                err = "Evaluator：辐射源 " + e.id + " 的波形 " + geo::waveform_type_name(e.emission.waveform.type) +
-                      " 的真值记法尚未接通（Q-2 第 8 步）";
-                return false;
-            }
             EmitterInfo info;
             info.bw_Hz = e.emission.bw_Hz;
             info.waveform = waveform_name(e.emission.waveform.type);
@@ -193,6 +220,8 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
                 if (a.emitter_id == e.id && a.event == geo::ActivityEvent::Hop) info.has_hop = true;
             }
             info.label = label_for_waveform(info.waveform, info.bw_Hz, info.has_hop);
+            if (geo::is_ofdm_family(e.emission.waveform.type) && !ofdm_truth_bursts(ls.scenario, e, info, err))
+                return false;
             emitters_[e.id] = info;
         }
     }
@@ -361,6 +390,32 @@ void Evaluator::build_truth_rows() {
         EmitterInfo info;
         if (ei != emitters_.end()) info = ei->second;
         else { info.waveform = "unknown"; info.label = "unknown_emitter"; }
+        if (!info.bursts.empty() || !info.preset_id.empty()) {
+            // OFDM 族（Q-2，D-088）：一个突发一行，时刻精确到原生样点、与检测器采样率无关，
+            // 所以不需要 ActivitySchedule 的样点细分，也不存在「取不到采样率时退回帧粒度」。
+            // 取「起点落在链路可见窗口内、且起点时刻发射机开着」的突发，**整突发一行、不按窗口截断**——
+            // 源就是这么发的（D-088 ⑥），截断了真值就与 IQ 对不上。
+            std::vector<Run> windows;
+            for (std::size_t k = 0; k < it->second.size(); ++k) {
+                const Run& run = it->second[k];
+                if (!windows.empty() && windows.back().end == run.start) windows.back().end = run.end;
+                else windows.push_back(run);
+            }
+            std::size_t w = 0;
+            for (std::size_t k = 0; k < info.bursts.size(); ++k) {
+                const OfdmTruthBurst& b = info.bursts[k];
+                while (w < windows.size() && windows[w].end <= b.t0) ++w;
+                if (w >= windows.size()) break;
+                if (b.t0 < windows[w].start || !b.on) continue;
+                TruthRow r;
+                r.t_s = b.t0; r.t_end_s = b.t1; r.emitter_id = em; r.label = info.label;
+                r.waveform = info.waveform; r.center_Hz = b.center_Hz; r.bw_Hz = info.bw_Hz;
+                r.in_band = in_band(b.center_Hz, info.bw_Hz);
+                r.preset_id = info.preset_id;
+                truth_rows_.push_back(r);
+            }
+            continue;
+        }
         const bool burst = info.waveform == "burst" && fs_ > 0.0 && info.period_s > 0.0;
         std::uint64_t period_n = 0, on_n = 0;
         if (burst) {

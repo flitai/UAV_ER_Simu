@@ -195,6 +195,8 @@ json truth_json(const TruthReport& r) {
            {"bw_Hz", std::isnan(t.bw_Hz) ? json(nullptr) : json(t.bw_Hz)},
            {"in_band", t.in_band}};
     if (!r.site_id.empty()) j["site_id"] = r.site_id;
+    // 只在有值时写（Q-2，D-088）：既有的 truth.jsonl 因此逐字节不变
+    if (!t.preset_id.empty()) j["preset_id"] = t.preset_id;
     return j;
 }
 

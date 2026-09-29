@@ -3,6 +3,7 @@
 // 「尾块到得了双输入节点」（步骤 0 的实地验收）与 init() 不碰随机流。
 #include "doctest/doctest.h"
 
+#include <algorithm>
 #include <cmath>
 // `std::function` 在 <functional> 里。macOS 的 libc++ 传递包含了它，MSVC 没有——
 // D3-8 第一次在 Windows / MSVC 上编时当场报「'function': is not a member of 'std'」。
@@ -17,6 +18,9 @@
 #include "cuav/components/processing.h"
 #include "cuav/components/recognition.h"
 #include "cuav/components/sources.h"
+#include "cuav/scenario_json.h"
+#include "cuav_geo/ofdm_frame.h"
+#include "cuav_geo/radiator_presets.h"
 
 using namespace cuav;
 
@@ -486,4 +490,87 @@ TEST_CASE("评价器：init() 不碰共享随机流——接不接评价器，�
     };
     // 同种子两种接法帧数相同；随机流一致的直接证据在 test_recognition_chain 的同类测试里，这里守「评价器不抽数」
     CHECK(run_noise(false) == run_noise(true));
+}
+
+TEST_CASE("评价器 · OFDM 族：一个突发一行，与源同一张帧排布表；开关看突发起点、整突发不截断（Q-2，D-088）") {
+    const char* sc = CUAV_SOURCE_DIR "/tests/fixtures/ofdm-emitter.scenario.json";
+    const double fs = 80e6;
+    const std::size_t nfft = 1024;
+    const double dur = 0.02;
+    const std::uint64_t frames = static_cast<std::uint64_t>(dur * fs / nfft);
+    std::unique_ptr<DetStub> ds(new DetStub(frames, 200, 0, fs, nfft));
+    std::unique_ptr<FrameStub> fsb(new FrameStub());
+    fsb->duration = dur;
+    fsb->rate = 1000.0;
+    FrameStub::Spec g;   // video-gated：场景里 1 ms 开、6 ms 关；帧里一直可见
+    g.emitter = "video-gated";
+    g.on = [](double) { return true; };
+    g.center = [](double) { return 2.4413e9; };
+    fsb->specs.push_back(g);
+    FrameStub::Spec u;   // uplink：链路只在 [0, 4.2 ms) 可见——4 ms 起的那个突发（若有）起点在窗内，整个记下
+    u.emitter = "uplink";
+    u.on = [](double t) { return t < 0.0042; };
+    u.center = [](double) { return 2.4233e9; };
+    fsb->specs.push_back(u);
+    std::unique_ptr<Evaluator> ev = make_eval({{"truth_source", "scenario"}, {"scenario_path", sc}}, nfft);
+    Graph gr;
+    std::string err;
+    NodeId d = gr.add(std::move(ds), "det");
+    NodeId f = gr.add(std::move(fsb), "scn");
+    NodeId e = gr.add(std::move(ev), "eval");
+    REQUIRE(gr.connect(d, "out", e, "det", err));
+    REQUIRE(gr.connect(f, "link:video-gated", e, "scene1", err));
+    REQUIRE(gr.connect(f, "link:uplink", e, "scene2", err));
+    REQUIRE_MESSAGE(gr.validate(err), err);
+    Collect obs;
+    Xoshiro256pp rng(3);
+    RunReport rep = gr.run(rng, obs);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+
+    // 期望：用同一个 FrameSchedule 与 EmitterRuntime 独立算一遍
+    LoadedScenario ls;
+    REQUIRE(load_scenario_file(sc, ls, err));
+    std::vector<TruthRow> want;
+    for (const char* id : {"video-gated", "uplink"}) {
+        const geo::Emitter* em = ls.scenario.find_emitter(id);
+        const geo::RadiatorPreset* p = geo::radiator_preset_v1(em->emission.waveform.preset_id);
+        geo::EmitterRuntime rt;
+        REQUIRE(rt.build(ls.scenario, id, err));
+        geo::FrameSchedule fs2;
+        fs2.build(*p, ls.scenario.seed, id, 0, static_cast<std::int64_t>(std::ceil(ls.scenario.duration_s * p->fs_native_Hz)) + 1);
+        const double win_end = std::string(id) == "uplink" ? 0.0042 : dur;
+        for (const auto& b : fs2.bursts()) {
+            const double t0 = static_cast<double>(b.start_n) / p->fs_native_Hz;
+            if (t0 >= win_end || !rt.tx_on_at(t0)) continue;
+            TruthRow r;
+            r.t_s = t0;
+            r.t_end_s = static_cast<double>(b.start_n + b.length_n) / p->fs_native_Hz;
+            r.emitter_id = id;
+            r.label = p->role;
+            r.center_Hz = rt.center_Hz_at((b.start_n + 0.5 * b.length_n) / p->fs_native_Hz);
+            want.push_back(r);
+        }
+    }
+    std::stable_sort(want.begin(), want.end(), [](const TruthRow& x, const TruthRow& y) {
+        if (x.t_s != y.t_s) return x.t_s < y.t_s;
+        return x.emitter_id < y.emitter_id;
+    });
+    REQUIRE(obs.truth.size() == want.size());
+    REQUIRE(!want.empty());
+    bool beyond_window = false;
+    for (std::size_t i = 0; i < want.size(); ++i) {
+        const TruthRow& r = obs.truth[i].row;
+        CAPTURE(i);
+        CHECK(r.t_s == want[i].t_s);                 // 原生样点 / 原生采样率：逐位相同
+        CHECK(r.t_end_s == want[i].t_end_s);
+        CHECK(r.emitter_id == want[i].emitter_id);
+        CHECK(r.label == want[i].label);
+        CHECK(r.center_Hz == want[i].center_Hz);
+        CHECK(r.bw_Hz == (r.emitter_id == "uplink" ? 2235000.0 : 9015000.0));
+        CHECK(r.waveform == "ofdm");
+        CHECK(r.preset_id == (r.emitter_id == "uplink" ? "dji-uplink-2m" : "dji-video-10m"));
+        if (r.emitter_id == "video-gated") CHECK((r.t_s >= 0.001 && r.t_s < 0.006));
+        if (r.emitter_id == "uplink" && r.t_end_s > 0.0042) beyond_window = true;
+    }
+    MESSAGE("OFDM 真值行 " << want.size() << " 行；越过可见窗口末端的整突发：" << (beyond_window ? "有" : "无"));
 }

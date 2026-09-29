@@ -31,6 +31,7 @@ struct TruthRow {
     double center_Hz = eval_nan();
     double bw_Hz = eval_nan();
     bool in_band = true;               // [center ± bw/2] 与检测频段相交；频段外的行只计数不进指标
+    std::string preset_id;             // ofdm / droneid 的机型预设（Q-2，D-088）；空则 truth.jsonl 不写这个键
 };
 
 struct EvalParams {
