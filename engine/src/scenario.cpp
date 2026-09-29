@@ -7,8 +7,10 @@
 #include <algorithm>
 #include <cmath>
 
+#include "cuav/coder_provenance.h"
 #include "cuav/scenario_json.h"
 #include "cuav_geo/activity.h"
+#include "cuav_geo/ofdm_frame.h"
 
 namespace cuav {
 namespace {
@@ -452,7 +454,10 @@ ComponentInfo SceneEmitterSource::describe() const {
                     "瀑布上的时间平均电平比链路预算低 10·log10(1/duty)，突发峰值才等于链路预算。"
                     "活动时间线的图传开关与跳频在这里生效，粒度是样点不是块（G-6）。"
                     "noise 按 emission.bw_Hz 做 4 阶巴特沃斯带限（阻带非砖墙）并搬移到 "
-                    "emission.center_Hz；bw_Hz 不小于采样带宽时不带限、输出全带白噪声并标降级。";
+                    "emission.center_Hz；bw_Hz 不小于采样带宽时不带限、输出全带白噪声并标降级。"
+                    "ofdm / droneid（Q-2）的结构取自机型预设表：原生率逐符号 IFFT 加 CP，"
+                    "有理重采样到站点采样率（算法核是 Coder 产物），按帧排布逐突发发射，"
+                    "频点按突发取、突发起点发射机开着即整突发发完。";
     i.model_layer = "M3";
     i.model_level = "E2";
     i.model_id = "EM-B-09";
@@ -461,6 +466,9 @@ ComponentInfo SceneEmitterSource::describe() const {
     i.outputs = outputs();
     i.scene_bindable = true;
     i.stateful = true;
+    // 有理重采样（OFDM 族）的算法核是 Coder 产物（D-088 ⑪，08 §13 第 4 条）；其余波形手写
+    i.implementation = "coder";
+    i.source_ref = coder_provenance::rsmp_source_ref();
     i.params = {
         ParamSpec::number("sample_rate_Hz", "Hz", "复采样率，须与站点接收机的 fs_Hz 一致").req().at_least(0.0, true),
         ParamSpec::number("total_samples", "", "输出总样点数").req().at_least(1.0),
@@ -511,13 +519,6 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
     for (std::size_t i = 0; i < sched_.notes().size(); ++i)
         status_.notes.push_back(sched_.notes()[i]);
     waveform_ = em->emission.waveform;
-    if (geo::is_ofdm_family(waveform_.type)) {
-        // Q-2 分步落地（D-088）：生成路径在第 7 步接通。此前明确拒绝——落到下面的分支会被当成单音
-        // 生成，而且不会有任何提示（铁律 15）。
-        err = "SceneEmitterSource：辐射源 " + entity_id_ + " 的波形 " + geo::waveform_type_name(waveform_.type) +
-              " 的生成路径尚未接通（Q-2 第 7 步）";
-        return false;
-    }
     emitter_center_Hz_ = em->emission.center_Hz;
     bw_Hz_ = em->emission.bw_Hz;
     emit_at_tx_power_ = get_num(params, "emit_at_tx_power", 0.0) != 0.0;
@@ -605,7 +606,115 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
             return false;
         }
     }
+    if (geo::is_ofdm_family(waveform_.type) && !configure_ofdm(err)) return false;
     return true;
+}
+
+bool SceneEmitterSource::configure_ofdm(std::string& err) {
+    preset_ = geo::radiator_preset_v1(waveform_.preset_id);
+    if (preset_ == 0) {
+        err = "SceneEmitterSource：预设 " + waveform_.preset_id + " 不在机型预设表 v1 里";
+        return false;
+    }
+    const geo::RadiatorPreset& p = *preset_;
+    const int M = geo::rsmp_decim_for(p, sample_rate_Hz_);
+    if (M == 0) {
+        err = "SceneEmitterSource：预设 " + std::string(p.id) + " 在采样率 " + numstr(sample_rate_Hz_) +
+              " Hz 下没有有理重采样档位；可取 " + geo::rsmp_allowed_fs_text(p);
+        return false;
+    }
+    if (!mod_.init(p, err)) return false;
+    if (!rsmp_.init(M, err)) return false;
+    geo::EmitterRuntime rt;
+    if (!rt.build(scene_, entity_id_, err)) return false;
+
+    const std::int64_t L = rsmp_.interp();
+    const std::int64_t T = rsmp_.taps_per_phase();
+    const std::int64_t gd = L * T / 2;
+    const std::int64_t off_n = static_cast<std::int64_t>(std::floor(waveform_.frame_offset_s * p.fs_native_Hz + 0.5));
+    // 铺到最后一个站点样点依赖的原生样点为止：帧排布的抽签按时隙计数、与终点无关，
+    // 于是 N 个样点的运行恰是 2N 个样点运行的前 N 个（前缀性质）
+    const std::int64_t end_n = static_cast<std::int64_t>(total_samples_) * M / L + T + 2;
+    geo::FrameSchedule fs;
+    fs.build(p, scene_.seed, entity_id_, off_n, end_n);
+    ofdm_bursts_.clear();
+    const std::vector<geo::FrameBurst>& bs = fs.bursts();
+    for (std::size_t i = 0; i < bs.size(); ++i) {
+        OfdmBurst b;
+        b.start_n = bs[i].start_n;
+        b.length_n = bs[i].length_n;
+        b.slot = bs[i].slot;
+        b.variant = bs[i].variant;
+        b.on = rt.tx_on_at(static_cast<double>(b.start_n) / p.fs_native_Hz);
+        const double mid = (static_cast<double>(b.start_n) + 0.5 * static_cast<double>(b.length_n)) / p.fs_native_Hz;
+        b.dphi = kTwoPi * (rt.center_Hz_at(mid) + waveform_.offset_Hz - center_frequency_Hz_) / sample_rate_Hz_;
+        // 支撑：窗口碰到本突发任一原生样点的站点样点（与 algos/reference/gen_engine_golden.py 的 rsmp 同式）
+        const std::int64_t a = b.start_n * L - gd;
+        b.m_lo = a >= 0 ? (a + M - 1) / M : -((-a) / M);
+        b.m_hi = ((b.start_n + b.length_n + T) * L - gd - 1) / M + 1;
+        ofdm_bursts_.push_back(b);
+    }
+
+    // 单位功率的补偿（⑧）：数据符号按带能量的子载波数归一后，过重采样的平均功率是滤波器在各子载波
+    // 频点上 |H/L|² 的均值 c。补回 1/√c，「发射期间 1 mW」在期望上精确；通带纹波 0.007 dB，c 与 1 的差很小。
+    std::vector<double> h;
+    dsp::rsmp_fir_expand(dsp::rsmp_fir_v1(), h);
+    double acc = 0.0;
+    for (int i = 0; i < mod_.n_carriers(); ++i) {
+        const double f = static_cast<double>(mod_.carrier_index(i)) / p.fft_size;   // 相对原生采样率
+        std::complex<double> H(0.0, 0.0);
+        for (std::size_t n = 0; n < h.size(); ++n) {
+            const double ang = -kTwoPi * f * static_cast<double>(n) / static_cast<double>(L);
+            H += h[n] * std::complex<double>(std::cos(ang), std::sin(ang));
+        }
+        acc += std::norm(H) / static_cast<double>(L * L);
+    }
+    ofdm_c_ = acc / mod_.n_carriers();
+    ofdm_gain_ = 1.0 / std::sqrt(ofdm_c_);
+    cycle_out_.assign(static_cast<std::size_t>(L), std::complex<double>(0.0, 0.0));
+    win_.assign(static_cast<std::size_t>(rsmp_.window_len()), std::complex<double>(0.0, 0.0));
+    return true;
+}
+
+const std::vector<std::complex<double>>& SceneEmitterSource::ofdm_native(std::size_t k) {
+    const std::int64_t key = static_cast<std::int64_t>(k);
+    if (native_idx_[0] == key) return native_[0];
+    if (native_idx_[1] != key) {
+        const OfdmBurst& b = ofdm_bursts_[k];
+        const std::uint64_t seed = geo::mix64(payload_key_ ^ geo::mix64(static_cast<std::uint64_t>(b.slot)));
+        mod_.burst(b.variant, seed, native_[1]);
+        native_idx_[1] = key;
+    }
+    // 最近用到的挪到 0 号位：一拍的窗口至多碰两个相邻突发，两格就够
+    std::swap(native_[0], native_[1]);
+    std::swap(native_idx_[0], native_idx_[1]);
+    return native_[0];
+}
+
+std::complex<double> SceneEmitterSource::ofdm_sample(std::int64_t m, std::size_t k) {
+    const std::int64_t L = rsmp_.interp();
+    const std::int64_t c = m / L;                        // m ≥ 0
+    if (!cycle_valid_ || c != cycle_idx_) {
+        const std::int64_t ws = rsmp_.window_start(c);
+        const std::int64_t wl = rsmp_.window_len();
+        for (std::size_t j = 0; j < win_.size(); ++j) win_[j] = std::complex<double>(0.0, 0.0);
+        // 窗口 wl ≤ 116 个原生样点、突发间隔 ≥ 64，于是窗口至多碰 k 的前后各一个
+        const std::size_t lo = k > 0 ? k - 1 : 0;
+        const std::size_t hi = std::min(ofdm_bursts_.size(), k + 2);
+        for (std::size_t q = lo; q < hi; ++q) {
+            const OfdmBurst& b = ofdm_bursts_[q];
+            if (!b.on) continue;
+            const std::int64_t a = std::max(ws, b.start_n), e = std::min(ws + wl, b.start_n + b.length_n);
+            if (a >= e) continue;
+            const std::vector<std::complex<double>>& x = ofdm_native(q);
+            for (std::int64_t n = a; n < e; ++n)
+                win_[static_cast<std::size_t>(n - ws)] += x[static_cast<std::size_t>(n - b.start_n)];
+        }
+        rsmp_.cycle(&win_[0], &cycle_out_[0]);
+        cycle_idx_ = c;
+        cycle_valid_ = true;
+    }
+    return cycle_out_[static_cast<std::size_t>(m - c * L)];
 }
 
 bool SceneEmitterSource::init(IRandom& rng, std::string& err) {
@@ -618,6 +727,14 @@ bool SceneEmitterSource::init(IRandom& rng, std::string& err) {
     produced_ = 0;
     phase_ = 0.0;
     band_note_done_ = false;
+    if (geo::is_ofdm_family(waveform_.type)) {
+        // 只在私有子流里取一次，别的波形一个数不取（共享流的消耗不变，D-058 ④ 同一纪律）
+        payload_key_ = sub_rng_.next_u64();
+        ofdm_cursor_ = 0;
+        native_idx_[0] = native_idx_[1] = -1;
+        cycle_valid_ = false;
+        ofdm_note_done_ = false;
+    }
     for (int k = 0; k < 4; ++k) lp_state_[k] = std::complex<double>(0.0, 0.0);
     if (band_limit_) {
         // 冷启动瞬态推掉：组件对外的合同是「发射期间平均功率恰为 1 mW」，
@@ -665,6 +782,7 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
         // 是另一种建模，本期不做（模型卡里写明，别让它成为隐含假设）。
         const double dphi = kTwoPi * offset / sample_rate_Hz_;
 
+        const bool ofdm = geo::is_ofdm_family(waveform_.type);
         for (std::uint64_t idx = s0 + i; idx < stop; ++idx, ++i) {
             bool on = seg.tx_on;
             if (on && waveform_.type == geo::WaveformType::Burst)
@@ -672,6 +790,33 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
 
             // a = 1 时逐样点乘法被优化掉，既有框图的结果逐位不变（emit_at_tx_power 缺省为假）
             const float a = static_cast<float>(tx_power_amp_);
+            if (ofdm) {
+                // OFDM 族（D-088）：开关与频点**按突发**取，不看子段的 tx_on 与中心频率——
+                // 突发起点发射机开着就整突发发完（⑥），整个突发连同重采样拖尾用突发中点的频点（⑦）。
+                // 支撑之外恰为 +0；相位累加器照旧逐样点推进（空档里按子段的频偏），与块长无关。
+                const std::int64_t m = static_cast<std::int64_t>(idx);
+                while (ofdm_cursor_ < ofdm_bursts_.size() && ofdm_bursts_[ofdm_cursor_].m_hi <= m) ++ofdm_cursor_;
+                const bool in = ofdm_cursor_ < ofdm_bursts_.size() && ofdm_bursts_[ofdm_cursor_].m_lo <= m;
+                double step = dphi;
+                if (in) {
+                    const OfdmBurst& b = ofdm_bursts_[ofdm_cursor_];
+                    step = b.dphi;
+                    if (b.on) {
+                        const std::complex<double> v = ofdm_sample(m, ofdm_cursor_) * ofdm_gain_;
+                        const double c = std::cos(phase_), sp = std::sin(phase_);
+                        d.iq.samples[i] = Complex(static_cast<float>(v.real() * c - v.imag() * sp) * a,
+                                                  static_cast<float>(v.real() * sp + v.imag() * c) * a);
+                    } else {
+                        d.iq.samples[i] = Complex(0.0f, 0.0f);
+                    }
+                } else {
+                    d.iq.samples[i] = Complex(0.0f, 0.0f);
+                }
+                phase_ += step;
+                if (phase_ >= kTwoPi) phase_ -= kTwoPi;
+                else if (phase_ < 0.0) phase_ += kTwoPi;
+                continue;
+            }
             if (waveform_.type == geo::WaveformType::Noise) {
                 float re = 0.0f, im = 0.0f;
                 sub_rng_.complex_normal(re, im);      // E|z|^2 = 1，即单位功率
@@ -707,6 +852,19 @@ Step SceneEmitterSource::process(PortMap&, PortMap& out, std::string& err) {
     d.iq.meta.time_basis = TimeBasis::LogicalSim;
     d.iq.meta.calibration = model_calibration();
     d.iq.meta.trace = make_trace("SceneEmitterSource", scene_.scenario_id + ":" + entity_id_);
+    if (preset_ != 0 && geo::is_ofdm_family(waveform_.type)) {
+        // 溯源写明预设与重采样档位；A 档主导的预设写 V1（14 §9，D-088 ⑪）
+        d.iq.meta.trace.parameter_version = std::string(geo::waveform_type_name(waveform_.type)) + "-" + preset_->id +
+                                            "-rsmp_v1-m" + std::to_string(rsmp_.decim());
+        d.iq.meta.trace.credibility = preset_->credibility;
+        if (!ofdm_note_done_) {
+            status_.notes.push_back(std::string("OFDM 族：预设 ") + preset_->id + "，原生 " +
+                                    numstr(preset_->fs_native_Hz) + " Hz 经 125/" + std::to_string(rsmp_.decim()) +
+                                    " 有理重采样；单位功率按子载波频点的 |H|² 均值补偿（c = " + numstr(ofdm_c_) +
+                                    "），帧排布 " + std::to_string(ofdm_bursts_.size()) + " 个突发");
+            ofdm_note_done_ = true;
+        }
+    }
 
     // 带限的三种处境摆到台面上（铁律 15，不静默）。C-8 之前只有第一支，且是无条件降级。
     if (waveform_.type == geo::WaveformType::Noise) {
@@ -744,6 +902,10 @@ void SceneEmitterSource::reset() {
     produced_ = 0;
     phase_ = 0.0;
     band_note_done_ = false;
+    ofdm_cursor_ = 0;
+    native_idx_[0] = native_idx_[1] = -1;
+    cycle_valid_ = false;
+    ofdm_note_done_ = false;
     status_ = ComponentStatus();
 }
 

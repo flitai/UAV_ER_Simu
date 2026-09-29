@@ -8,20 +8,25 @@
 //   ③ 重采样原型表（models/radiator/fir_rsmp_v1.json）：逐位、结构约束、按赫兹的物理锚点；
 //   ④ 有理重采样封装（engine/src/resampler.cpp + Coder 核）：对 Python 与 MATLAB 两方、冲激对齐。
 //   ⑤ 帧排布（geo/src/ofdm_frame.cpp）：整张突发表对 Python 复刻逐位相同、随机访问 = 顺序铺开。
-// 源的生成路径的用例随后续步骤加在这里。
+//   ⑥ 源的生成路径（SceneEmitterSource 的 ofdm / droneid）：对 Python 全路径复刻（组件尺度 1e-6）、
+//      块长无关、前缀性质、重新 init 复现、单位功率、整突发开关、逐突发频点、溯源。
 
 #include <cmath>
 #include <complex>
 #include <cstdint>
 #include <fstream>
 #include <iterator>
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "cuav/components/scenario.h"
 #include "cuav/dsp.h"
 #include "cuav/ofdm.h"
 #include "cuav/random.h"
 #include "cuav/resampler.h"
+#include "cuav/scenario_json.h"
 #include "cuav/sha256.h"
 #include "cuav_geo/ofdm_frame.h"
 #include "cuav_geo/radiator_presets.h"
@@ -579,4 +584,230 @@ TEST_CASE("重采样档位：geo 里声明的一份与冻结表、封装层三�
     CHECK(got == rsmp_supported_decim());
     CHECK(geo::rsmp_decim_for(*p, 10e6) == 0);
     CHECK(geo::rsmp_allowed_fs_text(*p) == "20000000 / 40000000 / 80000000 Hz");
+}
+
+// ---------------------------------------------------------------- ⑥ 源的生成路径
+
+namespace {
+const char* kOfdmFixture = "engine/tests/fixtures/ofdm-emitter.scenario.json";
+
+std::unique_ptr<SceneEmitterSource> make_ofdm_source(const std::string& entity, std::uint64_t total,
+                                                     std::size_t block, std::uint64_t shared_seed = 7) {
+    std::unique_ptr<SceneEmitterSource> s(new SceneEmitterSource());
+    std::map<std::string, double> num;
+    num["sample_rate_Hz"] = 80e6;
+    num["total_samples"] = static_cast<double>(total);
+    num["block_samples"] = static_cast<double>(block);
+    num["center_frequency_Hz"] = 2.44e9;
+    std::map<std::string, std::string> txt;
+    txt["scenario_path"] = repo_path(kOfdmFixture);
+    txt["scenario_id"] = "ofdm-emitter";
+    txt["entity_id"] = entity;
+    std::string err;
+    REQUIRE_MESSAGE(s->configure(num, txt, err), err);
+    Xoshiro256pp rng(shared_seed);
+    REQUIRE_MESSAGE(s->init(rng, err), err);
+    return s;
+}
+
+std::vector<Complex> run_source(SceneEmitterSource& s, std::vector<BlockMeta>* metas = 0) {
+    std::vector<Complex> all;
+    std::string err;
+    for (;;) {
+        PortMap in, out;
+        const Step st = s.process(in, out, err);
+        REQUIRE_MESSAGE(st != Step::Error, err);
+        if (st != Step::Produced) break;
+        const std::vector<Complex>& x = out["out"].iq.samples;
+        all.insert(all.end(), x.begin(), x.end());
+        if (metas) metas->push_back(out["out"].iq.meta);
+    }
+    return all;
+}
+
+bool same_bits(const std::vector<Complex>& a, const std::vector<Complex>& b, std::size_t n) {
+    for (std::size_t i = 0; i < n; ++i)
+        if (!(a[i].real() == b[i].real() && a[i].imag() == b[i].imag())) return false;
+    return true;
+}
+}  // namespace
+
+TEST_CASE("OFDM 源：对 Python 全路径复刻的组件尺度黄金基准（complex64，1e-6）") {
+    const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/scene_ofdm.json")));
+    const std::uint64_t N = g.at("total_samples").get<std::uint64_t>();
+    std::unique_ptr<SceneEmitterSource> s = make_ofdm_source(g.at("entity_id").get<std::string>(), N, 65536,
+                                                             g.at("shared_seed").get<std::uint64_t>());
+    const std::vector<Complex> y = run_source(*s);
+    REQUIRE(y.size() == N);
+    const double tol = g.at("tolerance").at("sample_rel").get<double>();
+    double worst = 0.0;
+    for (const auto& seg : g.at("segments")) {
+        const std::size_t st = seg.at("start").get<std::size_t>();
+        const auto& js = seg.at("samples");
+        double ss = 0.0, w = 0.0;
+        for (std::size_t i = 0; i < js.size(); ++i) {
+            const std::complex<double> want(js[i][0].get<double>(), js[i][1].get<double>());
+            const std::complex<double> got(y[st + i].real(), y[st + i].imag());
+            ss += std::norm(want);
+            w = std::max(w, std::abs(got - want));
+        }
+        const double rel = w / std::sqrt(ss / static_cast<double>(js.size()));
+        CHECK(rel <= tol);
+        worst = std::max(worst, rel);
+    }
+    double energy = 0.0;
+    for (std::size_t i = 0; i < y.size(); ++i) energy += std::norm(std::complex<double>(y[i].real(), y[i].imag()));
+    const double er = std::fabs(energy - g.at("energy").get<double>()) / g.at("energy").get<double>();
+    CHECK(er <= g.at("tolerance").at("energy_rel").get<double>());
+    MESSAGE("OFDM 源对 Python：样点最差 " << worst << "、能量相对差 " << er);
+    // 支撑之外恰为零
+    const auto& sup = g.at("supports");
+    std::size_t outside_nonzero = 0;
+    std::size_t k = 0;
+    for (std::int64_t m = 0; m < static_cast<std::int64_t>(y.size()); ++m) {
+        // 支撑下界可以是负的（首个突发从原生样点 0 起，滤波拖尾伸到流开始之前），按有符号读
+        while (k < sup.size() && sup[k][1].get<std::int64_t>() <= m) ++k;
+        const bool in = k < sup.size() && sup[k][0].get<std::int64_t>() <= m;
+        const std::size_t u = static_cast<std::size_t>(m);
+        if (!in && (y[u].real() != 0.0f || y[u].imag() != 0.0f)) ++outside_nonzero;
+    }
+    CHECK(outside_nonzero == 0u);
+}
+
+TEST_CASE("OFDM 源：块长无关、前缀性质、重新 init 逐位复现（三种预设）") {
+    const std::uint64_t N = 400000;                          // 5 ms
+    for (const char* ent : {"video", "droneid", "uplink"}) {
+        CAPTURE(ent);
+        std::unique_ptr<SceneEmitterSource> a = make_ofdm_source(ent, N, 65536);
+        const std::vector<Complex> ref = run_source(*a);
+        REQUIRE(ref.size() == N);
+        for (std::size_t blk : {std::size_t(7), std::size_t(997), std::size_t(125), std::size_t(N)}) {
+            std::unique_ptr<SceneEmitterSource> b = make_ofdm_source(ent, N, blk);
+            const std::vector<Complex> got = run_source(*b);
+            REQUIRE(got.size() == N);
+            CHECK_MESSAGE(same_bits(got, ref, N), "块长 " << blk);
+        }
+        // 前缀：N/2 个样点的运行恰是 N 个样点运行的前 N/2 个
+        std::unique_ptr<SceneEmitterSource> c = make_ofdm_source(ent, N / 2, 65536);
+        const std::vector<Complex> half = run_source(*c);
+        CHECK(same_bits(half, ref, N / 2));
+        // 重新 init（调度器每次运行都先 init）：同一个共享种子逐位复现
+        std::string err;
+        Xoshiro256pp rng(7);
+        REQUIRE(a->init(rng, err));
+        CHECK(same_bits(run_source(*a), ref, N));
+    }
+}
+
+TEST_CASE("OFDM 源：块长 1 也逐位相同（DroneID 一个突发）") {
+    const std::uint64_t N = 60000;                           // 覆盖 t = 0 起的第一个 DroneID 突发（≈ 51458 个样点）
+    const std::vector<Complex> ref = run_source(*make_ofdm_source("droneid", N, 65536));
+    const std::vector<Complex> one = run_source(*make_ofdm_source("droneid", N, 1));
+    REQUIRE(one.size() == N);
+    CHECK(same_bits(one, ref, N));
+}
+
+TEST_CASE("OFDM 源：发射期间平均功率 1 mW（单位功率合同）") {
+    const std::uint64_t N = 1600000;                         // 20 ms，图传约 6 个突发
+    std::unique_ptr<SceneEmitterSource> s = make_ofdm_source("video", N, 65536);
+    const std::vector<Complex> y = run_source(*s);
+    // 用帧排布取每个突发的支撑，扣掉两端各 200 个样点的滤波拖尾，只量突发本体
+    LoadedScenario ls;
+    std::string err;
+    REQUIRE(load_scenario_file(repo_path(kOfdmFixture), ls, err));
+    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-10m");
+    geo::FrameSchedule fs;
+    fs.build(*p, ls.scenario.seed, "video", 0, static_cast<std::int64_t>(N) * 24 / 125);
+    double pw = 0.0;
+    std::size_t cnt = 0;
+    for (const auto& b : fs.bursts()) {
+        const std::int64_t lo = (b.start_n * 125 + 23) / 24 + 200;
+        const std::int64_t hi = (b.start_n + b.length_n) * 125 / 24 - 200;
+        for (std::int64_t m = lo; m < hi && m < static_cast<std::int64_t>(N); ++m) {
+            pw += std::norm(std::complex<double>(y[static_cast<std::size_t>(m)].real(), y[static_cast<std::size_t>(m)].imag()));
+            ++cnt;
+        }
+    }
+    REQUIRE(cnt > 100000u);
+    const double dB = 10.0 * std::log10(pw / static_cast<double>(cnt));
+    CHECK(std::fabs(dB) < 0.05);
+    MESSAGE("图传突发内平均功率 " << dB << " dBm（" << cnt << " 个样点）");
+}
+
+TEST_CASE("OFDM 源：整突发开关——1 ms 开、6 ms 关，突发要么整个在要么整个不在") {
+    const std::uint64_t N = 800000;                          // 10 ms
+    const std::vector<Complex> y = run_source(*make_ofdm_source("video-gated", N, 65536));
+    LoadedScenario ls;
+    std::string err;
+    REQUIRE(load_scenario_file(repo_path(kOfdmFixture), ls, err));
+    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-10m");
+    geo::FrameSchedule fs;
+    fs.build(*p, ls.scenario.seed, "video-gated", 0, static_cast<std::int64_t>(N) * 24 / 125);
+    int on_bursts = 0, off_bursts = 0;
+    for (const auto& b : fs.bursts()) {
+        const double t0 = static_cast<double>(b.start_n) / p->fs_native_Hz;
+        const bool want_on = t0 >= 0.001 && t0 < 0.006;
+        const std::int64_t lo = (b.start_n * 125 + 23) / 24, hi = (b.start_n + b.length_n) * 125 / 24;
+        double e = 0.0;
+        std::size_t zeros_inside = 0;
+        for (std::int64_t m = lo; m < hi && m < static_cast<std::int64_t>(N); ++m) {
+            const double v = std::norm(std::complex<double>(y[static_cast<std::size_t>(m)].real(), y[static_cast<std::size_t>(m)].imag()));
+            e += v;
+            zeros_inside += v == 0.0 ? 1u : 0u;
+        }
+        if (want_on) {
+            ++on_bursts;
+            CHECK(e > 0.0);
+            CHECK(zeros_inside < 10u);                        // 没有在突发中间被硬切
+        } else {
+            ++off_bursts;
+            CHECK(e == 0.0);
+        }
+    }
+    CHECK(on_bursts >= 1);
+    CHECK(off_bursts >= 1);
+}
+
+TEST_CASE("OFDM 源：上行逐突发的频点等于该突发中点时刻的跳频值") {
+    const std::uint64_t N = 1600000;                         // 20 ms：候选突发时隙 0、2、5、7（各以 0.1162 空过）
+    const std::vector<Complex> y = run_source(*make_ofdm_source("uplink", N, 65536));
+    LoadedScenario ls;
+    std::string err;
+    REQUIRE(load_scenario_file(repo_path(kOfdmFixture), ls, err));
+    geo::EmitterRuntime rt;
+    REQUIRE(rt.build(ls.scenario, "uplink", err));
+    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-uplink-2m");
+    geo::FrameSchedule fs;
+    fs.build(*p, ls.scenario.seed, "uplink", 0, static_cast<std::int64_t>(N) * 24 / 125);
+    int checked = 0;
+    for (const auto& b : fs.bursts()) {
+        const std::int64_t lo = (b.start_n * 125 + 23) / 24 + 100, hi = (b.start_n + b.length_n) * 125 / 24 - 100;
+        if (hi > static_cast<std::int64_t>(N)) continue;
+        const double mid = (b.start_n + 0.5 * b.length_n) / p->fs_native_Hz;
+        const double want = rt.center_Hz_at(mid) - 2.44e9;
+        // 相邻样点的相位差平均（瞬时频率）：窄带信号的功率质心就是它
+        std::complex<double> acc(0.0, 0.0);
+        for (std::int64_t m = lo + 1; m < hi; ++m) {
+            const std::complex<double> a(y[static_cast<std::size_t>(m)].real(), y[static_cast<std::size_t>(m)].imag());
+            const std::complex<double> c(y[static_cast<std::size_t>(m - 1)].real(), y[static_cast<std::size_t>(m - 1)].imag());
+            acc += a * std::conj(c);
+        }
+        const double got = std::arg(acc) / (2.0 * 3.14159265358979323846) * 80e6;
+        CHECK(std::fabs(got - want) < 20e3);                  // 子载波间隔 15 kHz 量级
+        ++checked;
+    }
+    CHECK(checked >= 2);
+}
+
+TEST_CASE("OFDM 源：溯源写明预设与重采样档位，A 档主导的写 V1、DroneID 写 V2") {
+    std::vector<BlockMeta> mv, md;
+    run_source(*make_ofdm_source("video", 1000, 1000), &mv);
+    run_source(*make_ofdm_source("droneid", 1000, 1000), &md);
+    REQUIRE(!mv.empty());
+    REQUIRE(!md.empty());
+    CHECK(mv[0].trace.parameter_version == "ofdm-dji-video-10m-rsmp_v1-m24");
+    CHECK(mv[0].trace.credibility == "V1");
+    CHECK(md[0].trace.parameter_version == "droneid-dji-droneid-rsmp_v1-m24");
+    CHECK(md[0].trace.credibility == "V2");
+    CHECK(mv[0].calibration.source == "model");
 }

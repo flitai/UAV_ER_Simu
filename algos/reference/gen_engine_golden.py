@@ -991,6 +991,108 @@ def write_ofdm_frame(args) -> int:
     return 0
 
 
+def write_scene_ofdm(args) -> int:
+    """SceneEmitterSource 的 OFDM 路径（Q-2，D-088）：组件尺度的对拍基准（complex64，判据 1e-6）。
+
+    整条路径逐步复刻，与引擎共享的只有比特（预设表、系数表、种子）：
+      帧排布 ofdm_ref.frame_bursts → 突发载荷种子 mix64(key ^ mix64(时隙)) → 原生调制 ofdm_ref.burst
+      → 直接型重采样（resampler.py 的公式，放到全局原生序列上）→ 单位功率补偿 1/√c
+      → 相位累加器（弧度、逐样点加、单次回卷）→ float32。
+    场景是 engine/tests/fixtures/ofdm-emitter.scenario.json 的 video 辐射源（10 MHz 图传、偏 +1.3 MHz、
+    无活动）；共享随机流 Xoshiro256pp(7) 取一个数建私有子流，私有子流再取一个数作载荷键——与单测同式。
+    """
+    import ofdm_ref
+    import resampler as rs
+
+    doc_p = ofdm_ref.load_presets()
+    pid, eid, sc_seed = "dji-video-10m", "video", 20260929
+    fs, fc, f_em = 80e6, 2.44e9, 2.4413e9
+    N = args.so_samples
+    tab = rs.load_table()
+    L, T, gd, h = tab["L"], tab["T"], tab["gd"], tab["h"]
+    M = 24
+    p = ofdm_ref.Preset(doc_p, pid)
+    sub_seed = Xoshiro256pp(7).next_u64()
+    key = Xoshiro256pp(sub_seed).next_u64()
+    end_n = N * M // L + T + 2
+    bursts = ofdm_ref.frame_bursts(doc_p, pid, sc_seed, eid, 0, end_n)
+    native = np.zeros(end_n + 200000, dtype=np.complex128)
+    for (slot, start, length, v) in bursts:
+        seed = ofdm_ref.mix64(key ^ ofdm_ref.mix64(slot))
+        native[start:start + length] = ofdm_ref.burst(p, v, seed)
+    # 单位功率常数：滤波器在各子载波频点 |H/L|² 的均值（与引擎同一累加次序）
+    acc = 0.0
+    for i in range(2 * p.K):
+        f = p.k_of(i) / p.fft
+        H = 0j
+        for n in range(h.size):
+            ang = -2.0 * math.pi * f * n / L
+            H += h[n] * complex(math.cos(ang), math.sin(ang))
+        acc += (H.real * H.real + H.imag * H.imag) / (L * L)
+    c = acc / (2 * p.K)
+    gain = 1.0 / math.sqrt(c)
+    sup = []
+    for (slot, start, length, v) in bursts:
+        a = start * L - gd
+        m_lo = (a + M - 1) // M if a >= 0 else -((-a) // M)
+        m_hi = ((start + length + T) * L - gd - 1) // M + 1
+        sup.append((m_lo, m_hi))
+    dphi = 2.0 * math.pi * (f_em - fc) / fs
+    two_pi = 2.0 * math.pi
+    phase = 0.0
+    out = np.zeros(N, dtype=np.complex64)
+    k = 0
+    for m in range(N):
+        while k < len(sup) and sup[k][1] <= m:
+            k += 1
+        if k < len(sup) and sup[k][0] <= m:
+            pp = m * M + gd
+            n_hi, n_lo = pp // L, -((-(pp - h.size + 1)) // L)
+            y = 0j
+            for n in range(max(n_lo, 0), n_hi + 1):
+                y += h[pp - L * n] * native[n]
+            y *= gain
+            cc, sp = math.cos(phase), math.sin(phase)
+            out[m] = complex(np.float32(y.real * cc - y.imag * sp), np.float32(y.real * sp + y.imag * cc))
+        phase += dphi
+        if phase >= two_pi:
+            phase -= two_pi
+        elif phase < 0.0:
+            phase += two_pi
+    first = max(sup[0][0], 0)          # 首个突发从原生 0 起时支撑下界是负的（滤波拖尾伸到流开始之前）
+    keep = args.so_keep
+    energy = float(np.sum(np.abs(out.astype(np.complex128)) ** 2))
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "SceneEmitterSource 的 OFDM 路径对拍基准（Q-2，D-088），组件尺度（complex64）",
+        "generator": "algos/reference/gen_engine_golden.py --mode scene_ofdm",
+        "scenario": "engine/tests/fixtures/ofdm-emitter.scenario.json",
+        "entity_id": eid, "preset": pid, "sample_rate_Hz": fs, "center_frequency_Hz": fc,
+        "shared_seed": 7, "total_samples": N, "decim": M,
+        "unit_power_c": c, "n_bursts": len(bursts),
+        "supports": [[a, b] for a, b in sup],
+        "segments": [
+            {"start": first, "samples": [[float(v.real), float(v.imag)] for v in out[first:first + keep]]},
+            {"start": sup[0][1] - keep, "samples": [[float(v.real), float(v.imag)] for v in out[sup[0][1] - keep:sup[0][1]]]},
+        ],
+        "energy": energy,
+        "tolerance": {"sample_rel": 1e-6, "energy_rel": 1e-6,
+                      "note": "组件输出存 complex64（eps 1.2e-7），判据 1e-6；算法核那一层的 1e-9 由 rsmp / ofdm 两份基准守"},
+    }
+    arrays = {}
+    for i, seg in enumerate(doc["segments"]):
+        tag = f"@@seg{i}@@"
+        arrays[tag] = seg["samples"]
+        seg["samples"] = tag
+    text = json.dumps(doc, ensure_ascii=False, indent=1)
+    for tag, pairs in arrays.items():
+        text = text.replace(json.dumps(tag), "[\n" + ",\n".join(json.dumps(pr) for pr in pairs) + "\n]", 1)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(text + "\n")
+    print(f"写出 {args.out}：{N} 个样点、{len(bursts)} 个突发、c = {c:.12f}、能量 {energy:.6f}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -1003,7 +1105,7 @@ def main(argv=None) -> int:
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
-                                      "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame"), default="probe")
+                                      "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm"), default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -1061,6 +1163,8 @@ def main(argv=None) -> int:
     ap.add_argument("--rsmp-keep", type=int, default=400, help="rsmp：支撑首尾各存多少个站点样点")
     ap.add_argument("--frame-seed", type=int, default=20260904, help="ofdm_frame：场景 seed")
     ap.add_argument("--frame-slots", type=int, default=100000, help="ofdm_frame：每个预设铺多少时隙")
+    ap.add_argument("--so-samples", type=int, default=200000, help="scene_ofdm：输出样点数（80 MS/s 下 2.5 ms）")
+    ap.add_argument("--so-keep", type=int, default=512, help="scene_ofdm：首个突发支撑的首尾各存多少样点")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
@@ -1077,6 +1181,8 @@ def main(argv=None) -> int:
         return write_rsmp(args)
     if args.mode == "ofdm_frame":
         return write_ofdm_frame(args)
+    if args.mode == "scene_ofdm":
+        return write_scene_ofdm(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

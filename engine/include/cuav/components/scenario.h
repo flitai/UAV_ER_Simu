@@ -24,6 +24,8 @@
 #include "cuav/observer.h"
 #include "cuav/random.h"
 #include "cuav/dsp.h"
+#include "cuav/ofdm.h"
+#include "cuav/resampler.h"
 #include "cuav_geo/activity.h"
 #include "cuav_geo/map.h"
 #include "cuav_geo/scenario.h"
@@ -144,6 +146,38 @@ private:
     // 量的是**积分功率占比**而不是带边那一点的衰减 —— 后者会把物理上没问题的配置误判成降级
     // （实测：带边 39 dB 抑制对应的绕折功率只有 2.4e-5）。超过 1e-3 才标降级。
     double alias_frac_ = 0.0;
+
+    // OFDM 族（Q-2，D-088）：ofdm / droneid。结构全来自机型预设表，帧排布来自 geo::FrameSchedule，
+    // 原生率逐符号调制（ofdm.cpp）→ 有理重采样（Coder 核，resampler.cpp）→ 整突发开关 → 相位搬移。
+    // 每个突发在 configure() 里展开成一行：起止（原生样点）、开没开、频偏、站点样点支撑 [m_lo, m_hi)。
+    // 相邻突发至少隔 geo::kBurstMinGapNative 个原生样点，支撑互不重叠，于是每个站点样点至多属于一个突发。
+    struct OfdmBurst {
+        std::int64_t start_n = 0;
+        std::int64_t length_n = 0;
+        std::int64_t slot = 0;
+        int variant = 0;
+        bool on = true;             // 突发起点（连续时间）发射机开着就整突发发完（D-088 ⑥）
+        double dphi = 0.0;          // 突发中点时刻的中心频率 + offset_Hz − 观测中心，折成弧度 / 样点（⑦）
+        std::int64_t m_lo = 0, m_hi = 0;
+    };
+    bool configure_ofdm(std::string& err);
+    std::complex<double> ofdm_sample(std::int64_t m, std::size_t burst);
+    const std::vector<std::complex<double>>& ofdm_native(std::size_t burst);
+
+    const geo::RadiatorPreset* preset_ = nullptr;
+    ofdm::Modulator mod_;
+    RationalResampler rsmp_;
+    std::vector<OfdmBurst> ofdm_bursts_;
+    double ofdm_c_ = 1.0;               // 滤波器在各子载波频点的 |H/L|² 均值
+    double ofdm_gain_ = 1.0;            // 1/√c：把「发射期间 1 mW」补回精确（量级 < 0.01 dB）
+    std::uint64_t payload_key_ = 0;     // init() 从私有子流取一次，突发载荷种子 = mix64(key ^ mix64(时隙))
+    std::size_t ofdm_cursor_ = 0;
+    std::int64_t native_idx_[2] = {-1, -1};                  // 最近用到的两个突发的原生样点缓存
+    std::vector<std::complex<double>> native_[2];
+    std::int64_t cycle_idx_ = -1;                            // 最近一拍（站点样点 125c … 125c+124）
+    bool cycle_valid_ = false;
+    std::vector<std::complex<double>> cycle_out_, win_;
+    bool ofdm_note_done_ = false;
 
     Xoshiro256pp sub_rng_{0};             // 私有随机子流，见 .cpp 里的理由
     bool sub_ready_ = false;

@@ -2176,9 +2176,9 @@
     },
     {
       "category": "source",
-      "description": "按场景 emission.waveform 生成 tone / noise / burst，归一化到**发射期间**的单位功率（0 dBm）；绝对电平由施加类信道按链路预算给出（D-045）。因此本组件输出的全程平均功率对 burst 是 duty × 1 mW，瀑布上的时间平均电平比链路预算低 10·log10(1/duty)，突发峰值才等于链路预算。活动时间线的图传开关与跳频在这里生效，粒度是样点不是块（G-6）。noise 按 emission.bw_Hz 做 4 阶巴特沃斯带限（阻带非砖墙）并搬移到 emission.center_Hz；bw_Hz 不小于采样带宽时不带限、输出全带白噪声并标降级。",
+      "description": "按场景 emission.waveform 生成 tone / noise / burst，归一化到**发射期间**的单位功率（0 dBm）；绝对电平由施加类信道按链路预算给出（D-045）。因此本组件输出的全程平均功率对 burst 是 duty × 1 mW，瀑布上的时间平均电平比链路预算低 10·log10(1/duty)，突发峰值才等于链路预算。活动时间线的图传开关与跳频在这里生效，粒度是样点不是块（G-6）。noise 按 emission.bw_Hz 做 4 阶巴特沃斯带限（阻带非砖墙）并搬移到 emission.center_Hz；bw_Hz 不小于采样带宽时不带限、输出全带白噪声并标降级。ofdm / droneid（Q-2）的结构取自机型预设表：原生率逐符号 IFFT 加 CP，有理重采样到站点采样率（算法核是 Coder 产物），按帧排布逐突发发射，频点按突发取、突发起点发射机开着即整突发发完。",
       "display_name": "场景辐射源",
-      "implementation": "cpp",
+      "implementation": "coder",
       "model_id": "EM-B-09",
       "model_layer": "M3",
       "model_level": "E2",
@@ -2261,6 +2261,7 @@
         ]
       },
       "scene_bindable": true,
+      "source_ref": "matlab/ref/{cuav_rsmp_cycle.m, cuav_rsmp_m24.m, cuav_rsmp_m48.m, cuav_rsmp_m96.m}｜来源集 sha256 9eb99f0d32e44105｜MATLAB 25.1.0.2973910 (R2025a) Update 1｜Coder 25.1 (R2025a)｜codegen 参数 sha256 ceadcf53a85d2c07｜models/radiator/coder/",
       "stateful": true,
       "type": "SceneEmitterSource",
       "version": "0.1.0"
