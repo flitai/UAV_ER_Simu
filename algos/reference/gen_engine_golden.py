@@ -1171,6 +1171,42 @@ def write_gfsk(args) -> int:
     return 0
 
 
+def write_gfsk_frame(args) -> int:
+    """GFSK 族的帧排布（Q-3，D-089）：geo/src/gfsk_frame.cpp 对 algos/reference/gfsk_ref.py 的 frame_bursts()。
+
+    时刻是 double 的算术（t0 = (offset + k·period) + packet.offset，t1 = t0 + n_bits/R），两侧同式同序，
+    判据是**逐位**：整张包表按 <int64 frame, int32 packet, double t0, double t1> 小端拼接后的 sha256 相同。
+    帧起点故意取一个不在任何栅格上的值。
+    """
+    import hashlib
+    import gfsk_ref
+
+    doc_p = gfsk_ref.load_presets()
+    with open(os.path.join(gfsk_ref._ROOT, gfsk_ref.PRESETS_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+    cases = []
+    for pid in ("frsky-d16v2-fcc", "futaba-sfhss"):
+        p = gfsk_ref.Preset(doc_p, pid)
+        bs = gfsk_ref.frame_bursts(p, args.gfsk_frame_offset, args.gfsk_frame_end)
+        pick = lambda b: {"frame": b[0], "packet": b[1], "index": b[2], "t0_s": b[3], "t1_s": b[4], "n_bits": b[5]}
+        cases.append({"preset": pid, "frame_offset_s": args.gfsk_frame_offset, "end_s": args.gfsk_frame_end,
+                      "n_bursts": len(bs), "first": [pick(b) for b in bs[:3]], "last": pick(bs[-1]),
+                      "table_sha256": gfsk_ref.frame_table_sha256(bs)})
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "GFSK 族帧排布的对拍基准（Q-3，D-089）：geo::GfskSchedule 对 gfsk_ref.frame_bursts()，逐位",
+        "generator": "algos/reference/gen_engine_golden.py --mode gfsk_frame",
+        "presets": {"source": gfsk_ref.PRESETS_REL.replace(os.sep, "/"), "sha256": table_sha},
+        "contract": "t0 = (frame_offset_s + k·period_s) + packets[q].offset_s；t1 = t0 + n_bits / R；起点 < end_s 的包全列；"
+                    "表指纹 = 逐包 struct.pack('<qidd', k, q, t0, t1) 拼接的 sha256",
+        "cases": cases,
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    print(f"写出 {args.out}：" + "，".join(f"{c['preset']} {c['n_bursts']} 包" for c in cases))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -1183,7 +1219,8 @@ def main(argv=None) -> int:
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
-                                      "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk"),
+                                      "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk",
+                                      "gfsk_frame"),
                     default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
@@ -1246,6 +1283,8 @@ def main(argv=None) -> int:
     ap.add_argument("--so-keep", type=int, default=512, help="scene_ofdm：首个突发支撑的首尾各存多少样点")
     ap.add_argument("--gfsk-seed", type=int, default=20260930, help="gfsk：载荷种子与随机时刻")
     ap.add_argument("--gfsk-points", type=int, default=160, help="gfsk：每个算例的随机时刻数")
+    ap.add_argument("--gfsk-frame-offset", type=float, default=0.00123, help="gfsk_frame：帧起点（秒）")
+    ap.add_argument("--gfsk-frame-end", type=float, default=60.0, help="gfsk_frame：铺到多少秒")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
@@ -1266,6 +1305,8 @@ def main(argv=None) -> int:
         return write_scene_ofdm(args)
     if args.mode == "gfsk":
         return write_gfsk(args)
+    if args.mode == "gfsk_frame":
+        return write_gfsk_frame(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

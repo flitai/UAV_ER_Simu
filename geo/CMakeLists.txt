@@ -41,6 +41,7 @@ add_library(cuav_geo STATIC
   src/radiator_presets.cpp
   src/ofdm_frame.cpp
   src/gfsk_presets.cpp
+  src/gfsk_frame.cpp
   src/df_error.cpp
   src/fix_geometry.cpp
   src/locate_aoa.cpp

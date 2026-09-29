@@ -6,6 +6,7 @@
 //   ② 调制核（engine/src/gfsk.cpp）：比特对 Python 逐位、相位与瞬时频率对 mpmath 不截断全和
 //      （黄金基准 engine/tests/golden/gfsk.json，算法核尺度 1e-9）、对 MATLAB 一方（gfsk.matlab.json，可选）、
 //      长游程斜率 = h/2、2-FSK 相位分段线性、瞬时频率是相位的导数。
+//   ③ 帧排布（geo/src/gfsk_frame.cpp）：整张包表对 Python 复刻逐位（黄金基准 gfsk_frame.json）。
 
 #include <cmath>
 #include <fstream>
@@ -15,6 +16,7 @@
 
 #include "cuav/gfsk.h"
 #include "cuav/sha256.h"
+#include "cuav_geo/gfsk_frame.h"
 #include "cuav_geo/gfsk_presets.h"
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
@@ -292,5 +294,43 @@ TEST_CASE("GFSK 调制核：结构性质") {
         for (std::size_t i = 64; i < a.size(); ++i) differ = differ || a[i] != b[i];
         CHECK(differ);
         for (std::size_t i = 0; i < 64; ++i) CHECK(a[i] == b[i]);
+    }
+}
+
+TEST_CASE("GFSK 帧排布：整张包表对 Python 复刻逐位（gfsk_frame.json）") {
+    const nlohmann::json j = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/gfsk_frame.json")));
+    CHECK(j.at("presets").at("sha256").get<std::string>() == std::string(geo::gfsk_presets_v1_sha256()));
+    REQUIRE(j.at("cases").size() == 2);
+    for (const auto& c : j.at("cases")) {
+        const std::string pid = c.at("preset").get<std::string>();
+        CAPTURE(pid);
+        const geo::GfskPreset* p = geo::gfsk_preset_v1(pid);
+        REQUIRE(p != 0);
+        geo::GfskSchedule s;
+        s.build(*p, c.at("frame_offset_s").get<double>(), c.at("end_s").get<double>());
+        const std::vector<geo::GfskBurst>& bs = s.bursts();
+        REQUIRE(bs.size() == c.at("n_bursts").get<std::size_t>());
+        // struct.pack('<qidd', k, q, t0, t1)：小端、无对齐填充
+        std::string buf;
+        buf.reserve(bs.size() * 28);
+        auto put = [&buf](const void* v, std::size_t n) {
+            const unsigned char* b = static_cast<const unsigned char*>(v);
+            for (std::size_t i = 0; i < n; ++i) buf.push_back(static_cast<char>(b[i]));   // 开发机与目标机都是小端
+        };
+        for (std::size_t i = 0; i < bs.size(); ++i) {
+            const std::int64_t k = bs[i].frame;
+            const std::int32_t q = bs[i].packet;
+            put(&k, 8);
+            put(&q, 4);
+            put(&bs[i].t0_s, 8);
+            put(&bs[i].t1_s, 8);
+        }
+        CHECK(sha256_hex(buf) == c.at("table_sha256").get<std::string>());
+        const auto& last = c.at("last");
+        CHECK(bs.back().t0_s == last.at("t0_s").get<double>());
+        CHECK(bs.back().t1_s == last.at("t1_s").get<double>());
+        CHECK(bs.back().index == last.at("index").get<std::int64_t>());
+        // 包内不重叠、相邻包之间有空档
+        for (std::size_t i = 1; i < bs.size(); ++i) CHECK(bs[i - 1].t1_s < bs[i].t0_s);
     }
 }

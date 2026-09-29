@@ -12,8 +12,12 @@
   · 数值积分：在细网格上对瞬时频率做梯形积分，与闭式相位之差按梯形法误差界（h²/12·max|f''|·长度）判；
   · 长游程斜率：连续 n 个同号比特中段每符号相位增量 = h/2 圈。
 
+还有两件生成场景用的：frame_bursts()（与 geo/src/gfsk_frame.cpp 逐字同式的帧排布）、
+--hop-activity（按协议规则生成一整轮跳频，写进场景的 hop 活动，同 D-088 上行的 --uplink-sequence）。
+
 用法：
     uv run --quiet --with numpy --with mpmath python algos/reference/gfsk_ref.py --selftest
+    uv run --quiet python algos/reference/gfsk_ref.py --hop-activity frsky-d16v2-fcc --seed 20260929 --emitter rc-1
 """
 from __future__ import annotations
 
@@ -206,6 +210,101 @@ def inst_freq_mp(gaussian: int, bt: float, R: float, fdev: float, a: list, tau: 
         return float(mp.mpf(fdev) * tot)
 
 
+# ---------------------------------------------------------------- 帧排布（与 geo/src/gfsk_frame.cpp 逐字同式）
+
+
+def burst_t0(p: Preset, frame_offset_s: float, frame: int, packet: int) -> float:
+    base = frame_offset_s + float(frame) * p.period
+    return base + p.packets[packet][0]
+
+
+def burst_t1(p: Preset, t0: float, packet: int) -> float:
+    return t0 + float(p.packets[packet][1]) / p.R
+
+
+def frame_bursts(p: Preset, frame_offset_s: float, end_s: float) -> list:
+    """起点 < end_s 的全部包：[(frame, packet, index, t0, t1, n_bits)]。"""
+    out = []
+    k = 0
+    while frame_offset_s + float(k) * p.period < end_s:
+        for q in range(len(p.packets)):
+            t0 = burst_t0(p, frame_offset_s, k, q)
+            if t0 >= end_s:
+                break
+            out.append((k, q, k * len(p.packets) + q, t0, burst_t1(p, t0, q), p.packets[q][1]))
+        k += 1
+    return out
+
+
+def frame_table_sha256(bursts: list) -> str:
+    """整张包表的指纹：逐包 <int64 frame, int32 packet, double t0, double t1> 小端拼接（C++ 同法）。"""
+    import hashlib
+    import struct
+
+    h = hashlib.sha256()
+    for k, q, _idx, t0, t1, _nb in bursts:
+        h.update(struct.pack("<qidd", k, q, t0, t1))
+    return h.hexdigest()
+
+
+# ---------------------------------------------------------------- 跳频序列（写进场景的 hop 活动）
+
+MASK64 = (1 << 64) - 1
+
+
+def mix64(z: int) -> int:
+    z = (z + 0x9E3779B97F4A7C15) & MASK64
+    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK64
+    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & MASK64
+    return z ^ (z >> 31)
+
+
+def fnv1a64(s: str) -> int:
+    h = 0xCBF29CE484222325
+    for b in s.encode("utf-8"):
+        h ^= b
+        h = (h * 0x100000001B3) & MASK64
+    return h
+
+
+def sfhss_next(k: int, code: int) -> int:
+    """MPM Futaba_cc2500.ino 的 SFHSS_calc_next_chan()，逐句转写（同 scripts/gen_gfsk_presets.py）。"""
+    k += code + 2
+    if k > 29:
+        if k < 31:
+            k += code + 2
+        k -= 31
+    return k
+
+
+def hop_activity(p: Preset, seed: int, emitter_id: str, t_s: float = 0.0) -> dict:
+    """按协议规则生成一整轮跳频（场景 hop 活动，dwell_s = 帧周期，按停留循环）。
+
+    发射机相关的那个数（FrSky 的起始格 g0、S-FHSS 的 code）取 key = mix64(seed ^ mix64(fnv1a64(id)))
+    （与 OFDM 帧排布的键同式）：FrSky g0 = key mod 47，S-FHSS code = key mod 28、起始信道 0（MPM 同）。
+    FrSky 的逐跳 +step 格是实测主峰（协议里它是 inc·chanskip mod 47，随发射机标识变），取预设值。
+    帧起点 frame_offset_s 须与 t_s 相同，一帧才恰落在一个停留里（场景作者的责任，生成夹具时照此写）。
+    """
+    ch = p.hop["channels_Hz"]
+    key = mix64(seed ^ mix64(fnv1a64(emitter_id)))
+    if p.hop["rule"] == "step_mod":
+        n = len(ch)
+        g0 = key % n
+        seq = [ch[(g0 + p.hop["step"] * i) % n] for i in range(n)]
+        note = f"g0 = {g0}，逐跳 +{p.hop['step']} 格，{n} 跳一轮"
+    elif p.hop["rule"] == "sfhss":
+        code = key % 28
+        k, seq = 0, []
+        for _ in range(30):
+            seq.append(ch[k])
+            k = sfhss_next(k, code)
+        note = f"code = {code}，起始信道 0，30 跳一轮"
+    else:
+        raise ValueError(p.hop["rule"])
+    return {"emitter_id": emitter_id, "t_s": t_s, "event": "hop",
+            "args": {"sequence": seq, "dwell_s": p.hop["dwell_s"]}, "_note": note}
+
+
 # ---------------------------------------------------------------- 自检
 
 
@@ -261,6 +360,21 @@ def _selftest() -> int:
         pre_r = prefix_sums(run)
         d = m.phase_cycles(run, pre_r, 7.3 * T) - m.phase_cycles(run, pre_r, 6.3 * T)
         check(abs(d - p.fdev / p.R) < 1e-14, f"{pid}：长游程每符号 {d:.12f} 圈 = h/2 {p.fdev / p.R:.12f}")
+    # 帧排布与跳频序列
+    fr = Preset(doc, "frsky-d16v2-fcc")
+    sf = Preset(doc, "futaba-sfhss")
+    bs = frame_bursts(sf, 0.0, 0.0203)
+    check([(b[0], b[1]) for b in bs] == [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)],
+          "S-FHSS：每帧两包，三帧六包")
+    check(abs(bs[1][3] - 1.625e-3) < 1e-18 and abs(bs[2][3] - 6.8e-3) < 1e-18, "S-FHSS：第二包晚 1.625 ms、周期 6.8 ms")
+    ha = hop_activity(fr, 20260929, "rc-frsky")
+    seq = ha["args"]["sequence"]
+    check(len(set(seq)) == 47, "FrSky：一轮访遍 47 个频点")
+    steps = [round((b - a) / 1.5e6) % 47 for a, b in zip(seq, seq[1:])
+             if abs((b - a) % 1.5e6) < 1 or abs((b - a) % 1.5e6 - 1.5e6) < 1]
+    check(all(st == 3 for st in steps), "FrSky：栅格上的逐跳都是 +3 格（模 47）")
+    hs = hop_activity(sf, 20260929, "rc-futaba")
+    check(sorted(hs["args"]["sequence"]) == sf.hop["channels_Hz"], "S-FHSS：一轮访遍 30 个信道")
     print("自检" + ("全部通过" if fails == 0 else f"有 {fails} 项失败"))
     return 0 if fails == 0 else 1
 
@@ -268,9 +382,18 @@ def _selftest() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--hop-activity", metavar="PRESET", help="打印该预设一整轮跳频的场景 hop 活动（JSON）")
+    ap.add_argument("--seed", type=int, default=20260929, help="场景 seed")
+    ap.add_argument("--emitter", default="rc-1", help="辐射源 id（与 seed 一起定发射机相关的数）")
+    ap.add_argument("--t0", type=float, default=0.0, help="hop 活动的时刻，须等于 waveform.frame_offset_s")
     a = ap.parse_args()
     if a.selftest:
         return _selftest()
+    if a.hop_activity:
+        act = hop_activity(Preset(load_presets(), a.hop_activity), a.seed, a.emitter, a.t0)
+        print(act.pop("_note"), file=sys.stderr)
+        print(json.dumps(act, ensure_ascii=False))
+        return 0
     ap.print_help()
     return 0
 

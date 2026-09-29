@@ -1,0 +1,94 @@
+{
+ "schema": "cuav-engine-golden/1",
+ "purpose": "GFSK 族帧排布的对拍基准（Q-3，D-089）：geo::GfskSchedule 对 gfsk_ref.frame_bursts()，逐位",
+ "generator": "algos/reference/gen_engine_golden.py --mode gfsk_frame",
+ "presets": {
+  "source": "models/radiator/gfsk-presets-v1.json",
+  "sha256": "a0c2c7f87150f2d0f08a04e4b285ce1ba16f0a37953412a510c75b0fe788b125"
+ },
+ "contract": "t0 = (frame_offset_s + k·period_s) + packets[q].offset_s；t1 = t0 + n_bits / R；起点 < end_s 的包全列；表指纹 = 逐包 struct.pack('<qidd', k, q, t0, t1) 拼接的 sha256",
+ "cases": [
+  {
+   "preset": "frsky-d16v2-fcc",
+   "frame_offset_s": 0.00123,
+   "end_s": 60.0,
+   "n_bursts": 8572,
+   "first": [
+    {
+     "frame": 0,
+     "packet": 0,
+     "index": 0,
+     "t0_s": 0.00123,
+     "t1_s": 0.00407543695479778,
+     "n_bits": 219
+    },
+    {
+     "frame": 1,
+     "packet": 0,
+     "index": 1,
+     "t0_s": 0.00823,
+     "t1_s": 0.01107543695479778,
+     "n_bits": 219
+    },
+    {
+     "frame": 2,
+     "packet": 0,
+     "index": 2,
+     "t0_s": 0.01523,
+     "t1_s": 0.01807543695479778,
+     "n_bits": 219
+    }
+   ],
+   "last": {
+    "frame": 8571,
+    "packet": 0,
+    "index": 8571,
+    "t0_s": 59.99823,
+    "t1_s": 60.0010754369548,
+    "n_bits": 219
+   },
+   "table_sha256": "b2d8b4b67fb5eaf6e96ff68988ced103038f53ab4929f30de11afb6d010d904b"
+  },
+  {
+   "preset": "futaba-sfhss",
+   "frame_offset_s": 0.00123,
+   "end_s": 60.0,
+   "n_bursts": 17648,
+   "first": [
+    {
+     "frame": 0,
+     "packet": 0,
+     "index": 0,
+     "t0_s": 0.00123,
+     "t1_s": 0.0026658923553226957,
+     "n_bits": 184
+    },
+    {
+     "frame": 0,
+     "packet": 1,
+     "index": 1,
+     "t0_s": 0.002855,
+     "t1_s": 0.004290892355322696,
+     "n_bits": 184
+    },
+    {
+     "frame": 1,
+     "packet": 0,
+     "index": 2,
+     "t0_s": 0.008029999999999999,
+     "t1_s": 0.009465892355322695,
+     "n_bits": 184
+    }
+   ],
+   "last": {
+    "frame": 8823,
+    "packet": 1,
+    "index": 17647,
+    "t0_s": 59.99925499999999,
+    "t1_s": 60.000690892355315,
+    "n_bits": 184
+   },
+   "table_sha256": "c129ef6d95e9736c53bc9f4348451dbad0277a640c20ecf16493a50d044cbaa7"
+  }
+ ]
+}
