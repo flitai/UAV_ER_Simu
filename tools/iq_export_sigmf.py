@@ -330,7 +330,8 @@ def _link_at(links: list[dict], starts: list[float], t: float) -> dict | None:
 
 
 def _preset_keys(scen: dict) -> dict:
-    """场景里用到的机型预设（Q-2，D-088）：没有 OFDM 族辐射源时一个键都不写，既有导出逐字节不变。"""
+    """场景里用到的机型预设（Q-2 OFDM 族 D-088、Q-3 GFSK 族 D-089；两张表的 id 互不重名、版本都是 v1）：
+    没有按预设发射的辐射源时一个键都不写，既有导出逐字节不变。"""
     ids = sorted({(e.get("emission") or {}).get("waveform", {}).get("preset_id")
                   for e in scen.get("emitters", [])} - {None})
     return {"cuav:preset_ids": ids, "cuav:presets_version": "v1"} if ids else {}

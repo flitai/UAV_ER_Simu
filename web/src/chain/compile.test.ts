@@ -1149,6 +1149,37 @@ test('三种信号源模式的回归夹具都解得回典型链路且往返逐�
   }
 })
 
+test('GFSK 族（Q-3，D-089）：回归夹具 chain-gfsk 解得开、往返逐字节；频率计划只有保护带那一条不过（S-FHSS 0 号信道）', () => {
+  const gfskScenario = JSON.parse(
+    readFileSync(join(ROOT, 'tests/regression/scenarios/gfsk-80m.scenario.json'), 'utf8'),
+  ) as ScenarioDoc
+  const text = readFileSync(join(ROOT, 'tests/regression/diagrams/chain-gfsk.json'), 'utf8')
+  const r = parseDoc(text)
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  const chain = parseChain(r.doc)!
+  assert.ok(chain, '夹具应能被 parseChain 解开')
+  assert.equal(serialize(compile(chain, cat, gfskScenario).doc, cat), text, '往返逐字节相同')
+  const checks = planChecks(chain, freqPlan(chain, gfskScenario), gfskScenario)
+  // GFSK 相位闭式求值、不经重采样，没有采样率档位这一条
+  assert.equal(checks.find((x) => x.id === 'ofdm_rate'), undefined)
+  // 照实钉住一件事：S-FHSS 的 0 号信道 2403.9987 MHz 在 R1（80 MS/s @ 2440 MHz，交付配置、与 DroneRFb 同）下
+  // 离带边只有 4 MHz，落进界面 5% 的保护带（4 MHz）——|Δf| 36.0013 + B/2 0.1022 + 4 = 40.104 MHz。
+  // 引擎的铁律 4 闸不含保护带、放行；界面这一条是提示性的、不拦运行。协议的信道表与交付的接收配置
+  // 都不为让它变绿而改（D-089），数据集配置在 Q-6 定。
+  for (const c of checks) {
+    if (c.id === 'edge') continue
+    assert.equal(c.ok, true, `${c.id}：${c.detail}`)
+  }
+  const edge = checks.find((x) => x.id === 'edge')!
+  assert.equal(edge.ok, false)
+  assert.match(edge.detail, /40\.104 MHz/)
+  // 同一条链把站点中心挪到 2439 MHz 即全过（FrSky 最高 2473.6 MHz 那头仍有余量）
+  const shifted = JSON.parse(JSON.stringify(gfskScenario)) as ScenarioDoc
+  ;((shifted.sites as Array<Record<string, unknown>>)[0]!.receiver as Record<string, number>).center_Hz = 2439e6
+  for (const c of planChecks(chain, freqPlan(chain, shifted), shifted)) assert.equal(c.ok, true, `${c.id}：${c.detail}`)
+})
+
 test('OFDM 族（Q-2，D-088）：回归夹具 chain-ofdm 解得开、频率计划全过；站点降到 10 MS/s 时「采样率在重采样档位里」一条报出可取值', () => {
   const ofdmScenario = JSON.parse(
     readFileSync(join(ROOT, 'tests/regression/scenarios/ofdm-80m.scenario.json'), 'utf8'),

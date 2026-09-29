@@ -9,6 +9,8 @@
 //   npx tsx src/chain/examples/_gen.ts golden-01-e3 > ../tests/regression/diagrams/chain-golden-01-e3.json
 //   npx tsx src/chain/examples/_gen.ts replay    > ../tests/regression/diagrams/chain-replay.json
 //   npx tsx src/chain/examples/_gen.ts mixed     > ../tests/regression/diagrams/chain-mixed.json
+//   npx tsx src/chain/examples/_gen.ts ofdm      > ../tests/regression/diagrams/chain-ofdm.json
+//   npx tsx src/chain/examples/_gen.ts gfsk      > ../tests/regression/diagrams/chain-gfsk.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-aoa    > ../tests/regression/diagrams/chain-3x3-aoa.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-tdoa   > ../tests/regression/diagrams/chain-3x3-tdoa.json
 // 夹具模式读现有夹具文件、parseChain 解回链路状态、按当前目录与槽位表重新 compile：参数一件不丢，
@@ -259,6 +261,26 @@ if (mode === 'default') {
   c.taps.s3 = true
   c.taps.s4 = false   // DDC 旁路时 S4 与 S3 同节点同口，产品一模一样（同 synthetic 模式）
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'gfsk') {
+  // GFSK 族回归夹具（Q-3，D-089）：FrSky D16 v2 FCC 与 Futaba S-FHSS 两个地面遥控器同时跳频，
+  // 接收配置与 ofdm 模式相同（80 MS/s @ 2440 MHz、1 s、前端增益 20 dB、满量程 −20 dBm）：两个遥控器在站上
+  // 约 −73 / −76 dBm，加增益后离满量程 30 dB 以上不削顶。取 S0（无噪源输出，量瞬时频率轨迹与调制指数）
+  // 与 S3（与 DroneRFa / DroneRFb 同位置，拿 Q-0b 的提取器量）。回归脚本 tests/regression/gfsk_waveforms.py
+  // 在内存里给观测点加 iq 产品，不写进本文件（同 ofdm 模式）。
+  const { doc: scenario, sha } = loadScenario('gfsk-80m', 'tests/regression/scenarios')
+  const c: ChainState = emptyChain('synthetic', 'chain-gfsk')
+  c.name = '典型链路 · 全合成 · GFSK 族（FrSky + Futaba S-FHSS 跳频遥控，80 MS/s）'
+  c.scenario = { scenario_id: 'gfsk-80m', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['rc-frsky', 'rc-futaba']
+  c.run = { duration_s: 1, seed: 20260929 }
+  c.slots.rx_fe.params = { gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024 }
+  c.taps.s0 = true
+  c.taps.s3 = true
+  c.taps.s4 = false   // DDC 旁路时 S4 与 S3 同节点同口，产品一模一样（同 synthetic 模式）
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === '3x3-aoa' || mode === '3x3-tdoa') {
   const { doc: scenario, sha } = loadScenario('golden-03')
   const file = join(ROOT, `tests/regression/diagrams/chain-${mode}.json`)
@@ -272,5 +294,5 @@ if (mode === 'default') {
   chain.scenario = { scenario_id: 'golden-03', sha256: sha }
   process.stdout.write(serialize(compile(chain, cat, scenario).doc, cat))
 } else {
-  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | replay | mixed | ofdm | 3x3-aoa | 3x3-tdoa`)
+  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | replay | mixed | ofdm | gfsk | 3x3-aoa | 3x3-tdoa`)
 }

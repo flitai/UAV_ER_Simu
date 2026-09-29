@@ -79,6 +79,15 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== GFSK 族波形：从保存的典型链路核对（Q-3，D-089）===\n'
+# 真值逐位对帧排布复刻、无噪 S0 的相位增量对闭式解析式（解调出前导与同步字、估出 h 与符号率）、
+# Q-0b 提取器量 S3 对 X20 录音、SigMF 注记带预设、40 MS/s 装不下跳频跨度即拒。约 30 s；运行目录约 2 GB，不入 git。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet --with numpy --with scipy python tests/regression/gfsk_waveforms.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
+fi
+
 printf '=== E3 建筑遮挡：从保存的典型链路核对（D3-5，D-074）===\n'
 # 视距由建筑几何给出、刀口损耗只进 extra_loss_dB、恒等式照旧成立、07 §1.5 的起飞点锚点。
 # 要真实建筑集 data/scene/<aoi>/buildings.geojson（不入 git），缺数据时脚本自己明说跳过、不当作通过。
