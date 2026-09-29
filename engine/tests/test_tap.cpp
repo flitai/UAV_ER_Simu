@@ -227,6 +227,102 @@ TEST_CASE("观测点参数：缺 op_id、op_id 含非法字符、两种产品都
     CHECK(err.find("op_id") != std::string::npos);
     CHECK(!t.configure({{"spectrum", 0}, {"envelope", 0}}, {{"op_id", "s4"}, {"out_dir", "x"}}, err));
     CHECK(err.find("至少") != std::string::npos);
+    // 只要 iq 也是一种产品（Q-1，D-087）
+    CHECK(t.configure({{"spectrum", 0}, {"envelope", 0}, {"iq", 1}}, {{"op_id", "s4"}, {"out_dir", "x"}}, err));
+}
+
+namespace {
+
+PortData iq_block(std::uint64_t start, std::size_t n, double fs, float base) {
+    PortData d;
+    d.type = PortType::IQStream;
+    d.has_data = true;
+    d.iq = Block(n);
+    d.iq.meta.sample_rate_Hz = fs;
+    d.iq.meta.center_frequency_Hz = 2.44e9;
+    d.iq.meta.start_sample = start;
+    d.iq.meta.calibration.calibrated = true;
+    d.iq.meta.calibration.source = "model";
+    for (std::size_t i = 0; i < n; ++i) {
+        d.iq.samples[i] = Complex(base + static_cast<float>(i) * 1e-3f, -base + static_cast<float>(i) * 7e-4f);
+    }
+    return d;
+}
+
+}  // namespace
+
+TEST_CASE("观测点 iq 产品：iq.cf32 与输入逐位相同、索引字段、谱与包络照旧（Q-1，D-087）") {
+    const std::string dir = temp_root() + "/run_iq";
+    std::string err;
+    REQUIRE(platform::make_dirs(dir, err));
+    ObservationTap tap;
+    REQUIRE_MESSAGE(tap.configure({{"nfft", 256}, {"bucket_samples", 128}, {"iq", 1}},
+                                  {{"op_id", "s3"}, {"out_dir", dir}}, err), err);
+    Xoshiro256pp rng(3);
+    REQUIRE_MESSAGE(tap.init(rng, err), err);
+    std::vector<Complex> want;
+    PortMap out;
+    for (int b = 0; b < 3; ++b) {
+        PortMap in;
+        in["in"] = iq_block(1000 + 300u * static_cast<unsigned>(b), 300, 2e6, 0.01f * static_cast<float>(b + 1));
+        for (const auto& c : in["in"].iq.samples) want.push_back(c);
+        REQUIRE_MESSAGE(tap.process(in, out, err) == Step::Produced, err);
+    }
+    REQUIRE_MESSAGE(tap.flush(out, err) == Step::Finished, err);
+    CHECK(tap.iq_samples() == 900u);
+
+    const std::string op = dir + "/s3";
+    auto raw = read_f32(op + "/iq.cf32");
+    REQUIRE(raw.size() == 2u * want.size());
+    for (std::size_t i = 0; i < want.size(); ++i) {       // 交织 I0 Q0 I1 Q1…，逐位相同
+        CHECK(raw[2 * i] == want[i].real());
+        CHECK(raw[2 * i + 1] == want[i].imag());
+    }
+    auto idx = read_json(op + "/iq.index.json");
+    CHECK(idx["schema_version"] == "cuav-product/1");
+    CHECK(idx["kind"] == "iq");
+    CHECK(idx["dtype"] == "cf32_le");
+    CHECK(idx["samples"] == 900);
+    CHECK(idx["start_sample"] == 1000);
+    CHECK(idx["t0_s"].get<double>() == doctest::Approx(1000.0 / 2e6));
+    CHECK(idx["sample_rate_Hz"].get<double>() == 2e6);
+    CHECK(idx["center_Hz"].get<double>() == 2.44e9);
+    CHECK(idx["scale"] == "sqrt_mW");
+    CHECK(idx["calibration"]["source"] == "model");
+    CHECK(!idx.contains("rows"));                         // iq 不是定长行产品
+    CHECK(idx["notes"].empty());                          // 谱 / 包络的收尾备注不串到 iq 上
+    // 谱与包络照写：两份索引都在
+    CHECK(read_json(op + "/spectrum.index.json")["kind"] == "spectrum");
+    CHECK(read_json(op + "/envelope.index.json")["kind"] == "envelope");
+}
+
+TEST_CASE("观测点 iq 产品：块间有缺口即报错，不写出一个看起来连续的文件（铁律 3）") {
+    const std::string dir = temp_root() + "/run_iq_gap";
+    std::string err;
+    REQUIRE(platform::make_dirs(dir, err));
+    ObservationTap tap;
+    REQUIRE(tap.configure({{"spectrum", 0}, {"envelope", 0}, {"iq", 1}}, {{"op_id", "s3"}, {"out_dir", dir}}, err));
+    Xoshiro256pp rng(3);
+    REQUIRE(tap.init(rng, err));
+    PortMap in, out;
+    in["in"] = iq_block(0, 100, 1e6, 0.1f);
+    REQUIRE(tap.process(in, out, err) == Step::Produced);
+    in["in"] = iq_block(150, 100, 1e6, 0.1f);           // 期望 100，收到 150
+    CHECK(tap.process(in, out, err) == Step::Error);
+    CHECK(err.find("连续") != std::string::npos);
+    // 没有正常收尾就没有 iq 索引：导出工具据此拒绝
+    std::ifstream f((dir + "/s3/iq.index.json").c_str());
+    CHECK(!f.good());
+}
+
+TEST_CASE("观测点缺省不写 iq：既有产品目录里没有 iq.cf32") {
+    const std::string dir = temp_root() + "/run_noiq";
+    std::string err;
+    REQUIRE(platform::make_dirs(dir, err));
+    Run r = run_chain(dir, 11, nullptr);
+    REQUIRE(r.rep.ok);
+    std::ifstream f((dir + "/s4/iq.cf32").c_str());
+    CHECK(!f.good());
 }
 
 TEST_CASE("观测点：写完第一行就刷一次索引（B-7 读端靠它拿到几何参数，D-046）") {

@@ -87,7 +87,7 @@
 |---|---|---|---|
 | GET/HEAD | `/api/v1/results/{task}/{op}/spectrum?t0&t1&f0&f1&px&py&stat` | `application/octet-stream`，Float32 小端行主序，行 = 时间、列 = 频率 | `stat ∈ {max, mean, min}` 缺省 `max`；`mean` 在线性功率域聚合（铁律 5）；`px/py` 超过原始行列数**不插值** |
 | GET/HEAD | `/api/v1/results/{task}/{op}/envelope?t0&t1&px` | 同上，三列 `[min_abs, max_abs, rms_abs]` | 合桶的 rms 按样点数加权；末桶只有索引收尾后才按 `last_bucket_samples` 计权 |
-| GET/HEAD | `/api/v1/results/{task}/{op}/scatter` | 404 `product_unsupported` | 观测点本版本不产出 `iq` 产品（D-040 ③），待 `iq` 落地 |
+| GET/HEAD | `/api/v1/results/{task}/{op}/scatter` | 404 `product_unsupported` | 散点要按视窗归约的产品，尚未实现。观测点的 `iq.cf32`（Q-1，D-087）是交付导出工具的输入，**原始 IQ 不经任何端点**（铁律 7）；`…/{op}/iq` 与 `…/{op}/iq/index` 同样 404 |
 | GET/HEAD | `/api/v1/results/{task}/{op}/{spectrum\|envelope}/index` | 索引原文 + `rows_available` + `index_final` + `run_state` | 客户端据此建频率轴与时间轴，按 `scale` / `calibration` 定纵轴单位（D-047）；不含任何服务器路径 |
 | GET/HEAD | `/api/v1/results/{task}/{track\|links\|detections}?t0&t1&stride[&link_id][&site_id&node_id&hit]` | JSON 数组 | 闭区间取窗、按键抽稀。`track` 与 `links` 的生产者 2026-09-06 上线（`ScenarioSource` 经观察者上报，`cuav_run` 落盘）；`detections` 的生产者 2026-09-12 上线（C-3，D-063：`EnergyDetector` 经观察者逐帧上报，抽稀键 `node_id`，可按 `site_id` / `node_id` / `hit` 精确过滤，`hit=true` 只取命中帧）。没有对应节点的任务不产生这些文件，端点在终态返回 404 |
 | GET/HEAD | `/api/v1/results/{task}/detections/index` | 检测摘要整文件 `cuav-detections-index/1` | 每个检测器一条：参数快照（含 **`m_bins`** = 检测频段内的 bin 数 M，C-9 起，解析检出率与门限反解都要它，读端自己按频段复算会差一个 bin）、门限、帧数 / 命中 / 段数 / 陈旧帧 / 过载帧、四态与 notes、溯源 `trace`（行文件不带 trace，铁律 8 由它兑现）；运行中缺文件 409 `not_ready`，终态缺文件 404（C-3，D-063） |

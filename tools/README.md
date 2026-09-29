@@ -8,6 +8,7 @@
 | `iq_convert.py` | 06 §11.4 DS-2 / DS-3、§11.5 DA-2 / DA-3 | 把公开数据集的 HDF5 转成本项目的复 int16 交织格式加旁挂清单 |
 | `iq_survey.py` | 06 §11.4 DS-5、§11.5 DA-5 | 04 §10.6 八项质检 + 频谱与突发摘要，结论落四态语义 |
 | `iq_format/` | — | 两者共用的清单 schema、写盘器、源适配器 |
+| `iq_export_sigmf.py` | 06 §9K Q-1（D-087） | 把一次运行的观测点原始样点（`iq.cf32`）导出成 SigMF：S3 无损、S4 / S5 一次重量化，真值写 annotations。交付给甲方的数据由它成形，工具本身不进交付包 |
 
 格式规范是 `docs/iq-format.md` 第 3、4 节，**工具是规范的实现，不是规范本身**；两者不一致时
 以规范为准，改工具。
@@ -23,6 +24,9 @@ uv run --project tools python tools/iq_survey.py data/iq/measured/<batch>/<stem>
 
 # 质检整个目录，输出汇总报告
 uv run --project tools python tools/iq_survey.py data/iq/measured/<batch>/ --report survey-report.md
+
+# 观测点原始样点导出 SigMF（运行目录里有 diagram.json 时可省 --diagram；--validate 要 sigmf 包，开发期工具）
+uv run --quiet --with numpy --with sigmf python tools/iq_export_sigmf.py data/runs/<task_id> -o <输出目录> --validate
 ```
 
 ## 两条不能违反的规矩

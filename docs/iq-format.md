@@ -58,6 +58,15 @@
 五入蒙混过关——那会静默改变数据，违反铁律 10。若源数据确实是真浮点，另开一条有损转换
 路径并在清单里标 `degraded`，本期不实现。
 
+**合成数据导出的一处例外（2026-09-29，Q-1，D-087；14 号报告 §5.2）**：上面的规则管的是**实测数据**的转换，
+一字不动。引擎生成的数据导出成交付格式时（`tools/iq_export_sigmf.py`）分两种：
+- **S3（ADC 后）照样无损**：ADC 是中置量化，8–16 位的每个电平都恰好是 int16 的整数码（码 × 2^(16−bits)），
+  导出前断言每个样点离整数码不超过 0.01 码，不满足即中止；写完按 float32 逐位回读对拍。
+- **S4 / S5（DDC、信道化后）放开一次重量化**：FIR 输出本来就不在格点上。满量程取同一接收配置的 ADC 满量程
+  （不做逐文件自适应），取整与 ADC 同口径 floor(v + 0.5)，削顶照实计数；量化噪声相对该点底噪的余量
+  **≥ 20 dB 即 `valid`、不足才 `degraded`**——合成数据的重量化是一个有定义、可复现的建模步骤，不是对未知数据的
+  蒙混取整，所以不像实测真浮点那样一律降级。回读误差 ≤ 半个码。
+
 ### 3.3 分段与索引
 
 单段上限 **67108864 复样点（256 MiB）**。超过上限的数据切成多段，命名 `<stem>_seg000.iq`、
@@ -211,6 +220,34 @@
 | `identity.data_id` | `core:description` 或 `cuav:data_id` |
 | `identity.content_sha256` | `core:sha512` 的同位物（算法不同，两者都记） |
 | 其余各类 | `cuav:` 命名空间 |
+
+**合成数据交付的 SigMF（2026-09-29，Q-1，D-087；生产者 `tools/iq_export_sigmf.py`，14 号报告 §5.3）**。
+规范版本锁定 **1.2.6**（开发期校验用的 `sigmf` Python 包 1.13.0 实现的就是它）；`core:extensions` 声明
+`{name: cuav, version: 1.0.0, optional: true}`。每个观测点一组文件：`<stem>.sigmf-data`（ci16_le）、
+`<stem>.sigmf-meta`、`<stem>.cuav-links.jsonl`（该站各链路的逐帧几何，`links.jsonl` 的子集）。
+
+| 位置 | 键 | 取值 |
+|---|---|---|
+| `global` | `core:datatype` / `core:sample_rate` / `core:version` / `core:num_channels` | `ci16_le` / 观测点采样率 / `1.2.6` / 1 |
+| `global` | `core:sha512`、`cuav:content_sha256` | 数据文件的 SHA-512 与 SHA-256 |
+| `global` | `core:description` | 一句事实：场景、站、观测点、时长、采样率与中心频率 |
+| `global` | `core:hw` | 仿真接收机：噪声系数、前端增益、ADC 位数与满量程、链上的滤波 / DDC / 信道化节点 |
+| `global` | `core:recorder` | `cuav_run <引擎版本>`（只写工具名，铁律 17） |
+| `global` | `cuav:observation_point` / `cuav:op_id` / `cuav:site_id` | `S3`（ADC 后）/ `S4`（DDC 后）/ `S5`（信道化后），按观测点挂的节点类型定；观测点标识；站 |
+| `global` | `cuav:full_scale_dBm` / `cuav:full_scale_code` / `cuav:adc_bits` | 码 32768 对应的复单音幅度 10^(dBm/20)（√mW）；32768；ADC 位数。读者换回 dBm：x = 码 / 32768 × 10^(full_scale_dBm/20)，\|x\|² 的单位是 mW |
+| `global` | `cuav:calibration_source` / `cuav:scale` | 标定来源（合成链为 `model`，D-047）/ `sqrt_mW` |
+| `global` | `cuav:time_basis` / `cuav:continuity` / `cuav:start_sample` / `cuav:t0_s` | `logical_sim` / `continuous` / 第一个样点的序号与逻辑时间（铁律 3） |
+| `global` | `cuav:seed` / `cuav:seed_source` / `cuav:diagram_id` / `cuav:diagram_sha256` / `cuav:scenario_id` / `cuav:scenario_sha256` | 复现信息（铁律 8、9） |
+| `global` | `cuav:origin_kind` | `synthetic`；混合增强为 `mixed`（铁律 14 的数据层标记） |
+| `global` | `cuav:lossless` / `cuav:quality` | 是否无损；`{state, reasons, engine_clipped_samples, export_clipped_samples, export_requantization}`（§3.2 的重量化余量等） |
+| `global` | `cuav:signal_trace` / `cuav:model_trace` | 被观测信号的溯源；观测点上游每个节点的 `{node_id, type, model_id, model_version, model_level, model_layer, implementation}`（取自组件目录） |
+| `global` | `cuav:links_file` / `cuav:exporter` | 旁挂文件名；导出工具名与版本 |
+| `captures` | 一条 | `core:sample_start = 0`、`core:frequency = 观测点中心频率`；**不写 `core:datetime`**（逻辑仿真没有绝对时间，缺就是缺，铁律 3） |
+| `annotations` | 每段真值一条 | `core:sample_start` / `core:sample_count`（与引擎同一取整口径 floor(t·fs + 0.5)，D-069 ①；DDC 后直接按观测点采样率换算，D-070 ⑧）；`core:freq_lower_edge` / `core:freq_upper_edge`（该段中心 ± 声明带宽 / 2）；`core:label`（`signal_role` 层标签）；不写 `core:comment` |
+| `annotations` | `cuav:` | `emitter_id`、`platform_type`、`equipment_model`、`waveform`、`in_capture_band`（该段频带与本文件带宽是否相交）；段中点最近一帧链路的 `distance_m` / `line_of_sight` / `path_loss_dB` / `diffraction_dB` / `doppler_Hz` 与所用帧的 `link_frame_t_s`；`snr_dB`（按链路预算：P_rx − (kT + nf + 10·log10 B)，P_rx = 发射功率 + 两端天线增益 − 路损 − 馈线损耗）与 `snr_basis`（`link_budget`；天线有向、收发极化不同、前端不注入热噪声或缺输入时 `snr_dB` 为 null 并写明缘由，不拿峰值增益顶替） |
+
+数据上实测的带内信噪比 `cuav:snr_measured_dB` 随 Q-6 批量生成加（14 §5.3）；Q-1 的端到端回归已用同一算法对拍过一段
+（链路预算 36.41 dB 对实测 35.97 dB）。
 
 ## 5. 功率与标定口径（首版 2026-09-06，D-047；常数为原型阶段验证值，甲方数据到货后定稿）
 

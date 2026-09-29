@@ -43,6 +43,7 @@ ComponentInfo ObservationTap::describe() const {
     i.display_name = "观测点";
     i.description = "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，已标定为 dBm、未标定为 dBFS）与包络行（桶内 |x| 的 min、max、rms），"
                     "定长行二进制加索引（docs/display-products.md）；每行同时交给运行观察者供实时推送。"
+                    "可选写原始样点 iq.cf32（复 float32 交织，只给交付导出工具用，不推送、不经浏览器）。"
                     "框图里由 observation_points[] 在装载时并联生成（docs/diagram-format.md §5）";
     i.model_layer = "M3";
     i.model_level = "E2";
@@ -56,6 +57,7 @@ ComponentInfo ObservationTap::describe() const {
         ParamSpec::text("out_dir", "产品目录 data/runs/<task_id>/，由运行器注入；不得出现在框图文件里").internal_only(),
         ParamSpec::boolean("spectrum", "是否写功率谱产品").def_bool(true),
         ParamSpec::boolean("envelope", "是否写包络产品").def_bool(true),
+        ParamSpec::boolean("iq", "是否写原始样点产品 iq.cf32（复 float32 交织，内部格式；量化与 SigMF 打包由 tools/iq_export_sigmf.py 做）").def_bool(false),
         ParamSpec::number("nfft", "", "功率谱每段点数").def(1024.0).at_least(8.0).constrained("2 的幂"),
         ParamSpec::choice("window", {"hann", "hamming", "blackman", "rect"}, "周期形式的窗函数").def_text("hann"),
         ParamSpec::number("overlap", "", "相邻段重叠比例").def(0.0).at_least(0.0).at_most(1.0, true)
@@ -83,7 +85,8 @@ bool ObservationTap::configure(const std::map<std::string, double>& params,
     out_dir_ = text(text_params, "out_dir", "");
     want_spectrum_ = get(params, "spectrum", 1.0) != 0.0;
     want_envelope_ = get(params, "envelope", 1.0) != 0.0;
-    if (!want_spectrum_ && !want_envelope_) { err = "ObservationTap 至少要写一种产品"; return false; }
+    want_iq_ = get(params, "iq", 0.0) != 0.0;
+    if (!want_spectrum_ && !want_envelope_ && !want_iq_) { err = "ObservationTap 至少要写一种产品"; return false; }
     nfft_ = static_cast<std::size_t>(get(params, "nfft", 1024.0));
     overlap_ = get(params, "overlap", 0.0);
     segments_per_frame_ = static_cast<std::size_t>(get(params, "segments_per_frame", 1.0));
@@ -113,6 +116,7 @@ void ObservationTap::reset() {
     acc_.reset();
     seen_block_ = false;
     spec_rows_ = env_rows_ = 0;
+    iq_samples_ = iq_first_sample_ = 0;
     clipped_samples_ = 0;
     spec_first_known_ = false;
     bucket_count_ = 0;
@@ -133,28 +137,40 @@ bool ObservationTap::open_files(std::string& err) {
         env_file_ = std::fopen(platform::join(dir, "envelope.f32").c_str(), "wb");
         if (!env_file_) { err = "打不开 envelope.f32 写入：" + dir; return false; }
     }
+    if (want_iq_) {
+        iq_file_ = std::fopen(platform::join(dir, "iq.cf32").c_str(), "wb");
+        if (!iq_file_) { err = "打不开 iq.cf32 写入：" + dir; return false; }
+    }
     return true;
 }
 
 void ObservationTap::close_files() {
     if (spec_file_) { std::fclose(spec_file_); spec_file_ = nullptr; }
     if (env_file_) { std::fclose(env_file_); env_file_ = nullptr; }
+    if (iq_file_) { std::fclose(iq_file_); iq_file_ = nullptr; }
 }
 
 bool ObservationTap::write_index(const char* kind, std::string& err) {
     const bool spectrum = std::strcmp(kind, "spectrum") == 0;
+    const bool iq = std::strcmp(kind, "iq") == 0;
     nlohmann::json j;
     j["schema_version"] = "cuav-product/1";
     j["kind"] = kind;
-    j["dtype"] = "float32";
+    // iq 不是定长行产品：样点数就是它的长度，读端同样以文件长度为准（字节数 / 8）
+    j["dtype"] = iq ? "cf32_le" : "float32";
     j["byte_order"] = "little";
     j["op_id"] = op_id_;
-    j["row_len"] = spectrum ? nfft_ : 3;
-    j["rows"] = spectrum ? spec_rows_ : env_rows_;
+    if (iq) {
+        j["samples"] = iq_samples_;
+    } else {
+        j["row_len"] = spectrum ? nfft_ : 3;
+        j["rows"] = spectrum ? spec_rows_ : env_rows_;
+    }
     j["sample_rate_Hz"] = sample_rate_Hz_;
     j["center_Hz"] = center_frequency_Hz_;
-    j["start_sample"] = spectrum ? spec_first_sample_ : first_sample_;
-    j["t0_s"] = sample_rate_Hz_ > 0 ? static_cast<double>(spectrum ? spec_first_sample_ : first_sample_) / sample_rate_Hz_ : 0.0;
+    const std::uint64_t start = spectrum ? spec_first_sample_ : (iq ? iq_first_sample_ : first_sample_);
+    j["start_sample"] = start;
+    j["t0_s"] = sample_rate_Hz_ > 0 ? static_cast<double>(start) / sample_rate_Hz_ : 0.0;
     // 功率标度（D-047）：被观测信号的块元数据说已标定，行值就是 dBm（源端换算，这里不加偏移），
     // calibration 记源端用过的常数与来源；未标定只写 dBFS / linear_FS，不写 calibration 字段。
     const PowerCalibration& cal = last_meta_.calibration;
@@ -166,6 +182,8 @@ bool ObservationTap::write_index(const char* kind, std::string& err) {
         j["window"] = window_;
         j["scale"] = cal.calibrated ? "dBm" : "dBFS";
         j["floor_dB"] = -300.0;
+    } else if (iq) {
+        j["scale"] = cal.calibrated ? "sqrt_mW" : "linear_FS";      // |x|² 的单位是 mW（D-047）
     } else {
         j["bucket_samples"] = bucket_samples_;
         j["last_bucket_samples"] = last_bucket_samples_;
@@ -184,7 +202,8 @@ bool ObservationTap::write_index(const char* kind, std::string& err) {
     for (const auto& r : last_meta_.state_reasons) reasons.push_back(r);
     j["state_reasons"] = reasons;                                     // 只有降级或无效才有内容
     nlohmann::json notes = nlohmann::json::array();                   // 说明性备注：末行段数、末桶样点数、丢弃尾样点
-    for (const auto& r : reasons_) notes.push_back(r);
+    // 这些备注说的是谱与包络的收尾；iq 一个样点也不丢，带上它们会让读者以为 IQ 文件缺了尾巴
+    if (!iq) for (const auto& r : reasons_) notes.push_back(r);
     j["notes"] = notes;
     j["trace"] = trace_json(last_meta_.trace);                       // 被观测信号的溯源
     j["producer"] = {{"component", "ObservationTap"}, {"version", "0.1.0"}, {"engine_version", engine_version()}};
@@ -245,6 +264,25 @@ bool ObservationTap::write_envelope_row(std::string& err) {
     return true;
 }
 
+bool ObservationTap::write_iq(const Block& blk, std::string& err) {
+    static_assert(sizeof(Complex) == 2 * sizeof(float), "Complex 必须是两个紧挨的 float（I、Q）");
+    // 原始样点必须首尾相接：块间有缺口就写出一个「看起来连续」的文件，而缺样不得当作连续数据（铁律 3）
+    if (iq_samples_ == 0) {
+        iq_first_sample_ = blk.meta.start_sample;
+    } else if (blk.meta.start_sample != iq_first_sample_ + iq_samples_) {
+        err = "ObservationTap 的 iq 产品要求连续样点：期望起点 " + numstr(iq_first_sample_ + iq_samples_) +
+              "，收到 " + numstr(blk.meta.start_sample);
+        return false;
+    }
+    if (iq_file_ && !blk.samples.empty() &&
+        std::fwrite(blk.samples.data(), sizeof(Complex), blk.size(), iq_file_) != blk.size()) {
+        err = "写 iq.cf32 失败";
+        return false;
+    }
+    iq_samples_ += blk.size();
+    return true;
+}
+
 void ObservationTap::feed_envelope(const Block& blk, std::string& err, bool& ok) {
     for (std::size_t i = 0; i < blk.size() && ok; ++i) {
         const double a = std::abs(std::complex<double>(blk.samples[i].real(), blk.samples[i].imag()));
@@ -288,6 +326,7 @@ Step ObservationTap::process(PortMap& in, PortMap&, std::string& err) {
                   });
     }
     if (ok && want_envelope_) feed_envelope(blk, err, ok);
+    if (ok && want_iq_) ok = write_iq(blk, err);
     if (!ok) return Step::Error;
     status_.blocks_out++;
     return Step::Produced;   // 产出的是文件与回调，不是端口数据
@@ -317,6 +356,8 @@ Step ObservationTap::flush(PortMap&, std::string& err) {
     close_files();
     if (want_spectrum_ && !write_index("spectrum", err)) return Step::Error;
     if (want_envelope_ && !write_index("envelope", err)) return Step::Error;
+    // iq 的索引只在正常收尾时写一次：没有索引的 iq.cf32 就是没跑完的，导出工具据此拒绝
+    if (want_iq_ && !write_index("iq", err)) return Step::Error;
     return Step::Finished;
 }
 

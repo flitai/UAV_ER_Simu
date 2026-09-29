@@ -41,6 +41,16 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 观测点原始 IQ 导出 SigMF（Q-1，D-087）===\n'
+# 开 iq 不扰动既有产品、S3 无损、S4 回读 ≤ 半个码、SigMF 官方校验、同种子逐字节复现、预算信噪比对实测 ≤ 1 dB。
+# sigmf 是开发期校验工具，经 uv 拉起，不进交付包。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet --with numpy --with sigmf python tests/unit/test_iq_export_sigmf.py
+  uv run --quiet --with numpy --with sigmf python tests/regression/iq_export_sigmf.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
+fi
+
 printf '=== E3 建筑遮挡：从保存的典型链路核对（D3-5，D-074）===\n'
 # 视距由建筑几何给出、刀口损耗只进 extra_loss_dB、恒等式照旧成立、07 §1.5 的起飞点锚点。
 # 要真实建筑集 data/scene/<aoi>/buildings.geojson（不入 git），缺数据时脚本自己明说跳过、不当作通过。

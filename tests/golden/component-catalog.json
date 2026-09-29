@@ -1522,7 +1522,7 @@
     },
     {
       "category": "algorithm",
-      "description": "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，已标定为 dBm、未标定为 dBFS）与包络行（桶内 |x| 的 min、max、rms），定长行二进制加索引（docs/display-products.md）；每行同时交给运行观察者供实时推送。框图里由 observation_points[] 在装载时并联生成（docs/diagram-format.md §5）",
+      "description": "接任一 IQ 输出口，写显示产品：功率谱行（口径同频谱分析，已标定为 dBm、未标定为 dBFS）与包络行（桶内 |x| 的 min、max、rms），定长行二进制加索引（docs/display-products.md）；每行同时交给运行观察者供实时推送。可选写原始样点 iq.cf32（复 float32 交织，只给交付导出工具用，不推送、不经浏览器）。框图里由 observation_points[] 在装载时并联生成（docs/diagram-format.md §5）",
       "display_name": "观测点",
       "implementation": "cpp",
       "model_id": "ObservationTap",
@@ -1556,6 +1556,14 @@
           "default": true,
           "description": "是否写包络产品",
           "name": "envelope",
+          "required": false,
+          "type": "bool",
+          "unit": ""
+        },
+        {
+          "default": false,
+          "description": "是否写原始样点产品 iq.cf32（复 float32 交织，内部格式；量化与 SigMF 打包由 tools/iq_export_sigmf.py 做）",
+          "name": "iq",
           "required": false,
           "type": "bool",
           "unit": ""

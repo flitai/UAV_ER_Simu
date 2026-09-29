@@ -2,7 +2,7 @@
 //
 //   GET /api/v1/results/{task}/{op}/spectrum?t0&t1&f0&f1&px&py&stat   二维 Float32，列 = 频率、行 = 时间
 //   GET /api/v1/results/{task}/{op}/envelope?t0&t1&px                 三列 Float32（min, max, rms）
-//   GET /api/v1/results/{task}/{op}/scatter                           本版本 404（观测点不产出 iq 产品，D-040 ③）
+//   GET /api/v1/results/{task}/{op}/scatter                           本版本 404：散点要按视窗归约的产品，尚未实现；观测点的 iq.cf32 是交付导出工具的输入，原始 IQ 不经浏览器（铁律 7，D-087）
 //   GET /api/v1/results/{task}/{op}/{kind}/index                      索引原文 + rows_available + index_final
 //   GET /api/v1/results/{task}/{track|links|detections|features|recognitions|truth}?t0&t1&stride  JSON 数组
 //   GET /api/v1/results/{task}/detections/index                       检测摘要整文件（C-3，D-063）
@@ -113,7 +113,7 @@ export async function handleResultRoutes(req: IncomingMessage, res: ServerRespon
           error: 'not_found',
           reason: 'product_unsupported',
           op_id: opId,
-          message: '本版本观测点不产出 iq 产品（框图装载器拒绝 products 里的 iq，D-040），散点端点待 iq 产品落地后实现',
+          message: '散点端点尚未实现。观测点的 iq 产品（iq.cf32）只给交付导出工具用，原始 IQ 不经浏览器（铁律 7，D-087）',
         })
         return true
       }

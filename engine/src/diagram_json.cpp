@@ -1033,7 +1033,8 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
             const std::string node = op["node"].get<std::string>();
             const std::string port = op["port"].get<std::string>();
 
-            // products：非空、无重复、取值受限；iq 本版本尚未实现，明确拒绝而不是静默忽略（铁律 15）
+            // products：非空、无重复、取值受限。iq 自 Q-1 起放开（D-087，修订 D-040 ③）：观测点写 iq.cf32，
+            // 只给交付导出工具用，不经任何浏览器端点（铁律 7）
             if (!op["products"].is_array() || op["products"].empty()) {
                 err = fail("schema", id, "", who + " 的 products 必须是至少一项的数组");
                 return false;
@@ -1048,11 +1049,6 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
                     err = fail("schema", id, "", who + " 的 products 有重复项 " + p.get<std::string>());
                     return false;
                 }
-            }
-            if (products.count("iq")) {
-                err = fail("product_unsupported", id, "",
-                           who + " 要求 iq 产品：观测点的原始 IQ 产品待后续步骤实现，本版本不接受（docs/display-products.md §1）");
-                return false;
             }
 
             auto target = out.node_ids.find(node);
@@ -1081,7 +1077,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
                     err = fail("schema", id, "", who + " 的 params 必须是对象");
                     return false;
                 }
-                for (const char* k : {"op_id", "spectrum", "envelope"}) {
+                for (const char* k : {"op_id", "spectrum", "envelope", "iq"}) {
                     if (op["params"].contains(k)) {
                         err = fail("schema", id, "", who + " 的 params 不得含 " + std::string(k) + "：它由观测点的 id 与 products 派生");
                         return false;
@@ -1093,6 +1089,7 @@ bool load_diagram(const nlohmann::json& j, const Registry& registry, IDataResolv
             if (!options.out_dir.empty()) txt["out_dir"] = options.out_dir;
             num["spectrum"] = products.count("spectrum") ? 1.0 : 0.0;
             num["envelope"] = products.count("envelope") ? 1.0 : 0.0;
+            num["iq"] = products.count("iq") ? 1.0 : 0.0;
             std::unique_ptr<IComponent> tap = registry.create_configured(kTapType, num, txt, e);
             if (!tap) {
                 err = fail("param", id, "", who + "：" + e);

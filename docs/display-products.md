@@ -2,7 +2,7 @@
 
 **状态**：字段已冻结（2026-09-04，决策 D-030、D-031）。观测点组件与产品写盘已实现（B-3，2026-09-05）；
 抽取端点已实现（B-7，2026-09-06，决策 D-046，`server/src/products/`），归约的确切定义见 §3.1。
-`bearings.jsonl` 与 `positions.jsonl` 的生产者随 D-053 的 L-3 / L-4 上线；`scatter` 的生产者仍待 `iq` 产品；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘）；`detections.jsonl` 与 `detections.index.json` 的生产者 2026-09-12 上线（C-3，D-063：`EnergyDetector` 经观察者逐帧上报、flush 时一条摘要，字段见 §5）；
+`bearings.jsonl` 与 `positions.jsonl` 的生产者随 D-053 的 L-3 / L-4 上线；`scatter` 端点仍未实现（观测点的 `iq` 产品 2026-09-29 已有，但它是交付导出工具的输入，原始 IQ 不经浏览器，铁律 7；散点要的是按视窗归约的产品）；`track.jsonl` 与 `links.jsonl` 的生产者 2026-09-06 上线（G-2：`ScenarioSource` 经观察者上报，`cuav_run` 惰性开文件逐行落盘）；`detections.jsonl` 与 `detections.index.json` 的生产者 2026-09-12 上线（C-3，D-063：`EnergyDetector` 经观察者逐帧上报、flush 时一条摘要，字段见 §5）；
 `features.jsonl` 与 `recognitions.jsonl` 的生产者 2026-09-13 上线（C-4：`FeatureExtractor` / `TemplateClassifier` 每个突发一行，字段见 §5.2 / §5.3）。
 
 **依据**：铁律 7（原始 IQ 不进浏览器；展示数据按时间窗、频段、像素宽、统计量抽取；禁止
@@ -36,7 +36,10 @@ data/runs/<task_id>/
     ├── spectrum.index.json
     ├── envelope.f32             定长行：每行 3 个 float32（min, max, rms），一行 = 一桶
     ├── envelope.index.json
-    └── iq/                      可选：该观测点的 IQ，本项目 .iq 复 int16 交织 + 旁挂清单（docs/iq-format.md）；B-3 首版未实现，组件暂不声明该参数
+    ├── iq.cf32                  可选（Q-1，D-087，观测点 products 含 iq 才写）：原始样点，复 float32 交织小端（引擎内部格式，
+    │                            |x|² 的单位是 mW）；首尾相接，块间有缺口即报错。**只给交付导出工具 tools/iq_export_sigmf.py 用**，
+    │                            任何端点都不提供（铁律 7）
+    └── iq.index.json            iq 的索引（§2 末段）；只在正常收尾时写一次，没有它就是没跑完
 ```
 
 `data/runs/` 不入 git。应用服务只经第 3 节的抽取端点提供数据，不把目录挂成静态文件。
@@ -97,6 +100,11 @@ data/runs/<task_id>/
 
 `envelope.index.json` 同上，`kind = envelope`，`row_len = 3`，`columns = [min_abs, max_abs, rms_abs]`（桶内 |x| 的最小、最大、均方根，线性、相对满量程），
 `scale = sqrt_mW`（已标定：|x| 的单位是 sqrt(mW)，D-047）或 `linear_FS`（未标定），已标定时同样带 `calibration`；另有 `bucket_samples`（每桶样点数）与 `last_bucket_samples`（末桶实际样点数）。
+
+`iq.index.json`（Q-1，D-087）同一 schema，`kind = iq`，**不是定长行产品**：没有 `row_len` / `rows`，改为 `samples`（样点数，
+读端同样以文件长度为准：字节数 / 8）；`dtype = cf32_le`；`scale` 同包络（`sqrt_mW` 或 `linear_FS`），已标定时带 `calibration`；
+`start_sample` / `t0_s` 是第一个样点的序号与逻辑时间；`clipped_samples`、`state`、`state_reasons`、`trace`、`producer` 同上；
+`notes` 恒为空——谱与包络的收尾备注（末行、末桶、丢弃尾样点）说的不是 iq，iq 一个样点也不丢。只在正常收尾时写一次。
 
 写入约定：行定长追加；索引在**写完第一行**时刷一次，此后每 64 行一次，收尾时最后更新（首行那次是给
 读端的：没有索引就不知道 nfft 与采样率，抽取端点只能回 409，B-7 / D-046）。
@@ -186,7 +194,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | 情形 | 码 | 响应体 |
 |---|---|---|
 | 任务不存在、`op_id` 非法、观测点没有这种产品（任务已终态） | 404 | `{error, task_id, op_id?, kind?}` |
-| `scatter` | 404 | `{error, reason: "product_unsupported", message}`——观测点本版本不产出 `iq` 产品（框图装载器拒绝 `products` 里的 `iq`，D-040 ③），端点待 `iq` 产品落地 |
+| `scatter` | 404 | `{error, reason: "product_unsupported", message}`——散点端点尚未实现；观测点的 `iq` 产品（Q-1，D-087）是交付导出工具的输入，原始 IQ 不经浏览器（铁律 7） |
 | 参数不合法（非十进制数、非正整数、`t1 < t0`、`f1 < f0`、`stat` 越界） | 400 | `{error: "bad_request", param, message}` |
 | 产品文件还没出现，任务仍 `queued / running` | 409 + `Retry-After: 1` | `{error: "not_ready", reason: "product_missing", bytes, rows_available, run_state}` |
 | 索引还没写出来（任何运行态） | 409 + `Retry-After: 1` | `{error: "not_ready", reason: "index_missing", bytes, rows_available, run_state}`；谱的 `rows_available` 为 `null`（行长未知） |

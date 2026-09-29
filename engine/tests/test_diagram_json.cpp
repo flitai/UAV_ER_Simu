@@ -182,6 +182,31 @@ TEST_CASE("装载器：示例框图装成 Graph 并运行到底，total_samples 
     CHECK(idx["trace"]["model_id"] == "AddMixer");
 }
 
+TEST_CASE("装载器：观测点 products 含 iq 即写 iq.cf32，样点数与时长相符（Q-1，D-087，修订 D-040 ③）") {
+    const std::string out = temp_root() + "/slice1_iq";
+    std::string err;
+    REQUIRE(platform::make_dirs(out, err));
+    json j = slice1();
+    j["observation_points"][0]["products"] = json::array({"spectrum", "iq"});
+    LoadedDiagram d;
+    DiagramError e;
+    REQUIRE_MESSAGE(try_load(j, d, e, nullptr, out), e.message);
+    REQUIRE(d.taps.size() == 1);
+    CHECK(d.taps[0].products == std::vector<std::string>({"iq", "spectrum"}));
+    Xoshiro256pp rng(d.run.seed);
+    RunReport rep = d.graph.run(rng);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+    auto* tap = dynamic_cast<ObservationTap*>(d.graph.node(d.taps[0].tap_node));
+    REQUIRE(tap);
+    CHECK(tap->iq_samples() == 2000000u);              // 2 s × 1 MS/s，一个不少
+    CHECK(tap->envelope_rows() == 0u);                 // 没要包络就不写
+    auto idx = read_json(out + "/s4/iq.index.json");
+    CHECK(idx["samples"] == 2000000);
+    CHECK(idx["trace"]["model_id"] == "AddMixer");
+    std::ifstream f((out + "/s4/iq.cf32").c_str(), std::ios::binary | std::ios::ate);
+    CHECK(static_cast<std::uint64_t>(f.tellg()) == 2000000u * 8u);
+}
+
 TEST_CASE("装载器：只校验模式不给 out_dir，观测点照常构造，运行时才在 init 被拒，盘上不留东西") {
     LoadedDiagram d;
     DiagramError e;
@@ -387,10 +412,10 @@ TEST_CASE("装载器：观测点只能挂 IQStream 输出口；iq 产品本版�
     e = expect_fail(j, "node_missing");
     CHECK(e.node_id == "ghost");
 
+    // iq 自 Q-1 起放开（D-087，修订 D-040 ③）；它由 products 派生，params 里手写即拒
     j = slice1();
-    j["observation_points"][0]["products"] = json::array({"spectrum", "iq"});
-    e = expect_fail(j, "product_unsupported");
-    CHECK(e.node_id == "s4");
+    j["observation_points"][0]["params"] = json{{"iq", true}};
+    expect_fail(j, "schema");
 
     j = slice1();
     j["observation_points"][0]["products"] = json::array();

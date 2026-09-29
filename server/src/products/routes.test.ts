@@ -111,6 +111,16 @@ test('404：未知任务、非法 op_id、未知观测点、scatter 暂不支持
   assert.equal(((await sc.json()) as Record<string, unknown>).reason, 'product_unsupported')
 })
 
+test('原始 IQ 不经浏览器（铁律 7，D-087）：观测点目录里有 iq.cf32 也没有任何路由取得到它', async () => {
+  await fsp.writeFile(join(dir, 's4', 'iq.cf32'), Buffer.alloc(64))
+  await fsp.writeFile(join(dir, 's4', 'iq.index.json'), JSON.stringify({ kind: 'iq', samples: 8 }))
+  for (const tail of ['iq', 'iq/index', 'iq.cf32', 'iq.index.json']) {
+    assert.equal((await fetch(url(`${taskId}/s4/${tail}`))).status, 404, tail)
+  }
+  await fsp.rm(join(dir, 's4', 'iq.cf32'))
+  await fsp.rm(join(dir, 's4', 'iq.index.json'))
+})
+
 test('400：坏参数带 param 字段；t1 < t0 与 f1 < f0 分别指向 t1 与 f1', async () => {
   const bad = async (qs: string, param: string) => {
     const r = await fetch(url(`${taskId}/s4/spectrum?${qs}`))

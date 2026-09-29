@@ -45,7 +45,7 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   bw_Hz: '通带带宽', channels: '子信道数', select_channel: '输出子信道',
   // 频谱、观测点
   nfft: 'FFT 点数', window: '窗函数', overlap: '重叠', segments_per_frame: '平均段数',
-  op_id: '观测点', spectrum: '写功率谱', envelope: '写包络', bucket_samples: '包络桶长',
+  op_id: '观测点', spectrum: '写功率谱', envelope: '写包络', iq: '写原始 IQ', bucket_samples: '包络桶长',
   // 检测
   band_lo_Hz: '频段下限', band_hi_Hz: '频段上限', pfa: '虚警率', noise_frames: '探针帧数',
   noise_window_frames: '滑动窗长', merge_gap_frames: '突发合并空隙', band_power_dBm: '输出 dBm 读数',

@@ -105,7 +105,7 @@
 | `input_unconnected` | 必填输入口悬空。声明为 `optional` 的输入口不在此列：组件在没有该输入时用自身参数顶替（D-051） | 节点与输入口 |
 | `cycle` | 有环（含自环） | 自环时给节点 |
 | `observation_port` | 观测点不在 `IQStream` 输出口上 | 节点与端口 |
-| `product_unsupported` | 观测点要求本版本未实现的产品（`iq`） | 观测点 |
+| `product_unsupported` | ~~观测点要求本版本未实现的产品（`iq`）~~ 自 2026-09-29（Q-1，D-087）装载器不再触发：`iq` 已放开。码保留，服务端 `scatter` 端点仍用它答 404 | 观测点 |
 | `template` | `template_ref` 的取值错误：`template_id` 不匹配正则、`mode` 不在三种之内、`version` 不是不小于 1 的整数（D-051）。缺字段与未知键仍归 `schema` | — |
 | `port_optional` | 组件的 `check_wiring()` 拒绝：固定的可选输入口连得不够（如 `Superposition` 少于 `min_inputs` 路、`MultiSiteLocator` 的 `aoa` 少于 2 站 / `tdoa` 少于 3 站）。**自 D-053 起启用**，此前是预留码 | 节点（端口为空：缺的是「几个口」不是「哪个口」）|
 | `graph` | 兜底：引擎内部一致性错误，正常路径不可达 | — |
@@ -124,9 +124,10 @@
 | `params` | object | 否 | 观测点组件 `ObservationTap` 的参数（nfft、窗、桶长），缺省由目录补 |
 
 引擎装载时在该输出口后并联一个 `ObservationTap` 节点（图内名字 `op:<id>`），不改用户的边。产品格式见
-`docs/display-products.md`。`products` 映射到 `ObservationTap` 的 `spectrum` / `envelope` 开关；**`iq` 本版本明确
-拒绝**（`product_unsupported`），不静默忽略（铁律 15），观测点 IQ 产品实现后放开。`params` 里不得写 `op_id`、
-`spectrum`、`envelope`（由观测点字段派生，写了即 `schema`）与 `out_dir`（内部参数，运行器注入，写了即
+`docs/display-products.md`。`products` 映射到 `ObservationTap` 的 `spectrum` / `envelope` / `iq` 开关。**`iq` 自
+2026-09-29 放开**（Q-1，D-087，修订 D-040 ③）：观测点写原始样点 `iq.cf32`（复 float32 交织），只给交付导出工具
+`tools/iq_export_sigmf.py` 用，不推送、不经任何浏览器端点（铁律 7）；典型链路生成的框图不开它。`params` 里不得写
+`op_id`、`spectrum`、`envelope`、`iq`（由观测点字段派生，写了即 `schema`）与 `out_dir`（内部参数，运行器注入，写了即
 `internal_param`）。只校验（`cuav_run --validate`）时不注入 `out_dir`，观测点照常构造并校验参数，不落盘。
 
 ## 6. 运行参数 `run`

@@ -4,9 +4,10 @@
 // 把显示产品写成 docs/display-products.md 规定的定长行二进制加索引：
 //   spectrum.f32 / spectrum.index.json   每行 nfft 个 float32（dBFS），口径同 SpectrumAnalyzer（共用 WelchAccumulator）
 //   envelope.f32 / envelope.index.json   每行 3 个 float32：桶内 |x| 的 min、max、rms
-// 同时把每一行交给运行观察者（on_product_row），运行器据此实时推送。
+//   iq.cf32 / iq.index.json              可选（Q-1，D-087）：原始样点，复 float32 交织（内部格式，铁律 4），
+//                                        缺省关；只给交付导出工具 tools/iq_export_sigmf.py 用，不经任何浏览器端点（铁律 7）
+// 谱与包络的每一行同时交给运行观察者（on_product_row），运行器据此实时推送；iq 不推送。
 // 索引里的 rows「最后更新」并原子替换，读端只读 rows 以内的行；行定长追加。
-// 原始 IQ 产品（iq/）留待后续步骤，本组件暂不声明该参数（目录只增不改）。
 
 #ifndef CUAV_COMPONENTS_TAP_H
 #define CUAV_COMPONENTS_TAP_H
@@ -40,12 +41,13 @@ public:
 
     std::uint64_t spectrum_rows() const { return spec_rows_; }
     std::uint64_t envelope_rows() const { return env_rows_; }
+    std::uint64_t iq_samples() const { return iq_samples_; }
 
 private:
     // 参数
     std::string op_id_;
     std::string out_dir_;            // 内部参数，运行器注入
-    bool want_spectrum_ = true, want_envelope_ = true;
+    bool want_spectrum_ = true, want_envelope_ = true, want_iq_ = false;
     std::size_t nfft_ = 1024, segments_per_frame_ = 1, bucket_samples_ = 4096;
     double overlap_ = 0.0;
     std::string window_ = "hann";
@@ -63,7 +65,9 @@ private:
 
     std::FILE* spec_file_ = nullptr;
     std::FILE* env_file_ = nullptr;
+    std::FILE* iq_file_ = nullptr;
     std::uint64_t spec_rows_ = 0, env_rows_ = 0;
+    std::uint64_t iq_samples_ = 0, iq_first_sample_ = 0;
     std::uint64_t spec_first_sample_ = 0;
     bool spec_first_known_ = false;
 
@@ -82,6 +86,7 @@ private:
     bool write_envelope_row(std::string& err);
     bool write_index(const char* kind, std::string& err);
     void feed_envelope(const Block& blk, std::string& err, bool& ok);
+    bool write_iq(const Block& blk, std::string& err);
 };
 
 }  // namespace cuav
