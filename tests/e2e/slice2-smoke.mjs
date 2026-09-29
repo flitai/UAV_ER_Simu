@@ -477,6 +477,53 @@ try {
   check('全程之后基准场景仍与黄金基准逐字节一致（只读这条规则的最终判据）',
     goldenNow === golden.scenario_sha256, `${String(goldenNow).slice(0, 8)}… vs 基准 ${golden.scenario_sha256.slice(0, 8)}…`)
 
+  // ---------- 辐射源的波形与机型预设（Q-2，D-088，最小编辑器入口；仍在工作副本上）----------
+  // 换成 OFDM → 挑 20 MHz 图传预设 → 占用带宽由预设填上、不再有自由填写的带宽框 →
+  // 站点还是 golden-01 的 500 kS/s，保存被引擎拒（占用带宽闸，铁律 4）→ 站点改 40 MS/s（在重采样档位里）后保存通过。
+  const setSelect = (field, v) => page.evaluate(`(() => {
+    const el = document.querySelector('[data-field="${field}"]');
+    const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    set.call(el, '${v}');
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  })()`)
+  const setInput = (field, v) => page.evaluate(`(() => {
+    const el = document.querySelector('[data-field="${field}"]');
+    el.value = '${v}';
+    el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    return true;
+  })()`)
+  await page.evaluate("(document.querySelector('[data-tree-emitter]').click(), true)")
+  await waitApp(page, (a) => a.scene.selection?.kind === 'emitter', '选中辐射源')
+  await waitDom(page, "!!document.querySelector('[data-field=\"em.waveform\"]')", true)
+  const wfOpts = await page.evaluate("JSON.stringify([...document.querySelectorAll('[data-field=\"em.waveform\"] option')].map((o) => o.value))")
+  check('辐射源表单有波形下拉，五种波形', wfOpts === '["tone","noise","burst","ofdm","droneid"]', wfOpts)
+  await setSelect('em.waveform', 'ofdm')
+  await waitDom(page, "!!document.querySelector('[data-field=\"em.preset\"]')", true)
+  await setSelect('em.preset', 'dji-video-20m-a')
+  const bwText = await waitDom(page, "document.querySelector('[data-field=\"em.bw_readonly\"]')?.textContent ?? ''", '18.015 MHz')
+  const bwInput = await page.evaluate("!!document.querySelector('[data-field=\"emitters.0.emission.bw_Hz\"]')")
+  check('选预设即填占用带宽，且不再给自由填写的带宽框', bwText === '18.015 MHz' && !bwInput, `${bwText}，带宽输入框 ${bwInput ? '还在' : '已收起'}`)
+  const toastsBefore = await page.evaluate("document.querySelectorAll('.toast.error').length")
+  await page.evaluate("(document.querySelector('[data-act=save-scenario]').click(), true)")
+  const rejected = await waitDom(page, `document.querySelectorAll('.toast.error').length > ${toastsBefore}`, true, 30000)
+  const rejectText = await page.evaluate("[...document.querySelectorAll('.toast.error')].pop()?.textContent ?? ''")
+  check('站点仍是 500 kS/s 时保存被引擎拒，报文说清是铁律 4', rejected === true && rejectText.includes('铁律 4'), rejectText.slice(0, 90))
+  await page.evaluate("[...document.querySelectorAll('.toast.error button')].forEach((b) => b.click())")
+  await page.evaluate("(document.querySelector('[data-tree-site]').click(), true)")
+  await waitApp(page, (a) => a.scene.selection?.kind === 'site', '回到站点')
+  await waitDom(page, "!!document.querySelector('[data-field=\"sites.0.receiver.fs_Hz\"]')", true)
+  await setInput('sites.0.receiver.fs_Hz', '40000000')
+  await setInput('sites.0.receiver.bw_Hz', '32000000')
+  const shaBefore = (await waitApp(page, () => true, '读哈希')).app.scene.scenarioSha256
+  await page.evaluate("(document.querySelector('[data-act=save-scenario]').click(), true)")
+  st = await waitApp(page, (a) => a.unsaved.scene === false && a.scene.scenarioSha256 !== shaBefore, '站点 40 MS/s 后保存', 30000)
+  const savedDoc = JSON.parse(await page.evaluateAsync(`fetch('/api/v1/scenarios/${WORK_SCENARIO}').then((r) => r.text())`))
+  const w0 = savedDoc.emitters[0].emission
+  check('站点改 40 MS/s（在重采样档位里）后保存通过，落盘的是 ofdm + 预设 + 占用带宽',
+    w0.waveform.type === 'ofdm' && w0.waveform.preset_id === 'dji-video-20m-a' && w0.bw_Hz === 18015000,
+    JSON.stringify({ waveform: w0.waveform, bw_Hz: w0.bw_Hz }))
+
   // ---------- D4 渲染—物理同源验收（D-076；铁律 11）----------
   // 到 D3-6 为止「同一份 GeoJSON 驱动渲染与遮挡」是**按结构成立**的：两侧读同一个地址、
   // 解析规则逐条对齐。这里把它在跑起来的画面上核一遍，并把「探针无副作用」从头注里的

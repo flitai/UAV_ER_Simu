@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path'
 import type { Catalog, ParamSpec } from '../api/catalog.js'
 import { ENUM_LABELS, KEEP_AS_IS, boolLabel, enumLabel, valueLabel } from './enumLabels.js'
 import { fieldsFor } from '../scene/editor/deviceFields.js'
+import { WAVEFORM_TYPES } from '../scene/presets.js'
 import { displayWidth } from './paramLabels.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -39,6 +40,7 @@ test('表里不留目录与场景字段都已经没有的条目（改了枚举�
     const name = f.rel.split('.').pop() ?? ''
     for (const o of f.options) live.add(`${name}.${o}`)
   }
+  for (const t of WAVEFORM_TYPES) live.add(`waveform.${t}`)   // 辐射源表单的波形下拉（Q-2）
   const stale = Object.keys(ENUM_LABELS).filter((k) => !live.has(k))
   assert.deepEqual(stale, [], '目录里已经没有这些取值了')
 })
@@ -60,6 +62,7 @@ test('场景设备字段的枚举也有中文名（框图页与场景页共用�
     const name = f.rel.split('.').pop() ?? ''
     for (const o of f.options) if (!(`${name}.${o}` in ENUM_LABELS)) missing.push(`${f.key}=${o}`)
   }
+  for (const t of WAVEFORM_TYPES) if (!(`waveform.${t}` in ENUM_LABELS)) missing.push(`waveform=${t}`)
   assert.deepEqual(missing, [], '在 enumLabels.ts 补一行')
 })
 

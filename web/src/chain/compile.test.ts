@@ -1148,3 +1148,31 @@ test('三种信号源模式的回归夹具都解得回典型链路且往返逐�
     assert.equal(serialize(compile(chain!, cat, c.scen).doc, cat), text, `${c.file} 往返不逐字节`)
   }
 })
+
+test('OFDM 族（Q-2，D-088）：回归夹具 chain-ofdm 解得开、频率计划全过；站点降到 10 MS/s 时「采样率在重采样档位里」一条报出可取值', () => {
+  const ofdmScenario = JSON.parse(
+    readFileSync(join(ROOT, 'tests/regression/scenarios/ofdm-80m.scenario.json'), 'utf8'),
+  ) as ScenarioDoc
+  const text = readFileSync(join(ROOT, 'tests/regression/diagrams/chain-ofdm.json'), 'utf8')
+  const r = parseDoc(text)
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  const chain = parseChain(r.doc)!
+  assert.ok(chain, '夹具应能被 parseChain 解开')
+  assert.equal(serialize(compile(chain, cat, ofdmScenario).doc, cat), text, '往返逐字节相同')
+  const checks = planChecks(chain, freqPlan(chain, ofdmScenario), ofdmScenario)
+  const rate = checks.find((x) => x.id === 'ofdm_rate')
+  assert.ok(rate, '有 OFDM 族源时出现这一条')
+  assert.equal(rate!.ok, true, rate!.detail)
+  // 没有 OFDM 族源时不出现（缺省链）
+  const def = parseChain((parseDoc(DEFAULT_CHAIN_TEXT) as { ok: true; doc: DiagramDoc }).doc)!
+  assert.equal(planChecks(def, freqPlan(def, scenario), scenario).find((x) => x.id === 'ofdm_rate'), undefined)
+
+  const slow = JSON.parse(JSON.stringify(ofdmScenario)) as ScenarioDoc
+  const rx = ((slow.sites as Array<Record<string, unknown>>)[0]!.receiver as Record<string, number>)
+  rx.fs_Hz = 10e6
+  rx.bw_Hz = 8e6
+  const bad = planChecks(chain, freqPlan(chain, slow), slow).find((x) => x.id === 'ofdm_rate')!
+  assert.equal(bad.ok, false)
+  assert.match(bad.detail, /没有重采样档位；可取 /)
+})

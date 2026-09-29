@@ -11,6 +11,7 @@
 // 用相对路径而不是绝对路径，是因为同一个字段在两处界面里的下标不同，写死下标就没法共用。
 
 import type { Obj } from './scenarioOps.js'
+import { isOfdmFamily } from '../presets.js'
 
 export type DeviceKind = 'site' | 'emitter'
 
@@ -80,7 +81,9 @@ export const EMITTER_DEVICE_FIELDS: readonly DeviceField[] = [
   // 缺省留空即回退 platform_type 作分组键（D-054）
   { key: 'em.model', label: '设备型号', unit: '', rel: 'equipment_model', type: 'text' },
   { key: 'em.center', label: '中心频率', unit: 'Hz', rel: 'emission.center_Hz', type: 'number' },
-  { key: 'em.bw', label: '占用带宽', unit: 'Hz', rel: 'emission.bw_Hz', type: 'number' },
+  // OFDM 族的占用带宽由机型预设给出、场景里必须等于它（D-088），不单独改——表单上只读显示
+  { key: 'em.bw', label: '占用带宽', unit: 'Hz', rel: 'emission.bw_Hz', type: 'number',
+    when: (e) => !isOfdmFamily(readField(e, 'emission.waveform.type')) },
   { key: 'em.tx_power', label: '发射功率', unit: 'dBm', rel: 'emission.tx_power_dBm', type: 'number' },
   { key: 'em.antenna_gain', label: '天线增益', unit: 'dBi', rel: 'emission.antenna_gain_dBi', type: 'number' },
   {

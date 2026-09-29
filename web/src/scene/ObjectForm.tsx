@@ -17,6 +17,50 @@ import {
 } from './editor/deviceFields.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { enumLabel } from '../chain/enumLabels.js'
+import { fmtHz } from '../shell/format.js'
+import { isOfdmFamily, presetById, presetsOfType, WAVEFORM_TYPES, type OfdmWaveformType } from './presets.js'
+
+/**
+ * 波形类型与机型预设（Q-2，D-088，最小编辑器入口）。换类型时整个 waveform 对象按该类型的必填键重写；
+ * ofdm / droneid 的结构全来自预设表，选预设即同时写 preset_id 与 emission.bw_Hz（场景里带宽必须
+ * 等于预设的占用带宽，引擎载入时核）。上行预设的跳频序列不在这里生成，照旧在活动里写 hop。
+ */
+function WaveformRows({ doc, index, waveform, onEdit }: {
+  doc: ScenarioDoc; index: number; waveform: Record<string, unknown>; onEdit: (d: ScenarioDoc) => void
+}) {
+  const base = `emitters.${index}.emission`
+  const type = String(waveform.type)
+  const withPreset = (d: ScenarioDoc, t: OfdmWaveformType, id: string): ScenarioDoc => {
+    const p = presetById(id) ?? presetsOfType(t)[0]!
+    return setPath(setPath(d, `${base}.waveform`, { type: t, preset_id: p.id }), `${base}.bw_Hz`, p.occupied_bw_Hz)
+  }
+  const setType = (t: string) => {
+    if (t === type) return
+    if (isOfdmFamily(t)) onEdit(withPreset(doc, t, presetsOfType(t)[0]!.id))
+    else if (t === 'burst') onEdit(setPath(doc, `${base}.waveform`, { type: 'burst', period_s: 0.01, duty: 0.3, offset_Hz: 0 }))
+    else onEdit(setPath(doc, `${base}.waveform`, { type: t, offset_Hz: 0 }))
+  }
+  const preset = isOfdmFamily(type) ? presetById(waveform.preset_id) : undefined
+  return (
+    <>
+      <Row label="波形">
+        <select className="form-input" value={type} data-field="em.waveform" onChange={(e) => setType(e.target.value)}>
+          {WAVEFORM_TYPES.map((t) => <option key={t} value={t}>{enumLabel('waveform', t)}</option>)}
+        </select>
+      </Row>
+      {isOfdmFamily(type) && (
+        <Row label="机型预设">
+          <select className="form-input" value={String(waveform.preset_id ?? '')} data-field="em.preset"
+                  onChange={(e) => onEdit(withPreset(doc, type, e.target.value))}>
+            {!preset && <option value={String(waveform.preset_id ?? '')}>{String(waveform.preset_id ?? '—')}</option>}
+            {presetsOfType(type).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </Row>
+      )}
+      {preset && <Row label="占用带宽"><span className="mono" data-field="em.bw_readonly">{fmtHz(preset.occupied_bw_Hz)}</span></Row>}
+    </>
+  )
+}
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -185,7 +229,8 @@ export function ObjectPanel() {
       <div className="group" data-form="emitter">
         <div className="group-title">辐射源 {String(em.name ?? em.id)}</div>
         <Row label="机型"><span>{String(em.platform_type)}</span></Row>
-        <div className="form-sub">设备参数（波形 {String(w.type)}）</div>
+        <div className="form-sub">设备参数</div>
+        <WaveformRows doc={doc} index={i} waveform={w} onEdit={edit} />
         <DeviceFieldGroup kind="emitter" index={i} entity={em} onCommit={commit} />
         <RouteSection doc={doc} emitterId={String(em.id)} />
         <ActivitySection doc={doc} emitterId={String(em.id)} />

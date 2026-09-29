@@ -14,6 +14,7 @@ import { slotState, type ChainState } from './model.js'
 import type { Catalog } from '../api/catalog.js'
 import { propConflict, propView } from './effects.js'
 import { gridText, onGrid, passbandEdgeHz } from './firSpecs.js'
+import { isOfdmFamily, presetById, rsmpAllowedFs, rsmpDecimFor } from '../scene/presets.js'
 
 export interface FreqPlan {
   /** 宽带采样率，站点接收机给 */
@@ -454,6 +455,37 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
           : feats > 0
           ? `${scene.name}：${feats} 栋建筑`
           : `观测区域 ${scene.id} 的清单里没有建筑`,
+      })
+    }
+  }
+
+  // OFDM 族（Q-2，D-088）：原生采样率经有理重采样到站点采样率，只有几档（与 geo::rsmp_decim_for 同式）。
+  // 场景载入时引擎已按这条拒；这里提前说，免得改完站点采样率要等保存才知道。只在选中了 OFDM 族源时出现。
+  if (!replay) {
+    const doc = scenarioOf(chain, scenario)
+    const ofdm = emitters(doc).filter((x) => chain.emitterIds.includes(String(x.id)))
+      .filter((x) => isOfdmFamily(((x.emission as Obj | undefined)?.waveform as Obj | undefined)?.type))
+    if (ofdm.length > 0) {
+      const selSites = sites(doc).filter((x) => chain.siteIds.includes(String(x.id)))
+      let bad = ''
+      for (const e of ofdm) {
+        const p = presetById(((e.emission as Obj).waveform as Obj).preset_id)
+        if (!p) { bad = `辐射源 ${String(e.id)} 的预设不在机型预设表里`; break }
+        for (const st of selSites) {
+          const fs = num(((st.receiver ?? {}) as Obj).fs_Hz)
+          if (rsmpDecimFor(p, fs) === 0) {
+            bad = `预设 ${p.name}（原生 ${fmt(p.fs_native_Hz)}）在站点 ${String(st.id)} 的 ${fmt(fs)} 下没有重采样档位；`
+              + `可取 ${rsmpAllowedFs(p).map(fmt).join(' / ')}`
+            break
+          }
+        }
+        if (bad) break
+      }
+      out.push({
+        id: 'ofdm_rate',
+        label: 'OFDM 波形的采样率在重采样档位里',
+        ok: bad === '',
+        detail: bad || `${ofdm.length} 个 OFDM 族源在 ${fmt(plan.fs_rf)} 下都有重采样档位`,
       })
     }
   }

@@ -7,7 +7,8 @@
 //      的对比度，按 WCAG 文字的 4.5:1 量，十个锚点上最低 5.37:1。
 // 两条的实测值都记在 docs/display-route.md §4。颜色从来不是唯一线索：框上写标签名，表里也有（09 §12）。
 //
-// 标签集来自 models/recognition/library-v1.json（signal_role 层，取值 assumed）+ 开放集的 unknown。
+// 标签集来自 models/recognition/library-v1.json（signal_role 层，取值 assumed）+ 开放集的 unknown，
+// 另加 OFDM 族预设带来的 droneid（Q-2，D-088；真值行有它，识别库 v1 没有）。
 // 库外标签（例如清单派生的 noise）落到 other 那一档——不为没见过的标签编颜色。
 
 export interface LabelStyle {
@@ -22,6 +23,9 @@ const KNOWN: Record<string, LabelStyle> = {
   telemetry_burst: { text: '遥测', color: '#854d0e' },
   rc_hopping: { text: '遥控', color: '#6d28d9' },
   cw_beacon: { text: '信标', color: '#115e59' },
+  // Q-2（D-088）：DroneID 是预设表带来的新标签（识别库 v1 里没有它，库 v2 随 Q-4c）。
+  // 橄榄绿与信标的青绿、遥控的紫都分得开；文字对底衬十锚点最小 5.67:1（display-route.md §4.1）
+  droneid: { text: 'DroneID', color: '#3f6212' },
   noise: { text: '噪声', color: '#57534e' },
   unknown: { text: '未知', color: '#a33333' },
 }
