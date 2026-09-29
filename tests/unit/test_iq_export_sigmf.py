@@ -289,7 +289,10 @@ class TestDeterminismAndSigmf(_Base):
         r = X.export_run(run, self.out(), dpath)[0]
         text = open(os.path.join(self.out(), r["stem"] + ".sigmf-meta"), encoding="utf-8").read()
         self.assertNotIn(self.tmp, text)
-        self.assertNotIn("/Users/", text)
+        # 不含本机家目录与仓库根：写成运行时取值而不是字面前缀，否则这条断言自己就会被
+        # scripts/check-paths.sh（铁律 17）当成机器路径拦下
+        self.assertNotIn(os.path.expanduser("~"), text)
+        self.assertNotIn(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), text)
         self.assertNotIn("core:datetime", text)       # 逻辑仿真没有绝对时间，缺就是缺（铁律 3）
 
     @unittest.skipUnless(HAVE_SIGMF, "没装 sigmf 包：用 uv run --with sigmf 跑这条（开发期工具，不进交付包）")
