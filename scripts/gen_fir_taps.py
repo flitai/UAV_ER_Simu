@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""把 M-3 冻结的两张系数表生成成 C++ 源（06 备忘录 §9D M-3）。
+"""把冻结的系数表生成成 C++ 源（06 备忘录 §9D M-3；Q-2 加 rsmp，D-088）。
 
 真理源：
     models/channelizer/fir_pfb_v1.json  →  engine/src/pfb_taps.cpp   （--kind pfb）
     models/receiver/fir_rx_v1.json      →  engine/src/rx_taps.cpp    （--kind rx）
+    models/radiator/fir_rsmp_v1.json    →  engine/src/rsmp_taps.cpp  （--kind rsmp，Q-2）
 
 引擎不在运行时读 JSON——系数是常量，读文件会让组件依赖部署目录布局。两者是否同步由
 engine/tests/test_channelizer.cpp 与 test_rx_filter.cpp 逐位核对，另比对表文件的 sha256，
@@ -16,6 +17,7 @@ engine/tests/test_channelizer.cpp 与 test_rx_filter.cpp 逐位核对，另比�
 用法：
     uv run --quiet python scripts/gen_fir_taps.py --kind pfb
     uv run --quiet python scripts/gen_fir_taps.py --kind rx
+    uv run --quiet python scripts/gen_fir_taps.py --kind rsmp
 
 只用标准库。路径从本文件位置推导（铁律 17）。
 """
@@ -41,6 +43,12 @@ _KINDS = {
         "design": "scripts/design_rx_fir.py",
         "test": "engine/tests/test_rx_filter.cpp",
     },
+    "rsmp": {
+        "table": os.path.join("models", "radiator", "fir_rsmp_v1.json"),
+        "out": os.path.join("engine", "src", "rsmp_taps.cpp"),
+        "design": "scripts/design_rsmp_fir.py",
+        "test": "engine/tests/test_ofdm.cpp",
+    },
 }
 
 
@@ -60,7 +68,8 @@ def _array(w, name: str, half: list) -> None:
 
 def _head(w, kind: str, rel: str, sha: str, doc: dict) -> None:
     k = _KINDS[kind]
-    title = "多相 FFT 信道化的原型低通" if kind == "pfb" else "接收滤波"
+    title = {"pfb": "多相 FFT 信道化的原型低通", "rx": "接收滤波",
+             "rsmp": "OFDM 有理重采样的原型低通"}[kind]
     w(f"// {title}冻结系数表 —— 本文件由脚本生成，不要手改。")
     w("//")
     w(f"// 来源：{rel}（sha256 {sha}）")
@@ -75,6 +84,12 @@ def _head(w, kind: str, rel: str, sha: str, doc: dict) -> None:
         w("//（08 报告 §8 口径二），且 gd = M·T/2 是 M 的整数倍，使多相 FFT 输出的常数相位")
         w("// exp(-j2πk·gd/M) 恒为 1 —— 于是 M 路输出不需要任何逐信道的相位修正。")
         w("// 装载时镜像展开再零填充到 pad_to = M·(T+1)，让 M 条支路等长；给 FIR 补零不改变 H(ω)。")
+    elif kind == "rsmp":
+        w(f"// 口径（14 报告 §2.4，D-088）：插 L = {s['interp_L']} 个零 → 低通 → 抽 M ∈ {s['decim_M_supported']}；"
+          f"通带 {s['passband_edge_rel_native']}·fs_n、")
+        w(f"// 阻带 {s['stopband_edge_rel_native']}·fs_n ≥ {s['stopband_atten_min_dB']} dB（fs_n = 原生采样率），直流增益 L。")
+        w("// 抽头数 N = L·T+1（T 取偶数）：群时延 L·T/2 个原型样点恰为 T/2 个原生样点（08 报告 §8 口径二）。")
+        w("// Kaiser 窗设计，输出本身就对称；仍只存半表以与另三张表同一口径。")
     else:
         w(f"// 口径：不抽取，只做幅频响应与群时延。建档键是相对通带 bw_rel = bw_Hz / fs_in，")
         w(f"// 通带边 bw_rel/2、过渡带 {s['transition_rel_fs']}·fs、阻带 ≥ {s['stopband_atten_min_dB']} dB。")
@@ -184,8 +199,37 @@ def gen_rx(w, doc: dict, sha: str) -> None:
     w("")
 
 
+def gen_rsmp(w, doc: dict, sha: str) -> None:
+    e = doc["entries"][0]
+    w(f"// L = {e['interp_L']}、T = {e['taps_per_phase']}：{e['ntaps']} 抽头，群时延 {e['group_delay_proto']} 个原型样点"
+      f"（= {e['group_delay_native']} 个原生样点），阻带 {e['stopband_atten_dB']:.2f} dB，"
+      f"通带纹波 {e['passband_ripple_dB']:.4f} dB")
+    _array(w, "kRsmpHalf", e["half"])
+    w(f"const RsmpTable kRsmpTable = {{ {e['interp_L']}, {e['taps_per_phase']}, {e['ntaps']}, "
+      f"{e['group_delay_proto']}, kRsmpHalf }};")
+    w("")
+    w(f'const char kRsmpSha256[] = "{sha}";')
+    w("")
+    w("}  // namespace")
+    w("")
+    w("const RsmpTable& rsmp_fir_v1() { return kRsmpTable; }")
+    w("")
+    w("const char* rsmp_fir_v1_sha256() { return kRsmpSha256; }")
+    w("")
+    w("void rsmp_fir_expand(const RsmpTable& t, std::vector<double>& h) {")
+    w("    // 镜像展开。与 scripts/design_rsmp_fir.py 的 expand() 逐字同法。")
+    w("    h.assign(static_cast<std::size_t>(t.ntaps), 0.0);")
+    w("    const int m = (t.ntaps + 1) / 2;")
+    w("    for (int k = 0; k < m; ++k) {")
+    w("        h[static_cast<std::size_t>(k)] = t.half[k];")
+    w("        h[static_cast<std::size_t>(t.ntaps - 1 - k)] = t.half[k];")
+    w("    }")
+    w("}")
+    w("")
+
+
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="由 M-3 的冻结系数表生成 C++ 源")
+    ap = argparse.ArgumentParser(description="由冻结系数表生成 C++ 源")
     ap.add_argument("--kind", choices=sorted(_KINDS), required=True)
     ap.add_argument("--table", default=None, help="表文件，仓库相对路径；缺省按 --kind 取")
     ap.add_argument("--out", default=None, help="输出 .cpp，仓库相对路径；缺省按 --kind 取")
@@ -202,7 +246,7 @@ def main(argv=None) -> int:
     L: list[str] = []
     w = L.append
     _head(w, a.kind, rel, sha, doc)
-    (gen_pfb if a.kind == "pfb" else gen_rx)(w, doc, sha)
+    {"pfb": gen_pfb, "rx": gen_rx, "rsmp": gen_rsmp}[a.kind](w, doc, sha)
     w("}  // namespace dsp")
     w("}  // namespace cuav")
     w("")

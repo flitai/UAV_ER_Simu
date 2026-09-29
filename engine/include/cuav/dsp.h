@@ -192,6 +192,21 @@ const RxFirTable& rx_fir_v1_at(std::size_t i);
 const char* rx_fir_v1_sha256();
 void rx_fir_expand(const RxFirTable& t, std::vector<double>& h);
 
+// OFDM 族波形的有理重采样原型低通（Q-2，D-088；14 报告 §2.4）。只有一档：
+// 插 L = 125 个零 → 低通 → 抽 M ∈ {24, 48, 96}，带边按原生采样率的比例给出，于是一张表
+// 服务全部 M 与全部 OFDM 数值结构。算法核是 Coder 产物（models/radiator/coder/），
+// 封装在 engine/src/resampler.cpp。N = L·T+1、T 偶数：群时延 L·T/2 恰为 T/2 个原生样点。
+struct RsmpTable {
+    int interp;           // L
+    int taps_per_phase;   // T
+    int ntaps;            // L·T+1，奇数
+    int group_delay;      // (ntaps-1)/2 个原型样点 = L·T/2
+    const double* half;   // 长度 (ntaps+1)/2，含中心抽头
+};
+const RsmpTable& rsmp_fir_v1();
+const char* rsmp_fir_v1_sha256();
+void rsmp_fir_expand(const RsmpTable& t, std::vector<double>& h);
+
 }  // namespace dsp
 }  // namespace cuav
 

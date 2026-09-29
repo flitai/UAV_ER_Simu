@@ -275,3 +275,66 @@ TEST_CASE("调制器：对 MATLAB 一方（通信工具箱 ofdmmod）的黄金�
     CHECK(g.at("matlab_vs_python_max_rel").get<double>() <= 1e-9);
     check_ofdm_golden(g, "matlab");
 }
+
+// ---------------------------------------------------------------- ③ 重采样原型表
+
+TEST_CASE("重采样表：编译进来的表与 models/radiator/fir_rsmp_v1.json 逐位相同") {
+    const std::string raw = read_bytes(repo_path("models/radiator/fir_rsmp_v1.json"));
+    CHECK_MESSAGE(sha256_hex(raw) == std::string(dsp::rsmp_fir_v1_sha256()),
+                  "表文件变了而 C++ 没重生成：uv run --quiet python scripts/gen_fir_taps.py --kind rsmp");
+    const nlohmann::json j = nlohmann::json::parse(raw);
+    const auto& e = j.at("entries").at(0);
+    const dsp::RsmpTable& t = dsp::rsmp_fir_v1();
+    CHECK(t.interp == e.at("interp_L").get<int>());
+    CHECK(t.taps_per_phase == e.at("taps_per_phase").get<int>());
+    CHECK(t.ntaps == e.at("ntaps").get<int>());
+    CHECK(t.group_delay == e.at("group_delay_proto").get<int>());
+    const auto& half = e.at("half");
+    REQUIRE(half.size() == static_cast<std::size_t>((t.ntaps + 1) / 2));
+    bool same = true;
+    for (std::size_t k = 0; k < half.size(); ++k) same = same && t.half[k] == half[k].get<double>();
+    CHECK(same);
+}
+
+TEST_CASE("重采样表：结构约束（N = L·T+1、T 偶、群时延 T/2 个原生样点、直流增益 L）") {
+    const dsp::RsmpTable& t = dsp::rsmp_fir_v1();
+    CHECK(t.ntaps == t.interp * t.taps_per_phase + 1);
+    CHECK(t.taps_per_phase % 2 == 0);
+    CHECK(t.group_delay == t.interp * t.taps_per_phase / 2);
+    CHECK(t.group_delay % t.interp == 0);
+    // 两个突发之间的最小间隔要盖住滤波器的整个支撑，两个突发的输出才不会重叠（D-088 ⑦）
+    CHECK(t.taps_per_phase + 2 <= geo::kBurstMinGapNative);
+    std::vector<double> h;
+    dsp::rsmp_fir_expand(t, h);
+    double sum = 0.0;
+    for (std::size_t k = 0; k < h.size(); ++k) sum += h[k];
+    CHECK(std::fabs(sum - t.interp) <= 1e-12 * t.interp);
+    for (std::size_t k = 0; k < h.size(); ++k) REQUIRE(h[k] == h[h.size() - 1 - k]);
+}
+
+namespace {
+// 原型滤波器在「相对原生采样率 fs_n 的频率 f_rel」处的增益（dB，已除以 L）。
+double rsmp_gain_dB(double f_rel) {
+    const dsp::RsmpTable& t = dsp::rsmp_fir_v1();
+    std::vector<double> h;
+    dsp::rsmp_fir_expand(t, h);
+    std::complex<double> acc(0.0, 0.0);
+    for (std::size_t n = 0; n < h.size(); ++n) {
+        const double ang = -2.0 * 3.14159265358979323846 * f_rel * static_cast<double>(n) / t.interp;
+        acc += h[n] * std::complex<double>(std::cos(ang), std::sin(ang));
+    }
+    return 20.0 * std::log10(std::abs(acc) / t.interp);
+}
+}  // namespace
+
+TEST_CASE("重采样表：物理锚点（按赫兹量，20 MHz 档 fs_n = 30.72 MHz）") {
+    // M-2 的教训：设计脚本拿自己那套带边去量，量不出「周 / 样点与奈奎斯特归一」差的那个 2。
+    // 这里按赫兹换算，与设计脚本无关。
+    const double fs_n = 30.72e6;
+    const double edge = 600 * 15e3;                  // 最高子载波 9.0 MHz
+    CHECK(std::fabs(rsmp_gain_dB(edge / fs_n)) < 0.05);
+    CHECK(std::fabs(rsmp_gain_dB(0.0)) < 1e-9);
+    CHECK(rsmp_gain_dB(15.36e6 / fs_n) < -60.0);     // 原生奈奎斯特
+    CHECK(rsmp_gain_dB((fs_n - edge) / fs_n) < -60.0);   // 第一镜像的下沿 21.72 MHz
+    CHECK(rsmp_gain_dB((fs_n + edge) / fs_n) < -60.0);
+}

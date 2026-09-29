@@ -61,6 +61,7 @@ add_library(cuav_engine STATIC
   src/ddc_taps.cpp
   src/pfb_taps.cpp
   src/rx_taps.cpp
+  src/rsmp_taps.cpp
   src/coder_provenance.cpp
   src/rx_filter.cpp
   src/channelizer.cpp
