@@ -4,6 +4,7 @@
 // （B-5：提交框图 → 拉起 cuav_run 子进程 → 状态机 → 任务列表，见 src/tasks/）；WebSocket 事件推送与
 // 按序号补取（B-6：/ws 订阅、GET /api/v1/tasks/{id}/events、product_row 转二进制帧，见 src/ws/）。
 // 视窗抽取（B-7：GET /api/v1/results/... 按时间窗、频段、像素与统计量归约产品文件，见 src/products/）。
+// 数据导出（D-090：GET / POST /api/v1/tasks/{id}/export，观测点原始样点导出成 SigMF 写到本机目录，见 src/exports/）。
 //
 // 依赖策略：运行时只加 ws 一个包（锁版本、进 THIRD-PARTY-NOTICES，D-032），其余只用 Node 内置模块。
 //
@@ -31,6 +32,9 @@ import { handleDiagramRoutes } from './diagrams.js'
 import { handleDatasetRoutes } from './datasets.js'
 import { handleBasemapRoute, resolveBasemap } from './basemap.js'
 import { DataIndex, ScenarioIndex } from './tasks/resolve.js'
+import { ExportService, handleExportRoutes, isExportPath } from './exports/routes.js'
+import type { CatalogDoc } from './exports/sigmf.js'
+import { taskDirAbs } from './tasks/store.js'
 import { WsHub } from './ws/hub.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -56,6 +60,16 @@ export const tasks = createTaskManager({
   dataIndex,
   scenarioIndex,
   maxConcurrent: Number(process.env.CUAV_MAX_CONCURRENT_TASKS ?? 1) || 1,
+})
+
+/** 数据导出（D-090）：把任务里存了原始 IQ 的观测点导出成 SigMF，写到 data/exports/<任务>/ */
+export const exportsSvc = new ExportService({
+  root: ROOT,
+  getTask: (id) => tasks.get(id),
+  runDir: (id) => taskDirAbs(tasks.storeConfig, id),
+  exportDir: (id) => join(ROOT, 'data', 'exports', id),
+  catalog: async () => (await engine.catalog()).catalog as unknown as CatalogDoc,
+  log: (msg) => console.error(msg),
 })
 
 async function sceneManifest(aoi: string): Promise<unknown | null> {
@@ -103,6 +117,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
   const path = url.pathname
 
+  // 数据导出（D-090）：POST 只在这里放行；只回摘要，原始 IQ 不经端点（铁律 7）
+  if (isExportPath(path)) {
+    if (await handleExportRoutes(req, res, path, exportsSvc)) return
+  }
   // 任务与组件目录路由自己管方法（POST 只在这里放行）
   if (path === '/api/v1/components' || path === '/api/v1/tasks' || path.startsWith('/api/v1/tasks/')) {
     if (await handleTaskRoutes(req, res, url, { mgr: tasks, engine })) return
