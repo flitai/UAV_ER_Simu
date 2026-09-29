@@ -70,6 +70,21 @@ uv run --quiet --with numpy --with scipy python tests/regression/gfsk_waveforms.
 
 约 30 s；运行目录 `data/runs/q3-gfsk-waveforms/` 约 2 GB，不入 git。③ 那一项要 `data/iq/measured/q0b-params.json`（入 git）。
 
+### 非理想与小尺度衰落（Q-4，D-091）
+
+`impairments.py` 跑 `diagrams/chain-impairments.json`（场景 `scenarios/impairments.scenario.json`：悬停信标，单音名义 2440.25 MHz
++ 基带偏移 50 kHz，载频偏差 −22.4 ppm；前端开本振相噪、信道开莱斯衰落；2 MS/s @ 2440 MHz、2 s），变体在内存里从同一份框图派生：
+① 真值行 `cfo_Hz` 与 S3 单音的平移对 `cfo_ppm·f`（实测差 0.28 Hz）；② 相噪积分：开相噪减关相噪（同一串热噪声）的残余相位方差
+对闭式 π·fc·L0（0.5709° 对 0.5711°）；③ 衰落：多普勒下限调到 200 Hz、8 个运行种子，矩法 K 对 9 dB（9.12）、**系综**平均功率对
+链路预算（−0.031 dB，标准误 0.052 dB），单次实现的离散只报数（有限正弦和不是遍历的）；④ 抽头延迟线：Q-2 的 OFDM 夹具截成 0.2 s，
+图传平坦度不开衰落 0.984、K 9 dB + 100 ns 0.915、K 0 dB + 100 ns 0.695（实测 0.73–0.90，只报数、不调参）；⑤ 保存的框图只写开关不写缺省值。
+
+```
+uv run --quiet --with numpy --with scipy python tests/regression/impairments.py    # 已接进 scripts/build-all.sh
+```
+
+约 25 s；运行目录 `data/runs/q4-impairments-*` 跑完即删。④ 那一项要 `data/iq/measured/q0b-params.json`（入 git）。
+
 ### E3 建筑遮挡（D3-5，D-074）
 
 `e3_occlusion_chain.py` 跑 `diagrams/chain-demo-01-e3.json`（就是全合成那份，只把传播档位
@@ -140,6 +155,7 @@ uv run --quiet python tests/regression/e3_occlusion_chain.py    # 已接进 scri
 | `chain-synthetic.json` | 全合成，demo-01，20 s，S0–S3 四个观测点（C-11） | 电平链、ADC 量化与削波、同种子复现 |
 | `chain-replay.json` | 实测回放，前六个环节不适用（C-11） | 采样率与中心频率取自清单、四态如实传出 |
 | `chain-mixed.json` | 混合增强，80 MS/s 短窗（C-11） | 合成目标走全链、实测背景在 S4 相加；配套场景 `scenarios/mixed-wideband.scenario.json` |
+| `chain-impairments.json` | 全合成，2 MS/s 单站单源，本振相噪 + 莱斯衰落开（Q-4） | 三项非理想全开的演示配置（载频偏差在场景 `scenarios/impairments.scenario.json` 里）；`_gen.ts impairments` 生成 |
 
 再生成（改了槽位表或编译规则之后；经真实的 parseChain → compile 路径，参数一件不丢，2026-09-14 起 `_gen.ts` 带模式参数）：
 

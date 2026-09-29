@@ -38,6 +38,8 @@ matlab/
 │              gen_ofdm_golden.m          ofdm.matlab.json（Q-2，**必需**：通信工具箱 ofdmmod，读 ofdm.json 的显式子载波值）
 │              gen_rsmp_golden.m          rsmp.matlab.json（Q-2，**必需**：codegen 入口 + upfirdn 互证）
 │              gen_gfsk_golden.m          gfsk.matlab.json（Q-3，可选：基础 erf 闭式 + CPFSKModulator，CPMModulator 只记录）
+│              gen_phase_noise_golden.m   phase_noise.matlab.json（Q-4，**必需**：系数独立书写 + filter 递推，读 phase_noise.json 的驱动正态）
+│              gen_fading_golden.m        fading.matlab.json（Q-4，**必需**：正弦和与时延谱独立书写，读 fading.json 的随机量）
 │              cuav_sha256.m              文件哈希（防陈旧字段用它算）
 ├── design/    设计校验：check_ddc_fir.m（用 firpm 重设计一遍 DDC 抗混叠低通，与冻结表比对）
 ├── coder/     Coder 工程与 codegen 脚本：build_coder.m + cuav_banner.cgt（去日期的文件头模板）

@@ -229,7 +229,7 @@
 
 **合成数据交付的 SigMF（2026-09-29，Q-1，D-087；生产者 `tools/iq_export_sigmf.py`，14 号报告 §5.3）**。
 规范版本锁定 **1.2.6**（开发期校验用的 `sigmf` Python 包 1.13.0 实现的就是它）；`core:extensions` 声明
-`{name: cuav, version: 1.0.0, optional: true}`。每个观测点一组文件：`<stem>.sigmf-data`（ci16_le）、
+`{name: cuav, version: 1.1.0, optional: true}`（1.1.0 自 Q-4 起：上下沿按实际载频、增 `cuav:cfo_Hz` 与 `cuav:impairments`）。每个观测点一组文件：`<stem>.sigmf-data`（ci16_le）、
 `<stem>.sigmf-meta`、`<stem>.cuav-links.jsonl`（该站各链路的逐帧几何，`links.jsonl` 的子集）。
 
 | 位置 | 键 | 取值 |
@@ -244,14 +244,15 @@
 | `global` | `cuav:calibration_source` / `cuav:scale` | 标定来源（合成链为 `model`，D-047）/ `sqrt_mW` |
 | `global` | `cuav:time_basis` / `cuav:continuity` / `cuav:start_sample` / `cuav:t0_s` | `logical_sim` / `continuous` / 第一个样点的序号与逻辑时间（铁律 3） |
 | `global` | `cuav:seed` / `cuav:seed_source` / `cuav:diagram_id` / `cuav:diagram_sha256` / `cuav:scenario_id` / `cuav:scenario_sha256` | 复现信息（铁律 8、9） |
+| `global` | `cuav:impairments` | 非理想与衰落的参数（Q-4，D-091），**只在任一项不是缺省时写**：`receiver{node_id, lo_offset_Hz?, iq_gain_imbalance_dB?, iq_phase_imbalance_deg?, dc_offset_mW?, phase_noise?{model: pll_single_pole, level_dBc_Hz, corner_Hz, rms_phase_deg}}`（只列非零项）、`fading[]`（本站每条开了衰落的链路 `{emitter_id, node_id, model, k_los_dB, min_doppler_Hz, delay_spread_ns}`）、`cfo_ppm{emitter_id: ppm}`。前端的 trace 会被后级覆写，这些参数只能从框图读、在这里带出 |
 | `global` | `cuav:preset_ids` / `cuav:presets_version` | 场景里用到的机型预设（`models/radiator/presets-v1.json` 与 `gfsk-presets-v1.json` 的 id，两张表互不重名，升序）与表版本；**只在有 ofdm / droneid / gfsk 辐射源时写**（Q-2 D-088、Q-3 D-089） |
 | `global` | `cuav:origin_kind` | `synthetic`；混合增强为 `mixed`（铁律 14 的数据层标记） |
 | `global` | `cuav:lossless` / `cuav:quality` | 是否无损；`{state, reasons, engine_clipped_samples, export_clipped_samples, export_requantization}`（§3.2 的重量化余量等） |
 | `global` | `cuav:signal_trace` / `cuav:model_trace` | 被观测信号的溯源；观测点上游每个节点的 `{node_id, type, model_id, model_version, model_level, model_layer, implementation}`（取自组件目录） |
 | `global` | `cuav:links_file` / `cuav:exporter` | 旁挂文件名；导出工具名与版本 |
 | `captures` | 一条 | `core:sample_start = 0`、`core:frequency = 观测点中心频率`；**不写 `core:datetime`**（逻辑仿真没有绝对时间，缺就是缺，铁律 3） |
-| `annotations` | 每段真值一条 | `core:sample_start` / `core:sample_count`（与引擎同一取整口径 floor(t·fs + 0.5)，D-069 ①；DDC 后直接按观测点采样率换算，D-070 ⑧）；`core:freq_lower_edge` / `core:freq_upper_edge`（该段中心 ± 声明带宽 / 2）；`core:label`（`signal_role` 层标签）；不写 `core:comment` |
-| `annotations` | `cuav:` | `emitter_id`、`platform_type`、`equipment_model`、`waveform`、`preset_id`（只在 ofdm / droneid / gfsk 的段上，Q-2 D-088、Q-3 D-089；这类段一个突发 / 包一条，频带上下沿是中心 ± 预设占用带宽 / 2，GFSK 的占用带宽是 Carson 带宽）、`in_capture_band`（该段频带与本文件带宽是否相交）；段中点最近一帧链路的 `distance_m` / `line_of_sight` / `path_loss_dB` / `diffraction_dB` / `doppler_Hz` 与所用帧的 `link_frame_t_s`；`snr_dB`（按链路预算：P_rx − (kT + nf + 10·log10 B)，P_rx = 发射功率 + 两端天线增益 − 路损 − 馈线损耗）与 `snr_basis`（`link_budget`；天线有向、收发极化不同、前端不注入热噪声或缺输入时 `snr_dB` 为 null 并写明缘由，不拿峰值增益顶替） |
+| `annotations` | 每段真值一条 | `core:sample_start` / `core:sample_count`（与引擎同一取整口径 floor(t·fs + 0.5)，D-069 ①；DDC 后直接按观测点采样率换算，D-070 ⑧）；`core:freq_lower_edge` / `core:freq_upper_edge`（该段**实际载频** ± 声明带宽 / 2；实际载频 = 真值行的名义 `center_Hz` + 场景 `offset_Hz` + `cfo_Hz`。**导出工具 0.2.0（Q-4，D-091）起含 `offset_Hz`**，此前漏算，偏移非零的场景（golden-01 / golden-03）的上下沿因此挪了一个偏移量；Q-6「注记与真值逐行一致」按同一公式比）；`core:label`（`signal_role` 层标签）；不写 `core:comment` |
+| `annotations` | `cuav:` | `emitter_id`、`platform_type`、`equipment_model`、`waveform`、`preset_id`（只在 ofdm / droneid / gfsk 的段上，Q-2 D-088、Q-3 D-089；这类段一个突发 / 包一条，频带上下沿是中心 ± 预设占用带宽 / 2，GFSK 的占用带宽是 Carson 带宽）、`in_capture_band`（该段频带与本文件带宽是否相交）；段中点最近一帧链路的 `distance_m` / `line_of_sight` / `path_loss_dB` / `diffraction_dB` / `doppler_Hz` 与所用帧的 `link_frame_t_s`；`cfo_Hz`（载频偏差，只在场景写了非零 `cfo_ppm` 时有，Q-4）；`snr_dB`（按链路预算：P_rx − (kT + nf + 10·log10 B)，P_rx = 发射功率 + 两端天线增益 − 路损 − 馈线损耗）与 `snr_basis`（`link_budget`；该链路开了小尺度衰落时为 `link_budget_mean`——预算给的是平均信噪比，逐段实现值随衰落起伏；天线有向、收发极化不同、前端不注入热噪声或缺输入时 `snr_dB` 为 null 并写明缘由，不拿峰值增益顶替） |
 
 数据上实测的带内信噪比 `cuav:snr_measured_dB` 随 Q-6 批量生成加（14 §5.3）；Q-1 的端到端回归已用同一算法对拍过一段
 （链路预算 36.41 dB 对实测 35.97 dB）。
