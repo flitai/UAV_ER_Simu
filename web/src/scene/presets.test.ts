@@ -6,7 +6,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { RADIATOR_PRESETS, RSMP_DECIM, RSMP_INTERP, isOfdmFamily, presetById, presetsOfType, rsmpAllowedFs, rsmpDecimFor } from './presets.js'
+import {
+  GFSK_PRESETS, RADIATOR_PRESETS, RSMP_DECIM, RSMP_INTERP, WAVEFORM_TYPES, anyPresetById, isGfsk, isOfdmFamily,
+  isPresetFamily, presetById, presetsOfFamily, presetsOfType, rsmpAllowedFs, rsmpDecimFor,
+} from './presets.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const json = (rel: string) => JSON.parse(readFileSync(join(ROOT, rel), 'utf8'))
@@ -43,4 +46,32 @@ test('类型判断与按类型列预设', () => {
   assert.ok(isOfdmFamily('ofdm') && isOfdmFamily('droneid') && !isOfdmFamily('burst'))
   assert.deepEqual(presetsOfType('droneid').map((p) => p.id), ['dji-droneid'])
   assert.ok(presetsOfType('ofdm').every((p) => p.type === 'ofdm'))
+})
+
+test('GFSK 族副本与 models/radiator/gfsk-presets-v1.json 逐项相同（Q-3，D-089）', () => {
+  const doc = json('models/radiator/gfsk-presets-v1.json')
+  assert.equal(GFSK_PRESETS.length, doc.presets.length)
+  doc.presets.forEach((p: Record<string, unknown>, i: number) => {
+    const c = GFSK_PRESETS[i]!
+    assert.equal(c.id, p.id)
+    assert.equal(c.type, p.type)
+    assert.equal(c.role, p.role)
+    assert.equal(c.name, p.name)
+    assert.equal(c.symbol_rate_Hz, p.symbol_rate_Hz)
+    assert.equal(c.deviation_Hz, p.deviation_Hz)
+    assert.equal(c.occupied_bw_Hz, p.occupied_bw_Hz)
+    assert.equal(c.occupied_bw_Hz, 2 * (c.deviation_Hz + c.symbol_rate_Hz / 2))   // Carson，逐位
+  })
+})
+
+test('两张预设表的 id 互不重名；按族列预设、跨表查找、类型判断', () => {
+  const ids = [...RADIATOR_PRESETS, ...GFSK_PRESETS].map((p) => p.id)
+  assert.equal(new Set(ids).size, ids.length)
+  assert.deepEqual(presetsOfFamily('gfsk').map((p) => p.id), ['frsky-d16v2-fcc', 'futaba-sfhss'])
+  assert.equal(anyPresetById('futaba-sfhss')!.occupied_bw_Hz, 204315.185546875)
+  assert.equal(anyPresetById('dji-droneid')!.type, 'droneid')
+  assert.equal(presetById('futaba-sfhss'), undefined)   // OFDM 那边的查找不认 GFSK 的 id（重采样检查只走 OFDM 族）
+  assert.ok(isGfsk('gfsk') && !isOfdmFamily('gfsk') && isPresetFamily('gfsk') && isPresetFamily('ofdm') && !isPresetFamily('tone'))
+  assert.deepEqual([...WAVEFORM_TYPES], json('docs/schemas/scenario.schema.json').$defs.waveform.oneOf.map(
+    (b: { properties: { type: { const: string } } }) => b.properties.type.const))
 })

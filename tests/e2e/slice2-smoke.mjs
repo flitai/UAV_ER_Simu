@@ -497,7 +497,7 @@ try {
   await waitApp(page, (a) => a.scene.selection?.kind === 'emitter', '选中辐射源')
   await waitDom(page, "!!document.querySelector('[data-field=\"em.waveform\"]')", true)
   const wfOpts = await page.evaluate("JSON.stringify([...document.querySelectorAll('[data-field=\"em.waveform\"] option')].map((o) => o.value))")
-  check('辐射源表单有波形下拉，五种波形', wfOpts === '["tone","noise","burst","ofdm","droneid"]', wfOpts)
+  check('辐射源表单有波形下拉，六种波形（gfsk 自 Q-3）', wfOpts === '["tone","noise","burst","ofdm","droneid","gfsk"]', wfOpts)
   await setSelect('em.waveform', 'ofdm')
   await waitDom(page, "!!document.querySelector('[data-field=\"em.preset\"]')", true)
   await setSelect('em.preset', 'dji-video-20m-a')
@@ -523,6 +523,30 @@ try {
   check('站点改 40 MS/s（在重采样档位里）后保存通过，落盘的是 ofdm + 预设 + 占用带宽',
     w0.waveform.type === 'ofdm' && w0.waveform.preset_id === 'dji-video-20m-a' && w0.bw_Hz === 18015000,
     JSON.stringify({ waveform: w0.waveform, bw_Hz: w0.bw_Hz }))
+
+  // GFSK 族（Q-3，D-089）：同一个辐射源换成 gfsk → 预设下拉只列两个 GFSK 预设 → 挑 S-FHSS →
+  // 占用带宽由预设填上（Carson 带宽）→ 保存通过（40 MS/s 装得下 0.2 MHz），落盘的是 gfsk + 预设 + 带宽
+  await page.evaluate("(document.querySelector('[data-tree-emitter]').click(), true)")
+  await waitApp(page, (a) => a.scene.selection?.kind === 'emitter', '再选中辐射源')
+  await waitDom(page, "!!document.querySelector('[data-field=\"em.waveform\"]')", true)
+  await setSelect('em.waveform', 'gfsk')
+  await waitDom(page, "document.querySelector('[data-field=\"em.waveform\"]')?.value ?? ''", 'gfsk')
+  const gOpts = await waitDom(page,
+    "JSON.stringify([...document.querySelectorAll('[data-field=\"em.preset\"] option')].map((o) => o.value))",
+    '["frsky-d16v2-fcc","futaba-sfhss"]')
+  check('换成 GFSK 后预设下拉只列两个 GFSK 预设', gOpts === '["frsky-d16v2-fcc","futaba-sfhss"]', gOpts)
+  await setSelect('em.preset', 'futaba-sfhss')
+  const gBw = await waitDom(page, "document.querySelector('[data-field=\"em.bw_readonly\"]')?.textContent ?? ''", '204.3 kHz')
+  check('挑 S-FHSS 即填 Carson 带宽，且不给自由填写的带宽框',
+    gBw === '204.3 kHz' && !(await page.evaluate("!!document.querySelector('[data-field=\"emitters.0.emission.bw_Hz\"]')")), gBw)
+  const shaG = (await waitApp(page, () => true, '读哈希')).app.scene.scenarioSha256
+  await page.evaluate("(document.querySelector('[data-act=save-scenario]').click(), true)")
+  st = await waitApp(page, (a) => a.unsaved.scene === false && a.scene.scenarioSha256 !== shaG, 'GFSK 保存', 30000)
+  const savedG = JSON.parse(await page.evaluateAsync(`fetch('/api/v1/scenarios/${WORK_SCENARIO}').then((r) => r.text())`))
+  const g0 = savedG.emitters[0].emission
+  check('保存通过，落盘的是 gfsk + futaba-sfhss + 204315.185546875 Hz',
+    g0.waveform.type === 'gfsk' && g0.waveform.preset_id === 'futaba-sfhss' && g0.bw_Hz === 204315.185546875,
+    JSON.stringify({ waveform: g0.waveform, bw_Hz: g0.bw_Hz }))
 
   // ---------- D4 渲染—物理同源验收（D-076；铁律 11）----------
   // 到 D3-6 为止「同一份 GeoJSON 驱动渲染与遮挡」是**按结构成立**的：两侧读同一个地址、

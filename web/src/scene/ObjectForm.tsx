@@ -18,29 +18,30 @@ import {
 import type { ScenarioDoc } from '../state/types.js'
 import { enumLabel } from '../chain/enumLabels.js'
 import { fmtHz } from '../shell/format.js'
-import { isOfdmFamily, presetById, presetsOfType, WAVEFORM_TYPES, type OfdmWaveformType } from './presets.js'
+import { anyPresetById, isPresetFamily, presetsOfFamily, WAVEFORM_TYPES, type PresetWaveformType } from './presets.js'
 
 /**
- * 波形类型与机型预设（Q-2，D-088，最小编辑器入口）。换类型时整个 waveform 对象按该类型的必填键重写；
- * ofdm / droneid 的结构全来自预设表，选预设即同时写 preset_id 与 emission.bw_Hz（场景里带宽必须
- * 等于预设的占用带宽，引擎载入时核）。上行预设的跳频序列不在这里生成，照旧在活动里写 hop。
+ * 波形类型与机型预设（Q-2，D-088；gfsk 自 Q-3，D-089；最小编辑器入口）。换类型时整个 waveform 对象按该类型的
+ * 必填键重写；ofdm / droneid / gfsk 的结构全来自预设表，选预设即同时写 preset_id 与 emission.bw_Hz（场景里带宽
+ * 必须等于预设的占用带宽，引擎载入时核）。上行与遥控器的跳频序列不在这里生成，照旧在活动里写 hop。
  */
 function WaveformRows({ doc, index, waveform, onEdit }: {
   doc: ScenarioDoc; index: number; waveform: Record<string, unknown>; onEdit: (d: ScenarioDoc) => void
 }) {
   const base = `emitters.${index}.emission`
   const type = String(waveform.type)
-  const withPreset = (d: ScenarioDoc, t: OfdmWaveformType, id: string): ScenarioDoc => {
-    const p = presetById(id) ?? presetsOfType(t)[0]!
+  const withPreset = (d: ScenarioDoc, t: PresetWaveformType, id: string): ScenarioDoc => {
+    const found = anyPresetById(id)
+    const p = found && found.type === t ? found : presetsOfFamily(t)[0]!
     return setPath(setPath(d, `${base}.waveform`, { type: t, preset_id: p.id }), `${base}.bw_Hz`, p.occupied_bw_Hz)
   }
   const setType = (t: string) => {
     if (t === type) return
-    if (isOfdmFamily(t)) onEdit(withPreset(doc, t, presetsOfType(t)[0]!.id))
+    if (isPresetFamily(t)) onEdit(withPreset(doc, t, presetsOfFamily(t)[0]!.id))
     else if (t === 'burst') onEdit(setPath(doc, `${base}.waveform`, { type: 'burst', period_s: 0.01, duty: 0.3, offset_Hz: 0 }))
     else onEdit(setPath(doc, `${base}.waveform`, { type: t, offset_Hz: 0 }))
   }
-  const preset = isOfdmFamily(type) ? presetById(waveform.preset_id) : undefined
+  const preset = isPresetFamily(type) ? anyPresetById(waveform.preset_id) : undefined
   return (
     <>
       <Row label="波形">
@@ -48,12 +49,12 @@ function WaveformRows({ doc, index, waveform, onEdit }: {
           {WAVEFORM_TYPES.map((t) => <option key={t} value={t}>{enumLabel('waveform', t)}</option>)}
         </select>
       </Row>
-      {isOfdmFamily(type) && (
+      {isPresetFamily(type) && (
         <Row label="机型预设">
           <select className="form-input" value={String(waveform.preset_id ?? '')} data-field="em.preset"
                   onChange={(e) => onEdit(withPreset(doc, type, e.target.value))}>
             {!preset && <option value={String(waveform.preset_id ?? '')}>{String(waveform.preset_id ?? '—')}</option>}
-            {presetsOfType(type).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {presetsOfFamily(type).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Row>
       )}
