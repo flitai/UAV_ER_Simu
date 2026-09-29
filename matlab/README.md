@@ -29,10 +29,14 @@ matlab/
 │              cuav_pfb_cycle.m           多相 FFT 换向器一拍（算法核，M-3）
 │              cuav_pfb_m{2,4,8,16,32,64}.m   按子信道数钉死 M 的六个入口（codegen 要编译期常量）
 │              cuav_rx_fir.m              接收滤波的分块带状态 FIR（算法核，M-3）
+│              cuav_rsmp_cycle.m          OFDM 有理重采样的换向器一拍（算法核，Q-2，显式循环）
+│              cuav_rsmp_m{24,48,96}.m    按抽取比钉死 M 的三个入口
 ├── golden/    黄金向量导出 → engine/tests/golden/*.matlab.json
 │              gen_spectrum_golden.m      spectrum_welch.matlab.json（M-1，可选）
 │              gen_channelizer_golden.m   channelizer.matlab.json（M-3，**必需**）
 │              gen_rx_filter_golden.m     rx_filter.matlab.json（M-3，**必需**）
+│              gen_ofdm_golden.m          ofdm.matlab.json（Q-2，**必需**：通信工具箱 ofdmmod，读 ofdm.json 的显式子载波值）
+│              gen_rsmp_golden.m          rsmp.matlab.json（Q-2，**必需**：codegen 入口 + upfirdn 互证）
 │              cuav_sha256.m              文件哈希（防陈旧字段用它算）
 ├── design/    设计校验：check_ddc_fir.m（用 firpm 重设计一遍 DDC 抗混叠低通，与冻结表比对）
 ├── coder/     Coder 工程与 codegen 脚本：build_coder.m + cuav_banner.cgt（去日期的文件头模板）

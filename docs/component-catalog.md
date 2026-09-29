@@ -99,7 +99,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 | 组件 | 类别 | M / E | 实现 |
 |---|---|---|---|
 | `ScenarioSource` 场景参数源 | data | M2 / E2 | cpp，`scene_bindable`，绑站点；**动态输出口** `link:<emitter_id>`，每条链路一路 `SceneParamFrame`；内部参数 `scenario_path` / `scenario_id` / `site_id`；实体与链路读数经观察者上报；**传播效应的十五个参数在这里声明**（D-058，见 §8） |
-| `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | cpp，`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst，**归一化到发射期间单位功率（0 dBm）**；守铁律 4（**跳频序列里每个频点逐个过闸**，C-8）。**活动时间线按样点施加**（G-6，D-069）：`tx_on` / `tx_off` / `hop` 的边界折到绝对样点号上，与块长无关；相位累加器跨跳频点不重置（DDS 型相位连续跳频，非相干跳频本期不做）。**noise 按 `emission.bw_Hz` 做 4 阶巴特沃斯带限并搬移到 `emission.center_Hz`**（C-8）：截止 `bw_Hz/2`、状态跨块保持、按冲激响应的 Σ\|h\|² 归回单位功率；无任何新用户参数，一切从场景派生；`bw_Hz` 不小于采样带宽时不带限并标降级，奈奎斯特处抑制不足 40 dB 时同样标降级。参考实现 `algos/reference/gen_engine_golden.py --mode scene_noise`，黄金基准 `engine/tests/golden/scene_noise_bandlimit.json` |
+| `SceneEmitterSource` 场景辐射源 | source | M3 / E2 | **coder**（自 Q-2：OFDM 族的有理重采样算法核是 Coder 产物，`source_ref` 指向 `models/radiator/coder/`；其余波形手写），`scene_bindable`，绑辐射源；按场景 `emission.waveform` 生成 tone / noise / burst / **ofdm / droneid**（Q-2，D-088：结构取自机型预设表 `models/radiator/presets-v1.json`，原生率 IFFT + CP → 125/M 有理重采样 → 整突发开关 → 按突发中点定频点，模型卡 `models/radiator/README.md` §7），**归一化到发射期间单位功率（0 dBm）**；守铁律 4（**跳频序列里每个频点逐个过闸**，C-8）。**活动时间线按样点施加**（G-6，D-069）：`tx_on` / `tx_off` / `hop` 的边界折到绝对样点号上，与块长无关；相位累加器跨跳频点不重置（DDS 型相位连续跳频，非相干跳频本期不做）。**noise 按 `emission.bw_Hz` 做 4 阶巴特沃斯带限并搬移到 `emission.center_Hz`**（C-8）：截止 `bw_Hz/2`、状态跨块保持、按冲激响应的 Σ\|h\|² 归回单位功率；无任何新用户参数，一切从场景派生；`bw_Hz` 不小于采样带宽时不带限并标降级，奈奎斯特处抑制不足 40 dB 时同样标降级。参考实现 `algos/reference/gen_engine_golden.py --mode scene_noise`，黄金基准 `engine/tests/golden/scene_noise_bandlimit.json` |
 | `SceneBoundChannel` 场景绑定信道 | channel | M3 / E2 | cpp，`scene_bindable`；施加增益、整数样点时延、多普勒相位斜坡；帧内零阶保持；拒回放数据（防线二、三） |
 | `FreeSpaceChannel` 自由空间信道 | channel | M3 / E2 | cpp，定参 FSPL，原 P1-3 欠项，供解析锚点与标准算例用 |
 
@@ -161,7 +161,14 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
    引擎**不在 `describe()` 时读文件** —— 组件不该依赖部署目录布局，同 `ddc_taps.cpp` 不在运行时读 JSON。
    `codegen 参数 sha256` 是「配置 + 每个入口的参数形状」规范化后的哈希，与生成时间、机器、目录无关。
 3. **产物文件自身的 sha256 也编进来**，`engine/tests/test_coder_provenance.cpp` 重算一遍比对
-   （25 + 11 个文件）：「手改了生成物」与「改了 `.m` 忘了重生成」都会当场红（铁律 10）。
+   （25 + 11 + 13 个文件）：「手改了生成物」与「改了 `.m` 忘了重生成」都会当场红（铁律 10）。
+
+**第三套产物（Q-2，2026-09-29，D-088）**：OFDM 族的有理重采样（`models/radiator/coder/`，三个入口
+`cuav_rsmp_m24/48/96`，13 个文件）。它挂在 `SceneEmitterSource` 里、不是独立组件，于是**这个组件整体标
+`implementation = coder`**、`source_ref` 指向这套产物——组件里只要有一段算法核是 Coder 产物，08 §13 第 4 条就要求
+写明它；其余波形（tone / noise / burst）仍是手写，模型卡写明分工。三套产物编进同一个静态库 `cuav_coder`，
+**`.c` 不许跨目录重名**（工具箱函数生成的公用文件不带前缀，重名就是重复符号），`test_coder_provenance.cpp` 拦；
+重采样的 `.m` 因此只用显式循环，不调 `sum` / `filter`，生成物里没有公用文件。
 
 ## 7. 待写
 
@@ -177,6 +184,7 @@ cuav_pfb_m64.m, cuav_pfb_m8.m}｜来源集 sha256 5dddefa49112a750｜MATLAB 25.1
 - [x] D-051 的 `DDC`（M-2，2026-09-16，D-070）：新增 `DDC`（receiver 类，参数 `f_shift_Hz` / `decim` / `fir_version`），组件 22 → 23；黄金基准据此更新一次，差异经脚本逐项核对**只有这一条新增**，`port_types` / `port_compat` 与既有组件的 `ports` / `params` 逐字未变
 - [x] D-051 的信道化与接收滤波（M-3，2026-09-16，D-071）：新增 `Channelizer` 与 `RxFilter`（均 receiver 类，`implementation = coder`），组件 23 → 25；黄金基准据此更新一次，差异是**纯插入**（109 行新增、零删除），`port_types` / `port_compat` / `engine_version` 与既有 23 条逐条未变
 - [x] D-058 的传播效应（R-1，2026-09-10）：`ScenarioSource` 新增十五个参数（见 §8），组件数与端口表不变。黄金基准据此更新一次，差异经脚本逐项核对**只有这十五个参数**，其余组件的 `ports` 与 `params` 逐字未变
+- [x] D-088 的 OFDM 族（Q-2，2026-09-29）：`SceneEmitterSource` 的 `description` 加一句、`implementation` 由 `cpp` 改 `coder`、新增 `source_ref`——**三处声明过的变化**，组件数、端口表、参数与其余组件一字未变
 - [x] D-074 的建筑通路（D3-4，2026-09-18）：`ScenarioSource` 新增**一个内部参数** `scene_root`（见 §8 末），组件数、端口表与其余组件一字未变。黄金基准据此更新一次，差异是**纯插入的 8 行**；全库内部参数 32 → 33
 
 ## 8. 传播效应参数（D-058，声明在 `ScenarioSource` 上）

@@ -40,6 +40,21 @@ uv run --quiet --with numpy python tests/regression/standard_cases.py   # 已接
 第 9、10 项要 `data/iq/measured/`（不入 git，D-027）。数据不在时脚本**明说跳过**、
 不当作通过也不静默略过（铁律 15）。
 
+### OFDM 族波形（Q-2，D-088）
+
+`ofdm_waveforms.py` 跑 `diagrams/chain-ofdm.json`（场景 `scenarios/ofdm-80m.scenario.json`：DJI 图传 20 MHz + 同一架机的
+DroneID + 地面遥控器上行跳频，80 MS/s @ 2440 MHz，1 s），在内存里给 S0 两路与 S3 加 `iq` 产品，核六件事：
+真值与帧排布复刻逐位相同、DroneID 第 4 符号 ZC 相关峰（无噪 S0 偏差 0、带噪 S3 按链路时延平移后 ±1 个原生样点）、
+图传星座 EVM（≤ −40 dB，实测 −50.3 dB）、**拿 Q-0b 的提取器量合成信号**对 14 §7.1 的实测逐项给数（只按宽松的物理界判，
+差距进 Q-5）、SigMF 注记带 `cuav:preset_id`、10 MS/s 站点在场景载入时即拒。实时因子照实打印（0.047）。
+
+```
+uv run --quiet --with numpy --with scipy python tests/regression/ofdm_waveforms.py    # 已接进 scripts/build-all.sh
+```
+
+约 30 s；运行目录 `data/runs/q2-ofdm-waveforms/` 约 2 GB（三个观测点写原始 IQ），不入 git。
+④ 那一项要 `data/iq/measured/q0b-params.json`（入 git），不读实测数据本身。
+
 ### E3 建筑遮挡（D3-5，D-074）
 
 `e3_occlusion_chain.py` 跑 `diagrams/chain-demo-01-e3.json`（就是全合成那份，只把传播档位

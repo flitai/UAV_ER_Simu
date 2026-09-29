@@ -33,6 +33,11 @@
 | `burst` | 该源有 `hop` 活动（G-6） | `rc_hopping` |
 | `noise` | `bw_Hz ≥ 1 MHz` | `video_link` |
 | `noise` | `bw_Hz < 1 MHz` | `noise`（库里没有的额外标签，如实写出，混淆矩阵为它扩一行一列） |
+| `ofdm` / `droneid` | 取机型预设的 `role`（Q-2，D-088） | 图传预设 `video_link`、上行预设 `rc_hopping`、DroneID 预设 `droneid`（新标签，识别库 v1 没有，混淆矩阵扩一行一列；库 v2 随 Q-4c） |
+
+OFDM 族**一个突发一行真值**：起止是原生样点除以原生采样率（精确、与检测器采样率无关），开关看突发起点、
+频点看突发中点，与 `SceneEmitterSource` 同一张帧排布表、同一个 `EmitterRuntime`；取「起点落在链路可见窗口内」的突发，
+**整突发一行、不按窗口截断**（源就是整突发发完的）。真值行带 `preset_id`（只在这一族上有，既有 `truth.jsonl` 逐字节不变）。
 
 **表二 清单类别 → `signal_role`**（两批公开数据集，`data/iq/measured/README.md`）：
 
