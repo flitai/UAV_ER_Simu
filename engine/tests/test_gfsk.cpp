@@ -10,8 +10,10 @@
 //   ④ 源的生成路径（SceneEmitterSource 的 gfsk）：对 Python 全路径复刻（组件尺度 1e-6，scene_gfsk.json）、
 //      块长无关、前缀性质、重新 init 复现、包内恒包络 |x| = 1、包外恰为零、整包开关、逐包频点、溯源。
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
+#include <cstdint>
 #include <fstream>
 #include <iterator>
 #include <map>
