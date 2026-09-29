@@ -51,6 +51,15 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 机型预设表（Q-2，D-088）===\n'
+# 生成的 C++ 与 models/radiator/presets-v1.json 一致；表里每个 M 档数能从 q0b-params.json 复算。只用标准库。
+if command -v uv >/dev/null 2>&1; then
+  uv run --quiet python scripts/gen_radiator_presets.py --check
+  uv run --quiet python -m unittest tests/unit/test_radiator_presets.py
+else
+  echo "跳过：需要 uv" >&2
+fi
+
 printf '=== E3 建筑遮挡：从保存的典型链路核对（D3-5，D-074）===\n'
 # 视距由建筑几何给出、刀口损耗只进 extra_loss_dB、恒等式照旧成立、07 §1.5 的起飞点锚点。
 # 要真实建筑集 data/scene/<aoi>/buildings.geojson（不入 git），缺数据时脚本自己明说跳过、不当作通过。

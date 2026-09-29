@@ -1,0 +1,586 @@
+{
+  "schema": "cuav-radiator-presets/1",
+  "version": "v1",
+  "decision": "D-088",
+  "status": "原型阶段验证值（D-028）：M 档取自公开数据集训练部分（Q-0b，D-086），甲方数据到货后按同一脚本重估；A 档逐项列在 provenance 里，交付文档照实写（14 §9）",
+  "grades": {
+    "V": "厂商文档",
+    "P": "同行评审论文或数据集论文",
+    "S": "开源实现或逆向分析",
+    "A": "本方假定",
+    "D": "由有出处的数算出",
+    "M": "本方从公开数据集实测提取"
+  },
+  "refs": {
+    "NDSS23": "N. Schiller 等，Drone Security and the Mysterious Case of DJI's DroneID，NDSS 2023，§II、§III-B（第 5–6 页）",
+    "proto17": "proto17/dji_droneid（GitHub），README 与 matlab/updated_scripts/{create_zc,get_data_carrier_indices,get_cyclic_prefix_lengths}.m",
+    "RFUAV": "Shi 等，RFUAV，arXiv:2503.09033，表 4",
+    "DJI-SDK": "DJI Mobile SDK 文档，OcuSyncBandwidth 枚举",
+    "DJI-O3": "DJI O3 Air Unit 规格页",
+    "Q0B": "data/iq/measured/q0b-params.json（Q-0b，D-086；摘要见 14 号报告 §7.1）"
+  },
+  "conventions": {
+    "subcarriers": "子载波下标 k = −K…−1, +1…+K（K = half_subcarriers），直流 k = 0 空置；占用带宽 (2K+1)·Δf",
+    "zc": "ZC 长度 2K+1（奇数），x(n) = exp(−jπ·u·n(n+1)/(2K+1))，n = 0…2K，删去 n = K 后依次映射到 k = −K…−1, +1…+K（proto17 同法）；相位下标先按整数对 2(2K+1) 取模",
+    "bursts": "突发由 n_symbols 个 OFDM 符号组成；cp_long_at 列出用长 CP 的符号（从 0 数），其余用短 CP；zc 列出 [符号下标, 根]，其余符号载数据；cp_short / cp_long 缺席即取数值结构的值",
+    "frame": "时隙长 slot_s（须为整数个原生样点）；cycle 按时隙循环，每行 [P(空), P(突发 0), P(突发 1) …]；抽签 = 场景 seed、辐射源 id 与时隙序号的计数器哈希（不耗随机流）；一个突发没结束（加 64 个原生样点的间隔）之前开始的时隙一律空"
+  },
+  "numerologies": [
+    {
+      "id": "lte15k-n1024",
+      "subcarrier_spacing_Hz": 15000,
+      "fft_size": 1024,
+      "fs_native_Hz": 15360000,
+      "cp_short": 72,
+      "cp_long": 80,
+      "provenance": "P：DroneID 实测（NDSS23 §III-B：15 kHz、1024 点 / 15.36 MHz、CP 72，第 1、9 符号 80）；proto17 get_cyclic_prefix_lengths.m（长 1/192000 s、短 4.6875 µs）。图传与上行沿用同一结构为 A（NDSS23 §III-B「与 LTE 相似的调制技术与参数」，14 §2.2）"
+    },
+    {
+      "id": "lte15k-n2048",
+      "subcarrier_spacing_Hz": 15000,
+      "fft_size": 2048,
+      "fs_native_Hz": 30720000,
+      "cp_short": 144,
+      "cp_long": 160,
+      "provenance": "A：lte15k-n1024 按采样率等比放大（CP 时长不变），与 LTE 20 MHz 档同数值；DJI 未公开（14 §2.2）"
+    },
+    {
+      "id": "lte15k-n4096",
+      "subcarrier_spacing_Hz": 15000,
+      "fft_size": 4096,
+      "fs_native_Hz": 61440000,
+      "cp_short": 288,
+      "cp_long": 320,
+      "provenance": "A：同上再放大一倍；只在 5.8 GHz 40 MHz 档用（D-085）"
+    }
+  ],
+  "presets": [
+    {
+      "id": "dji-video-10m",
+      "type": "ofdm",
+      "role": "video_link",
+      "name": "DJI 图传 10 MHz",
+      "numerology": "lte15k-n1024",
+      "half_subcarriers": 300,
+      "occupied_bw_Hz": 9015000,
+      "constellation": "16qam",
+      "bursts": [
+        {
+          "n_symbols": 15,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        },
+        {
+          "n_symbols": 30,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        }
+      ],
+      "frame": {
+        "slot_s": 0.002,
+        "cycle": [
+          [
+            0.26693230176845506,
+            0.5840350351810718,
+            0.14903266305047308
+          ]
+        ]
+      },
+      "frame_fit": {
+        "duty": 0.411,
+        "long_share": 0.2033,
+        "predicted_bursts_per_s": 319.0
+      },
+      "channels_Hz": [],
+      "credibility": "V1",
+      "provenance": {
+        "occupied_bw_Hz": "V + P：DJI Mobile SDK OcuSyncBandwidth 10 / 20 MHz 档（V）；RFUAV 表 4 Mini 3 / Mini 4 Pro / Mavic 3 Pro / Avata 2 / FPV 实测 10 MHz（P）；占用 601 × 15 kHz（D）",
+        "numerology": "A：按 DroneID 同族「类 LTE」推定（14 §2.2，交付文档首页）",
+        "bursts": "M + A：突发时长两峰取自 A：本地无 10 MHz 档实测，时序借 A/D/F/G 族（q0b-params.json dronerfb_dji 组 A/D/F/G）；按整数个 OFDM 符号取 15 / 30 个（首符号长 CP 并放 ZC 同步，根 29 取 LTE 主同步序列的根之一，A）",
+        "frame": "M + D：2 ms 时隙；每时隙按概率取「空 / 15 符号 / 30 符号」，长突发超出时隙即封住下一时隙；概率由实测占空 0.411 与长突发占比 0.2033 闭式解出（D），抽签用场景 seed 的计数器哈希（D-088）；间隔分布不参与拟合，只作核对",
+        "constellation": "A：16QAM；不做逐子载波混合（D-088 ⑫）",
+        "channels_Hz": "—：本地无 10 MHz 档实测，信道位置由场景给"
+      }
+    },
+    {
+      "id": "dji-video-20m-a",
+      "type": "ofdm",
+      "role": "video_link",
+      "name": "DJI 图传 20 MHz（A/D/F/G 族）",
+      "numerology": "lte15k-n2048",
+      "half_subcarriers": 600,
+      "occupied_bw_Hz": 18015000,
+      "constellation": "16qam",
+      "bursts": [
+        {
+          "n_symbols": 15,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        },
+        {
+          "n_symbols": 30,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        }
+      ],
+      "frame": {
+        "slot_s": 0.002,
+        "cycle": [
+          [
+            0.26693230176845506,
+            0.5840350351810718,
+            0.14903266305047308
+          ]
+        ]
+      },
+      "frame_fit": {
+        "duty": 0.411,
+        "long_share": 0.2033,
+        "predicted_bursts_per_s": 319.0,
+        "measured_bursts_per_s": {
+          "A": 323.7,
+          "D": 328.0,
+          "F": 309.9,
+          "G": 326.8
+        }
+      },
+      "channels_Hz": [
+        2462500000.0
+      ],
+      "credibility": "V1",
+      "provenance": {
+        "occupied_bw_Hz": "V + M：DJI Mobile SDK 20 MHz 档（V）；DroneRFb 六型 −10 dB 宽度 18.1–18.3 MHz、99% 17.7–18.0 MHz（M，14 §7.1）；占用 1201 × 15 kHz = 18.015 MHz（D）",
+        "numerology": "A：按 DroneID 同族「类 LTE」推定（14 §2.2，交付文档首页）",
+        "bursts": "M + A：突发时长两峰取自 q0b-params.json dronerfb_dji 组 A / D / F / G 的 video.dur_peaks_ms（1.06–1.10 与 2.12–2.14 ms）；按整数个 OFDM 符号取 15 / 30 个（首符号长 CP 并放 ZC 同步，根 29 取 LTE 主同步序列的根之一，A）",
+        "frame": "M + D：2 ms 时隙；每时隙按概率取「空 / 15 符号 / 30 符号」，长突发超出时隙即封住下一时隙；概率由实测占空 0.411 与长突发占比 0.2033 闭式解出（D），抽签用场景 seed 的计数器哈希（D-088）；间隔分布不参与拟合，只作核对",
+        "constellation": "A：16QAM；不做逐子载波混合（D-088 ⑫）",
+        "channels_Hz": "M：DroneRFb A/D/F/G 最常见信道 2453.5–2471.5 MHz 的中心"
+      }
+    },
+    {
+      "id": "dji-video-20m-c",
+      "type": "ofdm",
+      "role": "video_link",
+      "name": "DJI 图传 20 MHz（C/E 族）",
+      "numerology": "lte15k-n2048",
+      "half_subcarriers": 600,
+      "occupied_bw_Hz": 18015000,
+      "constellation": "16qam",
+      "bursts": [
+        {
+          "n_symbols": 13,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        },
+        {
+          "n_symbols": 15,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        }
+      ],
+      "frame": {
+        "slot_s": 0.004,
+        "cycle": [
+          [
+            0.14245078714962256,
+            0.32158095481889154,
+            0.535968258031486
+          ]
+        ]
+      },
+      "frame_fit": {
+        "duty": 0.2181,
+        "long_share": 0.625,
+        "predicted_bursts_per_s": 214.4,
+        "measured_bursts_per_s": {
+          "C": 223.9,
+          "E": 227.2
+        }
+      },
+      "channels_Hz": [
+        2466500000.0
+      ],
+      "credibility": "V1",
+      "provenance": {
+        "occupied_bw_Hz": "V + M：同 dji-video-20m-a（C / E 两型 −10 dB 宽度 18.1 MHz）",
+        "numerology": "A：按 DroneID 同族「类 LTE」推定（14 §2.2，交付文档首页）",
+        "bursts": "M + A：突发时长两峰取自 q0b-params.json dronerfb_dji 组 C / E 的 video.dur_peaks_ms（0.94–0.98 与 1.09–1.10 ms）；按整数个 OFDM 符号取 13 / 15 个（首符号长 CP 并放 ZC 同步，根 29 取 LTE 主同步序列的根之一，A）",
+        "frame": "M + D：4 ms 时隙；每时隙按概率取「空 / 13 符号 / 15 符号」；概率由实测占空 0.2181 与长突发占比 0.625 闭式解出（D），抽签用场景 seed 的计数器哈希（D-088）；间隔分布不参与拟合，只作核对",
+        "constellation": "A：16QAM；不做逐子载波混合（D-088 ⑫）",
+        "channels_Hz": "M：DroneRFb C/E 最常见信道 2457.5–2475.5 MHz 的中心"
+      }
+    },
+    {
+      "id": "dji-video-40m",
+      "type": "ofdm",
+      "role": "video_link",
+      "name": "DJI 图传 40 MHz（5.8 GHz）",
+      "numerology": "lte15k-n4096",
+      "half_subcarriers": 1200,
+      "occupied_bw_Hz": 36015000,
+      "constellation": "16qam",
+      "bursts": [
+        {
+          "n_symbols": 15,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        },
+        {
+          "n_symbols": 30,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        }
+      ],
+      "frame": {
+        "slot_s": 0.002,
+        "cycle": [
+          [
+            0.2905851370063969,
+            0.5269533602316484,
+            0.18246150276195472
+          ]
+        ]
+      },
+      "frame_fit": {
+        "duty": 0.4038,
+        "long_share": 0.2572,
+        "predicted_bursts_per_s": 300.0,
+        "measured_bursts_per_s": {
+          "mavic3_5g8": 259.3
+        }
+      },
+      "channels_Hz": [
+        5796500000.0
+      ],
+      "credibility": "V1",
+      "provenance": {
+        "occupied_bw_Hz": "V + M：DJI O3 Air Unit 40 / 20 / 10 MHz 档（V）；DroneRFa Mavic 3 5.8 GHz −10 dB 36.3 MHz、99% 35.2 MHz（M，14 §7.1，只有一型）；占用 2401 × 15 kHz = 36.015 MHz（D）",
+        "numerology": "A：按 DroneID 同族「类 LTE」推定（14 §2.2，交付文档首页）",
+        "bursts": "M + A：突发时长两峰取自 q0b-params.json dronerfa_mavic3_5g8 的 video.dur_peaks_ms（1.10 与 2.12 ms）；按整数个 OFDM 符号取 15 / 30 个（首符号长 CP 并放 ZC 同步，根 29 取 LTE 主同步序列的根之一，A）",
+        "frame": "M + D：2 ms 时隙；每时隙按概率取「空 / 15 符号 / 30 符号」，长突发超出时隙即封住下一时隙；概率由实测占空 0.4038 与长突发占比 0.2572 闭式解出（D），抽签用场景 seed 的计数器哈希（D-088）；间隔分布不参与拟合，只作核对",
+        "constellation": "A：16QAM；不做逐子载波混合（D-088 ⑫）",
+        "channels_Hz": "M：DroneRFa Mavic 3 5.8 GHz 信道 5778.5–5814.5 MHz 的中心"
+      }
+    },
+    {
+      "id": "dji-uplink-1m",
+      "type": "ofdm",
+      "role": "rc_hopping",
+      "name": "DJI 遥控上行 1.1 MHz（C/E 族）",
+      "numerology": "lte15k-n1024",
+      "half_subcarriers": 37,
+      "occupied_bw_Hz": 1125000,
+      "constellation": "qpsk",
+      "bursts": [
+        {
+          "n_symbols": 7,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        }
+      ],
+      "frame": {
+        "slot_s": 0.002,
+        "cycle": [
+          [
+            0.0642,
+            0.9358
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            0.0642,
+            0.9358
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      },
+      "frame_fit": {
+        "interval_10ms_share": 0.0601,
+        "skip_prob": 0.0642
+      },
+      "hop_grid": {
+        "start_Hz": 2402000000.0,
+        "spacing_Hz": 1000000.0,
+        "n_points": 78
+      },
+      "hop_repeat_prob": 0.2232,
+      "credibility": "V1",
+      "provenance": {
+        "occupied_bw_Hz": "M + D：DroneRFb 单跳 −10 dB 宽度 1.11–1.13 MHz（14 §7.1）；取 (2K+1) × 15 kHz 最接近者（D）",
+        "numerology": "A：窄带 OFDM 突发、沿用 15 kHz 数值结构（14 §2.3；三档宽度对 75 / 149 / 295 个子载波吻合到 2% 以内是旁证不是证明）",
+        "bursts": "M + A：7 符号 = 7680 原生样点 = 0.500 ms，对实测 0.500 ms 主峰（60%）；实测另有 0.39 ms 一峰（27–29%）未建模",
+        "frame": "M + D：2 ms 时隙图案 [发, 空, 发, 空, 空] 给出 4 / 6 ms 交替（实测 4 ms 约 43–46%、6 ms 约 39–43%）；每个「发」时隙以概率 0.0642 空过，使 10 ms 间隔占比 = q(1−q) 对上实测 0.0601（D）；逐突发的频点由 hop 活动给出（D-088 ⑦）",
+        "constellation": "A：QPSK",
+        "hop_grid": "M：DroneRFb C / E 频点 74 / 69 个、跨度 2402.0–2478.9 MHz、间距中位 0.97–0.98 MHz，取 1 MHz 栅格 78 点（2402–2479 MHz）；相邻两跳同频占比取两型中位"
+      }
+    },
+    {
+      "id": "dji-uplink-2m",
+      "type": "ofdm",
+      "role": "rc_hopping",
+      "name": "DJI 遥控上行 2.2 MHz（A/G 族）",
+      "numerology": "lte15k-n1024",
+      "half_subcarriers": 74,
+      "occupied_bw_Hz": 2235000,
+      "constellation": "qpsk",
+      "bursts": [
+        {
+          "n_symbols": 7,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ]
+        }
+      ],
+      "frame": {
+        "slot_s": 0.002,
+        "cycle": [
+          [
+            0.1162,
+            0.8838
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            0.1162,
+            0.8838
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      },
+      "frame_fit": {
+        "interval_10ms_share": 0.1027,
+        "skip_prob": 0.1162
+      },
+      "hop_grid": {
+        "start_Hz": 2402300000.0,
+        "spacing_Hz": 3000000.0,
+        "n_points": 26
+      },
+      "hop_repeat_prob": 0.1631,
+      "credibility": "V1",
+      "provenance": {
+        "occupied_bw_Hz": "M + D：DroneRFb 单跳 −10 dB 宽度 2.23 MHz（14 §7.1）；取 (2K+1) × 15 kHz 最接近者（D）",
+        "numerology": "A：窄带 OFDM 突发、沿用 15 kHz 数值结构（14 §2.3；三档宽度对 75 / 149 / 295 个子载波吻合到 2% 以内是旁证不是证明）",
+        "bursts": "M + A：7 符号 = 7680 原生样点 = 0.500 ms，对实测 0.500 ms（97–99%）",
+        "frame": "M + D：2 ms 时隙图案 [发, 空, 发, 空, 空] 给出 4 / 6 ms 交替（实测 4 ms 约 43–46%、6 ms 约 39–43%）；每个「发」时隙以概率 0.1162 空过，使 10 ms 间隔占比 = q(1−q) 对上实测 0.1027（D）；逐突发的频点由 hop 活动给出（D-088 ⑦）",
+        "constellation": "A：QPSK",
+        "hop_grid": "M：DroneRFb A 频点 26 个、2402.31–2477.36 MHz、间距中位 2.988 MHz，取 3 MHz 栅格 26 点（G 型 21 点落在同一栅格的子集上）；相邻两跳同频占比取两型中位"
+      }
+    },
+    {
+      "id": "dji-uplink-4m",
+      "type": "ofdm",
+      "role": "rc_hopping",
+      "name": "DJI 遥控上行 4.4 MHz（D/F 族）",
+      "numerology": "lte15k-n1024",
+      "half_subcarriers": 147,
+      "occupied_bw_Hz": 4425000,
+      "constellation": "qpsk",
+      "bursts": [
+        {
+          "n_symbols": 7,
+          "cp_long_at": [
+            0
+          ],
+          "zc": [
+            [
+              0,
+              29
+            ]
+          ],
+          "cp_short": 178,
+          "cp_long": 181
+        }
+      ],
+      "frame": {
+        "slot_s": 0.002,
+        "cycle": [
+          [
+            0.1597,
+            0.8403
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            0.1597,
+            0.8403
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      },
+      "frame_fit": {
+        "interval_10ms_share": 0.1342,
+        "skip_prob": 0.1597
+      },
+      "hop_grid": {
+        "start_Hz": 2404500000.0,
+        "spacing_Hz": 5000000.0,
+        "n_points": 14
+      },
+      "hop_repeat_prob": 0.2397,
+      "credibility": "V1",
+      "provenance": {
+        "occupied_bw_Hz": "M + D：DroneRFb 单跳 −10 dB 宽度 4.41 MHz（14 §7.1）；取 (2K+1) × 15 kHz 最接近者（D）",
+        "numerology": "A：窄带 OFDM 突发、沿用 15 kHz 数值结构（14 §2.3；三档宽度对 75 / 149 / 295 个子载波吻合到 2% 以内是旁证不是证明）",
+        "bursts": "M + A：7 符号配拉长的 CP（首 181、其余 178 原生样点）= 8417 原生样点 = 0.5480 ms，对实测 0.548 ms（90–95%）；时长是 M，CP 长度是为凑时长的 A",
+        "frame": "M + D：2 ms 时隙图案 [发, 空, 发, 空, 空] 给出 4 / 6 ms 交替（实测 4 ms 约 43–46%、6 ms 约 39–43%）；每个「发」时隙以概率 0.1597 空过，使 10 ms 间隔占比 = q(1−q) 对上实测 0.1342（D）；逐突发的频点由 hop 活动给出（D-088 ⑦）",
+        "constellation": "A：QPSK",
+        "hop_grid": "M：DroneRFb D / F 频点 15 / 13 个、2404.5–2469.6 MHz、间距中位 4.87–4.99 MHz，取 5 MHz 栅格 14 点；相邻两跳同频占比取两型中位"
+      }
+    },
+    {
+      "id": "dji-droneid",
+      "type": "droneid",
+      "role": "droneid",
+      "name": "DJI DroneID",
+      "numerology": "lte15k-n1024",
+      "half_subcarriers": 300,
+      "occupied_bw_Hz": 9015000,
+      "constellation": "qpsk",
+      "bursts": [
+        {
+          "n_symbols": 9,
+          "cp_long_at": [
+            0,
+            8
+          ],
+          "zc": [
+            [
+              3,
+              600
+            ],
+            [
+              5,
+              147
+            ]
+          ]
+        }
+      ],
+      "frame": {
+        "slot_s": 0.64,
+        "cycle": [
+          [
+            0,
+            1
+          ]
+        ]
+      },
+      "channels_Hz": [
+        2399500000.0,
+        2414500000.0,
+        2429500000.0,
+        2444500000.0,
+        2459500000.0,
+        5756500000.0,
+        5776500000.0,
+        5796500000.0
+      ],
+      "credibility": "V2",
+      "provenance": {
+        "occupied_bw_Hz": "P：601 个子载波（600 数据 + 1 直流）× 15 kHz（NDSS23 §III-B）",
+        "numerology": "P：NDSS23 §III-B",
+        "bursts": "P + S：每帧 9 符号，第 4、6 符号为 ZC 同步、根 600 / 147，其余 QPSK，CP 72、第 1 与第 9 符号 80（NDSS23 §III-B）；ZC 取 601 点删去中间一点映射到 ±300 子载波（proto17 create_zc.m 第 26–38 行、get_data_carrier_indices.m 第 9–24 行，S）；9880 原生样点 = 643.23 µs（D）",
+        "frame": "P：每 640 ms 重复一次（NDSS23 §III-B）；proto17 README 写「约 600 ms」，以论文为准",
+        "constellation": "P：QPSK（NDSS23 §III-B、proto17 README）",
+        "payload": "A：种子随机比特，不编码任何真实序列号、坐标或飞手位置（14 §2.5）",
+        "channels_Hz": "S：proto17 README 列出的频点（Mini 2 等）"
+      }
+    }
+  ]
+}

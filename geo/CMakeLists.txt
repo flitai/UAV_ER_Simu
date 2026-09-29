@@ -38,6 +38,7 @@ add_library(cuav_geo STATIC
   src/propagation.cpp
   src/scenario.cpp
   src/activity.cpp
+  src/radiator_presets.cpp
   src/df_error.cpp
   src/fix_geometry.cpp
   src/locate_aoa.cpp
