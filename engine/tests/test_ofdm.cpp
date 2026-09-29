@@ -238,11 +238,19 @@ void check_ofdm_golden(const nlohmann::json& g, const std::string& who) {
             if (sym.count("carriers")) {
                 const auto& jc = sym.at("carriers");
                 REQUIRE(jc.size() == carriers.size());
+                // 数据符号的值由整数随机源与电平表定出，任何平台都逐位相同；ZC 符号的值要过 cos / sin，
+                // 各平台的数学库可以差一个最低位（D-049；黄金基准是 macOS 上的 Python 算的，2026-09-29
+                // Linux / GCC 与 Windows / MSVC 的 CI 上 ZC 两个符号各差一位），故 ZC 只要求 1e-15（约 4 个最低位）
+                const bool zc = sym.at("zc_root").get<int>() != 0;
+                double worst_c = 0.0;
                 bool same = true;
-                for (std::size_t i = 0; i < carriers.size(); ++i)
-                    same = same && carriers[i].real() == jc[i][0].get<double>() &&
-                           carriers[i].imag() == jc[i][1].get<double>();
-                CHECK_MESSAGE(same, "符号 " << s << " 的子载波值应逐位相同");
+                for (std::size_t i = 0; i < carriers.size(); ++i) {
+                    const std::complex<double> w(jc[i][0].get<double>(), jc[i][1].get<double>());
+                    same = same && carriers[i].real() == w.real() && carriers[i].imag() == w.imag();
+                    worst_c = std::max(worst_c, std::abs(carriers[i] - w));
+                }
+                if (zc) CHECK_MESSAGE(worst_c <= 1e-15, "ZC 符号 " << s << " 的子载波值差 " << worst_c);
+                else CHECK_MESSAGE(same, "数据符号 " << s << " 的子载波值应逐位相同");
             }
             const std::size_t start = sym.at("start").get<std::size_t>();
             const auto& js = sym.at("samples");

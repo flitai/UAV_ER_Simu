@@ -185,7 +185,10 @@ test('取消：排队中立即 cancelled；运行中杀进程后 cancelled / not
 
   await waitFor(() => (mgr.get(h.task.task_id)!.last_seq >= 2 ? true : undefined), 'hang 任务产出事件')
   const ch = await mgr.cancel(h.task.task_id)
-  assert.equal(ch.run_state, 'running')
+  // 应答是活记录：cancel() 发出 SIGTERM 后要等写盘链（await live.writeChain），假引擎收到信号几乎立刻退出，
+  // 退出处理可能在这段等待里先跑完，于是应答里已经是 cancelled（2026-09-29 CI 上第一次撞到）。
+  // 接口文档只承诺「进程退出后 cancelled」，不承诺应答那一刻还在 running——两种都对，cancel_requested 必须为真
+  assert.ok(ch.run_state === 'running' || ch.run_state === 'cancelled', ch.run_state)
   assert.equal(ch.cancel_requested, true)
   const rec = await done(mgr, h.task.task_id)
   assert.equal(rec.run_state, 'cancelled')
