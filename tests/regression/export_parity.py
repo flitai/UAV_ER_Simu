@@ -11,9 +11,11 @@
      `80000000.0`、JavaScript 写成 `80000000`，指数写法的阈值也不同。唯一允许不同的是 `cuav:exporter`（写的是哪一份）；
   ④ 服务端那份过 SigMF 官方包校验（含 SHA-512）。
 
-两次运行覆盖两条量化路径与两类真值：
+三次运行覆盖两条量化路径、两类真值与非理想参数：
   · C-10 的三级全开链（chain-golden-02-dsp，10 MS/s → 5 → 2.5，1 s）在 S3 / S4 / S5 开 iq：S3 无损、S4 / S5 重量化；
-  · Q-3 的 GFSK 链（chain-gfsk，80 MS/s，截成 0.05 s）在 S3 开 iq：一包一条注记、带 preset_id。
+  · Q-3 的 GFSK 链（chain-gfsk，80 MS/s，截成 0.05 s）在 S3 开 iq：一包一条注记、带 preset_id；
+  · Q-4 的非理想链（chain-impairments，2 MS/s，截成 0.5 s）在 S3 开 iq：上下沿含 offset_Hz 与载频偏差、
+    cuav:cfo_Hz、cuav:impairments（相噪与衰落）、信噪比依据 link_budget_mean。
 
 跑法（约 20 s；需要 engine/build/cuav_run 与 server/dist，已接进 scripts/build-all.sh）：
     uv run --quiet --with numpy --with sigmf python tests/regression/export_parity.py [--keep]
@@ -42,6 +44,11 @@ CASES = [
     {"name": "gfsk", "diagram": "tests/regression/diagrams/chain-gfsk.json",
      "scenario": "tests/regression/scenarios/gfsk-80m.scenario.json",
      "duration_s": 0.05, "iq_ops": ("s3",)},
+    # Q-4（D-091）：非零 offset_Hz + 载频偏差 + 本振相噪 + 莱斯衰落——上下沿按实际载频、cuav:cfo_Hz、
+    # cuav:impairments、信噪比标「均值」这几条新写法两份实现都要走到
+    {"name": "impairments", "diagram": "tests/regression/diagrams/chain-impairments.json",
+     "scenario": "tests/regression/scenarios/impairments.scenario.json",
+     "duration_s": 0.5, "iq_ops": ("s3",)},
 ]
 
 

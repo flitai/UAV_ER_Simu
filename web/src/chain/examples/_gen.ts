@@ -281,6 +281,26 @@ if (mode === 'default') {
   c.taps.s3 = true
   c.taps.s4 = false   // DDC 旁路时 S4 与 S3 同节点同口，产品一模一样（同 synthetic 模式）
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'impairments') {
+  // 非理想回归夹具（Q-4，D-091）：悬停信标带 −22.4 ppm 载频偏差（场景里写），前端开本振相噪（缺省
+  // −95 dBc/Hz、转角 100 kHz），信道开莱斯衰落（缺省 K 9 dB、平坦、多普勒下限 5 Hz）——三项全开的演示配置。
+  // 2 MS/s @ 2440 MHz、2 s、前端增益 20 dB、满量程 −20 dBm：单音在站上约 −47 dBm，加增益后离满量程 7 dB，
+  // 莱斯 K 9 dB 的峰值余量够。回归脚本 tests/regression/impairments.py 在内存里派生变体（逐项关掉、
+  // 调高多普勒下限）并给 S3 加 iq 产品，不写进本文件（同 ofdm / gfsk 模式）。
+  const { doc: scenario, sha } = loadScenario('impairments', 'tests/regression/scenarios')
+  const c: ChainState = emptyChain('synthetic', 'chain-impairments')
+  c.name = '典型链路 · 全合成 · 非理想（载频偏差 + 本振相噪 + 莱斯衰落，2 MS/s）'
+  c.scenario = { scenario_id: 'impairments', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['beacon']
+  c.run = { duration_s: 2, seed: 20261004 }
+  c.slots.rx_fe.params = { gain_dB: 20, phase_noise: 'pll' }
+  c.slots.ch.params = { ...c.slots.ch.params, fading: 'rician' }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024 }
+  c.taps.s3 = true
+  c.taps.s4 = false   // DDC 旁路时 S4 与 S3 同节点同口
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === '3x3-aoa' || mode === '3x3-tdoa') {
   const { doc: scenario, sha } = loadScenario('golden-03')
   const file = join(ROOT, `tests/regression/diagrams/chain-${mode}.json`)

@@ -1,0 +1,310 @@
+{
+  "schema_version": "cuav-diagram/1",
+  "diagram_id": "chain-impairments",
+  "name": "典型链路 · 全合成 · 非理想（载频偏差 + 本振相噪 + 莱斯衰落，2 MS/s）",
+  "scenario_ref": {
+    "scenario_id": "impairments",
+    "sha256": "b511101763d79d33ea2afffb77e7329f056ce3de3bb7373124f665ecb6166d53"
+  },
+  "nodes": [
+    {
+      "id": "scn",
+      "type": "ScenarioSource",
+      "scene_binding": {
+        "scenario_id": "impairments",
+        "site_id": "site-1"
+      },
+      "params": {
+        "sample_rate_Hz": 2000000,
+        "total_samples": 4000000
+      }
+    },
+    {
+      "id": "tx",
+      "type": "SceneEmitterSource",
+      "scene_binding": {
+        "scenario_id": "impairments",
+        "entity_id": "beacon"
+      },
+      "params": {
+        "sample_rate_Hz": 2000000,
+        "total_samples": 4000000,
+        "center_frequency_Hz": 2440000000,
+        "emit_at_tx_power": true
+      }
+    },
+    {
+      "id": "tx_ant",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 0
+      }
+    },
+    {
+      "id": "ch",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "impairments",
+        "entity_id": "beacon"
+      },
+      "params": {
+        "gain_mode": "path_loss_only",
+        "fading": "rician"
+      }
+    },
+    {
+      "id": "rx_ant",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "rx_fe",
+      "type": "ReceiverFrontEnd",
+      "params": {
+        "nf_dB": 6,
+        "gain_dB": 20,
+        "phase_noise": "pll"
+      }
+    },
+    {
+      "id": "adc",
+      "type": "AdcQuantizer",
+      "params": {
+        "full_scale_dBm": -20
+      }
+    },
+    {
+      "id": "det",
+      "type": "EnergyDetector",
+      "scene_binding": {
+        "scenario_id": "impairments",
+        "site_id": "site-1"
+      },
+      "params": {
+        "band_lo_Hz": -900000,
+        "band_hi_Hz": 900000,
+        "noise_mode": "sliding"
+      }
+    },
+    {
+      "id": "feat",
+      "type": "FeatureExtractor",
+      "scene_binding": {
+        "scenario_id": "impairments",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
+      "id": "rec",
+      "type": "TemplateClassifier",
+      "scene_binding": {
+        "scenario_id": "impairments",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
+      "id": "eval",
+      "type": "Evaluator",
+      "scene_binding": {
+        "scenario_id": "impairments",
+        "site_id": "site-1"
+      },
+      "params": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "tx",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "scn",
+        "port": "link:beacon"
+      },
+      "to": {
+        "node": "tx_ant",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "tx_ant",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "scn",
+        "port": "link:beacon"
+      },
+      "to": {
+        "node": "ch",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "ch",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "scn",
+        "port": "link:beacon"
+      },
+      "to": {
+        "node": "rx_ant",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "rx_ant",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_fe",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "rx_fe",
+        "port": "out"
+      },
+      "to": {
+        "node": "adc",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "adc",
+        "port": "out"
+      },
+      "to": {
+        "node": "det",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "adc",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "iq"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "feat",
+        "port": "out"
+      },
+      "to": {
+        "node": "rec",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "rec",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "rec"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "scn",
+        "port": "link:beacon"
+      },
+      "to": {
+        "node": "eval",
+        "port": "scene1"
+      }
+    }
+  ],
+  "observation_points": [
+    {
+      "id": "s3",
+      "label": "S3 量化后",
+      "node": "adc",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    }
+  ],
+  "run": {
+    "seed": 20261004,
+    "duration_s": 2,
+    "time_basis": "LogicalSim"
+  },
+  "template_ref": {
+    "template_id": "chain-v1",
+    "mode": "synthetic",
+    "version": 1
+  }
+}

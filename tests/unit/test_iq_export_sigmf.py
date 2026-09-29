@@ -47,7 +47,8 @@ SCENARIO = {
 }
 
 
-def diagram(op_node: str, antenna_pattern: str = "omni", bits: str | None = None) -> dict:
+def diagram(op_node: str, antenna_pattern: str = "omni", bits: str | None = None,
+            fe_extra: dict | None = None, ch_extra: dict | None = None) -> dict:
     adc = {"full_scale_dBm": FS_DBM}
     if bits:
         adc["bits"] = bits
@@ -61,9 +62,9 @@ def diagram(op_node: str, antenna_pattern: str = "omni", bits: str | None = None
              "params": {}},
             {"id": "tx_ant", "type": "AntennaGain", "params": {"role": "tx", "gain_dBi": 2}},
             {"id": "ch", "type": "SceneBoundChannel", "scene_binding": {"scenario_id": "fixture-01", "entity_id": "uav-1"},
-             "params": {}},
+             "params": dict(ch_extra or {})},
             {"id": "rx_ant", "type": "AntennaGain", "params": {"role": "rx", "gain_dBi": 3, "pattern": antenna_pattern}},
-            {"id": "rx_fe", "type": "ReceiverFrontEnd", "params": {"nf_dB": 6, "gain_dB": 20}},
+            {"id": "rx_fe", "type": "ReceiverFrontEnd", "params": {"nf_dB": 6, "gain_dB": 20, **(fe_extra or {})}},
             {"id": "adc", "type": "AdcQuantizer", "params": adc},
             {"id": "ddc", "type": "DDC", "params": {"decim": 2}},
         ],
@@ -301,6 +302,55 @@ class TestDeterminismAndSigmf(_Base):
         run, dpath = make_run(self.tmp, adc_grid(20000, 14, rng), 1e6)
         res = X.export_run(run, self.out(), dpath)
         X.validate_with_sigmf(self.out(), [r["stem"] for r in res])
+
+
+class TestImpairments(_Base):
+    """Q-4（D-091）：上下沿按实际载频、cuav:cfo_Hz、cuav:impairments、衰落时信噪比标「均值」。"""
+
+    def setUp(self):
+        super().setUp()
+        scen = json.loads(json.dumps(SCENARIO))
+        em = scen["emitters"][0]["emission"]
+        em["cfo_ppm"] = -10.0
+        em["waveform"] = {"type": "tone", "offset_Hz": 50000.0}
+        self.scen = scen
+        X.find_scenario = lambda sid, sha, path=None: ("fixture", scen)
+
+    def test_edges_cfo_and_impairments(self):
+        rng = np.random.default_rng(7)
+        fs = 1e6
+        cfo = -10e-6 * (2.4405e9 + 50000.0)
+        truth = [{"t_s": 0.25, "t_end_s": 0.5, "emitter_id": "uav-1", "label": "cw_beacon", "waveform": "tone",
+                  "center_Hz": 2.4405e9, "bw_Hz": 2e4, "site_id": "site-1", "cfo_Hz": cfo}]
+        run, dpath = make_run(self.tmp, adc_grid(int(fs), 14, rng), fs, truth=truth,
+                              fe_extra={"phase_noise": "pll", "iq_gain_imbalance_dB": 0.5},
+                              ch_extra={"fading": "rician", "fading_delay_spread_ns": 80})
+        r = X.export_run(run, self.out(), dpath)[0]
+        meta = json.load(open(os.path.join(self.out(), r["stem"] + ".sigmf-meta"), encoding="utf-8"))
+        a = meta["annotations"][0]
+        c = 2.4405e9 + 50000.0 + cfo
+        self.assertEqual(a["core:freq_lower_edge"], c - 1e4)
+        self.assertEqual(a["core:freq_upper_edge"], c + 1e4)
+        self.assertEqual(a["cuav:cfo_Hz"], cfo)
+        self.assertEqual(a["cuav:snr_basis"], "link_budget_mean")
+        imp = meta["global"]["cuav:impairments"]
+        self.assertEqual(imp["receiver"]["node_id"], "rx_fe")
+        self.assertEqual(imp["receiver"]["iq_gain_imbalance_dB"], 0.5)
+        self.assertNotIn("dc_offset_mW", imp["receiver"])          # 缺省值不写
+        pn = imp["receiver"]["phase_noise"]
+        self.assertEqual((pn["level_dBc_Hz"], pn["corner_Hz"]), (-95.0, 1e5))
+        self.assertAlmostEqual(pn["rms_phase_deg"], math.degrees(math.sqrt(math.pi * 1e5 * 10 ** -9.5)), places=5)
+        self.assertEqual(imp["fading"], [{"emitter_id": "uav-1", "node_id": "ch", "model": "rician", "k_los_dB": 9.0,
+                                          "min_doppler_Hz": 5.0, "delay_spread_ns": 80.0}])
+        self.assertEqual(imp["cfo_ppm"], {"uav-1": -10.0})
+
+    def test_no_impairments_key_when_all_default(self):
+        rng = np.random.default_rng(8)
+        X.find_scenario = lambda sid, sha, path=None: ("fixture", SCENARIO)
+        run, dpath = make_run(self.tmp, adc_grid(10000, 14, rng), 1e6, truth=[])
+        r = X.export_run(run, self.out(), dpath)[0]
+        meta = json.load(open(os.path.join(self.out(), r["stem"] + ".sigmf-meta"), encoding="utf-8"))
+        self.assertNotIn("cuav:impairments", meta["global"])
 
 
 if __name__ == "__main__":

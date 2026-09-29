@@ -54,10 +54,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"                 # 0.2.0（Q-4，D-091）：上下沿按实际载频、cuav:cfo_Hz、cuav:impairments
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIGMF_VERSION = "1.2.6"            # sigmf 包 1.13.0 实现的规范版本（2026-09-29 锁定）
-CUAV_EXT_VERSION = "1.0.0"
+CUAV_EXT_VERSION = "1.1.0"
 FULL_SCALE = 32768
 CHUNK = 1 << 22                    # 分块处理的样点数（每块约 32 MB cf32）
 S3_GRID_TOL = 0.01                 # S3 样点离整数码的最大允许偏差（码）
@@ -156,7 +156,7 @@ class Chain:
     adc: dict
     rx_fe: dict | None
     stages: list[dict]                  # 观测点上游的节点（按拓扑近似顺序：离观测点由远到近）
-    emitters: dict[str, dict] = field(default_factory=dict)   # emitter_id → {tx_gain, rx_gain, feeder, snr_basis}
+    emitters: dict[str, dict] = field(default_factory=dict)   # emitter_id → {tx_gain, rx_gain, feeder, snr_basis, fading}
 
 
 def _param(node: dict, name: str, catalog: dict):
@@ -226,8 +226,15 @@ def chain_for(diagram: dict, op: dict, catalog: dict) -> Chain:
             continue
         eid = (n.get("scene_binding") or {}).get("entity_id")
         path = _downstream(diagram, n["id"]) & up_set
-        info = {"tx_gain_dBi": 0.0, "rx_gain_dBi": 0.0, "feeder_loss_dB": 0.0, "snr_basis": "omni_matched"}
+        info = {"tx_gain_dBi": 0.0, "rx_gain_dBi": 0.0, "feeder_loss_dB": 0.0, "snr_basis": "omni_matched",
+                "fading": None}
         for a in (nodes[i] for i in sorted(path)):
+            if a["type"] == "SceneBoundChannel" and _param(a, "fading", catalog) != "off":
+                # 小尺度衰落（Q-4，D-091）：这条链路的参数进 cuav:impairments，信噪比注记改标「均值」
+                info["fading"] = {"node_id": a["id"], "model": _param(a, "fading", catalog),
+                                  "k_los_dB": float(_param(a, "fading_k_los_dB", catalog)),
+                                  "min_doppler_Hz": float(_param(a, "fading_min_doppler_Hz", catalog)),
+                                  "delay_spread_ns": float(_param(a, "fading_delay_spread_ns", catalog))}
             if a["type"] != "AntennaGain":
                 continue
             role = _param(a, "role", catalog)
@@ -337,6 +344,34 @@ def _preset_keys(scen: dict) -> dict:
     return {"cuav:preset_ids": ids, "cuav:presets_version": "v1"} if ids else {}
 
 
+def _impairments(ch: Chain, scen: dict, catalog: dict) -> dict:
+    """非理想与衰落的参数（Q-4，D-091）：只在任一项不是缺省时写 cuav:impairments，既有导出元数据不变。
+    前端 trace 会被后级覆写（D-091），相噪等参数只能从框图读、在这里带出。"""
+    out: dict = {}
+    if ch.rx_fe is not None:
+        fe = ch.rx_fe
+        rec: dict = {}
+        for k in ("lo_offset_Hz", "iq_gain_imbalance_dB", "iq_phase_imbalance_deg", "dc_offset_mW"):
+            v = float(_param(fe, k, catalog))
+            if v != 0.0:
+                rec[k] = v
+        if _param(fe, "phase_noise", catalog) != "off":
+            lvl = float(_param(fe, "pn_level_dBc_Hz", catalog))
+            fc = float(_param(fe, "pn_corner_Hz", catalog))
+            rec["phase_noise"] = {"model": "pll_single_pole", "level_dBc_Hz": lvl, "corner_Hz": fc,
+                                  "rms_phase_deg": round(math.sqrt(math.pi * fc * 10.0 ** (lvl / 10.0)) * (180.0 / math.pi), 6)}
+        if rec:
+            out["receiver"] = {"node_id": fe["id"], **rec}
+    fad = [{"emitter_id": eid, **info["fading"]} for eid, info in sorted(ch.emitters.items()) if info.get("fading")]
+    if fad:
+        out["fading"] = fad
+    cfo = {e["id"]: e["emission"]["cfo_ppm"] for e in scen.get("emitters", [])
+           if e["id"] in ch.emitters and (e.get("emission") or {}).get("cfo_ppm")}
+    if cfo:
+        out["cfo_ppm"] = dict(sorted(cfo.items()))
+    return {"cuav:impairments": out} if out else {}
+
+
 def annotations(truth: list[dict], links_by_id: dict[str, list[dict]], scen: dict, ch: Chain, n0_dBm_Hz: float | None,
                 fs: float, fc: float, start_sample: int, n: int) -> tuple[list[dict], dict]:
     """n0_dBm_Hz：接收机输入端的噪声密度 kT·F（dBm/Hz）；前端不注入热噪声（混合增强，噪声来自实测背景）时为 None。"""
@@ -357,7 +392,11 @@ def annotations(truth: list[dict], links_by_id: dict[str, list[dict]], scen: dic
         em = emitters.get(eid, {})
         a = {"core:sample_start": s0, "core:sample_count": s1 - s0, "core:label": r["label"]}
         if r.get("center_Hz") is not None and r.get("bw_Hz") is not None:
-            lo, hi = r["center_Hz"] - r["bw_Hz"] / 2, r["center_Hz"] + r["bw_Hz"] / 2
+            # 上下沿按**实际载频**：真值行的 center_Hz 是名义中心（跳频点或 emission.center_Hz），
+            # 实际载频还要加场景的基带偏移 offset_Hz 与载频偏差 cfo_Hz（Q-4，D-091；此前漏算 offset_Hz）
+            wf = (em.get("emission") or {}).get("waveform") or {}
+            c = r["center_Hz"] + float(wf.get("offset_Hz", 0.0)) + float(r.get("cfo_Hz", 0.0))
+            lo, hi = c - r["bw_Hz"] / 2, c + r["bw_Hz"] / 2
             a["core:freq_lower_edge"] = lo
             a["core:freq_upper_edge"] = hi
             a["cuav:in_capture_band"] = bool(hi > fc - fs / 2 and lo < fc + fs / 2)
@@ -368,6 +407,8 @@ def annotations(truth: list[dict], links_by_id: dict[str, list[dict]], scen: dic
         a["cuav:waveform"] = r.get("waveform")
         if r.get("preset_id"):            # OFDM 族（Q-2，D-088）：机型预设；其余波形没有这个键
             a["cuav:preset_id"] = r["preset_id"]
+        if "cfo_Hz" in r:                  # 载频偏差（Q-4，D-091）：场景写了非零 cfo_ppm 才有
+            a["cuav:cfo_Hz"] = r["cfo_Hz"]
         lid = f"{ch.site_id}-{eid}"      # 链路标识由站与源拼成（geo::Link::link_id），不反向拆（D-061 ⑩）
         link = _link_at(links_by_id.get(lid, []), starts.get(lid, []), 0.5 * (r["t_s"] + r["t_end_s"]))
         if link is not None:
@@ -391,7 +432,8 @@ def annotations(truth: list[dict], links_by_id: dict[str, list[dict]], scen: dic
             p_rx = tx_power + gains["tx_gain_dBi"] + gains["rx_gain_dBi"] - link["path_loss_dB"] - gains["feeder_loss_dB"]
             noise = n0_dBm_Hz + 10 * math.log10(r["bw_Hz"])
             a["cuav:snr_dB"] = round(p_rx - noise, 6)
-            a["cuav:snr_basis"] = "link_budget"
+            # 开了小尺度衰落时链路预算给的是平均信噪比，逐段的实现值随衰落起伏（Q-6 的 snr_measured_dB 量它）
+            a["cuav:snr_basis"] = "link_budget_mean" if gains.get("fading") else "link_budget"
         out.append(a)
     out.sort(key=lambda a: (a["core:sample_start"], a.get("cuav:emitter_id") or "", a["core:sample_count"]))
     return out, stats
@@ -511,6 +553,7 @@ def export_op(run_dir: str, diagram: dict, diagram_sha: str, scen_path: str, sce
                              "export_requantization": requant},
             "cuav:signal_trace": idx.get("trace"),
             **_preset_keys(scen),
+            **_impairments(ch, scen, catalog),
             "cuav:model_trace": stages,
             "cuav:links_file": f"{stem}.cuav-links.jsonl",
             "cuav:exporter": f"tools/iq_export_sigmf.py {VERSION}",

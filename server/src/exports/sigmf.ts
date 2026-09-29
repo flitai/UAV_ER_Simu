@@ -15,9 +15,9 @@ import { createReadStream, promises as fsp } from 'node:fs'
 import { basename, join } from 'node:path'
 import { createInterface } from 'node:readline'
 
-export const EXPORTER_VERSION = '0.1.0'
+export const EXPORTER_VERSION = '0.2.0'   // 0.2.0（Q-4，D-091）：上下沿按实际载频、cuav:cfo_Hz、cuav:impairments
 export const SIGMF_VERSION = '1.2.6'
-const CUAV_EXT_VERSION = '1.0.0'
+const CUAV_EXT_VERSION = '1.1.0'
 const FULL_SCALE = 32768
 const CHUNK = 1 << 22                    // 每块复样点数（约 32 MB cf32），与 Python 版相同
 const S3_GRID_TOL = 0.01
@@ -163,7 +163,10 @@ async function findScenario(root: string, id: string, sha: string, path?: string
 
 const POINT_OF: Record<string, string> = { AdcQuantizer: 'S3', DDC: 'S4', Channelizer: 'S5' }
 
-interface EmitterGains { tx_gain_dBi: number; rx_gain_dBi: number; feeder_loss_dB: number; snr_basis: string }
+interface EmitterGains {
+  tx_gain_dBi: number; rx_gain_dBi: number; feeder_loss_dB: number; snr_basis: string
+  fading: Json | null     // 小尺度衰落（Q-4，D-091）：这条链路信道节点的参数；没开为 null
+}
 interface Chain {
   opId: string; node: string; point: string; siteId: string
   adc: DiagramNode; rxFe: DiagramNode | null; stages: DiagramNode[]
@@ -260,8 +263,18 @@ function chainFor(d: Diagram, op: ObservationPoint, cat: Map<string, CatalogComp
     if (n.type !== 'SceneEmitterSource') continue
     const eid = String(n.scene_binding?.entity_id ?? '')
     const path = [...downstream(d, n.id)].filter((x) => upSet.has(x)).sort()
-    const info: EmitterGains = { tx_gain_dBi: 0.0, rx_gain_dBi: 0.0, feeder_loss_dB: 0.0, snr_basis: 'omni_matched' }
+    const info: EmitterGains = {
+      tx_gain_dBi: 0.0, rx_gain_dBi: 0.0, feeder_loss_dB: 0.0, snr_basis: 'omni_matched', fading: null,
+    }
     for (const a of path.map((i) => nodes.get(i)!)) {
+      if (a.type === 'SceneBoundChannel' && param(a, 'fading', cat) !== 'off') {
+        info.fading = {
+          node_id: a.id, model: param(a, 'fading', cat),
+          k_los_dB: Number(param(a, 'fading_k_los_dB', cat)),
+          min_doppler_Hz: Number(param(a, 'fading_min_doppler_Hz', cat)),
+          delay_spread_ns: Number(param(a, 'fading_delay_spread_ns', cat)),
+        }
+      }
       if (a.type !== 'AntennaGain') continue
       const role = param(a, 'role', cat)
       if (param(a, 'pattern', cat) !== 'omni') info.snr_basis = `directional_antenna:${a.id}`
@@ -408,6 +421,41 @@ function presetKeys(scen: Json): Json {
   return ids.size ? { 'cuav:preset_ids': [...ids].sort(), 'cuav:presets_version': 'v1' } : {}
 }
 
+/** 非理想与衰落的参数（Q-4，D-091）：只在任一项不是缺省时写 cuav:impairments。与 Python 参考 _impairments 同式。 */
+function impairments(ch: Chain, scen: Json, cat: Map<string, CatalogComponent>): Json {
+  const out: Json = {}
+  if (ch.rxFe !== null) {
+    const fe = ch.rxFe
+    const rec: Json = {}
+    for (const k of ['lo_offset_Hz', 'iq_gain_imbalance_dB', 'iq_phase_imbalance_deg', 'dc_offset_mW']) {
+      const v = Number(param(fe, k, cat))
+      if (v !== 0) rec[k] = v
+    }
+    if (param(fe, 'phase_noise', cat) !== 'off') {
+      const lvl = Number(param(fe, 'pn_level_dBc_Hz', cat))
+      const fc = Number(param(fe, 'pn_corner_Hz', cat))
+      rec.phase_noise = {
+        model: 'pll_single_pole', level_dBc_Hz: lvl, corner_Hz: fc,
+        rms_phase_deg: roundTo(Math.sqrt(Math.PI * fc * Math.pow(10, lvl / 10)) * (180 / Math.PI), 6),
+      }
+    }
+    if (Object.keys(rec).length) out.receiver = { node_id: fe.id, ...rec }
+  }
+  const fad: Json[] = []
+  for (const eid of [...ch.emitters.keys()].sort()) {
+    const f = ch.emitters.get(eid)!.fading
+    if (f) fad.push({ emitter_id: eid, ...f })
+  }
+  if (fad.length) out.fading = fad
+  const cfo: Array<[string, unknown]> = []
+  for (const e of (scen.emitters as Json[] | undefined) ?? []) {
+    const ppm = ((e.emission as Json | undefined) ?? {}).cfo_ppm
+    if (ch.emitters.has(String(e.id)) && ppm) cfo.push([String(e.id), ppm])
+  }
+  if (cfo.length) out.cfo_ppm = Object.fromEntries(cfo.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)))
+  return Object.keys(out).length ? { 'cuav:impairments': out } : {}
+}
+
 function annotations(truth: Json[], linksById: Map<string, Json[]>, scen: Json, ch: Chain, n0: number | null,
   fs: number, fc: number, startSample: number, n: number): { ann: Json[]; truthRowsSite: number; outsideCapture: number } {
   const starts = new Map([...linksById].map(([k, v]) => [k, v.map((r) => Number(r.valid_from_s))]))
@@ -431,8 +479,11 @@ function annotations(truth: Json[], linksById: Map<string, Json[]>, scen: Json, 
     const em = (eid !== undefined ? emitters.get(eid) : undefined) ?? {}
     const a: Json = { 'core:sample_start': s0, 'core:sample_count': s1 - s0, 'core:label': r.label }
     if (r.center_Hz !== undefined && r.center_Hz !== null && r.bw_Hz !== undefined && r.bw_Hz !== null) {
-      const lo = Number(r.center_Hz) - Number(r.bw_Hz) / 2
-      const hi = Number(r.center_Hz) + Number(r.bw_Hz) / 2
+      // 上下沿按实际载频：名义中心 + 场景 offset_Hz + 载频偏差 cfo_Hz（Q-4，D-091；与 Python 参考同序同式）
+      const wf = (((em.emission as Json | undefined) ?? {}).waveform as Json | undefined) ?? {}
+      const c = Number(r.center_Hz) + Number(wf.offset_Hz ?? 0.0) + Number(r.cfo_Hz ?? 0.0)
+      const lo = c - Number(r.bw_Hz) / 2
+      const hi = c + Number(r.bw_Hz) / 2
       a['core:freq_lower_edge'] = lo
       a['core:freq_upper_edge'] = hi
       a['cuav:in_capture_band'] = hi > fc - fs / 2 && lo < fc + fs / 2
@@ -443,6 +494,7 @@ function annotations(truth: Json[], linksById: Map<string, Json[]>, scen: Json, 
     }
     a['cuav:waveform'] = r.waveform ?? null
     if (r.preset_id) a['cuav:preset_id'] = r.preset_id
+    if (r.cfo_Hz !== undefined) a['cuav:cfo_Hz'] = r.cfo_Hz
     const lid = `${ch.siteId}-${eid}`
     const link = linkAt(linksById.get(lid) ?? [], starts.get(lid) ?? [], 0.5 * (ts + te))
     if (link !== null) {
@@ -465,7 +517,7 @@ function annotations(truth: Json[], linksById: Map<string, Json[]>, scen: Json, 
       const pRx = Number(txPower) + gains.tx_gain_dBi + gains.rx_gain_dBi - Number(link.path_loss_dB) - gains.feeder_loss_dB
       const noise = n0 + 10 * Math.log10(Number(r.bw_Hz))
       a['cuav:snr_dB'] = roundTo(pRx - noise, 6)
-      a['cuav:snr_basis'] = 'link_budget'
+      a['cuav:snr_basis'] = gains.fading ? 'link_budget_mean' : 'link_budget'
     }
     out.push(a)
   }
@@ -619,6 +671,7 @@ async function exportOp(o: ExportOptions, d: Diagram, diagramSha: string, scen: 
       },
       'cuav:signal_trace': idx.trace ?? null,
       ...presetKeys(scen),
+      ...impairments(ch, scen, cat),
       'cuav:model_trace': stages,
       'cuav:links_file': linksName,
       'cuav:exporter': `${o.exporterName ?? 'server/src/exports/sigmf.ts'} ${EXPORTER_VERSION}`,

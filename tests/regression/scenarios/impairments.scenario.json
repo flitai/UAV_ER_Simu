@@ -1,0 +1,72 @@
+{
+  "schema_version": "cuav-scenario/1",
+  "scenario_id": "impairments",
+  "name": "Q-4 非理想算例：悬停信标，载频偏差 + 本振相噪 + 莱斯衰落（2 MS/s）",
+  "synthetic": true,
+  "aoi": {
+    "id": "beijing-yayuncun",
+    "manifest_sha256": "4e1ed6a830b1d3c07d02513caa16e2b4114f85ba7cbb30dd868cc0f137f192db"
+  },
+  "coordinate": {
+    "crs": "EPSG:4326",
+    "alt_ref": "AGL",
+    "terrainHeight_m": 0,
+    "coord_version": "wgs84-2026-09"
+  },
+  "time": {
+    "basis": "LogicalSim",
+    "duration_s": 2
+  },
+  "seed": 20261004,
+  "sites": [
+    {
+      "id": "site-1",
+      "name": "亚运村侦察站",
+      "position": {
+        "lon": 116.405,
+        "lat": 39.99,
+        "alt_m": 30
+      },
+      "antenna": {
+        "gain_dBi": 3,
+        "pattern": "omni"
+      },
+      "receiver": {
+        "fs_Hz": 2000000,
+        "center_Hz": 2440000000,
+        "bw_Hz": 1600000,
+        "nf_dB": 6
+      }
+    }
+  ],
+  "emitters": [
+    {
+      "id": "beacon",
+      "name": "悬停信标（晶振偏差 −22.4 ppm，与 FrSky X20 录音同量级）",
+      "platform_type": "multirotor",
+      "position": {
+        "lon": 116.4058,
+        "lat": 39.9905,
+        "alt_m": 60
+      },
+      "emission": {
+        "center_Hz": 2440250000,
+        "bw_Hz": 20000,
+        "tx_power_dBm": 30,
+        "antenna_gain_dBi": 0,
+        "cfo_ppm": -22.4,
+        "waveform": {
+          "type": "tone",
+          "offset_Hz": 50000
+        }
+      }
+    }
+  ],
+  "routes": [],
+  "activities": [],
+  "trace": {
+    "created_by": "实施方（Q-4 步骤 7，D-091）",
+    "created_at": "2026-09-29T00:00:00Z",
+    "notes": "Q-4 的回归夹具：一个悬停信标（单音，名义射频 2440.25 MHz + 基带偏移 50 kHz = 2440.3 MHz），载频偏差 −22.4 ppm（≈ −54.66 kHz，X20 录音实测 −54 kHz 的量级，D-089），离站约 90 m、离地 60 m、不设航线（速度 0，衰落的最大多普勒取下限）。接收 2 MS/s @ 2440 MHz：单音在基带约 +245 kHz，远离带边。发射 30 dBm 使站上单音比热噪声高约 57 dB，均方根相位误差里热噪声只占 1% 量级，相噪积分因此量得准。offset_Hz 非零是有意的：导出的注记上下沿要按实际载频（名义 + offset_Hz + cfo_Hz）写，这一条靠它验。"
+  }
+}
