@@ -934,6 +934,63 @@ def write_rsmp(args) -> int:
     return 0
 
 
+def write_ofdm_frame(args) -> int:
+    """帧排布（Q-2，D-088 ⑤）：geo/src/ofdm_frame.cpp 对 algos/reference/ofdm_ref.py 的 frame_bursts()。
+
+    每个预设铺 N 个时隙，整张突发表按「slot,start_n,variant」逐行拼成文本取 sha256——两侧逐位相同
+    才对得上（全是整数与一次 double 比较，不存在容差）。另存前 40 条便于看出错在哪，以及统计量
+    （占空、每秒突发数、长突发占比、间隔分位数）供模型卡与实测对照。
+    """
+    import hashlib
+    import ofdm_ref
+
+    doc_p = ofdm_ref.load_presets()
+    with open(os.path.join(ofdm_ref._ROOT, ofdm_ref.PRESETS_REL), "rb") as fh:
+        table_sha = hashlib.sha256(fh.read()).hexdigest()
+    cases = []
+    for p in doc_p["presets"]:
+        pre = ofdm_ref.Preset(doc_p, p["id"])
+        slot_n = int(round(p["frame"]["slot_s"] * pre.fs))
+        for emitter_id, offset_n in (("uav-1", 0), ("uav-2", 7 * slot_n // 3)):
+            n_slots = args.frame_slots if p["frame"]["slot_s"] < 0.1 else 2000
+            end_n = offset_n + n_slots * slot_n
+            bs = ofdm_ref.frame_bursts(doc_p, p["id"], args.frame_seed, emitter_id, offset_n, end_n)
+            text = "".join(f"{k},{s},{v}\n" for k, s, _, v in bs)
+            span_s = (end_n - offset_n) / pre.fs
+            on = sum(b[2] for b in bs)
+            iv = np.diff([b[1] for b in bs]) / pre.fs * 1e3 if len(bs) > 1 else np.array([0.0])
+            longs = sum(1 for b in bs if b[3] == 1) if len(pre.bursts) > 1 else 0
+            cases.append({
+                "preset": p["id"], "emitter_id": emitter_id, "seed": args.frame_seed,
+                "offset_n": offset_n, "end_n": end_n, "slots": n_slots,
+                "n_bursts": len(bs), "sha256_lines": hashlib.sha256(text.encode("ascii")).hexdigest(),
+                "first": [[k, s, v] for k, s, _, v in bs[:40]],
+                "stats": {
+                    "duty": on / (end_n - offset_n),
+                    "bursts_per_s": len(bs) / span_s,
+                    "long_share": longs / len(bs) if bs else None,
+                    "interval_ms_quantiles": {q: float(np.quantile(iv, float(q) / 100)) for q in ("10", "25", "50", "75", "90")},
+                },
+            })
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "OFDM 帧排布的对拍基准（Q-2，D-088 ⑤）：geo/src/ofdm_frame.cpp 对 algos/reference/ofdm_ref.py",
+        "generator": "algos/reference/gen_engine_golden.py --mode ofdm_frame",
+        "presets": {"source": ofdm_ref.PRESETS_REL.replace(os.sep, "/"), "sha256": table_sha},
+        "line_format": "每个突发一行 \"slot,start_n,variant\\n\"（十进制、无空格），整张表拼接后取 sha256",
+        "cases": cases,
+        "tolerance": {"exact": True, "note": "全是整数与同一条比较，逐位相同，没有容差"},
+    }
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    for c in cases:
+        st = c["stats"]
+        print(f"{c['preset']:<16} {c['emitter_id']}：{c['n_bursts']:>6} 个突发、占空 {st['duty']:.4f}、"
+              f"{st['bursts_per_s']:.1f} 次/秒、长突发占比 {st['long_share']}、间隔中位 {st['interval_ms_quantiles']['50']:.3f} ms")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="生成引擎对拍黄金基准")
     ap.add_argument("-o", "--out", required=True)
@@ -946,7 +1003,7 @@ def main(argv=None) -> int:
     ap.add_argument("--band-hi", type=float, default=1e5)
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
-                                      "channelizer", "rx_filter", "ofdm", "rsmp"), default="probe")
+                                      "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame"), default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
@@ -1002,6 +1059,8 @@ def main(argv=None) -> int:
     ap.add_argument("--rsmp-seed", type=int, default=20260930, help="rsmp：窗口与突发的种子")
     ap.add_argument("--rsmp-burst-start", type=int, default=1000, help="rsmp：突发的原生起点")
     ap.add_argument("--rsmp-keep", type=int, default=400, help="rsmp：支撑首尾各存多少个站点样点")
+    ap.add_argument("--frame-seed", type=int, default=20260904, help="ofdm_frame：场景 seed")
+    ap.add_argument("--frame-slots", type=int, default=100000, help="ofdm_frame：每个预设铺多少时隙")
     args = ap.parse_args(argv)
 
     if args.mode == "scene_noise":
@@ -1016,6 +1075,8 @@ def main(argv=None) -> int:
         return write_ofdm(args)
     if args.mode == "rsmp":
         return write_rsmp(args)
+    if args.mode == "ofdm_frame":
+        return write_ofdm_frame(args)
 
     n = args.frames * args.nfft
     rng = Xoshiro256pp(args.seed)

@@ -118,6 +118,65 @@ def burst(p: Preset, variant: int, seed: int, want_carriers: bool = False):
     return (y, allc) if want_carriers else y
 
 
+# ---------------------------------------------------------------- 帧排布（geo/src/ofdm_frame.cpp 的复刻）
+
+MASK64 = (1 << 64) - 1
+BURST_MIN_GAP_NATIVE = 64          # geo::kBurstMinGapNative
+
+
+def mix64(z: int) -> int:
+    z = (z + 0x9E3779B97F4A7C15) & MASK64
+    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK64
+    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & MASK64
+    return z ^ (z >> 31)
+
+
+def fnv1a64(s: str) -> int:
+    h = 0xCBF29CE484222325
+    for b in s.encode("utf-8"):
+        h ^= b
+        h = (h * 0x100000001B3) & MASK64
+    return h
+
+
+def frame_draw(cycle: list, key: int, k: int) -> int:
+    z = mix64(key ^ mix64(k & MASK64))
+    u = (z >> 11) * (1.0 / 9007199254740992.0)
+    row = cycle[k % len(cycle)]
+    acc, last = 0.0, 0
+    for c, v in enumerate(row):
+        if v > 0.0:
+            last = c
+        acc += v
+        if u < acc:
+            return c - 1
+    return last - 1
+
+
+def frame_bursts(doc: dict, pid: str, seed: int, emitter_id: str, offset_n: int, end_n: int) -> list:
+    """[(slot, start_n, length_n, variant)]：起点 < end_n 的全部突发，与 FrameSchedule::build 逐字同式。"""
+    p = Preset(doc, pid)
+    raw = next(x for x in doc["presets"] if x["id"] == pid)
+    slot_n = int(round(raw["frame"]["slot_s"] * p.fs))
+    cycle = raw["frame"]["cycle"]
+    key = mix64((seed & MASK64) ^ mix64(fnv1a64(emitter_id)))
+    out = []
+    free_from = offset_n
+    k = 0
+    while True:
+        s = offset_n + k * slot_n
+        if s >= end_n:
+            break
+        if s >= free_from:
+            v = frame_draw(cycle, key, k)
+            if v >= 0:
+                length = p.bursts[v]["length"]
+                out.append((k, s, length, v))
+                free_from = s + length + BURST_MIN_GAP_NATIVE
+        k += 1
+    return out
+
+
 def papr_ccdf_dB(x: np.ndarray, prob: float = 1e-3) -> float:
     pw = np.abs(x) ** 2
     return 10.0 * math.log10(float(np.quantile(pw, 1.0 - prob)) / float(np.mean(pw)))

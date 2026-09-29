@@ -7,7 +7,8 @@
 //      （子载波数、CP、ZC 功率）、对 Python 参考与 MATLAB 一方的黄金基准（算法核尺度 1e-9）。
 //   ③ 重采样原型表（models/radiator/fir_rsmp_v1.json）：逐位、结构约束、按赫兹的物理锚点；
 //   ④ 有理重采样封装（engine/src/resampler.cpp + Coder 核）：对 Python 与 MATLAB 两方、冲激对齐。
-// 帧排布与源的生成路径的用例随后续步骤加在这里。
+//   ⑤ 帧排布（geo/src/ofdm_frame.cpp）：整张突发表对 Python 复刻逐位相同、随机访问 = 顺序铺开。
+// 源的生成路径的用例随后续步骤加在这里。
 
 #include <cmath>
 #include <complex>
@@ -22,6 +23,7 @@
 #include "cuav/random.h"
 #include "cuav/resampler.h"
 #include "cuav/sha256.h"
+#include "cuav_geo/ofdm_frame.h"
 #include "cuav_geo/radiator_presets.h"
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
@@ -483,5 +485,83 @@ TEST_CASE("有理重采样：冲激对齐偏差 0 样点（三档抽取比）") 
         std::vector<double> h;
         dsp::rsmp_fir_expand(dsp::rsmp_fir_v1(), h);
         CHECK(y[arg].real() == h[h.size() / 2]);
+    }
+}
+
+// ---------------------------------------------------------------- ⑤ 帧排布
+
+TEST_CASE("帧排布：整张突发表对 Python 复刻逐位相同（每个预设 10 万个时隙）") {
+    const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/ofdm_frame.json")));
+    CHECK_MESSAGE(g.at("presets").at("sha256").get<std::string>() == std::string(geo::radiator_presets_v1_sha256()),
+                  "黄金基准是按旧预设表生成的：uv run --quiet --with numpy python "
+                  "algos/reference/gen_engine_golden.py --mode ofdm_frame -o engine/tests/golden/ofdm_frame.json");
+    for (const auto& c : g.at("cases")) {
+        const std::string pid = c.at("preset").get<std::string>();
+        const std::string eid = c.at("emitter_id").get<std::string>();
+        CAPTURE(pid);
+        CAPTURE(eid);
+        const geo::RadiatorPreset* p = geo::radiator_preset_v1(pid);
+        REQUIRE(p != 0);
+        geo::FrameSchedule fs;
+        fs.build(*p, c.at("seed").get<std::uint64_t>(), eid, c.at("offset_n").get<std::int64_t>(),
+                 c.at("end_n").get<std::int64_t>());
+        const std::vector<geo::FrameBurst>& bs = fs.bursts();
+        CHECK(bs.size() == c.at("n_bursts").get<std::size_t>());
+        std::string text;
+        for (std::size_t i = 0; i < bs.size(); ++i)
+            text += std::to_string(bs[i].slot) + "," + std::to_string(bs[i].start_n) + "," +
+                    std::to_string(bs[i].variant) + "\n";
+        CHECK(sha256_hex(text) == c.at("sha256_lines").get<std::string>());
+        const auto& first = c.at("first");
+        for (std::size_t i = 0; i < first.size() && i < bs.size(); ++i) {
+            CHECK(bs[i].slot == first[i][0].get<std::int64_t>());
+            CHECK(bs[i].start_n == first[i][1].get<std::int64_t>());
+            CHECK(bs[i].variant == first[i][2].get<int>());
+        }
+        // 突发互不重叠，且相邻两个之间至少隔 kBurstMinGapNative（重采样输出支撑不重叠的前提）
+        for (std::size_t i = 1; i < bs.size(); ++i)
+            REQUIRE(bs[i].start_n >= bs[i - 1].start_n + bs[i - 1].length_n + geo::kBurstMinGapNative);
+    }
+}
+
+TEST_CASE("帧排布：随机访问（bursts_in）与顺序铺开逐项相同") {
+    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-20m-a");
+    REQUIRE(p != 0);
+    geo::FrameSchedule fs;
+    fs.build(*p, 42u, "uav-9", 0, 5000 * p->slot_n);
+    const std::vector<geo::FrameBurst>& all = fs.bursts();
+    Xoshiro256pp rng(3);
+    for (int trial = 0; trial < 200; ++trial) {
+        const std::int64_t a = static_cast<std::int64_t>(rng.uniform() * 5000.0 * p->slot_n);
+        const std::int64_t b = a + static_cast<std::int64_t>(rng.uniform() * 20.0 * p->slot_n);
+        std::vector<geo::FrameBurst> got;
+        fs.bursts_in(a, b, got);
+        std::vector<geo::FrameBurst> want;
+        for (std::size_t i = 0; i < all.size(); ++i)
+            if (all[i].start_n < b && all[i].start_n + all[i].length_n > a) want.push_back(all[i]);
+        REQUIRE(got.size() == want.size());
+        for (std::size_t i = 0; i < got.size(); ++i) CHECK(got[i].start_n == want[i].start_n);
+    }
+}
+
+TEST_CASE("帧排布：占空与长突发占比对预设的拟合目标（10 万个时隙）") {
+    const nlohmann::json j = nlohmann::json::parse(read_bytes(repo_path("models/radiator/presets-v1.json")));
+    for (const auto& pj : j.at("presets")) {
+        if (!pj.count("frame_fit") || !pj.at("frame_fit").count("duty")) continue;
+        const std::string pid = pj.at("id").get<std::string>();
+        CAPTURE(pid);
+        const geo::RadiatorPreset* p = geo::radiator_preset_v1(pid);
+        geo::FrameSchedule fs;
+        fs.build(*p, 20260904u, "uav-1", 0, 100000 * p->slot_n);
+        std::int64_t on = 0;
+        std::size_t longs = 0;
+        for (const auto& b : fs.bursts()) {
+            on += b.length_n;
+            longs += b.variant == 1 ? 1u : 0u;
+        }
+        const double duty = static_cast<double>(on) / static_cast<double>(100000 * p->slot_n);
+        const double lam = static_cast<double>(longs) / static_cast<double>(fs.bursts().size());
+        CHECK(std::fabs(duty - pj.at("frame_fit").at("duty").get<double>()) < 0.005);
+        CHECK(std::fabs(lam - pj.at("frame_fit").at("long_share").get<double>()) < 0.01);
     }
 }
