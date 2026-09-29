@@ -60,6 +60,15 @@ else
   echo "跳过：需要 uv" >&2
 fi
 
+printf '=== OFDM 族波形：从保存的典型链路核对（Q-2，D-088）===\n'
+# 真值逐位对帧排布复刻、DroneID 的 ZC 峰（S0 偏差 0）、图传星座 EVM、Q-0b 提取器量合成信号对 14 §7.1、
+# SigMF 注记带预设、10 MS/s 场景载入即拒。约 30 s；运行目录约 2 GB（三个观测点写原始 IQ），不入 git。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet --with numpy --with scipy python tests/regression/ofdm_waveforms.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
+fi
+
 printf '=== E3 建筑遮挡：从保存的典型链路核对（D3-5，D-074）===\n'
 # 视距由建筑几何给出、刀口损耗只进 extra_loss_dB、恒等式照旧成立、07 §1.5 的起飞点锚点。
 # 要真实建筑集 data/scene/<aoi>/buildings.geojson（不入 git），缺数据时脚本自己明说跳过、不当作通过。

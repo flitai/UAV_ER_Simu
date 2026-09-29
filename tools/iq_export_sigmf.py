@@ -111,8 +111,15 @@ def read_jsonl(path: str) -> list[dict]:
         return [json.loads(l) for l in fh if l.strip()]
 
 
-def find_scenario(scenario_id: str, sha256: str) -> tuple[str, dict]:
-    """在 data/scene/*/scenarios/ 里找场景文件并核对字节哈希（与框图 scenario_ref 同一把尺子）。"""
+def find_scenario(scenario_id: str, sha256: str, path: str | None = None) -> tuple[str, dict]:
+    """在 data/scene/*/scenarios/ 里找场景文件并核对字节哈希（与框图 scenario_ref 同一把尺子）。
+
+    path 给了就只认它（回归夹具在 tests/regression/scenarios/、Q-6 的数据集场景另有目录）：
+    照样核对字节哈希，对不上就拒，不退回去找别处的同名文件（Q-2，D-088）。"""
+    if path:
+        if sha256_file(path) != sha256:
+            raise ExportError(f"给的场景文件 {os.path.basename(path)} 的哈希与框图 scenario_ref 不符")
+        return path, load_json(path)
     base = os.path.join(ROOT, "data", "scene")
     hits = []
     for aoi in sorted(os.listdir(base)) if os.path.isdir(base) else []:
@@ -322,6 +329,13 @@ def _link_at(links: list[dict], starts: list[float], t: float) -> dict | None:
     return best[1]
 
 
+def _preset_keys(scen: dict) -> dict:
+    """场景里用到的机型预设（Q-2，D-088）：没有 OFDM 族辐射源时一个键都不写，既有导出逐字节不变。"""
+    ids = sorted({(e.get("emission") or {}).get("waveform", {}).get("preset_id")
+                  for e in scen.get("emitters", [])} - {None})
+    return {"cuav:preset_ids": ids, "cuav:presets_version": "v1"} if ids else {}
+
+
 def annotations(truth: list[dict], links_by_id: dict[str, list[dict]], scen: dict, ch: Chain, n0_dBm_Hz: float | None,
                 fs: float, fc: float, start_sample: int, n: int) -> tuple[list[dict], dict]:
     """n0_dBm_Hz：接收机输入端的噪声密度 kT·F（dBm/Hz）；前端不注入热噪声（混合增强，噪声来自实测背景）时为 None。"""
@@ -351,6 +365,8 @@ def annotations(truth: list[dict], links_by_id: dict[str, list[dict]], scen: dic
             if em.get(k) is not None:
                 a[f"cuav:{k}"] = em[k]
         a["cuav:waveform"] = r.get("waveform")
+        if r.get("preset_id"):            # OFDM 族（Q-2，D-088）：机型预设；其余波形没有这个键
+            a["cuav:preset_id"] = r["preset_id"]
         lid = f"{ch.site_id}-{eid}"      # 链路标识由站与源拼成（geo::Link::link_id），不反向拆（D-061 ⑩）
         link = _link_at(links_by_id.get(lid, []), starts.get(lid, []), 0.5 * (r["t_s"] + r["t_end_s"]))
         if link is not None:
@@ -493,6 +509,7 @@ def export_op(run_dir: str, diagram: dict, diagram_sha: str, scen_path: str, sce
                              "export_clipped_samples": q.clipped_export,
                              "export_requantization": requant},
             "cuav:signal_trace": idx.get("trace"),
+            **_preset_keys(scen),
             "cuav:model_trace": stages,
             "cuav:links_file": f"{stem}.cuav-links.jsonl",
             "cuav:exporter": f"tools/iq_export_sigmf.py {VERSION}",
@@ -511,7 +528,7 @@ def export_op(run_dir: str, diagram: dict, diagram_sha: str, scen_path: str, sce
 
 
 def export_run(run_dir: str, out_dir: str, diagram_path: str | None = None, ops: list[str] | None = None,
-               stem_prefix: str | None = None) -> list[dict]:
+               stem_prefix: str | None = None, scenario_path: str | None = None) -> list[dict]:
     diagram_path = diagram_path or os.path.join(run_dir, "diagram.json")
     if not os.path.exists(diagram_path):
         raise ExportError(f"找不到框图文件 {diagram_path}（经应用服务提交的任务在运行目录里有 diagram.json，否则用 --diagram 给）")
@@ -527,7 +544,8 @@ def export_run(run_dir: str, out_dir: str, diagram_path: str | None = None, ops:
         raise ExportError(f"框图文件（{diagram.get('diagram_id')}）不是这次运行用的（{first.get('diagram_id')}）")
     if not diagram.get("scenario_ref"):
         raise ExportError("框图没有 scenario_ref：本工具只导出合成与混合增强运行（真值与链路几何都来自场景）")
-    scen_path, scen = find_scenario(diagram["scenario_ref"]["scenario_id"], diagram["scenario_ref"]["sha256"])
+    scen_path, scen = find_scenario(diagram["scenario_ref"]["scenario_id"], diagram["scenario_ref"]["sha256"],
+                                    scenario_path)
     catalog = engine_catalog(first.get("engine_version"))
     want = [op for op in diagram.get("observation_points", []) if "iq" in op.get("products", [])]
     if ops:
@@ -561,10 +579,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--diagram", help="框图文件（运行目录里没有 diagram.json 时必给）")
     ap.add_argument("--op", action="append", help="只导出这些观测点（可多次给）")
     ap.add_argument("--stem", help="输出文件名前缀，缺省取任务标识")
+    ap.add_argument("--scenario", help="场景文件（不在 data/scene/*/scenarios/ 里时给；照样核对字节哈希）")
     ap.add_argument("--validate", action="store_true", help="导出后用 SigMF 官方包校验（需 --with sigmf）")
     args = ap.parse_args(argv)
     try:
-        res = export_run(args.run_dir, args.out, args.diagram, args.op, args.stem)
+        res = export_run(args.run_dir, args.out, args.diagram, args.op, args.stem, args.scenario)
         if args.validate:
             validate_with_sigmf(args.out, [r["stem"] for r in res])
     except ExportError as e:

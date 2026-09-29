@@ -123,7 +123,7 @@ class _Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="cuav_q1_")
         self._orig = (X.find_scenario, X.engine_catalog)
-        X.find_scenario = lambda sid, sha: ("fixture", SCENARIO)
+        X.find_scenario = lambda sid, sha, path=None: ("fixture", SCENARIO)
         X.engine_catalog = lambda v: CATALOG
 
     def tearDown(self):

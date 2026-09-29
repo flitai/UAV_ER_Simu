@@ -1,0 +1,612 @@
+{
+  "schema_version": "cuav-diagram/1",
+  "diagram_id": "chain-ofdm",
+  "name": "典型链路 · 全合成 · OFDM 族（图传 + DroneID + 上行跳频，80 MS/s）",
+  "scenario_ref": {
+    "scenario_id": "ofdm-80m",
+    "sha256": "bafccc634520bbd3dae78bb5a176140ba6354f7cea3884b7d8621c1db7fbd3be"
+  },
+  "nodes": [
+    {
+      "id": "scn",
+      "type": "ScenarioSource",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "site_id": "site-1"
+      },
+      "params": {
+        "sample_rate_Hz": 80000000,
+        "total_samples": 80000000
+      }
+    },
+    {
+      "id": "tx__uav-1",
+      "type": "SceneEmitterSource",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "entity_id": "uav-1"
+      },
+      "params": {
+        "sample_rate_Hz": 80000000,
+        "total_samples": 80000000,
+        "center_frequency_Hz": 2440000000,
+        "emit_at_tx_power": true
+      }
+    },
+    {
+      "id": "tx__uav-1-droneid",
+      "type": "SceneEmitterSource",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "entity_id": "uav-1-droneid"
+      },
+      "params": {
+        "sample_rate_Hz": 80000000,
+        "total_samples": 80000000,
+        "center_frequency_Hz": 2440000000,
+        "emit_at_tx_power": true
+      }
+    },
+    {
+      "id": "tx__rc-1",
+      "type": "SceneEmitterSource",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "entity_id": "rc-1"
+      },
+      "params": {
+        "sample_rate_Hz": 80000000,
+        "total_samples": 80000000,
+        "center_frequency_Hz": 2440000000,
+        "emit_at_tx_power": true
+      }
+    },
+    {
+      "id": "tx_ant__uav-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-1",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "entity_id": "uav-1"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__uav-1-droneid",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 2
+      }
+    },
+    {
+      "id": "ch__uav-1-droneid",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "entity_id": "uav-1-droneid"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__uav-1-droneid",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "tx_ant__rc-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "tx",
+        "gain_dBi": 0
+      }
+    },
+    {
+      "id": "ch__rc-1",
+      "type": "SceneBoundChannel",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "entity_id": "rc-1"
+      },
+      "params": {
+        "gain_mode": "path_loss_only"
+      }
+    },
+    {
+      "id": "rx_ant__rc-1",
+      "type": "AntennaGain",
+      "params": {
+        "role": "rx",
+        "gain_dBi": 3
+      }
+    },
+    {
+      "id": "sup",
+      "type": "Superposition",
+      "params": {}
+    },
+    {
+      "id": "rx_fe",
+      "type": "ReceiverFrontEnd",
+      "params": {
+        "nf_dB": 6,
+        "gain_dB": 20
+      }
+    },
+    {
+      "id": "adc",
+      "type": "AdcQuantizer",
+      "params": {
+        "full_scale_dBm": -20
+      }
+    },
+    {
+      "id": "det",
+      "type": "EnergyDetector",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "site_id": "site-1"
+      },
+      "params": {
+        "band_lo_Hz": -36000000,
+        "band_hi_Hz": 36000000,
+        "noise_mode": "sliding"
+      }
+    },
+    {
+      "id": "feat",
+      "type": "FeatureExtractor",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
+      "id": "rec",
+      "type": "TemplateClassifier",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "site_id": "site-1"
+      },
+      "params": {}
+    },
+    {
+      "id": "eval",
+      "type": "Evaluator",
+      "scene_binding": {
+        "scenario_id": "ofdm-80m",
+        "site_id": "site-1"
+      },
+      "params": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "tx__uav-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "tx_ant__uav-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "tx_ant__uav-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "ch__uav-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "ch__uav-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "rx_ant__uav-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "tx__uav-1-droneid",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__uav-1-droneid",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1-droneid"
+      },
+      "to": {
+        "node": "tx_ant__uav-1-droneid",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "tx_ant__uav-1-droneid",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__uav-1-droneid",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1-droneid"
+      },
+      "to": {
+        "node": "ch__uav-1-droneid",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "ch__uav-1-droneid",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__uav-1-droneid",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1-droneid"
+      },
+      "to": {
+        "node": "rx_ant__uav-1-droneid",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "tx__rc-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "tx_ant__rc-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "scn",
+        "port": "link:rc-1"
+      },
+      "to": {
+        "node": "tx_ant__rc-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "tx_ant__rc-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "ch__rc-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "scn",
+        "port": "link:rc-1"
+      },
+      "to": {
+        "node": "ch__rc-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e17",
+      "from": {
+        "node": "ch__rc-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_ant__rc-1",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e18",
+      "from": {
+        "node": "scn",
+        "port": "link:rc-1"
+      },
+      "to": {
+        "node": "rx_ant__rc-1",
+        "port": "scene"
+      }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "rx_ant__uav-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup",
+        "port": "in1"
+      }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "rx_ant__uav-1-droneid",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup",
+        "port": "in2"
+      }
+    },
+    {
+      "id": "e21",
+      "from": {
+        "node": "rx_ant__rc-1",
+        "port": "out"
+      },
+      "to": {
+        "node": "sup",
+        "port": "in3"
+      }
+    },
+    {
+      "id": "e22",
+      "from": {
+        "node": "sup",
+        "port": "out"
+      },
+      "to": {
+        "node": "rx_fe",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e23",
+      "from": {
+        "node": "rx_fe",
+        "port": "out"
+      },
+      "to": {
+        "node": "adc",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e24",
+      "from": {
+        "node": "adc",
+        "port": "out"
+      },
+      "to": {
+        "node": "det",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e25",
+      "from": {
+        "node": "adc",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "iq"
+      }
+    },
+    {
+      "id": "e26",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "feat",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e27",
+      "from": {
+        "node": "feat",
+        "port": "out"
+      },
+      "to": {
+        "node": "rec",
+        "port": "in"
+      }
+    },
+    {
+      "id": "e28",
+      "from": {
+        "node": "det",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "det"
+      }
+    },
+    {
+      "id": "e29",
+      "from": {
+        "node": "rec",
+        "port": "out"
+      },
+      "to": {
+        "node": "eval",
+        "port": "rec"
+      }
+    },
+    {
+      "id": "e30",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1"
+      },
+      "to": {
+        "node": "eval",
+        "port": "scene1"
+      }
+    },
+    {
+      "id": "e31",
+      "from": {
+        "node": "scn",
+        "port": "link:uav-1-droneid"
+      },
+      "to": {
+        "node": "eval",
+        "port": "scene2"
+      }
+    },
+    {
+      "id": "e32",
+      "from": {
+        "node": "scn",
+        "port": "link:rc-1"
+      },
+      "to": {
+        "node": "eval",
+        "port": "scene3"
+      }
+    }
+  ],
+  "observation_points": [
+    {
+      "id": "s0__uav-1",
+      "label": "S0 辐射源输出 · uav-1",
+      "node": "tx__uav-1",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
+      "id": "s0__uav-1-droneid",
+      "label": "S0 辐射源输出 · uav-1-droneid",
+      "node": "tx__uav-1-droneid",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
+      "id": "s0__rc-1",
+      "label": "S0 辐射源输出 · rc-1",
+      "node": "tx__rc-1",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    },
+    {
+      "id": "s3",
+      "label": "S3 量化后",
+      "node": "adc",
+      "port": "out",
+      "products": [
+        "spectrum",
+        "envelope"
+      ]
+    }
+  ],
+  "run": {
+    "seed": 20260929,
+    "duration_s": 1,
+    "time_basis": "LogicalSim"
+  },
+  "template_ref": {
+    "template_id": "chain-v1",
+    "mode": "synthetic",
+    "version": 1
+  }
+}

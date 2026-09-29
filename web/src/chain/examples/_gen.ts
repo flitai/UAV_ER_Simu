@@ -237,6 +237,28 @@ if (mode === 'default') {
   c.slots.det.params = { nfft: 1024 }
   c.taps.s4 = true
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'ofdm') {
+  // OFDM 族回归夹具（Q-2，D-088）：DJI 图传 20 MHz + 同一架机的 DroneID + 地面遥控器上行跳频，
+  // 80 MS/s @ 2440 MHz（与 DroneRFb 同接收配置，14 §8.1 R1），1 s。场景的来历写在它自己的 trace.notes 里。
+  // 前端增益 20 dB、ADC 满量程 −20 dBm：图传在站上约 −75 dBm，加增益后比满量程低 35 dB 不削顶，
+  // 80 MHz 带宽的热噪声（−95 dBm + 20 dB）仍比 14 位 ADC 的量化噪声高约 30 dB。
+  // 取 S0 与 S3：S0 是无噪的源输出（量星座 EVM），S3 与 DroneRFb 同位置（拿 Q-0b 的提取器量）。
+  // 回归脚本 tests/regression/ofdm_waveforms.py 在内存里给观测点加 iq 产品，不写进本文件（生成 iq 的
+  // 夹具随 Q-6，D-087）。
+  const { doc: scenario, sha } = loadScenario('ofdm-80m', 'tests/regression/scenarios')
+  const c: ChainState = emptyChain('synthetic', 'chain-ofdm')
+  c.name = '典型链路 · 全合成 · OFDM 族（图传 + DroneID + 上行跳频，80 MS/s）'
+  c.scenario = { scenario_id: 'ofdm-80m', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1', 'uav-1-droneid', 'rc-1']
+  c.run = { duration_s: 1, seed: 20260929 }
+  c.slots.rx_fe.params = { gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024 }
+  c.taps.s0 = true
+  c.taps.s3 = true
+  c.taps.s4 = false   // DDC 旁路时 S4 与 S3 同节点同口，产品一模一样（同 synthetic 模式）
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === '3x3-aoa' || mode === '3x3-tdoa') {
   const { doc: scenario, sha } = loadScenario('golden-03')
   const file = join(ROOT, `tests/regression/diagrams/chain-${mode}.json`)
@@ -250,5 +272,5 @@ if (mode === 'default') {
   chain.scenario = { scenario_id: 'golden-03', sha256: sha }
   process.stdout.write(serialize(compile(chain, cat, scenario).doc, cat))
 } else {
-  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | replay | mixed | 3x3-aoa | 3x3-tdoa`)
+  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | replay | mixed | ofdm | 3x3-aoa | 3x3-tdoa`)
 }
