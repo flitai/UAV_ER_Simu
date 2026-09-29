@@ -1127,3 +1127,90 @@ TEST_CASE("场景 · OFDM 族：站点采样率不在重采样档位里即拒，
     b["activities"] = nlohmann::json::array();
     CHECK_MESSAGE(load_ofdm(b, err), err);
 }
+
+// ---------------------------------------------------------------- GFSK 族（Q-3，D-089）
+
+namespace {
+const char* kGfsk = "tests/regression/scenarios/gfsk-80m.scenario.json";
+
+nlohmann::json gfsk_json() {
+    std::ifstream f(repo(kGfsk).c_str(), std::ios::binary);
+    REQUIRE(f.good());
+    std::stringstream ss;
+    ss << f.rdbuf();
+    return nlohmann::json::parse(ss.str());
+}
+}  // namespace
+
+TEST_CASE("场景 · GFSK 族：夹具读得通，preset_id、帧起点与跳频序列收下") {
+    LoadedScenario ls;
+    std::string err;
+    REQUIRE_MESSAGE(load_scenario_file(repo(kGfsk), ls, err), err);
+    const geo::Scenario& s = ls.scenario;
+    REQUIRE(s.emitters.size() == 2);
+    CHECK(s.emitters[0].emission.waveform.type == geo::WaveformType::Gfsk);
+    CHECK(s.emitters[0].emission.waveform.preset_id == "frsky-d16v2-fcc");
+    CHECK(s.emitters[0].emission.waveform.frame_offset_s == 0.0);
+    CHECK(s.emitters[1].emission.waveform.preset_id == "futaba-sfhss");
+    CHECK(s.emitters[1].emission.waveform.frame_offset_s == 0.0021);
+    CHECK(std::string(geo::waveform_type_name(geo::WaveformType::Gfsk)) == "gfsk");
+    CHECK(geo::is_gfsk(geo::WaveformType::Gfsk));
+    CHECK_FALSE(geo::is_ofdm_family(geo::WaveformType::Gfsk));   // 不走重采样那条路
+    REQUIRE(s.activities.size() == 2);
+    CHECK(s.activities[0].sequence.size() == 47);
+    CHECK(s.activities[0].dwell_s == 0.007);
+    CHECK(s.activities[1].sequence.size() == 30);
+    CHECK(s.activities[1].t_s == 0.0021);
+}
+
+TEST_CASE("场景 · GFSK 族：解析层拒掉缺键、未知键与负的帧起点") {
+    std::string err;
+    geo::Scenario s;
+    nlohmann::json a = gfsk_json();
+    a["emitters"][0]["emission"]["waveform"].erase("preset_id");
+    CHECK_FALSE(parse_scenario(a, s, err));
+    CHECK(err.find("preset_id") != std::string::npos);
+
+    nlohmann::json b = gfsk_json();
+    b["emitters"][0]["emission"]["waveform"]["duty"] = 0.4;       // burst 的键不属于 gfsk
+    CHECK_FALSE(parse_scenario(b, s, err));
+
+    nlohmann::json c = gfsk_json();
+    c["emitters"][1]["emission"]["waveform"]["frame_offset_s"] = -0.001;
+    CHECK_FALSE(parse_scenario(c, s, err));
+    CHECK(err.find("非负") != std::string::npos);
+}
+
+TEST_CASE("场景 · GFSK 族：预设不存在、类型对不上、带宽不等于 Carson 带宽，一律拒并说清楚") {
+    std::string err;
+    nlohmann::json a = gfsk_json();
+    a["emitters"][0]["emission"]["waveform"]["preset_id"] = "frsky-accst-eu";
+    CHECK_FALSE(load_ofdm(a, err));
+    CHECK(err.find("frsky-d16v2-fcc / futaba-sfhss") != std::string::npos);   // 报文列出可取值
+
+    nlohmann::json b = gfsk_json();
+    b["emitters"][0]["emission"]["waveform"]["preset_id"] = "dji-uplink-1m";   // OFDM 表里的 id 不认
+    CHECK_FALSE(load_ofdm(b, err));
+    CHECK(err.find("GFSK 族预设表") != std::string::npos);
+
+    nlohmann::json c = gfsk_json();
+    c["emitters"][0]["emission"]["bw_Hz"] = 200000;
+    CHECK_FALSE(load_ofdm(c, err));
+    CHECK(err.find("191223.14453125") != std::string::npos);
+
+    // 任意非负帧起点都收（没有原生样点栅格，也没有采样率档位）
+    nlohmann::json d = gfsk_json();
+    d["emitters"][1]["emission"]["waveform"]["frame_offset_s"] = 1.234567e-7;
+    d["sites"][0]["receiver"]["fs_Hz"] = 77000000;
+    d["sites"][0]["receiver"]["bw_Hz"] = 60000000;
+    CHECK_MESSAGE(load_ofdm(d, err), err);
+}
+
+TEST_CASE("场景 · GFSK 族：铁律 4 逐跳——采样率装不下跳频跨度即拒，报文给出所需采样率") {
+    std::string err;
+    nlohmann::json a = gfsk_json();
+    a["sites"][0]["receiver"]["fs_Hz"] = 40000000;   // ±20 MHz 装不下 2404–2473.6 MHz 的 FrSky 跨度
+    a["sites"][0]["receiver"]["bw_Hz"] = 32000000;
+    CHECK_FALSE(load_ofdm(a, err));
+    CHECK(err.find("铁律 4") != std::string::npos);
+}

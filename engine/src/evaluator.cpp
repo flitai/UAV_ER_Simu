@@ -222,6 +222,11 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
             info.label = label_for_waveform(info.waveform, info.bw_Hz, info.has_hop);
             if (geo::is_ofdm_family(e.emission.waveform.type) && !ofdm_truth_bursts(ls.scenario, e, info, err))
                 return false;
+            if (geo::is_gfsk(e.emission.waveform.type)) {
+                // 按包记真值随 Q-3 step 6；在此之前明说不支持，别让它按类型名当标签（铁律 15）
+                err = "Evaluator：gfsk 波形的真值尚未接入（Q-3 step 6）";
+                return false;
+            }
             emitters_[e.id] = info;
         }
     }

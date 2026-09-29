@@ -115,7 +115,8 @@
         { "additionalProperties": false, "properties": { "type": { "const": "noise" }, "offset_Hz": { "type": "number" } }, "required": ["type"] },
         { "additionalProperties": false, "properties": { "type": { "const": "burst" }, "period_s": { "type": "number", "exclusiveMinimum": 0 }, "duty": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "offset_Hz": { "type": "number" } }, "required": ["type", "period_s", "duty", "offset_Hz"] },
         { "additionalProperties": false, "properties": { "type": { "const": "ofdm" }, "preset_id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }, "offset_Hz": { "type": "number" }, "frame_offset_s": { "type": "number", "minimum": 0 } }, "required": ["type", "preset_id"] },
-        { "additionalProperties": false, "properties": { "type": { "const": "droneid" }, "preset_id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }, "offset_Hz": { "type": "number" }, "frame_offset_s": { "type": "number", "minimum": 0 } }, "required": ["type", "preset_id"] }
+        { "additionalProperties": false, "properties": { "type": { "const": "droneid" }, "preset_id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }, "offset_Hz": { "type": "number" }, "frame_offset_s": { "type": "number", "minimum": 0 } }, "required": ["type", "preset_id"] },
+        { "additionalProperties": false, "properties": { "type": { "const": "gfsk" }, "preset_id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }, "offset_Hz": { "type": "number" }, "frame_offset_s": { "type": "number", "minimum": 0 } }, "required": ["type", "preset_id"] }
       ]
     },
     "emitter": {

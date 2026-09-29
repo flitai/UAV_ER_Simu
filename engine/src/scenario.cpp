@@ -607,6 +607,11 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
         }
     }
     if (geo::is_ofdm_family(waveform_.type) && !configure_ofdm(err)) return false;
+    if (geo::is_gfsk(waveform_.type)) {
+        // 生成路径随 Q-3 step 5；在此之前明说不支持，别让它落进下面的单音分支（铁律 15）
+        err = "SceneEmitterSource：gfsk 波形的生成路径尚未接入（Q-3 step 5）";
+        return false;
+    }
     return true;
 }
 

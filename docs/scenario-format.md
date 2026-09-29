@@ -77,7 +77,7 @@
 | `position` | object | 是 | 初始位置 `{lon, lat, alt_m}`；有航线时以航线第一个航点为准 |
 | `emission` | object | 是 | `{center_Hz, bw_Hz, tx_power_dBm, antenna_gain_dBi, polarization?, waveform}` |
 | `emission.polarization` | enum | 否 | `vertical`（缺省）/ `horizontal` / `slant45` / `rhcp` / `lhcp`（2026-09-07，D-051）。极化失配损耗只在接收端算一次：由接收天线组件按自身 `polarization` 与这里注入的发射极化查五档表（10 报告 §3.2）。既有场景文件不写它仍然合法 |
-| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst" \| "ofdm" \| "droneid", ...}`：`tone` 带 `offset_Hz`；`burst` 带 `period_s, duty, offset_Hz`；`noise` 的 `offset_Hz` 可选（缺省 0）。**`offset_Hz` 自 2026-09-15（C-8，D-069）起对三种波形通用**——此前 noise 既不带限也不搬移频率，写了 `center_Hz` 与 `offset_Hz` 都不起作用；现在 noise 按 `bw_Hz` 做 4 阶巴特沃斯带限（阻带非砖墙，裙边比 `bw_Hz` 宽）并搬移到 `center_Hz + offset_Hz`。**`ofdm` / `droneid` 自 2026-09-29（Q-2，D-088）起**：`{type, preset_id, offset_Hz?, frame_offset_s?}`，结构（数值结构、子载波数、突发、帧排布、星座）全部取自机型预设表 `models/radiator/presets-v1.json`，场景只写 `preset_id`；**`emission.bw_Hz` 必须等于预设的占用带宽**（不等即拒并给出正确值），站点采样率必须在有理重采样的档位里（原生 15.36 MS/s 的预设取 20 / 40 / 80 MS/s，30.72 取 40 / 80，61.44 取 80），`frame_offset_s` 须为整数个原生样点；DroneID 与图传同一架机时写成两个辐射源（同航线）。`fhss` 与 GFSK 随 Q-3；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
+| `emission.waveform` | object | 是 | `{type: "tone" \| "noise" \| "burst" \| "ofdm" \| "droneid" \| "gfsk", ...}`：`tone` 带 `offset_Hz`；`burst` 带 `period_s, duty, offset_Hz`；`noise` 的 `offset_Hz` 可选（缺省 0）。**`offset_Hz` 自 2026-09-15（C-8，D-069）起对三种波形通用**——此前 noise 既不带限也不搬移频率，写了 `center_Hz` 与 `offset_Hz` 都不起作用；现在 noise 按 `bw_Hz` 做 4 阶巴特沃斯带限（阻带非砖墙，裙边比 `bw_Hz` 宽）并搬移到 `center_Hz + offset_Hz`。**`ofdm` / `droneid` 自 2026-09-29（Q-2，D-088）起**：`{type, preset_id, offset_Hz?, frame_offset_s?}`，结构（数值结构、子载波数、突发、帧排布、星座）全部取自机型预设表 `models/radiator/presets-v1.json`，场景只写 `preset_id`；**`emission.bw_Hz` 必须等于预设的占用带宽**（不等即拒并给出正确值），站点采样率必须在有理重采样的档位里（原生 15.36 MS/s 的预设取 20 / 40 / 80 MS/s，30.72 取 40 / 80，61.44 取 80），`frame_offset_s` 须为整数个原生样点；DroneID 与图传同一架机时写成两个辐射源（同航线）。**`gfsk` 自 2026-09-29（Q-3，D-089）起**：`{type, preset_id, offset_Hz?, frame_offset_s?}`，调制（GFSK / 2-FSK、符号率、频偏、BT）、前导与同步字、每帧的包与包长全部取自 GFSK 族预设表 `models/radiator/gfsk-presets-v1.json`（可取 `frsky-d16v2-fcc` / `futaba-sfhss`）；**`emission.bw_Hz` 必须等于预设的 Carson 带宽** `2·(f_dev + R/2)`（191223.14453125 / 204315.185546875 Hz，不等即拒并给出正确值）；`frame_offset_s` 是第一帧的起点（秒，任意非负值——GFSK 按任意时刻闭式求相位，没有原生样点栅格，也没有采样率档位）；**频点写在 hop 活动里**（`sequence + dwell_s`，dwell 取预设的帧周期，活动时刻取 `frame_offset_s`），由 `algos/reference/gfsk_ref.py --hop-activity <预设> --seed <场景 seed> --emitter <id>` 按协议规则生成一整轮；每个包起点时刻发射机开着就整包发完、频点取包中点时刻的值。`fhss` 随后续；`template` 带 `template_id`，引用 `docs/emitter-template.md` 的模板（D-045，字段待写，见 §9） |
 
 ## 5. 航线 `routes[]`
 
@@ -243,7 +243,8 @@ tx_on, tx_center_Hz, state, trace}`。后七项是 2026-09-07（D-051，C-1）�
       全部位置落在观测区域内）
 - [ ] 多站、阵列与设备字段（05 P0，只作命名预留）
 - [x] 波形类型 `ofdm` / `droneid`（2026-09-29，Q-2，D-088：见 §4 `emission.waveform` 一行）
-- [ ] 波形类型 `gfsk`（Q-3）与 `fhss`
+- [x] 波形类型 `gfsk`（2026-09-29，Q-3，D-089：见 §4 `emission.waveform` 一行）
+- [ ] 波形类型 `fhss`
 - [ ] 波形类型 `template`（`template_id`；模板文件路径是内部参数，画布只见标识，与 D-037 同法；`docs/emitter-template.md` §7；D-045）
 - [ ] `emission.tx_power_dBm` 的来源字段 `tx_power_source ∈ {measured, paper, assumed}`：数据层记账随产物走，界面不显示（铁律 8、14；D-042；D-045）
 - [x] 圆形告警区 `zones[]`（2026-09-12 已落地：`{id, name, kind ∈ alert | warning, shape: circle, center{lon, lat}, radius_m, alt_max_m?}`，可选、可空；引擎收下不解释，与 `equipment_model` 同一先例；schema、本文 §2 表与新节、`engine/src/scenario_json.cpp` 键表三处必须同一提交，否则 `PUT` 一律 400。13 报告 §4.6，D-061；随 V-2 落地）

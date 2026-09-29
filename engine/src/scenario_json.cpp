@@ -136,7 +136,23 @@ bool parse_waveform(const json& w, const std::string& where, geo::Waveform& out,
         }
         return true;
     }
-    return fail(err, where, "的 type 必须是 tone / noise / burst / ofdm / droneid 之一（fhss / template 随后续）");
+    if (type == "gfsk") {
+        // Q-3（D-089）：调制与帧由 GFSK 族预设表给出，场景只写 preset_id；频点写在 hop 活动里。
+        // 预设存在、类型对得上、带宽等于 Carson 带宽在 Scenario::cross_check。
+        static const std::set<std::string> k = {"type", "preset_id", "offset_Hz", "frame_offset_s"};
+        if (!check_keys(w, k, where, err)) return false;
+        out.type = geo::WaveformType::Gfsk;
+        if (!get_str(w, "preset_id", where, out.preset_id, err)) return false;
+        out.offset_Hz = 0.0;
+        if (w.contains("offset_Hz") && !get_num(w, "offset_Hz", where, out.offset_Hz, err)) return false;
+        out.frame_offset_s = 0.0;
+        if (w.contains("frame_offset_s")) {
+            if (!get_num(w, "frame_offset_s", where, out.frame_offset_s, err)) return false;
+            if (!(out.frame_offset_s >= 0.0)) return fail(err, where, "的 frame_offset_s 必须非负");
+        }
+        return true;
+    }
+    return fail(err, where, "的 type 必须是 tone / noise / burst / ofdm / droneid / gfsk 之一（fhss / template 随后续）");
 }
 
 // 站钟（D-053，可选）。缺席时 has_clock 保持 false——TDOA 相关组件据此报错而不是

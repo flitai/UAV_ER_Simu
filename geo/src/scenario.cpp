@@ -7,6 +7,7 @@
 
 #include "cuav_geo/activity.h"
 #include "cuav_geo/ofdm_frame.h"
+#include "cuav_geo/gfsk_presets.h"
 #include "cuav_geo/radiator_presets.h"
 
 namespace cuav {
@@ -46,6 +47,7 @@ const char* waveform_type_name(WaveformType t) {
     case WaveformType::Burst: return "burst";
     case WaveformType::Ofdm: return "ofdm";
     case WaveformType::DroneId: return "droneid";
+    case WaveformType::Gfsk: return "gfsk";
     }
     return "";   // 走不到：上面穷举，漏一个编译器按 -Wswitch 报
 }
@@ -99,6 +101,35 @@ bool check_ofdm_emitter(const Scenario& sc, const Emitter& e, std::string& err) 
             err = os.str();
             return false;
         }
+    }
+    return true;
+}
+
+// GFSK 族（D-089）的场景级规则：预设存在、类型对得上、带宽等于预设的 Carson 带宽。GFSK 的相位按任意时刻
+// 闭式求值，不经重采样，所以没有采样率档位这一条；铁律 4 由上面那道逐跳的 |Δf| + B/2 < Fs/2 管。
+// 跳频频点写在 hop 活动里（由 algos/reference/gfsk_ref.py --hop-activity 按协议规则生成），这里不管。
+bool check_gfsk_emitter(const Emitter& e, std::string& err) {
+    const Waveform& w = e.emission.waveform;
+    const GfskPreset* p = gfsk_preset_v1(w.preset_id);
+    if (p == 0) {
+        std::string ids;
+        for (std::size_t i = 0; i < gfsk_preset_v1_count(); ++i)
+            ids += (i ? " / " : "") + std::string(gfsk_preset_v1_at(i).id);
+        err = "辐射源 " + e.id + " 的 preset_id「" + w.preset_id + "」不在 GFSK 族预设表 v1 里（可取 " + ids + "）";
+        return false;
+    }
+    if (std::string(p->type) != waveform_type_name(w.type)) {
+        err = "辐射源 " + e.id + " 的波形类型 " + waveform_type_name(w.type) + " 与预设 " + p->id +
+              " 的类型 " + p->type + " 对不上";
+        return false;
+    }
+    if (std::fabs(e.emission.bw_Hz - p->occupied_bw_Hz) > 1e-6) {
+        std::ostringstream os;
+        os.precision(15);
+        os << "辐射源 " << e.id << " 的 emission.bw_Hz 必须等于预设 " << p->id << " 的占用带宽 "
+           << p->occupied_bw_Hz << " Hz（Carson 带宽 2·(f_dev + R/2)，由预设给出、不单独设；D-089）";
+        err = os.str();
+        return false;
     }
     return true;
 }
@@ -226,6 +257,8 @@ bool Scenario::cross_check(std::string& err) const {
     }
     for (std::size_t ei = 0; ei < emitters.size(); ++ei) {
         if (is_ofdm_family(emitters[ei].emission.waveform.type) && !check_ofdm_emitter(*this, emitters[ei], err))
+            return false;
+        if (is_gfsk(emitters[ei].emission.waveform.type) && !check_gfsk_emitter(emitters[ei], err))
             return false;
     }
     return true;
