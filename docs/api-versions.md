@@ -277,6 +277,41 @@ out_of_band, blocked, degraded, shadow_sigma_dB}], prop_level, included_loss_ter
 
 实测（macOS，原型阶段验证值）：观测区域 200 × 200 格、E3 三站引擎内 ≈ 0.4–0.75 s（含取 47662 栋建筑）、往返 ≈ 0.74 s；E1 ≈ 10 ms。
 
+### 3.1g 数据导出（2026-09-29，D-090）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/tasks/{id}/export` | 可导出的观测点、当前或上一次导出作业、导出目录里的文件 |
+| POST | `/api/v1/tasks/{id}/export` | `{ops?: string[]}` → 202 起一个导出作业；缺省导出全部可导出的观测点 |
+
+**只回摘要，原始样点不经任何端点**（铁律 7、D-087 ③）：样点在服务器盘上从 `data/runs/<任务>/<观测点>/iq.cf32`
+流到 `data/exports/<任务>/`；导出目录也**不**经静态文件服务暴露（请求 `/data/exports/...` 回 404）。
+
+GET 应答：
+
+```json
+{ "task_id": "t…", "run_state": "finished", "dir": "data/exports/t…/",
+  "exportable": [{ "op_id": "s4", "point": "S3", "label": "S4 主产品", "sample_rate_Hz": 500000, "center_Hz": 2440500000,
+                   "samples": 10000000, "duration_s": 20, "bytes_raw": 80000000, "bytes_export": 40000000 }],
+  "job": { "job_id": "x…", "state": "done", "ops": ["s4"], "started_utc": "…", "ended_utc": "…",
+           "progress": { "done_bytes": 80000000, "total_bytes": 80000000 },
+           "results": [{ "op_id": "s4", "point": "S3", "stem": "t…_s4", "samples": 10000000, "state": "valid",
+                         "lossless": true, "export_clipped": 0, "requant_margin_dB": null, "annotations": 1,
+                         "files": [{ "name": "t…_s4.sigmf-data", "bytes": 40000000 }, "…"] }] },
+  "files": [{ "name": "t…_s4.cuav-links.jsonl", "bytes": 83100 }, "…"] }
+```
+
+- `exportable` 只列**挂在 ADC 之后（AdcQuantizer / DDC / Channelizer）、产品含 `iq`、`iq.index.json` 在**的观测点；
+  `point` 按所挂节点定（缺省链 DDC 旁路时 `s4` 挂在 ADC 上，`point` 是 `S3`）。
+- `dir` 是**相对仓库根**（即安装目录）的形式，不给绝对路径（铁律 17、D-037 同一条口径）。
+- `job`：进程内有作业就报它（`running` 时带进度）；没有则读导出目录里的 `export.json`（上一次成功的导出），都没有为 `null`。
+  同一任务同时只跑一个作业；输出先写进 `.tmp-<作业>/`，全部成功才挪进导出目录——失败或服务中途停掉不留半截文件。
+- 错误码：任务不存在 404；没有正常结束 409 `not_finished`；正在导出 409 `export_running`；没有可导出的观测点
+  409 `nothing_to_export`；`ops` 含不可导出的 400 `bad_ops`（带 `ops`）；`ops` 不是字符串数组 400；非 JSON 415。
+- 导出失败（场景在运行之后改过、引擎版本对不上等）不是 HTTP 错误：作业 `state = failed`、`error` 写明缘由。
+- 实现是 `server/src/exports/sigmf.ts`，与 Python 参考 `tools/iq_export_sigmf.py` 在真引擎运行上逐项核对一致
+  （`tests/regression/export_parity.py`：数据文件逐字节、元数据逐值），见 `docs/iq-format.md` §4.5。
+
 ### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b，G-4 的场景端点已于 2026-09-06 实现并移入 3.1c）
 
 **本表已空**：`/api/v1/datasets/{data_id}` 已于 2026-09-19 由 U-4 实现并移入 3.1e。

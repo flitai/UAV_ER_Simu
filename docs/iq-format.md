@@ -221,6 +221,12 @@
 | `identity.content_sha256` | `core:sha512` 的同位物（算法不同，两者都记） |
 | 其余各类 | `cuav:` 命名空间 |
 
+**合成数据导出有两份实现**（D-090）：Python 参考 `tools/iq_export_sigmf.py`（Q-1，D-087；开发与批量生成用）与服务端
+`server/src/exports/sigmf.ts`（界面结果页「数据导出」用——交付包只带便携 Node、不带 Python，D-084）。两份由
+`tests/regression/export_parity.py` 在真引擎运行上核对：`.sigmf-data` **逐字节相同**（量化只用 IEEE 的乘、加、floor），
+`.sigmf-meta` 与 `.cuav-links.jsonl` **逐值相同**（不比字节：Python 把整数值的浮点写成 `80000000.0`，JavaScript 写成
+`80000000`），唯一不同的是 `cuav:exporter` 写的出处；服务端那份另过 SigMF 官方包校验。
+
 **合成数据交付的 SigMF（2026-09-29，Q-1，D-087；生产者 `tools/iq_export_sigmf.py`，14 号报告 §5.3）**。
 规范版本锁定 **1.2.6**（开发期校验用的 `sigmf` Python 包 1.13.0 实现的就是它）；`core:extensions` 声明
 `{name: cuav, version: 1.0.0, optional: true}`。每个观测点一组文件：`<stem>.sigmf-data`（ci16_le）、
