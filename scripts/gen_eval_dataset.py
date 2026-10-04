@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -191,8 +192,12 @@ def check_cell(doc: dict, cell: dict, res: list[dict], pkg_data: str) -> tuple[l
         if not hop and any(a.get("cuav:capture") != "full" for a in mine4):
             fails.append(f"{cell['id']} {e['id']}：定频主辐射源在 S4 有不在可用频带里的注记")
         meas = [a["cuav:snr_measured_dB"] for a in mine3 if a.get("cuav:snr_measured_dB") is not None]
+        # 开了衰落时逐段信噪比随衰落起伏：dB 值的中位数偏低（瑞利时中位功率只有均值的 ln 2），
+        # 对链路预算（平均值）要比线性功率的均值
+        mean_lin = (10 * math.log10(sum(10 ** (x / 10) for x in meas) / len(meas))) if meas else None
         plats.append({"platform": p["id"], "primary": e["id"], "snr_target_dB": p["snr_dB"],
                       "snr_budget_dB_median": _median(snr), "snr_measured_dB_median_s3": _median(meas),
+                      "snr_measured_dB_mean_lin_s3": None if mean_lin is None else round(mean_lin, 4),
                       "snr_measured_n_s3": len(meas), "annotations_s3": len(mine3),
                       "s4_capture": {k: sum(1 for a in mine4 if a.get("cuav:capture") == k)
                                      for k in ("full", "partial", "none")}})
@@ -364,8 +369,9 @@ def cmd_run(a) -> int:
         r = out["record"]
         records.append(r)
         fails += out["fails"]
-        ps = "；".join(f"{p['primary']} 预算 {p['snr_budget_dB_median']:.2f} / 实测 "
-                      f"{'—' if p['snr_measured_dB_median_s3'] is None else format(p['snr_measured_dB_median_s3'], '.2f')} dB"
+        ps = "；".join(f"{p['primary']} 预算 {p['snr_budget_dB_median']:.2f} / 实测中位 "
+                      f"{'—' if p['snr_measured_dB_median_s3'] is None else format(p['snr_measured_dB_median_s3'], '.2f')}"
+                      f" / 实测线性均值 {'—' if p['snr_measured_dB_mean_lin_s3'] is None else format(p['snr_measured_dB_mean_lin_s3'], '.2f')} dB"
                       for p in r["platforms"]) or "无辐射源"
         print(f"{cell['id']}：{len(r['ops'])} 个观测点，墙钟 {r['wall_s']} s（实时因子 {r['realtime_factor']}）；{ps}"
               + ("" if not out["fails"] else f"；失败 {out['fails']}"), flush=True)
