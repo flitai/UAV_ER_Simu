@@ -13,6 +13,8 @@
 //   npx tsx src/chain/examples/_gen.ts gfsk      > ../tests/regression/diagrams/chain-gfsk.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-aoa    > ../tests/regression/diagrams/chain-3x3-aoa.json
 //   npx tsx src/chain/examples/_gen.ts 3x3-tdoa   > ../tests/regression/diagrams/chain-3x3-tdoa.json
+//   npx tsx src/chain/examples/_gen.ts eval --spec <链路规格，仓库相对路径>   （评测数据集，D-092；
+//       规格由 scripts/gen_eval_dataset.py 写出，见 evalChain.ts；往返不逐字节或频率计划与放行表对不上即退出码 2）
 // 夹具模式读现有夹具文件、parseChain 解回链路状态、按当前目录与槽位表重新 compile：参数一件不丢，
 // 只有编译规则变了的地方（如新加的槽位）会变；再生成后要经 `cuav_run --validate … --scenario golden-03 --library-root models/recognition` 核。
 import { readFileSync } from 'node:fs'
@@ -24,6 +26,8 @@ import { parse as parseDoc, serialize } from '../../diagram/doc.js'
 import { compile, parseChain, switchMode } from '../compile.js'
 import { emptyChain, type ChainState } from '../model.js'
 import type { ScenarioDoc } from '../../state/types.js'
+import { buildEvalChain, EvalChainError, sceneSummaryFromManifest, type EvalChainSpec } from './evalChain.js'
+import { propView } from '../effects.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const cat = JSON.parse(readFileSync(join(ROOT, 'tests/golden/component-catalog.json'), 'utf8')) as Catalog
@@ -313,6 +317,29 @@ if (mode === 'default') {
   // 别的模式本来就是显式写 `{ scenario_id, sha256: sha }`，这里跟它们一致。
   chain.scenario = { scenario_id: 'golden-03', sha256: sha }
   process.stdout.write(serialize(compile(chain, cat, scenario).doc, cat))
+} else if (mode === 'eval') {
+  // 评测数据集（试样集步骤 3，D-092）：链路规格由 scripts/gen_eval_dataset.py 写出
+  const i = process.argv.indexOf('--spec')
+  if (i < 0 || !process.argv[i + 1]) throw new Error('eval 模式要 --spec <链路规格，仓库相对路径>')
+  const spec = JSON.parse(readFileSync(join(ROOT, process.argv[i + 1]), 'utf8')) as EvalChainSpec
+  const scenBytes = readFileSync(join(ROOT, spec.scenario))
+  const scenario = JSON.parse(scenBytes.toString('utf8')) as ScenarioDoc
+  const sha = createHash('sha256').update(scenBytes).digest('hex')
+  // E3 要观测区域的建筑几何：按场景的观测区域读数据包清单给频率计划（与界面载入的数据包同一份信息）
+  const level = propView({ ...((spec.slots.ch ?? {}) as Record<string, number | string | boolean>) }).level
+  const aoiId = String(((scenario.aoi ?? {}) as Record<string, unknown>).id ?? '')
+  const scene = level === 'E3' && aoiId
+    ? sceneSummaryFromManifest(JSON.parse(readFileSync(join(ROOT, 'data/scene', aoiId, 'manifest.json'), 'utf8')))
+    : null
+  try {
+    process.stdout.write(buildEvalChain(spec, scenario, sha, cat, scene).text)
+  } catch (e) {
+    if (e instanceof EvalChainError) {
+      process.stderr.write(`eval：${e.message}\n`)
+      process.exit(2)
+    }
+    throw e
+  }
 } else {
-  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | replay | mixed | ofdm | gfsk | 3x3-aoa | 3x3-tdoa`)
+  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | golden-01-e3 | replay | mixed | ofdm | gfsk | impairments | 3x3-aoa | 3x3-tdoa | eval`)
 }
