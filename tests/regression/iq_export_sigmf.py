@@ -175,6 +175,12 @@ def main() -> int:
             check("预算信噪比对实测", abs(m - ann["cuav:snr_dB"]) <= 1.0,
                   f"{ann['cuav:emitter_id']} {ann['core:label']}：注记 {ann['cuav:snr_dB']:.2f} dB，"
                   f"数据上实测 {m:.2f} dB，差 {m - ann['cuav:snr_dB']:+.2f} dB（线 ±1）")
+            # 导出工具 0.3.0（D-092）按谱产品算的实测信噪比，对这里按 16384 点 Hann 均值谱的独立估计
+            sm = ann.get("cuav:snr_measured_dB")
+            check("注记里的实测信噪比对独立估计", sm is not None and abs(sm - m) <= 0.3,
+                  f"{ann['cuav:emitter_id']}：注记 {sm} dB（{ann.get('cuav:snr_measured_basis')}，"
+                  f"信号 {ann.get('cuav:snr_measured_rows')} 行、参照 {ann.get('cuav:snr_noise_ref_rows')} 行），"
+                  f"独立估计 {m:.2f} dB" + (f"，差 {sm - m:+.3f} dB（线 ±0.3）" if sm is not None else ""))
     finally:
         if not args.keep:
             for d in list(dirs.values()) + list(exp.values()):

@@ -353,5 +353,102 @@ class TestImpairments(_Base):
         self.assertNotIn("cuav:impairments", meta["global"])
 
 
+def write_spectrum(run: str, fs: float, nfft: int, rows: int, noise_mW: float,
+                   bursts: list[tuple[int, int, int, int, float]]) -> None:
+    """观测点的谱产品夹具：每 bin 噪声 noise_mW；bursts 每项 (首行, 末行, 首 bin, 末 bin, 每 bin 信号 mW) 加在上面。"""
+    v = np.full((rows, nfft), noise_mW, dtype=np.float64)
+    for r0, r1, k0, k1, s in bursts:
+        v[r0:r1 + 1, k0:k1 + 1] += s
+    (10 * np.log10(v)).astype("<f4").tofile(os.path.join(run, "obs", "spectrum.f32"))
+    with open(os.path.join(run, "obs", "spectrum.index.json"), "w", encoding="utf-8") as fh:
+        json.dump({"kind": "spectrum", "nfft": nfft, "row_len": nfft, "rows": rows, "sample_rate_Hz": fs,
+                   "center_Hz": 2.44e9, "start_sample": 0, "t0_s": 0.0, "frame_hop_samples": nfft,
+                   "segments_per_frame": 1, "window": "hann", "scale": "dBm"}, fh)
+
+
+class TestUsableBandAndMeasuredSnr(_Base):
+    """0.3.0（D-092）：可用频带、capture 三类、实测信噪比。"""
+
+    FS = 1e6
+    NFFT = 64
+    ROWS = 10000                                 # 640000 个样点 = 0.64 s
+    DF = FS / NFFT
+
+    def chain(self, op_node: str, **ddc):
+        d = diagram(op_node)
+        for node in d["nodes"]:
+            if node["id"] == "ddc":
+                node["params"].update(ddc)
+        return X.chain_for(d, d["observation_points"][0], CATALOG)
+
+    def test_usable_band_s3_s4_and_shift_only_ddc(self):
+        fc = 2.44e9
+        lo, hi, tr = X.usable_band(self.chain("adc"), CATALOG, 1e6, fc)
+        self.assertEqual((lo, hi, tr), (fc - 5e5, fc + 5e5, 0.0))
+        # S4，抽取 2：fir_lp_v1 的通带边缘 0.4·fs_out；暂态 = 抽头数 / 输入采样率
+        lo, hi, tr = X.usable_band(self.chain("ddc", decim=2), CATALOG, 5e5, fc)
+        self.assertEqual((lo, hi), (fc - 2e5, fc + 2e5))
+        self.assertAlmostEqual(tr, 55 / 1e6, places=12)
+        # 不抽取只频移 +300 kHz：S4 窗口与 S3 窗口的交集，上沿被 S3 截掉（越过它的部分是循环绕回的）
+        lo, hi, _ = X.usable_band(self.chain("ddc", decim=1, f_shift_Hz=3e5), CATALOG, 1e6, fc + 3e5)
+        self.assertEqual((lo, hi), (fc + 3e5 - 5e5, fc + 5e5))
+        self.assertEqual(X.capture_of(fc, fc + 1e5, (lo, hi)), "full")
+        self.assertEqual(X.capture_of(fc + 4.5e5, fc + 5.5e5, (lo, hi)), "partial")
+        self.assertEqual(X.capture_of(fc + 6e5, fc + 7e5, (lo, hi)), "none")
+
+    def run_with(self, truth, bursts):
+        rng = np.random.default_rng(21)
+        run, dpath = make_run(self.tmp, adc_grid(self.ROWS * self.NFFT, 14, rng), self.FS, truth=truth)
+        write_spectrum(run, self.FS, self.NFFT, self.ROWS, 1e-10, bursts)
+        r = X.export_run(run, self.out(), dpath)[0]
+        with open(os.path.join(self.out(), r["stem"] + ".sigmf-meta"), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def tr(self, t0, t1, center, bw, eid="uav-1"):
+        return {"t_s": t0, "t_end_s": t1, "emitter_id": eid, "label": "telemetry_burst", "waveform": "burst",
+                "center_Hz": center, "bw_Hz": bw, "site_id": "site-1"}
+
+    def test_measured_snr_matches_constructed_value(self):
+        # bin 10..20（中心 f_k = fc + (k − 32)·df）上每 bin 信号 = 10 × 噪声：带内信噪比恰为 10 dB
+        center = 2.44e9 + (15 - 32) * self.DF
+        bw = 11 * self.DF
+        # 同时还有一个整段在谱外的源（fc + 2 MHz）：它不与任何频段相交，不得把本段判成「被盖住」，也不得挖掉参照行
+        meta = self.run_with([self.tr(0.1, 0.2, center, bw), self.tr(0.1, 0.2, 2.442e9, bw, eid="uav-3")],
+                             [(1562, 3124, 10, 20, 1e-9)])
+        a, far = meta["annotations"][0], meta["annotations"][1]
+        self.assertEqual((far["cuav:emitter_id"], far["cuav:capture"]), ("uav-3", "none"))
+        self.assertEqual(far["cuav:snr_measured_basis"], "capture_none")
+        self.assertEqual(meta["global"]["cuav:usable_band_Hz"], [2.44e9 - 5e5, 2.44e9 + 5e5])
+        self.assertEqual(a["cuav:capture"], "full")
+        self.assertEqual(a["cuav:snr_measured_basis"], "spectrum_rows")
+        self.assertAlmostEqual(a["cuav:snr_measured_dB"], 10.0, places=3)
+        # 信号行 = 整行落在 [100000, 200000) 里的 1563..3124；参照行去掉两边各外扩一行后的交叠行
+        self.assertEqual(a["cuav:snr_measured_rows"], 3124 - 1563 + 1)
+        self.assertEqual(a["cuav:snr_noise_ref_rows"], self.ROWS - (3125 - 1561 + 1))
+
+    def test_overlap_partial_short_and_missing_product(self):
+        center = 2.44e9 + (15 - 32) * self.DF
+        bw = 11 * self.DF
+        truth = [self.tr(0.1, 0.2, center, bw),
+                 self.tr(0.1, 0.2, center + 2 * self.DF, bw, eid="uav-2"),   # 同时同频的另一个源：整段被它盖住
+                 self.tr(0.3, 0.4, 2.44e9 + 4.8e5, 1e5),                    # 跨 S3 上沿
+                 self.tr(0.5, 0.50003, center, bw)]                         # 30 个样点，不到一行
+        meta = self.run_with(truth, [(1562, 3124, 10, 22, 1e-9)])
+        by = {(a["cuav:emitter_id"], a["core:sample_start"]): a for a in meta["annotations"]}
+        self.assertEqual(by[("uav-1", 100000)]["cuav:snr_measured_basis"], "overlapped:uav-2")
+        self.assertIsNone(by[("uav-1", 100000)]["cuav:snr_measured_dB"])
+        self.assertEqual(by[("uav-2", 100000)]["cuav:snr_measured_basis"], "overlapped:uav-1")
+        self.assertEqual(by[("uav-1", 300000)]["cuav:capture"], "partial")
+        self.assertEqual(by[("uav-1", 300000)]["cuav:snr_measured_basis"], "capture_partial")
+        self.assertEqual(by[("uav-1", 500000)]["cuav:snr_measured_basis"], "too_short")
+        # 没有谱产品：每条注记照样有这两个键，值是 null 与缘由
+        shutil.rmtree(self.out(), ignore_errors=True)
+        os.remove(os.path.join(self.tmp, "run", "obs", "spectrum.f32"))
+        r = X.export_run(os.path.join(self.tmp, "run"), self.out(), os.path.join(self.tmp, "run", "diagram.json"))[0]
+        with open(os.path.join(self.out(), r["stem"] + ".sigmf-meta"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertTrue(all(a["cuav:snr_measured_basis"] == "no_spectrum_product" for a in meta["annotations"]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

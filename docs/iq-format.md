@@ -229,7 +229,8 @@
 
 **合成数据交付的 SigMF（2026-09-29，Q-1，D-087；生产者 `tools/iq_export_sigmf.py`，14 号报告 §5.3）**。
 规范版本锁定 **1.2.6**（开发期校验用的 `sigmf` Python 包 1.13.0 实现的就是它）；`core:extensions` 声明
-`{name: cuav, version: 1.1.0, optional: true}`（1.1.0 自 Q-4 起：上下沿按实际载频、增 `cuav:cfo_Hz` 与 `cuav:impairments`）。每个观测点一组文件：`<stem>.sigmf-data`（ci16_le）、
+`{name: cuav, version: 1.2.0, optional: true}`（1.1.0 自 Q-4 起：上下沿按实际载频、增 `cuav:cfo_Hz` 与 `cuav:impairments`；
+1.2.0 自试样集起（导出工具 0.3.0，D-092）：增 `cuav:usable_band_Hz`、`cuav:capture` 与实测信噪比四个键）。每个观测点一组文件：`<stem>.sigmf-data`（ci16_le）、
 `<stem>.sigmf-meta`、`<stem>.cuav-links.jsonl`（该站各链路的逐帧几何，`links.jsonl` 的子集）。
 
 | 位置 | 键 | 取值 |
@@ -240,6 +241,7 @@
 | `global` | `core:hw` | 仿真接收机：噪声系数、前端增益、ADC 位数与满量程、链上的滤波 / DDC / 信道化节点 |
 | `global` | `core:recorder` | `cuav_run <引擎版本>`（只写工具名，铁律 17） |
 | `global` | `cuav:observation_point` / `cuav:op_id` / `cuav:site_id` | `S3`（ADC 后）/ `S4`（DDC 后）/ `S5`（信道化后），按观测点挂的节点类型定；观测点标识；站 |
+| `global` | `cuav:usable_band_Hz` | 观测点上可用的频带 `[下沿, 上沿]`（Hz，绝对频率）：不混叠、不在滤波器过渡带里的那一段。从观测点自己的采样率与中心往上游反推、逐级取交集：信道化与 DDC 各取冻结抽头表的通带边缘（`passband_edge_rel_out` × 输出采样率；DDC 不抽取时是纯频移，取 ±fs/2），再到 S3 的 ±fs/2，再到接收滤波的 ±bw/2（0.3.0，D-092） |
 | `global` | `cuav:full_scale_dBm` / `cuav:full_scale_code` / `cuav:adc_bits` | 码 32768 对应的复单音幅度 10^(dBm/20)（√mW）；32768；ADC 位数。读者换回 dBm：x = 码 / 32768 × 10^(full_scale_dBm/20)，\|x\|² 的单位是 mW |
 | `global` | `cuav:calibration_source` / `cuav:scale` | 标定来源（合成链为 `model`，D-047）/ `sqrt_mW` |
 | `global` | `cuav:time_basis` / `cuav:continuity` / `cuav:start_sample` / `cuav:t0_s` | `logical_sim` / `continuous` / 第一个样点的序号与逻辑时间（铁律 3） |
@@ -252,10 +254,22 @@
 | `global` | `cuav:links_file` / `cuav:exporter` | 旁挂文件名；导出工具名与版本 |
 | `captures` | 一条 | `core:sample_start = 0`、`core:frequency = 观测点中心频率`；**不写 `core:datetime`**（逻辑仿真没有绝对时间，缺就是缺，铁律 3） |
 | `annotations` | 每段真值一条 | `core:sample_start` / `core:sample_count`（与引擎同一取整口径 floor(t·fs + 0.5)，D-069 ①；DDC 后直接按观测点采样率换算，D-070 ⑧）；`core:freq_lower_edge` / `core:freq_upper_edge`（该段**实际载频** ± 声明带宽 / 2；实际载频 = 真值行的名义 `center_Hz` + 场景 `offset_Hz` + `cfo_Hz`。**导出工具 0.2.0（Q-4，D-091）起含 `offset_Hz`**，此前漏算，偏移非零的场景（golden-01 / golden-03）的上下沿因此挪了一个偏移量；Q-6「注记与真值逐行一致」按同一公式比）；`core:label`（`signal_role` 层标签）；不写 `core:comment` |
-| `annotations` | `cuav:` | `emitter_id`、`platform_type`、`equipment_model`、`waveform`、`preset_id`（只在 ofdm / droneid / gfsk 的段上，Q-2 D-088、Q-3 D-089；这类段一个突发 / 包一条，频带上下沿是中心 ± 预设占用带宽 / 2，GFSK 的占用带宽是 Carson 带宽）、`in_capture_band`（该段频带与本文件带宽是否相交）；段中点最近一帧链路的 `distance_m` / `line_of_sight` / `path_loss_dB` / `diffraction_dB` / `doppler_Hz` 与所用帧的 `link_frame_t_s`；`cfo_Hz`（载频偏差，只在场景写了非零 `cfo_ppm` 时有，Q-4）；`snr_dB`（按链路预算：P_rx − (kT + nf + 10·log10 B)，P_rx = 发射功率 + 两端天线增益 − 路损 − 馈线损耗）与 `snr_basis`（`link_budget`；该链路开了小尺度衰落时为 `link_budget_mean`——预算给的是平均信噪比，逐段实现值随衰落起伏；天线有向、收发极化不同、前端不注入热噪声或缺输入时 `snr_dB` 为 null 并写明缘由，不拿峰值增益顶替） |
+| `annotations` | `cuav:` | `emitter_id`、`platform_type`、`equipment_model`、`waveform`、`preset_id`（只在 ofdm / droneid / gfsk 的段上，Q-2 D-088、Q-3 D-089；这类段一个突发 / 包一条，频带上下沿是中心 ± 预设占用带宽 / 2，GFSK 的占用带宽是 Carson 带宽）、`in_capture_band`（该段频带与本文件带宽是否相交）、`capture`（该段频带落在 `cuav:usable_band_Hz` 的哪里：`full` 整段在内 / `partial` 跨边 / `none` 在外，0.3.0）；段中点最近一帧链路的 `distance_m` / `line_of_sight` / `path_loss_dB` / `diffraction_dB` / `doppler_Hz` 与所用帧的 `link_frame_t_s`；`cfo_Hz`（载频偏差，只在场景写了非零 `cfo_ppm` 时有，Q-4）；`snr_dB`（按链路预算：P_rx − (kT + nf + 10·log10 B)，P_rx = 发射功率 + 两端天线增益 − 路损 − 馈线损耗）与 `snr_basis`（`link_budget`；该链路开了小尺度衰落时为 `link_budget_mean`——预算给的是平均信噪比，逐段实现值随衰落起伏；天线有向、收发极化不同、前端不注入热噪声或缺输入时 `snr_dB` 为 null 并写明缘由，不拿峰值增益顶替） |
 
-数据上实测的带内信噪比 `cuav:snr_measured_dB` 随 Q-6 批量生成加（14 §5.3）；Q-1 的端到端回归已用同一算法对拍过一段
-（链路预算 36.41 dB 对实测 35.97 dB）。
+**数据上实测的带内信噪比**（导出工具 0.3.0，D-092）：每条注记另有 `cuav:snr_measured_dB` 与 `cuav:snr_measured_basis`，
+有值时再加 `cuav:snr_measured_rows`（信号行数）与 `cuav:snr_noise_ref_rows`（参照行数）。它用观测点的谱产品
+`spectrum.f32`（1024 点周期 Hann、不重叠、按 (Σw)² 归一）在数据上量，不重做 FFT，所以两份导出实现都不需要 FFT：
+
+1. 频段取注记的上下沿，两边各加宽 2 个 bin（Hann 主瓣），谱行的 dB 值换成线性功率按 bin 求和；
+2. 信号行 = 整行落在注记区间里、且不与其他（加宽后频段相交的）注记在时间上重叠的谱行；
+3. 噪声参照行 = 同一频段上不与任何注记重叠（注记时间两边各外扩一行，避开突发拖尾）、且在 DDC / 信道化起始暂态之后的谱行；
+4. 信噪比 = (信号行均值 − 参照行均值) / (参照行均值 × 占用带宽 / 加宽后的频段宽)。Hann 窗的等效噪声带宽因子在信号与噪声上相同，相除即消掉。
+
+写 null 时 `cuav:snr_measured_basis` 写缘由：`no_spectrum_product`（观测点没开谱产品）、`spectrum_layout`（不是 Hann、不重叠、单段的谱）、
+`no_band`、`capture_partial` / `capture_none`、`too_short`（不到一行）、`overlapped:<辐射源>`（整段被别的源同时同频盖住）、
+`no_noise_reference`（参照行少于 64）、`not_above_noise`。有值时是 `spectrum_rows`。
+Q-1 的端到端回归对独立估计（16384 点 Hann 均值谱）核过：35.999 dB 对 35.97 dB，差 +0.029 dB（线 ±0.3）。
+两份导出实现在这一个键上允许绝对差 ≤ 1.5e-6 dB（`10^(v/10)` 在 numpy 与 JavaScript 里可能差一个最低位，再按 6 位小数取整）。
 
 ## 5. 功率与标定口径（首版 2026-09-06，D-047；常数为原型阶段验证值，甲方数据到货后定稿）
 

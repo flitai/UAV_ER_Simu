@@ -11,11 +11,18 @@
      `80000000.0`、JavaScript 写成 `80000000`，指数写法的阈值也不同。唯一允许不同的是 `cuav:exporter`（写的是哪一份）；
   ④ 服务端那份过 SigMF 官方包校验（含 SHA-512）。
 
-三次运行覆盖两条量化路径、两类真值与非理想参数：
+五次运行覆盖两条量化路径、两类真值、非理想参数与可用频带的三类 capture：
   · C-10 的三级全开链（chain-golden-02-dsp，10 MS/s → 5 → 2.5，1 s）在 S3 / S4 / S5 开 iq：S3 无损、S4 / S5 重量化；
   · Q-3 的 GFSK 链（chain-gfsk，80 MS/s，截成 0.05 s）在 S3 开 iq：一包一条注记、带 preset_id；
   · Q-4 的非理想链（chain-impairments，2 MS/s，截成 0.5 s）在 S3 开 iq：上下沿含 offset_Hz 与载频偏差、
-    cuav:cfo_Hz、cuav:impairments（相噪与衰落）、信噪比依据 link_budget_mean。
+    cuav:cfo_Hz、cuav:impairments（相噪与衰落）、信噪比依据 link_budget_mean；
+  · 试样集步骤 2（D-092）：chain-golden-02-ddc 改成「不抽取、频移 +2.5 MHz」与「抽取 4、不频移」各一次，
+    S4 的可用频带分别是 S3 与 S4 窗口的交集、±0.4·fs_out，注记的 cuav:capture 走到 full / partial / none 三类，
+    实测信噪比 cuav:snr_measured_dB 走到有值与几种 null 缘由。
+
+实测信噪比要对数万个谱值取 10^(v/10) 再求和：Python 的 numpy 与 JavaScript 的 Math.pow 可能差一个最低位，
+numpy 的求和又是成对求和，结果再按 6 位小数取整，取整边界上会翻一位。所以**只对这一个键**放宽到绝对差 ≤ 1.5e-6 dB，
+其余浮点照旧要求相对差 ≤ 1e-12。
 
 跑法（约 20 s；需要 engine/build/cuav_run 与 server/dist，已接进 scripts/build-all.sh）：
     uv run --quiet --with numpy --with sigmf python tests/regression/export_parity.py [--keep]
@@ -49,7 +56,15 @@ CASES = [
     {"name": "impairments", "diagram": "tests/regression/diagrams/chain-impairments.json",
      "scenario": "tests/regression/scenarios/impairments.scenario.json",
      "duration_s": 0.5, "iq_ops": ("s3",)},
+    # 试样集步骤 2（D-092）：可用频带与 capture、实测信噪比。3.5 s：图传在 0.5–2.5 s，跳频从 3 s 起，两类都要有
+    {"name": "ddc-shift", "diagram": "tests/regression/diagrams/chain-golden-02-ddc.json",
+     "scenario": "data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json",
+     "duration_s": 3.5, "iq_ops": ("s3", "s4"), "ddc": {"decim": 1, "f_shift_Hz": 2500000.0}},
+    {"name": "ddc-d4", "diagram": "tests/regression/diagrams/chain-golden-02-ddc.json",
+     "scenario": "data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json",
+     "duration_s": 3.5, "iq_ops": ("s4",), "ddc": {"decim": 4, "f_shift_Hz": 0.0}},
 ]
+SNR_MEASURED_TOL_dB = 1.5e-6
 
 
 def check(name: str, ok: bool, detail: str) -> None:
@@ -66,6 +81,9 @@ def prepare(case: dict, run_dir: str) -> None:
     for n in d["nodes"]:
         if "total_samples" in n.get("params", {}):
             n["params"]["total_samples"] = int(round(fs * case["duration_s"]))
+    for n in d["nodes"]:
+        if n["type"] == "DDC" and case.get("ddc"):
+            n["params"].update(case["ddc"])
     for op in d["observation_points"]:
         if op["id"] in case["iq_ops"]:
             op["products"] = list(op["products"]) + ["iq"]
@@ -98,6 +116,8 @@ class Diff:
         self.hard: list[str] = []
         self.max_rel = 0.0
         self.inexact = 0
+        self.snr_measured = 0
+        self.snr_measured_max_abs = 0.0
 
     def cmp(self, a, b, path: str) -> None:
         if isinstance(a, bool) or isinstance(b, bool) or a is None or b is None or isinstance(a, str) or isinstance(b, str):
@@ -105,6 +125,12 @@ class Diff:
                 self.hard.append(f"{path}: {a!r} ≠ {b!r}")
             return
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            if path.endswith(".cuav:snr_measured_dB"):
+                self.snr_measured += 1
+                self.snr_measured_max_abs = max(self.snr_measured_max_abs, abs(a - b))
+                if abs(a - b) > SNR_MEASURED_TOL_dB:
+                    self.hard.append(f"{path}: {a!r} ≠ {b!r}（绝对差 {abs(a - b):.2e} dB）")
+                return
             if a == b:
                 return
             rel = abs(a - b) / max(abs(a), abs(b))
@@ -131,6 +157,18 @@ class Diff:
         self.hard.append(f"{path}: 类型不同 {type(a).__name__} / {type(b).__name__}")
 
 
+COVER: dict[str, int] = {}
+
+
+def coverage(py_out: str) -> None:
+    """记下这批注记走到了哪些分支（capture 三类、实测信噪比有值与各种 null 缘由）。"""
+    for f in os.listdir(py_out):
+        if f.endswith(".sigmf-meta"):
+            for a in json.load(open(os.path.join(py_out, f), encoding="utf-8"))["annotations"]:
+                for k in (f"capture:{a.get('cuav:capture')}", f"snr:{a.get('cuav:snr_measured_basis', '').split(':')[0]}"):
+                    COVER[k] = COVER.get(k, 0) + 1
+
+
 def compare(case: dict, py_out: str, ts_out: str) -> None:
     fa, fb = sorted(os.listdir(py_out)), sorted(os.listdir(ts_out))
     check(f"{case['name']} ① 文件集合相同", fa == fb, f"{len(fa)} 个文件")
@@ -146,7 +184,8 @@ def compare(case: dict, py_out: str, ts_out: str) -> None:
             dd = Diff()
             dd.cmp(ma, mb, "meta")
             check(f"{case['name']} ③ {f} 逐值相同", not dd.hard,
-                  f"{len(ma['annotations'])} 条注记；非逐位相同的浮点 {dd.inexact} 个、最大相对差 {dd.max_rel:.1e}"
+                  f"{len(ma['annotations'])} 条注记；非逐位相同的浮点 {dd.inexact} 个、最大相对差 {dd.max_rel:.1e}；"
+                  f"实测信噪比 {dd.snr_measured} 个、最大绝对差 {dd.snr_measured_max_abs:.1e} dB"
                   + (f"；{dd.hard[:3]}" if dd.hard else ""))
             check(f"{case['name']} ③ {f} 两份各自标明出处",
                   ma["global"]["cuav:exporter"].startswith("tools/iq_export_sigmf.py")
@@ -191,6 +230,8 @@ def main() -> int:
             export("py", run_dir, py_out, case["scenario"])
             export("ts", run_dir, ts_out, case["scenario"])
             compare(case, py_out, ts_out)
+            if case.get("ddc"):
+                coverage(py_out)
             validate(ts_out)
             if not a.keep:
                 shutil.rmtree(run_dir, ignore_errors=True)
@@ -199,6 +240,11 @@ def main() -> int:
             print(f"导出留在 {tmp}")
         else:
             shutil.rmtree(tmp, ignore_errors=True)
+    if os.path.exists(CUAV_RUN):
+        need = ("capture:full", "capture:partial", "capture:none", "snr:spectrum_rows", "snr:capture_partial",
+                "snr:capture_none")
+        check("⑤ 新增两例走到了可用频带与实测信噪比的各个分支", all(COVER.get(k, 0) > 0 for k in need),
+              json.dumps(dict(sorted(COVER.items())), ensure_ascii=False))
     print("两份导出" + ("逐项一致" if not FAILS else f"有 {len(FAILS)} 项不一致：{FAILS}"))
     return 0 if not FAILS else 1
 

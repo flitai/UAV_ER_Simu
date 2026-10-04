@@ -15,14 +15,17 @@ import { createReadStream, promises as fsp } from 'node:fs'
 import { basename, join } from 'node:path'
 import { createInterface } from 'node:readline'
 
-export const EXPORTER_VERSION = '0.2.0'   // 0.2.0（Q-4，D-091）：上下沿按实际载频、cuav:cfo_Hz、cuav:impairments
+export const EXPORTER_VERSION = '0.3.0'   // 0.3.0（试样集，D-092）：可用频带、capture、实测信噪比；0.2.0（Q-4，D-091）：上下沿按实际载频
 export const SIGMF_VERSION = '1.2.6'
-const CUAV_EXT_VERSION = '1.1.0'
+const CUAV_EXT_VERSION = '1.2.0'
 const FULL_SCALE = 32768
 const CHUNK = 1 << 22                    // 每块复样点数（约 32 MB cf32），与 Python 版相同
 const S3_GRID_TOL = 0.01
 const REQUANT_MARGIN_MIN_DB = 20.0
 const BOLTZMANN = 1.380649e-23
+const SNR_WIDEN_BINS = 2                // 实测信噪比的频段两边各加宽的 bin 数（Hann 主瓣 ±2 bin）
+const SNR_MIN_REF_ROWS = 64             // 噪声参照行的最少行数
+const FIR_DIR: Record<string, string> = { DDC: 'adc-ddc', Channelizer: 'channelizer' }
 
 export class ExportError extends Error {}
 
@@ -456,8 +459,274 @@ function impairments(ch: Chain, scen: Json, cat: Map<string, CatalogComponent>):
   return Object.keys(out).length ? { 'cuav:impairments': out } : {}
 }
 
+// ---------------------------------------------------------------- 可用频带（0.3.0，D-092；与 Python 参考 usable_band 同序同式）
+
+interface FirTable { version?: string; spec: { passband_edge_rel_out: number }; entries: Array<Record<string, number>> }
+
+async function firTable(root: string, stageType: string, version: string): Promise<FirTable> {
+  const path = join(root, 'models', FIR_DIR[stageType], `fir_${version}.json`)
+  if (!(await exists(path))) {
+    throw new ExportError(`找不到冻结抽头表 models/${FIR_DIR[stageType]}/fir_${version}.json：算不出可用频带`)
+  }
+  return (await loadJson(path)) as FirTable
+}
+
+function firNtaps(t: FirTable, key: string, value: number): number {
+  for (const e of t.entries) if (Math.trunc(Number(e[key])) === value) return Math.trunc(Number(e.ntaps))
+  throw new ExportError(`冻结抽头表 ${t.version} 里没有 ${key} = ${value} 这一档`)
+}
+
+function oneStage(ch: Chain, typ: string): DiagramNode | null {
+  const xs = ch.stages.filter((s) => s.type === typ)
+  if (xs.length > 1) throw new ExportError(`观测点 ${ch.opId} 上游有 ${xs.length} 个 ${typ}，应至多一个`)
+  return xs.length ? xs[0] : null
+}
+
+/** 观测点上可用的频带 [下沿, 上沿]（Hz）与上游滤波器的起始暂态（秒）。算法与缘由见 Python 版 usable_band */
+async function usableBand(root: string, ch: Chain, cat: Map<string, CatalogComponent>, fs: number,
+  fc: number): Promise<[number, number, number]> {
+  let lo = -Infinity
+  let hi = Infinity
+  let c = fc
+  let f = fs
+  let transient = 0.0
+  const chan = oneStage(ch, 'Channelizer')
+  if (chan !== null) {
+    const m = Math.trunc(Number(param(chan, 'channels', cat)))
+    const j = Math.trunc(Number(param(chan, 'select_channel', cat)))
+    const table = await firTable(root, 'Channelizer', String(param(chan, 'fir_version', cat)))
+    const e = Number(table.spec.passband_edge_rel_out) * f
+    lo = Math.max(lo, c - e)
+    hi = Math.min(hi, c + e)
+    c = c - (j - m / 2) * f
+    f = f * m
+    transient += firNtaps(table, 'channels', m) / f
+  }
+  const ddc = oneStage(ch, 'DDC')
+  if (ddc !== null) {
+    const d = Math.trunc(Number(param(ddc, 'decim', cat)))
+    const table = await firTable(root, 'DDC', String(param(ddc, 'fir_version', cat)))
+    const e = d > 1 ? Number(table.spec.passband_edge_rel_out) * f : f / 2
+    lo = Math.max(lo, c - e)
+    hi = Math.min(hi, c + e)
+    c = c - Number(param(ddc, 'f_shift_Hz', cat))
+    f = f * d
+    transient += firNtaps(table, 'decim', d) / f
+  }
+  lo = Math.max(lo, c - f / 2)
+  hi = Math.min(hi, c + f / 2)
+  const rx = oneStage(ch, 'RxFilter')
+  if (rx !== null) {
+    const bw = Number(param(rx, 'bw_Hz', cat))
+    lo = Math.max(lo, c - bw / 2)
+    hi = Math.min(hi, c + bw / 2)
+  }
+  return [lo, hi, transient]
+}
+
+function captureOf(lo: number, hi: number, band: [number, number]): string {
+  if (lo >= band[0] && hi <= band[1]) return 'full'
+  if (hi > band[0] && lo < band[1]) return 'partial'
+  return 'none'
+}
+
+// ---------------------------------------------------------------- 实测信噪比（0.3.0，D-092；与 Python 参考 measure_snr 同序同式）
+
+function floorDiv(a: number, b: number): number {
+  return Math.floor(a / b)
+}
+
+function ceilDiv(a: number, b: number): number {
+  return Math.ceil(a / b)
+}
+
+interface Spectrum {
+  v: Float32Array; rows: number; nfft: number; start: number; hop: number; fs: number; fc: number
+  cache: Map<string, Float64Array>
+}
+
+function rowSums(sp: Spectrum, k0: number, k1: number): Float64Array {
+  const key = `${k0},${k1}`
+  let out = sp.cache.get(key)
+  if (!out) {
+    out = new Float64Array(sp.rows)
+    for (let r = 0; r < sp.rows; r++) {
+      const base = r * sp.nfft
+      let acc = 0
+      for (let k = k0; k <= k1; k++) acc += Math.pow(10, sp.v[base + k] / 10)
+      out[r] = acc
+    }
+    sp.cache.set(key, out)
+  }
+  return out
+}
+
+function rowsInside(sp: Spectrum, a0: number, a1: number): [number, number] {
+  return [Math.max(0, ceilDiv(a0 - sp.start, sp.hop)), Math.min(sp.rows - 1, floorDiv(a1 - sp.nfft - sp.start, sp.hop))]
+}
+
+function rowsTouching(sp: Spectrum, b0: number, b1: number): [number, number] {
+  return [Math.max(0, floorDiv(b0 - sp.nfft - sp.start, sp.hop) + 1), Math.min(sp.rows - 1, ceilDiv(b1 - sp.start, sp.hop) - 1)]
+}
+
+async function loadSpectrum(opDir: string): Promise<{ sp: Spectrum | null; reason: string }> {
+  const idxPath = join(opDir, 'spectrum.index.json')
+  const f32 = join(opDir, 'spectrum.f32')
+  if (!(await exists(idxPath)) || !(await exists(f32))) return { sp: null, reason: 'no_spectrum_product' }
+  const idx = (await loadJson(idxPath)) as Json
+  const nfft = Math.trunc(Number(idx.nfft))
+  if (idx.window !== 'hann' || Math.trunc(Number(idx.segments_per_frame ?? 1)) !== 1
+      || Math.trunc(Number(idx.frame_hop_samples ?? nfft)) !== nfft) {
+    return { sp: null, reason: 'spectrum_layout' }
+  }
+  const buf = await fsp.readFile(f32)
+  const rows = Math.floor(buf.length / (4 * nfft))           // 读端以文件长度定行数（D-046 ③）
+  if (rows === 0) return { sp: null, reason: 'no_spectrum_product' }
+  // Float32Array 视图要求起点按 4 字节对齐；不对齐就拷一份
+  const own = buf.byteOffset % 4 === 0 ? buf : Buffer.from(buf)
+  const v = new Float32Array(own.buffer, own.byteOffset, rows * nfft)
+  return {
+    sp: {
+      v, rows, nfft, start: Math.trunc(Number(idx.start_sample)), hop: nfft, fs: Number(idx.sample_rate_Hz),
+      fc: Number(idx.center_Hz), cache: new Map(),
+    },
+    reason: '',
+  }
+}
+
+function binsOf(lo: number, hi: number, sp: Spectrum): [number, number] | null {
+  const df = sp.fs / sp.nfft
+  const uLo = (lo - sp.fc) / df + sp.nfft / 2
+  const uHi = (hi - sp.fc) / df + sp.nfft / 2
+  let ka = Math.ceil(uLo)
+  let kb = Math.ceil(uHi) - 1
+  if (kb < ka) {
+    ka = Math.floor((uLo + uHi) / 2 + 0.5)
+    kb = ka
+  }
+  const k0 = Math.max(ka - SNR_WIDEN_BINS, 0)
+  const k1 = Math.min(kb + SNR_WIDEN_BINS, sp.nfft - 1)
+  return k0 <= k1 ? [k0, k1] : null
+}
+
+/** 给每条注记写 cuav:snr_measured_dB 与 cuav:snr_measured_basis（就地改 ann） */
+function measureSnr(ann: Json[], sp: Spectrum | null, spReason: string, iqStart: number, band: [number, number],
+  transientS: number): void {
+  if (sp === null) {
+    for (const a of ann) {
+      a['cuav:snr_measured_dB'] = null
+      a['cuav:snr_measured_basis'] = spReason
+    }
+    return
+  }
+  // bins：没有上下沿的注记按全带算（'all'）；有上下沿但整段在谱外的是空（null），不与任何频段相交
+  type Bins = [number, number] | null | 'all'
+  const items = ann.map((a) => {
+    const a0 = iqStart + Math.trunc(Number(a['core:sample_start']))
+    const a1 = a0 + Math.trunc(Number(a['core:sample_count']))
+    const bins: Bins = 'core:freq_lower_edge' in a
+      ? binsOf(Number(a['core:freq_lower_edge']), Number(a['core:freq_upper_edge']), sp) : 'all'
+    return { a0, a1, bins, eid: a['cuav:emitter_id'] }
+  })
+  const touches = (x: Bins, y: Bins): boolean => {
+    if (x === null || y === null) return false
+    if (x === 'all' || y === 'all') return true
+    return y[0] <= x[1] && y[1] >= x[0]
+  }
+  const tStart = Math.ceil(transientS * sp.fs)
+  const rFirst = Math.max(0, ceilDiv(tStart - sp.start, sp.hop))
+  const refCache = new Map<string, [number, number]>()
+  ann.forEach((a, i) => {
+    const { a0, a1, bins } = items[i]
+    if (bins === 'all') {
+      a['cuav:snr_measured_dB'] = null
+      a['cuav:snr_measured_basis'] = 'no_band'
+      return
+    }
+    const cap = captureOf(Number(a['core:freq_lower_edge']), Number(a['core:freq_upper_edge']), band)
+    if (cap !== 'full' || bins === null) {
+      a['cuav:snr_measured_dB'] = null
+      a['cuav:snr_measured_basis'] = `capture_${cap !== 'full' ? cap : 'none'}`
+      return
+    }
+    const [rLo, rHi] = rowsInside(sp, a0, a1)
+    if (rHi < rLo) {
+      a['cuav:snr_measured_dB'] = null
+      a['cuav:snr_measured_basis'] = 'too_short'
+      return
+    }
+    const keep = new Uint8Array(rHi - rLo + 1).fill(1)
+    const hit = new Set<string>()
+    items.forEach((o, j) => {
+      if (j === i || !touches(bins, o.bins) || o.a1 <= a0 || o.a0 >= a1) return
+      const [tLo, tHi] = rowsTouching(sp, o.a0, o.a1)
+      const lo = Math.max(tLo, rLo)
+      const hi = Math.min(tHi, rHi)
+      if (lo <= hi) {
+        keep.fill(0, lo - rLo, hi - rLo + 1)
+        hit.add(String(o.eid))
+      }
+    })
+    if (!keep.some((x) => x === 1)) {
+      a['cuav:snr_measured_dB'] = null
+      a['cuav:snr_measured_basis'] = 'overlapped:' + [...hit].sort().join(',')
+      return
+    }
+    const key = `${bins[0]},${bins[1]}`
+    if (!refCache.has(key)) {
+      const mask = new Uint8Array(sp.rows)
+      mask.fill(1, rFirst)
+      for (const o of items) {
+        if (!touches(bins, o.bins)) continue
+        const [tLo, tHi] = rowsTouching(sp, o.a0 - sp.nfft, o.a1 + sp.nfft)   // 两边各外扩一行，避开突发的拖尾
+        if (tLo <= tHi) mask.fill(0, tLo, tHi + 1)
+      }
+      const rs = rowSums(sp, bins[0], bins[1])
+      let acc = 0
+      let n = 0
+      for (let r = 0; r < sp.rows; r++) {
+        if (mask[r]) {
+          acc += rs[r]
+          n++
+        }
+      }
+      refCache.set(key, [n ? acc / n : 0.0, n])
+    }
+    const [noise, nRef] = refCache.get(key)!
+    if (nRef < SNR_MIN_REF_ROWS) {
+      a['cuav:snr_measured_dB'] = null
+      a['cuav:snr_measured_basis'] = 'no_noise_reference'
+      return
+    }
+    const rs = rowSums(sp, bins[0], bins[1])
+    let acc = 0
+    let n = 0
+    for (let r = rLo; r <= rHi; r++) {
+      if (keep[r - rLo]) {
+        acc += rs[r]
+        n++
+      }
+    }
+    const sig = acc / n
+    const p = sig - noise
+    const bw = Number(a['core:freq_upper_edge']) - Number(a['core:freq_lower_edge'])
+    const nb = bins[1] - bins[0] + 1
+    const noiseBw = noise * bw / (nb * sp.fs / sp.nfft)
+    if (!(p > 0.0)) {
+      a['cuav:snr_measured_dB'] = null
+      a['cuav:snr_measured_basis'] = 'not_above_noise'
+      return
+    }
+    a['cuav:snr_measured_dB'] = roundTo(10 * Math.log10(p / noiseBw), 6)
+    a['cuav:snr_measured_basis'] = 'spectrum_rows'
+    a['cuav:snr_measured_rows'] = n
+    a['cuav:snr_noise_ref_rows'] = nRef
+  })
+}
+
 function annotations(truth: Json[], linksById: Map<string, Json[]>, scen: Json, ch: Chain, n0: number | null,
-  fs: number, fc: number, startSample: number, n: number): { ann: Json[]; truthRowsSite: number; outsideCapture: number } {
+  fs: number, fc: number, startSample: number, n: number,
+  band: [number, number] | null = null): { ann: Json[]; truthRowsSite: number; outsideCapture: number } {
   const starts = new Map([...linksById].map(([k, v]) => [k, v.map((r) => Number(r.valid_from_s))]))
   const emitters = new Map(((scen.emitters as Json[]) ?? []).map((e) => [String(e.id), e]))
   const out: Json[] = []
@@ -487,6 +756,7 @@ function annotations(truth: Json[], linksById: Map<string, Json[]>, scen: Json, 
       a['core:freq_lower_edge'] = lo
       a['core:freq_upper_edge'] = hi
       a['cuav:in_capture_band'] = hi > fc - fs / 2 && lo < fc + fs / 2
+      if (band !== null) a['cuav:capture'] = captureOf(lo, hi, band)
     }
     a['cuav:emitter_id'] = eid ?? null
     for (const k of ['platform_type', 'equipment_model']) {
@@ -608,7 +878,11 @@ async function exportOp(o: ExportOptions, d: Diagram, diagramSha: string, scen: 
   }
   for (const v of byId.values()) v.sort((x, y) => Number(x.valid_from_s) - Number(y.valid_from_s))
   const truth = await readJsonl(join(o.runDir, 'truth.jsonl'))
-  const { ann, truthRowsSite, outsideCapture } = annotations(truth, byId, scen, ch, n0, fs, fc, Number(idx.start_sample), n)
+  const [bLo, bHi, transientS] = await usableBand(o.root, ch, cat, fs, fc)
+  const { ann, truthRowsSite, outsideCapture } = annotations(truth, byId, scen, ch, n0, fs, fc, Number(idx.start_sample), n,
+    [bLo, bHi])
+  const { sp, reason: spReason } = await loadSpectrum(opDir)
+  measureSnr(ann, sp, spReason, Math.trunc(Number(idx.start_sample)), [bLo, bHi], transientS)
 
   const siteLinks: Json[] = []
   for (const eid of [...ch.emitters.keys()].sort()) siteLinks.push(...(byId.get(`${ch.siteId}-${eid}`) ?? []))
@@ -645,6 +919,7 @@ async function exportOp(o: ExportOptions, d: Diagram, diagramSha: string, scen: 
       'cuav:observation_point': ch.point,
       'cuav:op_id': op.id,
       'cuav:site_id': ch.siteId,
+      'cuav:usable_band_Hz': [bLo, bHi],
       'cuav:full_scale_dBm': fsDbm,
       'cuav:full_scale_code': FULL_SCALE,
       'cuav:calibration_source': ((idx.calibration as Json | undefined) ?? {}).source ?? null,
