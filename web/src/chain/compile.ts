@@ -702,6 +702,10 @@ export function parseChain(doc: DiagramDoc): ChainState | null {
       if (k === 'report_entities') continue
       params[k] = val
     }
+    // DDC 的频移等于目录缺省 0 时，编译不写它（上面「与目录缺省相同的不写」）。反解若不补回来，
+    // `freqPlan` 会把缺席读成「取 f_tx − f_rx」，重新打开的框图频移就变了。节点里没有它，
+    // 引擎用的就是 0，所以补 0 是照实还原。
+    if (slot === 'ddc' && !('f_shift_Hz' in params)) params.f_shift_Hz = 0
     const b = bucket.get(slot) ?? { variant: vi, byEnt: new Map<string, Record<string, ParamValue>>() }
     b.variant = vi
     bucket.set(slot, b)

@@ -1044,6 +1044,41 @@ test('过渡带检查的通带边缘来自冻结表的规格，不是写死的 0
   assert.equal(o.find((x) => x.id === 'transition')!.ok, true)
 })
 
+test('DDC 频移为 0 时往返不丢值（试样集步骤 1）', () => {
+  // 编译不写与目录缺省相同的值，DDC 的频移缺省是 0。反解若不补回 0，
+  // freqPlan 会把缺席读成 f_tx − f_rx，重新打开的框图频移就变了。
+  // golden-01 的辐射源正在接收中心上，测不到；拷一份把辐射源挪开 100 kHz
+  const sc = structuredClone(scenario)
+  const em = (sc.emitters as Array<{ emission: { center_Hz: number } }>)[0]!.emission
+  em.center_Hz += 100000
+  const auto = freqPlan(withSlot(synthetic(), 'ddc', { decim: 2 }), sc, cat)
+  assert.notEqual(auto.f_shift, 0, '前提：f_tx ≠ f_rx，否则本用例测不到东西')
+  const zero = withSlot(synthetic(), 'ddc', { decim: 2, f_shift_Hz: 0 })
+  assert.equal(freqPlan(zero, sc, cat).f_shift, 0)
+  const text = serialize(compile(zero, cat, sc).doc, cat)
+  const back = parseChain(parseOk(text))!
+  assert.equal(back.slots.ddc.params.f_shift_Hz, 0)
+  assert.equal(freqPlan(back, sc, cat).f_shift, 0)
+  assert.equal(serialize(compile(back, cat, sc).doc, cat), text, '往返逐字节相同')
+})
+
+test('DDC 频移后越过输入带边要在提交前报出来，与引擎同式（试样集步骤 1）', () => {
+  // golden-01 是 500 kS/s。decim = 2 → S4 = 250 kS/s，|f_shift| + 125 k 须 ≤ 250 k
+  const ok = withSlot(synthetic(), 'ddc', { decim: 2, f_shift_Hz: 125000 })
+  const w1 = planChecks(ok, freqPlan(ok, scenario, cat), scenario, cat).find((x) => x.id === 'ddc_window')!
+  assert.equal(w1.ok, true, w1.detail)
+  const bad = withSlot(synthetic(), 'ddc', { decim: 2, f_shift_Hz: 125001 })
+  const w2 = planChecks(bad, freqPlan(bad, scenario, cat), scenario, cat).find((x) => x.id === 'ddc_window')!
+  assert.equal(w2.ok, false, w2.detail)
+  // 不抽取时 DDC 是纯频移，越过带边也只是循环旋转，不拦
+  const one = withSlot(synthetic(), 'ddc', { decim: 1, f_shift_Hz: 400000 })
+  const w3 = planChecks(one, freqPlan(one, scenario, cat), scenario, cat).find((x) => x.id === 'ddc_window')!
+  assert.equal(w3.ok, true, w3.detail)
+  // 旁路时不拦
+  const off = planChecks(synthetic(), freqPlan(synthetic(), scenario, cat), scenario, cat)
+  assert.equal(off.find((x) => x.id === 'ddc_window')!.ok, true)
+})
+
 test('抽取比不在冻结表的档位里要当场说清楚，不靠到最近一档（C-10）', () => {
   const odd = withSlot(synthetic(), 'ddc', { decim: 3, f_shift_Hz: 0 })
   const checks = planChecks(odd, freqPlan(odd, scenario, cat), scenario, cat)

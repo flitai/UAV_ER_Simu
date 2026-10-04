@@ -292,6 +292,22 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
           + (decimOnGrid ? '' : `；抽取比须取 ${gridText(ddcVer)}`),
     })
 
+    // 抽取后保留的窄带窗口必须整块落在输入奈奎斯特窗内，与引擎 `ddc.cpp` 的闸同式。
+    // 引擎要到第一块才查得到（采样率在块元数据里），`--validate` 查不出来，任务会在半路失败；
+    // 前端知道站点采样率，提交之前就能说清楚。不抽取（decim = 1）时 DDC 是纯频移，不在此列。
+    const windowNeed = Math.abs(plan.f_shift) + plan.fs_s4 / 2
+    const windowOk = plan.decim <= 1 || (plan.fs_rf > 0 && windowNeed <= (plan.fs_rf / 2) * (1 + 1e-12))
+    out.push({
+      id: 'ddc_window',
+      label: 'DDC 频移后不越过输入带边',
+      ok: !ddcActive || windowOk,
+      detail: !ddcActive
+        ? 'DDC 未参与计算'
+        : plan.decim <= 1
+          ? '不抽取，DDC 只做频移'
+          : `|f_shift| + S4/2 = ${fmt(windowNeed)}，须不大于 Fs/2 = ${fmt(plan.fs_rf / 2)}`,
+    })
+
     // 过渡带：|Δf − f_shift| + B/2 ≤ 通带边缘，跳频时抽取后的通带必须装得下**全部**跳频点，
     // 否则跳到带外的那几跳会被抗混叠滤波器吃掉。
     // **通带边缘按 `fir_version` 从冻结表的规格来**（C-10），不再是写死的 0.4 ——
