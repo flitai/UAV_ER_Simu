@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -92,9 +93,26 @@ struct QualityMetrics {
     std::uint64_t truth_rows = 0;         // 全部真值行数（含频段外）
 };
 
+// 分子带的突发级指标（Q-4b，D-093）：检测行带 subbands 才有（present）。口径见 evaluation.cpp 的 tf_metrics，
+// 与 algos/reference/evaluate.py 的 tf_segments 逐步同序。
+struct TfEmitterMetrics {
+    std::uint64_t truth = 0, matched = 0, merged = 0;
+    double pd_burst = eval_nan();
+    double detect_delay_mean_s = eval_nan();
+};
+
+struct TfSegmentMetrics {
+    bool present = false;
+    std::uint64_t truth = 0, truth_out_of_band = 0, segments = 0, matched = 0;
+    std::uint64_t false_segments = 0, fragments = 0, merged_truth = 0;
+    double pd_burst = eval_nan();
+    std::map<std::string, TfEmitterMetrics> per_emitter;
+};
+
 struct EvaluationMetrics {
     FrameMetrics frames;
     SegmentMetrics segments;
+    TfSegmentMetrics segments_tf;
     RocMetrics roc;
     RecognitionMetrics recognition;
     QualityMetrics quality;

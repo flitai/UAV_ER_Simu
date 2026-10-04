@@ -47,6 +47,144 @@ double ratio_or_nan(std::uint64_t num, std::uint64_t den) {
     return den == 0 ? eval_nan() : static_cast<double>(num) / static_cast<double>(den);
 }
 
+// 分子带的突发级指标（Q-4b，D-093）。与 algos/reference/evaluate.py 的 tf_segments 逐步同序：
+//   段      分子带段号相同的簇；时间 [首帧 t_s, 末帧 t_s + dt)；频段取核心（至少一半的帧里命中的频点，没有就取全部），
+//           频点下标 floor((簇 f_lo − 参考) / df + 0.5)，参考 = 第一行的帧级 f_lo，df = 1 / dt
+//   真值    in_band 且有中心频率；频段 = 名义中心 + 载频偏差 ± 带宽 / 2
+//   候选    时间与频率重叠比（对较短 / 较窄者）都 ≥ match_overlap；按 比积 降序、真值 t_s、emitter_id、段号、真值序号 贪心一对一
+TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector<TruthRow>& truth, const EvalParams& p) {
+    TfSegmentMetrics m;
+    bool any = false;
+    for (const auto& d : det) if (d.subband_mode) { any = true; break; }
+    if (!any) return m;
+    m.present = true;
+    const double dt = p.frame_dt_s;
+    const double df = 1.0 / dt;
+    struct Acc { double t0 = 0.0, t1 = 0.0; std::uint64_t frames = 0; std::int64_t frame = -1; std::map<long long, std::uint64_t> count; };
+    std::map<std::int64_t, Acc> segs;
+    bool have_ref = false;
+    double ref = 0.0;
+    for (const auto& d : det) {
+        if (d.subbands.empty()) continue;
+        if (!have_ref) { ref = d.f_lo_Hz; have_ref = true; }
+        std::map<std::int64_t, std::vector<long long> > seen;
+        for (const auto& h : d.subbands) {
+            const std::int64_t sid = h.segment_id;
+            const long long idx0 = static_cast<long long>(std::floor((h.f_lo_Hz - ref) / df + 0.5));
+            auto it = segs.find(sid);
+            if (it == segs.end()) {
+                Acc a;
+                a.t0 = d.t_s;
+                it = segs.insert(std::make_pair(sid, a)).first;
+            }
+            Acc& a = it->second;
+            if (a.frame != static_cast<std::int64_t>(d.frame_index)) {
+                a.frame = static_cast<std::int64_t>(d.frame_index);
+                a.frames++;
+                seen[sid].clear();
+            }
+            std::vector<long long>& got = seen[sid];
+            for (std::uint32_t k = 0; k < h.bins; ++k) {
+                const long long i = idx0 + static_cast<long long>(k);
+                if (std::find(got.begin(), got.end(), i) == got.end()) {
+                    got.push_back(i);
+                    a.count[i]++;
+                }
+            }
+            a.t1 = d.t_s + dt;
+        }
+    }
+    struct Seg { std::int64_t id; double t0, t1, f0, f1; };
+    std::vector<Seg> sl;
+    for (const auto& kv : segs) {
+        const Acc& a = kv.second;
+        long long lo = 0, hi = 0;
+        bool have = false;
+        for (const auto& c : a.count) {
+            if (2 * c.second < a.frames) continue;
+            if (!have) { lo = hi = c.first; have = true; } else { lo = std::min(lo, c.first); hi = std::max(hi, c.first); }
+        }
+        if (!have) { lo = a.count.begin()->first; hi = a.count.rbegin()->first; }
+        Seg s{kv.first, a.t0, a.t1, ref + static_cast<double>(lo) * df, ref + static_cast<double>(hi + 1) * df};
+        sl.push_back(s);
+    }
+    struct T { const TruthRow* r; double f0, f1; };
+    std::vector<T> tl;
+    for (const auto& r : truth) {
+        if (!r.in_band) { m.truth_out_of_band++; continue; }
+        if (std::isnan(r.center_Hz) || std::isnan(r.bw_Hz)) continue;
+        const double c = r.center_Hz + r.cfo_Hz;
+        tl.push_back(T{&r, c - r.bw_Hz / 2.0, c + r.bw_Hz / 2.0});
+    }
+    struct Pair { double neg_score; double ta; std::string eid; std::int64_t sid; std::size_t ti, si; };
+    std::vector<Pair> pairs;
+    std::vector<char> cand_s(sl.size(), 0), cand_t(tl.size(), 0);
+    for (std::size_t ti = 0; ti < tl.size(); ++ti) {
+        const double ta = tl[ti].r->t_s, tb = tl[ti].r->t_end_s;
+        for (std::size_t si = 0; si < sl.size(); ++si) {
+            const Seg& s = sl[si];
+            const double ovt = std::min(s.t1, tb) - std::max(s.t0, ta);
+            if (!(ovt > 0.0)) continue;
+            const double ovf = std::min(s.f1, tl[ti].f1) - std::max(s.f0, tl[ti].f0);
+            if (!(ovf > 0.0)) continue;
+            const double rt = ovt / std::min(s.t1 - s.t0, tb - ta);
+            const double rf = ovf / std::min(s.f1 - s.f0, tl[ti].f1 - tl[ti].f0);
+            if (rt >= p.match_overlap && rf >= p.match_overlap) {
+                pairs.push_back(Pair{-(rt * rf), ta, tl[ti].r->emitter_id, s.id, ti, si});
+                cand_s[si] = 1;
+                cand_t[ti] = 1;
+            }
+        }
+    }
+    std::sort(pairs.begin(), pairs.end(), [](const Pair& x, const Pair& y) {
+        if (x.neg_score != y.neg_score) return x.neg_score < y.neg_score;
+        if (x.ta != y.ta) return x.ta < y.ta;
+        if (x.eid != y.eid) return x.eid < y.eid;
+        if (x.sid != y.sid) return x.sid < y.sid;
+        if (x.ti != y.ti) return x.ti < y.ti;
+        return x.si < y.si;
+    });
+    std::vector<long long> seg_of(tl.size(), -1);
+    std::vector<char> used_s(sl.size(), 0);
+    for (const Pair& q : pairs) {
+        if (seg_of[q.ti] >= 0 || used_s[q.si]) continue;
+        seg_of[q.ti] = static_cast<long long>(q.si);
+        used_s[q.si] = 1;
+    }
+    struct E { std::uint64_t truth = 0, matched = 0, merged = 0, n = 0; double sum = 0.0; };
+    std::map<std::string, E> per;
+    for (std::size_t ti = 0; ti < tl.size(); ++ti) {
+        E& e = per[tl[ti].r->emitter_id];
+        e.truth++;
+        if (seg_of[ti] >= 0) {
+            e.matched++;
+            m.matched++;
+            e.sum = e.sum + std::max(0.0, sl[static_cast<std::size_t>(seg_of[ti])].t0 - tl[ti].r->t_s);
+            e.n++;
+        } else if (cand_t[ti]) {
+            e.merged++;
+            m.merged_truth++;
+        }
+    }
+    for (const auto& kv : per) {
+        TfEmitterMetrics t;
+        t.truth = kv.second.truth;
+        t.matched = kv.second.matched;
+        t.merged = kv.second.merged;
+        t.pd_burst = ratio_or_nan(t.matched, t.truth);
+        t.detect_delay_mean_s = kv.second.n == 0 ? eval_nan() : kv.second.sum / static_cast<double>(kv.second.n);
+        m.per_emitter[kv.first] = t;
+    }
+    m.truth = tl.size();
+    m.segments = sl.size();
+    for (std::size_t si = 0; si < sl.size(); ++si) {
+        if (!cand_s[si]) m.false_segments++;
+        else if (!used_s[si]) m.fragments++;
+    }
+    m.pd_burst = ratio_or_nan(m.matched, m.truth);
+    return m;
+}
+
 }  // namespace
 
 const std::vector<std::string>& base_labels() {
@@ -282,6 +420,7 @@ EvaluationMetrics evaluate(const std::vector<Detection>& det_in, const std::vect
         m.state = worst(m.state, State::Degraded);
         m.reasons.push_back("有 " + numstr(hits_without_segment) + " 个命中帧没有突发编号，未参与突发级指标");
     }
+    m.segments_tf = tf_metrics(det, truth, p);
     return m;
 }
 
@@ -338,6 +477,18 @@ json metrics_section_json(const EvaluationMetrics& m, const EvalParams& p, const
                        {"parameter_version", t.parameter_version}, {"trace_id", t.trace_id},
                        {"truth_consumed", true}}},
     };
+    if (m.segments_tf.present) {       // 分子带（Q-4b，D-093）：没开的运行逐字节不变
+        const TfSegmentMetrics& t = m.segments_tf;
+        json per = json::object();
+        for (const auto& kv : t.per_emitter) {
+            per[kv.first] = json{{"truth", kv.second.truth}, {"matched", kv.second.matched}, {"merged", kv.second.merged},
+                                 {"pd_burst", num(kv.second.pd_burst)},
+                                 {"detect_delay_mean_s", num(kv.second.detect_delay_mean_s)}};
+        }
+        j["segments_tf"] = json{{"truth", t.truth}, {"truth_out_of_band", t.truth_out_of_band}, {"segments", t.segments},
+                                {"matched", t.matched}, {"false_segments", t.false_segments}, {"fragments", t.fragments},
+                                {"merged_truth", t.merged_truth}, {"pd_burst", num(t.pd_burst)}, {"per_emitter", per}};
+    }
     return j;
 }
 

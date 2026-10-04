@@ -127,6 +127,21 @@ json detection_json(const DetectionReport& r) {
         j["band_power_dBm"] = d.band_power_dBm;
         j["noise_dBm"] = d.noise_dBm;
     }
+    // 分子带（Q-4b，D-093）：检测器开了 subband_bins 才写这两个键，没开的运行逐字节不变
+    if (d.subband_mode) {
+        json sb = json::array();
+        for (const SubbandHit& h : d.subbands) {
+            json c{{"f_lo_Hz", h.f_lo_Hz}, {"f_hi_Hz", h.f_hi_Hz}, {"bins", h.bins},
+                   {"statistic", h.statistic}, {"snr_dB", h.snr_dB}, {"segment_id", h.segment_id}};
+            if (d.has_dBm) {
+                c["band_power_dBm"] = h.band_power_dBm;
+                c["noise_dBm"] = h.noise_dBm;
+            }
+            sb.push_back(c);
+        }
+        j["subband_hit"] = d.subband_hit;
+        j["subbands"] = sb;
+    }
     return j;
 }
 
@@ -143,6 +158,13 @@ json detection_summary_json(const DetectionSummary& s) {
            {"calibrated", s.calibrated}, {"state", to_string(s.state)}, {"notes", notes},
            {"trace", trace_json(s.trace)}};
     if (!s.site_id.empty()) j["site_id"] = s.site_id;
+    if (s.subband_bins > 0) {
+        j["subband"] = json{{"bins", s.subband_bins}, {"levels", s.subband_levels}, {"tests", s.subband_tests},
+                            {"pfa_test", s.subband_pfa_test}, {"window", "hann"}, {"threshold_rule", "exact_saddlepoint"},
+                            {"link_frames", s.subband_link_frames}, {"guard_bins", s.subband_guard_bins},
+                            {"segments", s.subband_segments}, {"hit_frames", s.subband_hit_frames},
+                            {"stale_frames", s.subband_stale_frames}, {"never_full_bins", s.subband_never_full_bins}};
+    }
     return j;
 }
 

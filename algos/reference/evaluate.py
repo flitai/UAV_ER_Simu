@@ -272,7 +272,125 @@ def evaluate(det_rows: list[dict], rec_rows: list[dict], truth_rows: list[dict],
         reasons.append(f"有 {hits_without_segment} 个命中帧没有突发编号，未参与突发级指标")
     out["state"] = state
     out["reasons"] = reasons
+    tf = tf_segments(det, truth, params)
+    if tf is not None:
+        out["segments_tf"] = tf
     return out
+
+
+# ---------------------------------------------------------------- 分子带的突发级指标（Q-4b，D-093）
+
+def tf_segments(det: list[dict], truth: list[dict], params: dict):
+    """检测器开了分子带时（检测行带 subbands）按「时间 × 频率」一对一配对；没开返回 None。
+
+    口径（C++ engine/src/evaluation.cpp 的 tf_metrics 同序）：
+      段      分子带段号相同的簇；时间 [首帧 t_s, 末帧 t_s + dt)；频段取核心——在该段至少一半的帧里命中的频点
+              （没有就取全部命中过的），频点下标 floor((簇 f_lo − 参考) / df + 0.5)，参考是第一行的帧级 f_lo，df = 1 / dt
+      真值    in_band 且有中心频率的行；频段 = 名义中心 + 载频偏差 ± 带宽 / 2（不含场景 offset_Hz：truth.jsonl 里没有它，
+              机型预设没有 offset，单音类的 offset 小于半带宽）
+      候选    时间重叠比与频率重叠比（都对两者中较短 / 较窄的那个）都 ≥ match_overlap
+      配对    按「时间比 × 频率比」从大到小贪心，平局按真值 t_s、emitter_id、段号、真值序号；每段至多一行真值、每行真值至多一段
+      计数    配上 / 被并掉（有候选没配上）/ 碎片（有候选没配上的段）/ 虚警段（没有候选的段）"""
+    if not any("subbands" in r for r in det):
+        return None
+    dt = float(params["frame_dt_s"])
+    df = 1.0 / dt
+    mo = float(params["match_overlap"])
+    ref = None
+    segs: dict = {}
+    for r in det:
+        subs = r.get("subbands") or []
+        if not subs:
+            continue
+        if ref is None:
+            ref = float(r["f_lo_Hz"])
+        seen: dict = {}
+        for h in subs:
+            sid = int(h["segment_id"])
+            idx0 = math.floor((float(h["f_lo_Hz"]) - ref) / df + 0.5)
+            sg = segs.get(sid)
+            if sg is None:
+                sg = {"t0": float(r["t_s"]), "t1": 0.0, "frames": 0, "count": {}, "frame": -1}
+                segs[sid] = sg
+            if sg["frame"] != r["frame_index"]:
+                sg["frame"] = r["frame_index"]
+                sg["frames"] += 1
+                seen[sid] = set()
+            got = seen.setdefault(sid, set())
+            for k in range(int(h["bins"])):
+                i = idx0 + k
+                if i not in got:
+                    got.add(i)
+                    sg["count"][i] = sg["count"].get(i, 0) + 1
+            sg["t1"] = float(r["t_s"]) + dt
+    seg_list = []
+    for sid in sorted(segs):
+        sg = segs[sid]
+        core = sorted(i for i, c in sg["count"].items() if 2 * c >= sg["frames"])
+        if not core:
+            core = sorted(sg["count"])
+        seg_list.append((sid, sg["t0"], sg["t1"], ref + core[0] * df, ref + (core[-1] + 1) * df))
+    oob = 0
+    tl = []
+    for t in truth:
+        if not t.get("in_band", True):
+            oob += 1
+            continue
+        if t.get("center_Hz") is None or t.get("bw_Hz") is None:
+            continue
+        c = float(t["center_Hz"]) + float(t.get("cfo_Hz", 0.0))
+        tl.append((t, c - float(t["bw_Hz"]) / 2.0, c + float(t["bw_Hz"]) / 2.0))
+    pairs = []
+    cand_s = set()
+    cand_t = set()
+    for ti, (t, flo, fhi) in enumerate(tl):
+        ta, tb = float(t["t_s"]), float(t["t_end_s"])
+        for si, (sid, s0, s1, g0, g1) in enumerate(seg_list):
+            ovt = min(s1, tb) - max(s0, ta)
+            if not ovt > 0.0:
+                continue
+            ovf = min(g1, fhi) - max(g0, flo)
+            if not ovf > 0.0:
+                continue
+            rt = ovt / min(s1 - s0, tb - ta)
+            rf = ovf / min(g1 - g0, fhi - flo)
+            if rt >= mo and rf >= mo:
+                pairs.append((-(rt * rf), ta, t.get("emitter_id") or "", sid, ti, si))
+                cand_s.add(si)
+                cand_t.add(ti)
+    pairs.sort()
+    seg_of: dict = {}
+    used_s: set = set()
+    for _, _, _, _, ti, si in pairs:
+        if ti in seg_of or si in used_s:
+            continue
+        seg_of[ti] = si
+        used_s.add(si)
+    per: dict = {}
+    matched = merged = 0
+    for ti, (t, _, _) in enumerate(tl):
+        eid = t.get("emitter_id") or ""
+        e = per.setdefault(eid, {"truth": 0, "matched": 0, "merged": 0, "delay_sum": 0.0, "delay_n": 0})
+        e["truth"] += 1
+        if ti in seg_of:
+            e["matched"] += 1
+            matched += 1
+            e["delay_sum"] = e["delay_sum"] + max(0.0, seg_list[seg_of[ti]][1] - float(t["t_s"]))
+            e["delay_n"] += 1
+        elif ti in cand_t:
+            e["merged"] += 1
+            merged += 1
+    per_out = {}
+    for eid in sorted(per):
+        e = per[eid]
+        per_out[eid] = {"truth": e["truth"], "matched": e["matched"], "merged": e["merged"],
+                        "pd_burst": _ratio(e["matched"], e["truth"]),
+                        "detect_delay_mean_s": None if e["delay_n"] == 0 else e["delay_sum"] / e["delay_n"]}
+    false_s = sum(1 for si in range(len(seg_list)) if si not in cand_s)
+    frag = sum(1 for si in range(len(seg_list)) if si in cand_s and si not in used_s)
+    return {"truth": len(tl), "truth_out_of_band": oob, "segments": len(seg_list), "matched": matched,
+            "false_segments": false_s, "fragments": frag, "merged_truth": merged,
+            "pd_burst": _ratio(matched, len(tl)), "per_emitter": per_out}
 
 
 # ---------------------------------------------------------------- 逐值比对
@@ -362,6 +480,8 @@ def check_run(run_dir: str, out_json: str | None) -> int:
         diffs: list[str] = []
         for key in ("frames", "segments", "roc", "recognition"):
             compare(mine[key], sec[key], f"{node_id}.{key}", diffs)
+        if "segments_tf" in mine or "segments_tf" in sec:          # 分子带（Q-4b，D-093）
+            compare(mine.get("segments_tf"), sec.get("segments_tf"), f"{node_id}.segments_tf", diffs)
         compare(mine["quality"]["overload_frames"], sec["quality"]["overload_frames"], f"{node_id}.quality.overload_frames", diffs)
         compare(mine["quality"]["truth_rows"], sec["quality"]["truth_rows"], f"{node_id}.quality.truth_rows", diffs)
         report["sections"].append({"node_id": node_id, "site_id": site_id, "detections": len(det), "recognitions": len(rec),
@@ -497,14 +617,94 @@ def write_golden(path: str) -> int:
     return 0
 
 
+def golden_case_subband() -> tuple[list[dict], list[dict], dict]:
+    """分子带配对的黄金用例（Q-4b，D-093）：每种计数各安排一个情形。频点下标 j 的簇首 = 参考 + j·df。"""
+    fs, nfft = 1e6, 256
+    dt = nfft / fs
+    df = 1.0 / dt
+    ref = 2.44e9 - 450e3
+    n_frames = 400
+    clusters: dict = {i: [] for i in range(n_frames)}
+
+    def put(f0: int, f1: int, lo: int, hi: int, sid: int) -> None:
+        for f in range(f0, f1 + 1):
+            clusters[f].append((lo, hi, sid))
+
+    def tband(lo: int, hi: int) -> tuple[float, float]:
+        return ref + (lo + hi + 1) * df / 2.0, (hi - lo + 1) * df
+
+    put(50, 150, 100, 160, 0)          # 宽带图传
+    put(60, 70, 161, 166, 0)           # 图传的谱肩：同一段、只占少数帧，进不了核心频段
+    put(60, 70, 200, 205, 1)           # 跳点 A（检出晚一帧：真值从第 59 帧起）
+    put(80, 90, 30, 35, 2)             # 跳点 B
+    put(200, 220, 50, 55, 3)           # 一行真值被切成两段：前一段配上
+    put(230, 260, 50, 55, 4)           #                     后一段是碎片
+    put(300, 302, 10, 12, 5)           # 虚警段
+    put(320, 330, 230, 235, 6)         # 靠载频偏差才对得上的源
+    truth = []
+
+    def add(eid: str, label: str, f0: int, f1: int, lo: int, hi: int, in_band: bool = True, cfo: float = 0.0) -> None:
+        c, bw = tband(lo, hi)
+        r = {"t_s": f0 * dt, "t_end_s": (f1 + 1) * dt, "emitter_id": eid, "label": label, "waveform": "ofdm",
+             "center_Hz": c - cfo, "bw_Hz": bw, "in_band": in_band}
+        if cfo:
+            r["cfo_Hz"] = cfo
+        truth.append(r)
+
+    add("e-video", "video_link", 50, 150, 100, 160)
+    add("e-hopA", "rc_hopping", 59, 70, 200, 205)
+    add("e-hopB", "rc_hopping", 80, 90, 30, 35)
+    add("e-cochan", "rc_hopping", 100, 110, 120, 125)        # 落在图传带内、同时：被并掉
+    add("e-frag", "rc_hopping", 200, 260, 50, 55)
+    add("e-oob", "video_link", 10, 20, 0, 5, in_band=False)
+    add("e-cfo", "rc_hopping", 320, 330, 230, 235, cfo=10 * df)   # 名义中心差 10 个频点，载频偏差补回来
+    det = []
+    for i in range(n_frames):
+        subs = [{"f_lo_Hz": ref + lo * df, "f_hi_Hz": ref + (hi + 1) * df, "bins": hi - lo + 1, "statistic": 9.0,
+                 "snr_dB": 9.542425094393248, "segment_id": sid} for lo, hi, sid in sorted(clusters[i])]
+        det.append({"frame_index": i, "start_sample": i * nfft, "t_s": i * dt, "f_lo_Hz": ref, "f_hi_Hz": ref + 900e3,
+                    "statistic": 1.0, "threshold": 1.1, "hit": False, "segment_id": None, "overload": False,
+                    "subband_hit": bool(subs), "subbands": subs})
+    params = {"truth_source": "scenario", "match_overlap": 0.5, "roc_points": 32, "frame_dt_s": dt,
+              "threshold": 1.1, "has_rec": False}
+    return det, truth, params
+
+
+def write_golden_subband(path: str) -> int:
+    det, truth, params = golden_case_subband()
+    expected = evaluate(det, [], truth, params)
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧 evaluate() 的分子带配对（segments_tf）与 algos/reference/evaluate.py 的逐值对拍基准（Q-4b，D-093）",
+        "generator": "algos/reference/evaluate.py --write-golden-subband",
+        "params": params,
+        "tolerance": {"rel": 1e-9, "abs": 1e-12, "note": "同 metrics.json"},
+        "inputs": {"detections": det, "truth": truth},
+        "expected": {"segments_tf": expected["segments_tf"]},
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    tf = expected["segments_tf"]
+    print(f"分子带配对：真值 {tf['truth']}（频段外 {tf['truth_out_of_band']}）段 {tf['segments']} 配上 {tf['matched']} "
+          f"虚警段 {tf['false_segments']} 碎片 {tf['fragments']} 被并掉 {tf['merged_truth']}")
+    for eid, e in tf["per_emitter"].items():
+        print(f"  {eid}: {e['matched']}/{e['truth']}（并掉 {e['merged']}），时延 {e['detect_delay_mean_s']}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="真值与评价参考实现：对拍 metrics.json 或生成黄金基准")
     ap.add_argument("run_dir", nargs="?", help="data/runs/<task_id>")
     ap.add_argument("--json", help="把逐节的重算结果与差异写到该文件")
     ap.add_argument("--write-golden", help="生成黄金基准到该路径")
+    ap.add_argument("--write-golden-subband", help="生成分子带配对的黄金基准到该路径（Q-4b，D-093）")
     args = ap.parse_args(argv)
     if args.write_golden:
         return write_golden(args.write_golden)
+    if args.write_golden_subband:
+        return write_golden_subband(args.write_golden_subband)
     if not args.run_dir:
         ap.print_help()
         return 1

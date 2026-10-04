@@ -485,7 +485,7 @@ test('特征与识别端点按「节点 + 段号」抽稀，可按站 / 节点 /
   assert.equal(tb.length, 2)
 })
 
-test('检测端点：按 node_id 抽稀，site_id / node_id / hit 可精确过滤；detections/index 三态（C-3，D-063）', async () => {
+test('检测端点：按 node_id 抽稀，site_id / node_id / hit / subband_hit 可精确过滤；detections/index 三态（C-3，D-063；Q-4b）', async () => {
   const rows: string[] = []
   for (let i = 0; i < 8; i++) {
     for (const [node, site] of [['det__site-1', 'site-1'], ['det__site-2', 'site-2']]) {
@@ -519,6 +519,20 @@ test('检测端点：按 node_id 抽稀，site_id / node_id / hit 可精确过�
   assert.ok(one.every((r) => r.site_id === 'site-2' && r.segment_id === 0))
   const byNode = (await (await fetch(url(`${taskId}/detections?node_id=det__site-1&t0=0&t1=0.005`))).json()) as unknown[]
   assert.equal(byNode.length, 3, '0、0.002048、0.004096 三帧')
+
+  // 分子带（Q-4b，D-093）：帧级没命中、子带有簇的帧只能用 subband_hit=true 取到
+  const sub = rows.map((r, k) => {
+    const o = JSON.parse(r) as Record<string, unknown>
+    o.subband_hit = k % 4 === 1
+    o.subbands = k % 4 === 1 ? [{ f_lo_Hz: 2.44e9, f_hi_Hz: 2.4401e9, bins: 3, statistic: 9, snr_dB: 9.54, segment_id: 0 }] : []
+    return JSON.stringify(o)
+  })
+  await fsp.writeFile(join(dir, 'detections.jsonl'), sub.join('\n') + '\n')
+  const sh = (await (await fetch(url(`${taskId}/detections?subband_hit=true`))).json()) as Array<{ subband_hit: boolean; hit: boolean }>
+  assert.equal(sh.length, 4)
+  assert.ok(sh.every((r) => r.subband_hit === true))
+  assert.ok(sh.some((r) => r.hit === false), '有帧级没命中、子带有簇的帧')
+  await fsp.writeFile(join(dir, 'detections.jsonl'), rows.join('\n') + '\n')
 
   // 索引：运行中缺文件 409、终态缺文件 404、有文件 200（HEAD 只给头）
   const rec = mgr.get(taskId) as TaskRecord

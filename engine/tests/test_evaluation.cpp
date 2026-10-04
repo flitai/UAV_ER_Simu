@@ -229,3 +229,72 @@ TEST_CASE("评价：truth_source = none 即 not_applicable 但计数照给；门
     CHECK(m.frames.fp == 1);
     CHECK(m.reasons.size() == 2);
 }
+
+// 分子带配对（Q-4b，D-093）：黄金基准 tests/golden/metrics_subband.json 由
+// algos/reference/evaluate.py --write-golden-subband 生成，每种计数（配上、被并掉、碎片、虚警段、频段外、载频偏差）各一个情形
+TEST_CASE("黄金基准：分子带的时间 × 频率一对一配对逐值复现 Python 参考实现（Q-4b）") {
+    std::ifstream f((std::string(CUAV_SOURCE_DIR) + "/tests/golden/metrics_subband.json").c_str());
+    REQUIRE_MESSAGE(f.good(), "黄金基准缺失：uv run --quiet python algos/reference/evaluate.py --write-golden-subband engine/tests/golden/metrics_subband.json");
+    json g;
+    f >> g;
+    std::vector<Detection> det;
+    for (const auto& r : g["inputs"]["detections"]) {
+        Detection d = det_row(r["frame_index"].get<std::uint64_t>(), r["t_s"].get<double>(), r["statistic"].get<double>(),
+                              r["threshold"].get<double>(), r["hit"].get<bool>(), -1, r["overload"].get<bool>());
+        d.f_lo_Hz = r["f_lo_Hz"].get<double>();
+        d.f_hi_Hz = r["f_hi_Hz"].get<double>();
+        d.subband_mode = true;
+        d.subband_hit = r["subband_hit"].get<bool>();
+        for (const auto& h : r["subbands"]) {
+            SubbandHit s;
+            s.f_lo_Hz = h["f_lo_Hz"].get<double>();
+            s.f_hi_Hz = h["f_hi_Hz"].get<double>();
+            s.bins = h["bins"].get<std::uint32_t>();
+            s.statistic = h["statistic"].get<double>();
+            s.snr_dB = h["snr_dB"].get<double>();
+            s.segment_id = h["segment_id"].get<std::int64_t>();
+            d.subbands.push_back(s);
+        }
+        det.push_back(d);
+    }
+    std::vector<TruthRow> truth;
+    for (const auto& r : g["inputs"]["truth"]) {
+        TruthRow t = truth_row(r["t_s"].get<double>(), r["t_end_s"].get<double>(), r["emitter_id"].get<std::string>(),
+                               r["label"].get<std::string>(), r["in_band"].get<bool>());
+        t.waveform = r["waveform"].get<std::string>();
+        t.center_Hz = r["center_Hz"].get<double>();
+        t.bw_Hz = r["bw_Hz"].get<double>();
+        if (r.contains("cfo_Hz")) t.cfo_Hz = r["cfo_Hz"].get<double>();
+        truth.push_back(t);
+    }
+    EvalParams p;
+    p.truth_source = g["params"]["truth_source"].get<std::string>();
+    p.match_overlap = g["params"]["match_overlap"].get<double>();
+    p.roc_points = g["params"]["roc_points"].get<std::size_t>();
+    p.frame_dt_s = g["params"]["frame_dt_s"].get<double>();
+    p.threshold = g["params"]["threshold"].get<double>();
+    p.has_rec = g["params"]["has_rec"].get<bool>();
+    const EvaluationMetrics m = evaluate(det, {}, truth, p);
+    REQUIRE(m.segments_tf.present);
+    DetectorInfo di;
+    di.nfft = 256; di.sample_rate_Hz = 1e6; di.f_lo_Hz = 2.44e9 - 450e3; di.f_hi_Hz = 2.44e9 + 450e3;
+    ModelTrace tr;
+    const json sec = metrics_section_json(m, p, di, "eval", "site-1", tr);
+    REQUIRE(sec.contains("segments_tf"));
+    int mismatches = 0;
+    compare_json(g["expected"]["segments_tf"], sec["segments_tf"], "segments_tf", mismatches);
+    CHECK(mismatches == 0);
+    // 键集合也要一样（compare_json 只按 expected 的键走）
+    CHECK(sec["segments_tf"]["per_emitter"].size() == g["expected"]["segments_tf"]["per_emitter"].size());
+}
+
+TEST_CASE("分子带没开时 metrics.json 不写 segments_tf（既有文件逐字节不变）") {
+    std::vector<Detection> det{det_row(0, 0.0, 1.0, 1.1, false, -1)};
+    EvalParams p;
+    p.frame_dt_s = 0.000256;
+    const EvaluationMetrics m = evaluate(det, {}, {}, p);
+    CHECK_FALSE(m.segments_tf.present);
+    DetectorInfo di;
+    ModelTrace tr;
+    CHECK_FALSE(metrics_section_json(m, p, di, "eval", "site-1", tr).contains("segments_tf"));
+}

@@ -72,8 +72,9 @@ const JSONL_FILTERS: Record<string, readonly string[]> = {
   links: ['link_id'],
   bearings: ['site_id', 'emitter_id', 'link_id'],
   positions: ['emitter_id', 'method'],
-  // hit 是布尔：过滤按 String(值) 比较，查询串写 hit=true 即只取命中帧（浏览器的突发列表只要这些）
-  detections: ['site_id', 'node_id', 'hit'],
+  // hit 是布尔：过滤按 String(值) 比较，查询串写 hit=true 即只取命中帧（浏览器的突发列表只要这些）。
+  // subband_hit 同理（Q-4b，D-093）：分子带模式下帧级没命中、子带有簇的帧要用它取，hit=true 会漏掉
+  detections: ['site_id', 'node_id', 'hit', 'subband_hit'],
   // 特征与识别（C-4）：按站 / 节点取一站的突发；识别另可按结论与标签筛
   features: ['site_id', 'node_id', 'quality'],
   recognitions: ['site_id', 'node_id', 'result', 'label'],
