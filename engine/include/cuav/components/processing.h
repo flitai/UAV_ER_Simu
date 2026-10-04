@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "cuav/component.h"
+#include "cuav/subband.h"
 
 namespace cuav {
 
@@ -122,6 +123,7 @@ public:
     std::uint64_t frames() const { return frames_; }
     std::uint64_t segments() const { return segments_; }
     std::uint64_t noise_stale_frames() const { return noise_stale_; }
+    const SubbandStage& subband() const { return sub_; }
 
 private:
     std::size_t nfft_ = 1024;
@@ -133,6 +135,13 @@ private:
     std::size_t window_frames_ = 256;   // sliding：环长 W
     std::uint64_t merge_gap_ = 2;       // 突发合并允许的空隙帧数
     bool want_dBm_ = true;
+    // 分子带检测（Q-4b，D-093）：0 = 关；> 0 时只能配 sliding。帧级判决一字不受影响
+    int subband_bins_ = 0;
+    SubbandStage sub_;
+    std::vector<float> hann_;           // 周期 Hann（与 FeatureExtractor 同式），分子带用
+    double hann_wsq_ = 0.0;
+    std::vector<double> sub_power_;     // 本帧频段内各频点的 Hann 窗功率
+    std::vector<SubbandCluster> sub_out_;
     std::string site_id_;               // 装载器按 scene_binding 注入；只作行身份，不影响算法
     std::string node_name_;
     IRunObserver* obs_ = nullptr;
@@ -179,6 +188,7 @@ private:
     void finalise_noise();
     void consume_frame(const std::vector<Complex>& frame, std::uint64_t start_sample);
     void judge_sliding(const std::vector<double>& power, std::uint64_t start_sample);
+    void subband_frame(const std::vector<Complex>& frame, Detection& d);
     void ring_push(const std::vector<double>& power);
     void recompute_noise_from_ring();
     Detection make_detection(double band_energy, std::uint64_t frame_index,

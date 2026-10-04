@@ -23,6 +23,19 @@ namespace cuav {
 
 class IRunObserver;   // observer.h
 
+// 分子带检测的一簇（Q-4b，D-093）：频段内一串相邻的被标记频点。字段口径与帧级行相同，
+// 频率是绝对频率（簇首末频点的中心各向外半个频点），电平按 Hann 窗的能量归一（Σ|X_k|² / (nfft·Σw²)）。
+struct SubbandHit {
+    double f_lo_Hz = 0.0;
+    double f_hi_Hz = 0.0;
+    std::uint32_t bins = 0;
+    double statistic = 0.0;           // 簇内 ΣP / Σn
+    double snr_dB = 0.0;              // 10·log10 statistic
+    double band_power_dBm = 0.0;      // has_dBm 为真时有效
+    double noise_dBm = 0.0;
+    std::int64_t segment_id = -1;     // 分子带的段号（与帧级的 segment_id 是两套编号）
+};
+
 // 一次能量判决的结果。前五个字段是切片 ① 就有的；其余自 C-3（D-063）起补上，
 // 让一行检测自描述（时间、频段、电平、突发编号），运行器落 detections.jsonl 时逐字段写出。
 struct Detection {
@@ -41,6 +54,10 @@ struct Detection {
     bool has_dBm = false;             // 输入已标定且参数 band_power_dBm 为真
     bool overload = false;            // 组成该帧的任一块 clip_count > 0（削波是数据标记，D-051）
     std::uint32_t noise_frames_used = 0;   // 判决时噪声估计用了几帧
+    // 分子带检测（Q-4b，D-093）：检测器开了 subband_bins 才有。帧级字段一字不受它影响。
+    bool subband_mode = false;
+    bool subband_hit = false;              // 本帧至少有一簇
+    std::vector<SubbandHit> subbands;      // 按频率升序
 };
 
 struct DetectionList {

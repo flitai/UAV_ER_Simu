@@ -84,6 +84,13 @@ struct DetectionSummary {
     bool calibrated = false;
     State state = State::Valid;
     std::vector<std::string> notes;
+    // 分子带检测（Q-4b，D-093）；subband_bins = 0 即没开，运行器不写这一节
+    int subband_bins = 0;
+    std::size_t subband_levels = 0, subband_tests = 0;
+    double subband_pfa_test = 0.0;
+    std::size_t subband_link_frames = 0, subband_guard_bins = 0;
+    std::uint64_t subband_segments = 0, subband_hit_frames = 0, subband_stale_frames = 0;
+    std::size_t subband_never_full_bins = 0;
 };
 
 // 特征行（C-4）。与检测行同一范式：自描述的行加节点与站点身份。特征是按突发出的（每个突发一行），

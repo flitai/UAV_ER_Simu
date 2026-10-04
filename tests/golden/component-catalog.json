@@ -799,6 +799,17 @@
           "unit": ""
         },
         {
+          "constraint": "0 或 2 / 4 / 8 / 16 / 32 / 64",
+          "default": 0.0,
+          "description": "分子带检测的最小块宽（频点数）；0 = 关。开了只能配 sliding：Hann 窗、逐频点删截、多级块（块宽 × 2 逐级）、块统计量精确门限，宽带里同时出现的几个信号各成各的段（Q-4b，D-093）",
+          "max": 64.0,
+          "min": 0.0,
+          "name": "subband_bins",
+          "required": false,
+          "type": "number",
+          "unit": ""
+        },
+        {
           "description": "场景文件路径，由装载器按 scene_binding 注入；本组件不读它",
           "internal": true,
           "name": "scenario_path",

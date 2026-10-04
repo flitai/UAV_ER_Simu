@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <map>
+#include <utility>
 #include <stdexcept>
 
 namespace cuav {
@@ -179,6 +181,92 @@ double pd_random(int m_bins, double eta, double snr_linear) {
     return regularized_gamma_q(m, m * eta / (1.0 + snr_linear));
 }
 
+
+// --- 分子带检测的门限（Q-4b，D-093）--------------------------------------------
+
+std::vector<double> hann_corr_eigs(std::size_t S) {
+    if (S == 0) throw std::invalid_argument("块宽必须不小于 1");
+    const double kPiL = 3.141592653589793238462643383279502884;
+    const double rho = 1.0 / 16.0;
+    const double sp1 = static_cast<double>(S + 1);
+    std::vector<double> out;
+    out.reserve(S);
+    for (int parity = 1; parity >= 0; --parity) {          // 先奇数 k、再偶数 k（与 Python 参考同序）
+        std::vector<double> d, z2;
+        for (std::size_t k = 1; k <= S; ++k) {
+            if (static_cast<int>(k % 2) != parity) continue;
+            const double th = static_cast<double>(k) * kPiL / sp1;
+            const double mu = 0.5 - 0.5 * std::cos(th);
+            const double sn = std::sin(th);
+            d.push_back(mu * mu);
+            z2.push_back(2.0 * (2.0 / sp1) * sn * sn);
+        }
+        const std::size_t n = d.size();
+        double znorm = 0.0;
+        for (std::size_t i = 0; i < n; ++i) znorm += z2[i];
+        for (std::size_t i = 0; i < n; ++i) {
+            double lo = d[i];
+            double hi = (i + 1 < n) ? d[i + 1] : d[i] + rho * znorm;
+            for (int it = 0; it < 200; ++it) {
+                const double m = 0.5 * (lo + hi);
+                double f = 1.0;
+                double acc = 0.0;
+                for (std::size_t j = 0; j < n; ++j) acc += z2[j] / (d[j] - m);
+                f += rho * acc;
+                if (f < 0.0) lo = m; else hi = m;
+            }
+            out.push_back((0.5 * (lo + hi)) * (8.0 / 3.0));
+        }
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+double subband_tail(const std::vector<double>& lam, double x) {
+    double mean = 0.0;
+    double lmax = 0.0;
+    for (double v : lam) { mean += v; lmax = std::max(lmax, v); }
+    if (!(x > mean)) return 1.0;
+    double lo = 0.0, hi = (1.0 - 1e-12) / lmax;
+    for (int it = 0; it < 200; ++it) {                     // 解 K'(t) = Σ λ/(1 − λt) = x
+        const double t = 0.5 * (lo + hi);
+        double k1 = 0.0;
+        for (double v : lam) k1 += v / (1.0 - v * t);
+        if (k1 < x) lo = t; else hi = t;
+    }
+    const double t = 0.5 * (lo + hi);
+    double K = 0.0, K2 = 0.0;
+    for (double v : lam) {
+        K -= std::log1p(-v * t);
+        const double q = v / (1.0 - v * t);
+        K2 += q * q;
+    }
+    const double w = std::sqrt(2.0 * (t * x - K));
+    const double u = t * std::sqrt(K2);
+    const double kSqrt2 = 1.4142135623730951;
+    const double kSqrt2Pi = 2.5066282746310002;
+    return 0.5 * std::erfc(w / kSqrt2) + std::exp(-0.5 * w * w) / kSqrt2Pi * (1.0 / u - 1.0 / w);
+}
+
+double subband_threshold(std::size_t S, double pfa_test) {
+    if (!(pfa_test > 0.0 && pfa_test < 1.0)) throw std::invalid_argument("单次检验虚警率必须在 (0,1)");
+    static std::map<std::pair<std::size_t, double>, double> cache;
+    static std::map<std::size_t, std::vector<double> > eigs;
+    const std::pair<std::size_t, double> key(S, pfa_test);
+    auto it = cache.find(key);
+    if (it != cache.end()) return it->second;
+    auto e = eigs.find(S);
+    if (e == eigs.end()) e = eigs.insert(std::make_pair(S, hann_corr_eigs(S))).first;
+    const double sd = static_cast<double>(S);
+    double lo = 1.0, hi = 200.0;
+    for (int i = 0; i < 100; ++i) {
+        const double m = 0.5 * (lo + hi);
+        if (subband_tail(e->second, sd * m) > pfa_test) lo = m; else hi = m;
+    }
+    const double eta = 0.5 * (lo + hi);
+    cache[key] = eta;
+    return eta;
+}
 
 // --- 带限用的双二阶节（C-8 / G-6，D-069）------------------------------------
 

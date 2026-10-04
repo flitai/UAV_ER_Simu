@@ -276,6 +276,28 @@ bool EnergyDetector::configure(const std::map<std::string, double>& params,
     if (gap < 0.0) { err = "EnergyDetector 的 merge_gap_frames 不得为负"; return false; }
     merge_gap_ = static_cast<std::uint64_t>(gap);
     want_dBm_ = get(params, "band_power_dBm", 1.0) != 0.0;
+    // 分子带检测（Q-4b，D-093）：0 = 关；开了只能配 sliding（滑动删截是逐频点做的，probe 没有这个结构）
+    const double sb = get(params, "subband_bins", 0.0);
+    subband_bins_ = static_cast<int>(sb);
+    if (static_cast<double>(subband_bins_) != sb || (subband_bins_ != 0 && !SubbandStage::allowed_k0(subband_bins_))) {
+        err = "EnergyDetector 的 subband_bins 必须取 0（关）或 2 / 4 / 8 / 16 / 32 / 64";
+        return false;
+    }
+    if (subband_bins_ > 0 && noise_mode_ != "sliding") {
+        err = "EnergyDetector 的 subband_bins 只能配 noise_mode = sliding";
+        return false;
+    }
+    hann_.clear();
+    hann_wsq_ = 0.0;
+    if (subband_bins_ > 0) {
+        // 周期 Hann，与 FeatureExtractor::configure 同式：double 算窗值转 float32，Σw² 按 float32 窗值累加
+        hann_.assign(nfft_, 0.0f);
+        for (std::size_t n = 0; n < nfft_; ++n) {
+            const double w = 0.5 - 0.5 * std::cos(kTwoPi * static_cast<double>(n) / static_cast<double>(nfft_));
+            hann_[n] = static_cast<float>(w);
+            hann_wsq_ += static_cast<double>(hann_[n]) * static_cast<double>(hann_[n]);
+        }
+    }
     auto sid = text_params.find("site_id");
     site_id_ = sid == text_params.end() ? std::string() : sid->second;
     return true;
@@ -310,6 +332,9 @@ void EnergyDetector::clear_state() {
     frame_overload_ = false;
     frame_calibrated_ = false;
     summary_sent_ = false;
+    sub_ = SubbandStage();
+    sub_power_.clear();
+    sub_out_.clear();
     status_ = ComponentStatus();
 }
 
@@ -455,6 +480,41 @@ void EnergyDetector::recompute_noise_from_ring() {
 //   ② 环变过 → 重算噪声；
 //   ③ 判决（noise_frames_used = 判决时的环大小）；判决时环已连续 > W 帧没更新 → 计一帧陈旧；
 //   ④ 未命中且尚未入环 → 入环（满则弹最旧）；命中的帧不入环（删截）。
+// 分子带（Q-4b，D-093）：本帧的 Hann 窗功率交 SubbandStage，簇写进这一行。帧级字段已经定了，不受影响。
+void EnergyDetector::subband_frame(const std::vector<Complex>& frame, Detection& d) {
+    std::vector<Complex> xw(nfft_);
+    for (std::size_t n = 0; n < nfft_; ++n) xw[n] = frame[n] * hann_[n];
+    dsp::fft_inplace(xw);
+    dsp::fftshift(xw);
+    for (std::size_t j = 0; j < band_bins_.size(); ++j) {
+        const double re = static_cast<double>(xw[band_bins_[j]].real());
+        const double im = static_cast<double>(xw[band_bins_[j]].imag());
+        sub_power_[j] = re * re + im * im;
+    }
+    sub_.frame(sub_power_, d.frame_index, sub_out_);
+    d.subband_mode = true;
+    d.subband_hit = !sub_out_.empty();
+    const double df = sample_rate_Hz_ / static_cast<double>(nfft_);
+    const double half = static_cast<double>(nfft_ / 2);
+    const double norm = static_cast<double>(nfft_) * hann_wsq_;
+    for (const SubbandCluster& c : sub_out_) {
+        SubbandHit h;
+        const double flo = (static_cast<double>(band_bins_[c.lo]) - half) * df;
+        const double fhi = (static_cast<double>(band_bins_[c.hi]) - half) * df;
+        h.f_lo_Hz = center_frequency_Hz_ + flo - 0.5 * df;
+        h.f_hi_Hz = center_frequency_Hz_ + fhi + 0.5 * df;
+        h.bins = static_cast<std::uint32_t>(c.hi - c.lo + 1);
+        h.statistic = c.n > 0.0 ? c.e / c.n : 0.0;
+        h.snr_dB = 10.0 * std::log10(std::max(h.statistic, 1e-30));
+        if (d.has_dBm) {
+            h.band_power_dBm = 10.0 * std::log10(std::max(c.e / norm, 1e-30));
+            h.noise_dBm = 10.0 * std::log10(std::max(c.n / norm, 1e-30));
+        }
+        h.segment_id = c.segment_id;
+        d.subbands.push_back(h);
+    }
+}
+
 void EnergyDetector::judge_sliding(const std::vector<double>& power, std::uint64_t start_sample) {
     bool admitted = false;
     if (ring_.empty()) { ring_push(power); admitted = true; }
@@ -465,6 +525,7 @@ void EnergyDetector::judge_sliding(const std::vector<double>& power, std::uint64
     if (frames_since_admit_ > window_frames_) noise_stale_++;
     Detection d = make_detection(e, frames_, start_sample, frame_overload_);
     d.noise_frames_used = used;
+    if (subband_bins_ > 0) subband_frame(carry_, d);
     if (!d.hit && !admitted) { ring_push(power); admitted = true; }
     frames_since_admit_ = admitted ? 0 : frames_since_admit_ + 1;
     pending_.push_back(d);
@@ -517,6 +578,13 @@ Step EnergyDetector::process(PortMap& in, PortMap& out, std::string& err) {
             eta_ = dsp::threshold_for_pfa(m_bins_, pfa_);
             sorted_.assign(band_bins_.size(), std::vector<double>());
             for (auto& s : sorted_) s.reserve(window_frames_ + 1);
+            if (subband_bins_ > 0) {
+                if (!sub_.configure(band_bins_.size(), subband_bins_, pfa_, window_frames_, merge_gap_, err)) {
+                    err = "EnergyDetector：" + err;
+                    return Step::Error;
+                }
+                sub_power_.assign(band_bins_.size(), 0.0);
+            }
         }
     } else if (blk.meta.sample_rate_Hz != sample_rate_Hz_) {
         err = "EnergyDetector 中途收到不同采样率的块";
@@ -588,6 +656,18 @@ void EnergyDetector::emit_summary() {
     s.calibrated = frame_calibrated_;
     s.state = status_.state;
     s.notes = status_.notes;
+    if (subband_bins_ > 0 && sub_.configured()) {
+        s.subband_bins = subband_bins_;
+        s.subband_levels = sub_.levels();
+        s.subband_tests = sub_.tests();
+        s.subband_pfa_test = sub_.pfa_test();
+        s.subband_link_frames = SubbandStage::kLinkFrames;
+        s.subband_guard_bins = SubbandStage::kGuardBins;
+        s.subband_segments = sub_.segments();
+        s.subband_hit_frames = sub_.hit_frames();
+        s.subband_stale_frames = sub_.stale_frames();
+        s.subband_never_full_bins = sub_.never_full_bins();
+    }
     obs_->on_detection_summary(s);
 }
 
@@ -614,6 +694,11 @@ Step EnergyDetector::flush(PortMap& out, std::string& err) {
             status_.notes.push_back("滑动噪声估计的环从未填满：配置 " + numstr(window_frames_) +
                                     " 帧，全程最多纳入 " + numstr(ring_.size()) +
                                     " 帧，门限可信度下降");
+        }
+        if (subband_bins_ > 0 && sub_.configured() && 2 * sub_.never_full_bins() > band_bins_.size()) {
+            status_.state = worst(status_.state, State::Degraded);
+            status_.notes.push_back("分子带：频段内 " + numstr(sub_.never_full_bins()) + " / " + numstr(band_bins_.size()) +
+                                    " 个频点的噪声环从未填满，过半，分子带门限可信度下降");
         }
         if (noise_stale_ > 0) {
             // 信号持续占满时的正常状态：没有未命中帧可纳入，估计停留在最近一次更新。记 note 不降级（10 §4.2）
@@ -1100,6 +1185,10 @@ ComponentInfo EnergyDetector::describe() const {
         ParamSpec::number("merge_gap_frames", "", "命中帧之间的空隙不大于此值即并入同一突发（EM-S-02 merge_time_gap）")
             .def(2.0).at_least(0.0),
         ParamSpec::boolean("band_power_dBm", "输入已标定时在检测行里附带频段功率与噪声估计的 dBm 读数").def_bool(true),
+        ParamSpec::number("subband_bins", "", "分子带检测的最小块宽（频点数）；0 = 关。开了只能配 sliding："
+                          "Hann 窗、逐频点删截、多级块（块宽 × 2 逐级）、块统计量精确门限，"
+                          "宽带里同时出现的几个信号各成各的段（Q-4b，D-093）")
+            .def(0.0).at_least(0.0).at_most(64.0).constrained("0 或 2 / 4 / 8 / 16 / 32 / 64"),
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入；本组件不读它").internal_only(),
         ParamSpec::text("scenario_id", "场景标识，由装载器注入").internal_only(),
         ParamSpec::text("site_id", "本检测器所属站点，由装载器按 scene_binding 注入；只作检测行的身份，不影响算法")

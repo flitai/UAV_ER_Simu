@@ -75,6 +75,7 @@ add_library(cuav_engine STATIC
   src/graph.cpp
   src/sources.cpp
   src/processing.cpp
+  src/subband.cpp
   src/recognition.cpp
   src/evaluation.cpp
   src/evaluator.cpp
@@ -130,6 +131,7 @@ add_executable(cuav_engine_tests
   tests/test_dsp_random.cpp
   tests/test_components.cpp
   tests/test_golden.cpp
+  tests/test_subband.cpp
   tests/test_occlusion.cpp
   tests/test_coverage.cpp
   tests/test_field.cpp

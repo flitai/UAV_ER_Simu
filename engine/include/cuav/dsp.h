@@ -57,6 +57,25 @@ double threshold_for_pfa(int m_bins, double pfa);
 // 覆盖场（cuav_run --field，D-080）逐格用它。s < 0 抛 invalid_argument。
 double pd_random(int m_bins, double eta, double snr_linear);
 
+// --- 分子带检测的门限（Q-4b，D-093）--------------------------------------------
+//
+// 块统计量 Λ = ΣP / Σn（Hann 窗功率对噪声估计）在 H0 下是 (1/S)·Σ λ_i E_i：λ_i 是 S 个相邻频点
+// 复值相关矩阵（周期 Hann：带状 Toeplitz 1、−2/3、1/6）的特征值，E_i 独立单位指数。
+// 三个函数与 algos/reference/subband.py 的 corr_eigs / tail / threshold 同式同序（那边的特征值用
+// numpy 的通用特征分解求，这边用下面的久期方程——两种独立方法，门限对拍到 1e-9）。
+
+// 相关矩阵的特征值，升序。矩阵 = (8/3)·(T² + (1/16)(e1e1ᵀ + eSeSᵀ))，T = tridiag(−1/4, 1/2, −1/4) 的
+// 特征值与正弦特征向量有闭式；角上的秩 2 修正在 T 的特征基里按奇偶拆成两个「对角 + 秩 1」，
+// 各解久期方程 1 + ρ·Σ z_i²/(d_i − λ) = 0（每个根在相邻两个极点之间，二分 200 次）。S ≥ 1。
+std::vector<double> hann_corr_eigs(std::size_t S);
+
+// P(Σ λ_i E_i > x)：Lugannani–Rice 鞍点近似。x 不超过均值时返回 1。
+double subband_tail(const std::vector<double>& lam, double x);
+
+// 块宽 S、单次检验虚警率 pfa_test 的门限 η：在 [1, 200] 上二分 100 次，使 P(S·Λ > S·η) = pfa_test。
+// 结果按 (S, pfa_test) 缓存。
+double subband_threshold(std::size_t S, double pfa_test);
+
 // --- 带限用的双二阶节（C-8 / G-6，D-069）------------------------------------
 //
 // 用途只有一个：给 SceneEmitterSource 的 noise 波形做带限，让「2 MHz 图传落在 10 MS/s 的
