@@ -53,11 +53,21 @@ fi
 
 printf '=== SigMF 导出的两份实现逐项一致（D-090）===\n'
 # 服务端 TypeScript（界面「数据导出」用，交付包没有 Python）对 Python 参考：数据文件逐字节、元数据与链路逐值、
-# 官方包校验。两次真引擎运行覆盖 S3 无损与 S4 / S5 重量化两条路径。约 20 s。
+# 官方包校验。五次真引擎运行覆盖 S3 无损与 S4 / S5 重量化两条路径、可用频带的三类 capture 与实测信噪比。约 40 s。
 if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ] && [ -f "$root/server/dist/exports/cli.js" ]; then
   uv run --quiet --with numpy --with sigmf python tests/regression/export_parity.py
 else
   echo "跳过：需要 uv、engine/build/cuav_run 与 server/dist（缺一）" >&2
+fi
+
+printf '=== 评测数据集生成器冒烟（试样集，D-092）===\n'
+# 格子文件 → 场景 → 框图（_gen.ts eval）→ cuav_run → SigMF → 交付件；SHA512SUMS、读取示例、无本机路径、重跑逐字节。
+# 一格、2 MS/s、0.2 s，几秒。生成器单测（种子、跳频、前端反解、格子文件）不跑引擎，一并在这里跑。
+if command -v uv >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet --with numpy --with scipy python -m unittest tests/unit/test_eval_dataset.py
+  uv run --quiet --with numpy --with sigmf --with matplotlib python tests/regression/eval_dataset_smoke.py
+else
+  echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
 printf '=== 机型预设表（Q-2，D-088）===\n'

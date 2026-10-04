@@ -1,0 +1,113 @@
+{
+  "schema_version": "cuav-eval-cells/1",
+  "set_id": "smoke",
+  "name": "冒烟集",
+  "stem_prefix": "smk",
+  "set_seed": 20261005,
+  "duration_s": 0.2,
+  "created_at": "2026-10-04T00:00:00Z",
+  "aoi_id": "beijing-yayuncun",
+  "notes": "数据集生成器的冒烟算例（D-092）：一格、2 MS/s、0.2 s、突发波形、视距，几秒跑完，接在 build-all.sh 里。不交付。",
+  "site": {
+    "id": "site-1",
+    "name": "亚运村侦察站",
+    "lon": 116.405,
+    "lat": 39.99,
+    "alt_m": 30,
+    "antenna_gain_dBi": 3,
+    "nf_dB": 6
+  },
+  "receivers": {
+    "R0": {
+      "fs_Hz": 2000000,
+      "center_Hz": 2440000000,
+      "bw_Hz": 1600000
+    }
+  },
+  "chain": {
+    "rx_fe": {
+      "gain_dB": 20,
+      "phase_noise": "pll"
+    },
+    "adc": {
+      "full_scale_dBm": -20,
+      "bits": "14"
+    },
+    "det": {
+      "nfft": 1024
+    }
+  },
+  "propagation": {
+    "los": {
+      "prop_level": "E1",
+      "fading": "rician"
+    }
+  },
+  "cfo": {
+    "max_ppm": 20,
+    "source": "A：IEEE 802.11 OFDM 发射机中心频率容差 ±20 ppm 作代理（14 附录 A），按平台在 ±20 ppm 上均匀抽"
+  },
+  "frontend_measured": {
+    "use": true,
+    "iq_gain_imbalance_dB": 0.005346,
+    "iq_phase_imbalance_deg": -0.006931,
+    "dc_rel_noise_dB": -40.12,
+    "source": {
+      "grade": "M",
+      "data": "复制自 sample-v1 的 frontend_measured（冒烟集不另量）",
+      "n_slices": 37,
+      "status": "原型阶段验证值（D-028）"
+    }
+  },
+  "cells": [
+    {
+      "id": "c1",
+      "title": "突发信标，视距",
+      "receiver": "R0",
+      "propagation": "los",
+      "s4": {
+        "decim": 2,
+        "f_shift_Hz": 200000
+      },
+      "platforms": [
+        {
+          "id": "uav",
+          "name": "无人机",
+          "platform_type": "multirotor",
+          "alt_m": 100,
+          "azimuth_deg": 45,
+          "snr_dB": 20,
+          "primary": "uav-1",
+          "emitters": [
+            {
+              "id": "uav-1",
+              "name": "突发信标",
+              "equipment_model": "冒烟夹具",
+              "waveform": {
+                "type": "burst",
+                "period_s": 0.05,
+                "duty": 0.3,
+                "offset_Hz": 0
+              },
+              "center_Hz": 2440200000,
+              "bw_Hz": 200000,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            }
+          ],
+          "resolved": {
+            "lon": 116.4856862,
+            "lat": 40.0519783,
+            "range_m": 9736.852,
+            "azimuth_deg": 45.0,
+            "line_of_sight": true,
+            "distance_m": 9737.04,
+            "path_loss_dB": 119.9648,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 20.0001
+          }
+        }
+      ]
+    }
+  ]
+}
