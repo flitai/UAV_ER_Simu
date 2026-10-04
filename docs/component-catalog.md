@@ -89,7 +89,7 @@ D-036（实现形态 Coder / 手写）；06 备忘录 §9A B-1。
 | `NoiseSource` 复高斯噪声源 | source | M3 / E2 | cpp |
 | `AddMixer` 加法混合 | source | M3 / E2 | cpp |
 | `FileReplaySource` 文件回放源 | data | M3 / E4 | cpp，`scene_bindable = false`；用户参数 `data_id`，内部参数 `manifest_path`（D-037） |
-| `EnergyDetector` 能量检测 | algorithm | M2 / E2 | cpp；自 C-3（2026-09-12，D-063）起 `noise_mode ∈ {probe, sliding}`（缺省 `probe` 即既有算法；`sliding` = 带删截的滑动中位数噪声估计，D-026 交付形态）、`noise_window_frames` / `merge_gap_frames` / `band_power_dBm`；`scene_bindable`，绑站只为把 `site_id` 注入检测行（内部参数 `scenario_path / scenario_id / site_id`，不读场景文件）；逐帧经观察者上报 `detections.jsonl`，模型卡 `models/detection/README.md` |
+| `EnergyDetector` 能量检测 | algorithm | M2 / E2 | cpp；自 C-3（2026-09-12，D-063）起 `noise_mode ∈ {probe, sliding}`（缺省 `probe` 即既有算法；`sliding` = 带删截的滑动中位数噪声估计，D-026 交付形态）、`noise_window_frames` / `merge_gap_frames` / `band_power_dBm`；自 Q-4b（2026-10-05，D-093）起加 `subband_bins`（分子带最小块宽 ∈ {0, 2, 4, 8, 16, 32, 64}，0 = 关、缺省；开了只能配 `sliding`，帧级判决一字不动、每行多 `subband_hit` / `subbands`，版本号不动）；`scene_bindable`，绑站只为把 `site_id` 注入检测行（内部参数 `scenario_path / scenario_id / site_id`，不读场景文件）；逐帧经观察者上报 `detections.jsonl`，模型卡 `models/detection/README.md` |
 | `DetectionSink` 检测汇聚 | algorithm | M2 / E1 | cpp |
 | `SpectrumAnalyzer` 频谱分析 | algorithm | M3 / E2 | cpp；Welch 功率谱 dBFS，`SpectrumFrame` 首个生产者（P1-4a），与 Python、MATLAB `pwelch` 三方互证 |
 | `ObservationTap` 观测点 | algorithm | M3 / E2 | cpp；用户参数 `op_id`，内部参数 `out_dir`；写 `spectrum.f32` / `envelope.f32` 与索引（B-3）；**可选 `iq`**（缺省关，2026-09-29 Q-1，D-087）：写 `iq.cf32`（复 float32 交织）与 `iq.index.json`，块间有缺口即报错；只给交付导出工具用，不推送 |

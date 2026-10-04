@@ -290,6 +290,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `snr_dB` | `10·log10 Λ`，即 (S+N)/N；Λ = 0 时钳在 −300 |
 | `overload` | 组成该帧的任一块 `clip_count > 0`（帧可能跨块）；削波是数据标记不是降级（D-051） |
 | `noise_frames_used` | 判决时噪声估计用了几帧：`probe` 恒为探针帧数；`sliding` 为判决时的环大小（暖机期从 1 涨到 W，之后停在 W） |
+| `subband_hit?` / `subbands?` | **分子带**（Q-4b，D-093）：检测器开了 `subband_bins` 才有这两个键（每行都有，没开就都没有，既有文件逐字节不变）。`subband_hit` = 本帧有至少一簇；`subbands` 按 `f_lo_Hz` 升序，每簇 `{f_lo_Hz, f_hi_Hz, bins, statistic, snr_dB, band_power_dBm?, noise_dBm?, segment_id}`：频段是簇首 bin 下沿到簇尾 bin 上沿（绝对频率）、`statistic = ΣP / Σn̂`（Hann 窗功率对逐频点噪声估计）、`snr_dB = 10·log10 statistic`、dBm 两键按 `ΣP / (nfft·Σw²)` 折成每样点功率（未标定时省）、`segment_id` 是**分子带那一套**段号，与帧级的 `segment_id` 不是一回事。帧级的十个键一字不动 |
 
 **`detections.index.json`**（运行器在 `graph.run` 返回后写，每个检测器一条摘要；`rows` 是落盘的总行数）
 
@@ -302,6 +303,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `…{noise_mode, noise_window_frames, merge_gap_frames}` | `probe` / `sliding`；`sliding` 时是环长 W，`probe` 时是实际用的探针帧数 |
 | `…{frames, hits, segments, noise_stale_frames, overload_frames}` | 计数；`noise_stale_frames` = 环连续超过 W 帧未更新时判决的帧数（信号持续占满时的正常状态，记 note 不降级） |
 | `…{calibrated, state, notes}` | 输入是否标定、检测器的四态与 notes（环从未填满 → `degraded`） |
+| `…subband?` | 分子带（Q-4b，D-093），开了才有：`{bins（最小块宽 K0）, levels, tests（各级块数之和）, pfa_test（= pfa / tests）, window: "hann", threshold_rule: "exact_saddlepoint", link_frames: 64, guard_bins: 2, segments, hit_frames, stale_frames, never_full_bins}`；频段里超过一半的频点的环从未填满时检测器标 `degraded`。算法见 `models/detection/README.md` §9 |
 | `…trace` | 溯源七件（`model_id = EnergyDetector`、`M2` / `E2` / `V3`；绑站时 `trace_id = EnergyDetector:<site_id>`）——行不带 trace，铁律 8 由这里兑现 |
 
 ### 5.2 突发特征行（C-4）
@@ -373,6 +375,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `detector` | `{sample_rate_Hz, f_lo_Hz, f_hi_Hz, frame_dt_s, threshold}`，评价器从检测行与块元数据取到的检测器参数——Python 参考据此重算，不另开参数 |
 | `frames` | `{total, truth_on, tp, fp, fn, tn, pd, pfa, precision, recall, f1}`；帧真值按帧中点判 |
 | `segments` | `{truth, truth_out_of_band, detected, matched, false_segments, pd_segment, detect_delay_s{mean, max}}`；匹配判据 `overlap / min(len_det, len_truth) ≥ match_overlap` |
+| `segments_tf?` | **分子带**（Q-4b，D-093），检测器开了 `subband_bins` 才有（没开的运行逐字节不变）：`{truth, truth_out_of_band, truth_partial, segments, matched, false_segments, fragments, merged_truth, pd_burst, per_emitter{<id>: {truth, matched, merged, pd_burst, detect_delay_mean_s}}}`。时间 × 频率**一对一**配对：段 = 分子带段号相同的簇，频段取核心（在该段至少一半的帧里命中的频点）；真值频段 = 名义中心 + `cfo_Hz` ± `bw_Hz/2`（不含场景 `offset_Hz`）；时间与频率重叠比（都对较短 / 较窄的一方）都 ≥ `match_overlap` 才是候选，按两比之积贪心配对。真值频段落在检测频段内不足 `match_overlap` 的行计 `truth_partial`、不进分母。被并掉 = 有候选没配上的真值；碎片 = 有候选没配上的段；虚警段 = 没有候选的段 |
 | `roc` | `{working_point{threshold, pd, pfa}, points[{threshold, pd, pfa}]}`；门限取排序统计量的等分位、去重，判决严格大于，不重跑 |
 | `recognition` | `{state, labels[], confusion[][], evaluated, unmatched, accuracy, per_class[{label, support, precision, recall, f1}], unknown_rate, ambiguous_rate}`；`labels` = 四个基础标签 + 其它（字典序）+ `unknown` 末位，方阵；`rec` 口未接时 `state = not_applicable` |
 | `quality` | `{overload_frames, noise_stale_frames, truth_rows}`；`noise_stale_frames` 端口上拿不到，恒为 `null`（要看它去 `detections.index.json`） |
