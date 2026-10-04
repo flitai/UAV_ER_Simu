@@ -1,0 +1,1373 @@
+{
+  "schema_version": "cuav-eval-dataset-manifest/1",
+  "set_id": "sample-v1",
+  "cells_file": "tests/regression/eval-dataset/sample-v1.json",
+  "cells_sha256": "432ed12a8f7a5cc6f2592988599b1df1436858e5af69132d5dd42b688e327d96",
+  "git": {
+    "commit": "cab934ea39618765075010c4fa9a7eda9a45adcd",
+    "dirty": false,
+    "dirty_paths": []
+  },
+  "cuav_run_sha256": "753d5688845263860a3f253e63d39efd228687de7d95afc80ff68ed28556abe6",
+  "engine_version": "0.1.0",
+  "exporter": "tools/iq_export_sigmf.py 0.3.0",
+  "sigmf_version": "1.2.6",
+  "package_bytes": 4493779772,
+  "cells": [
+    {
+      "id": "s01",
+      "title": "DJI 图传 10 MHz + DroneID，视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 22500000
+      },
+      "presets": [
+        "dji-droneid",
+        "dji-video-10m"
+      ],
+      "scenario_id": "sv1-s01",
+      "scenario_sha256": "88d1de1c5340b91acd7f969fc60c397d634b4afa6d5ce4e4c97d0951e482d20c",
+      "diagram_sha256": "26b7410983e46e311a4106183c87c4fd2cd2b86a0f0ad160abe65846db50748b",
+      "seeds": {
+        "run": 7097415465134946,
+        "scenario": 6643335083390579
+      },
+      "platforms": [
+        {
+          "platform": "dji-1",
+          "primary": "uav-1",
+          "snr_target_dB": 30,
+          "snr_budget_dB_median": 30.000043,
+          "snr_measured_dB_median_s3": 29.607693,
+          "snr_measured_dB_mean_lin_s3": 29.5142,
+          "snr_measured_n_s3": 323,
+          "annotations_s3": 323,
+          "s4_capture": {
+            "full": 323,
+            "partial": 0,
+            "none": 0
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s01_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 325,
+          "capture": {
+            "full": 325
+          },
+          "files": [
+            {
+              "name": "data/sv1-s01_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "a7c7e1f073b852e9b524886dd438e69fffe6d12922f0a0146b19660d7aadc735",
+              "sha512": "212f78a7a24cacfedfe57046cb3bd3969233f2b931836138bea29eacf13f8256271a11c02c42088f39aac73499cd58ee9a09c17fd055fa8600fe5a9bb4a5f3c1"
+            },
+            {
+              "name": "data/sv1-s01_s3.sigmf-meta",
+              "bytes": 323191,
+              "sha256": "11abb48bc8eb8dc70561a8aed71b33415ff20f48e7b4b5a7fb565657effc01ad",
+              "sha512": "6048539d45e3edefd582d8029a9a5206b08e0953f2f5014a5ee75dbbc2a0ced21406c86a8142cc59a30808fe41c5e15cbd97db9d0d30d633ee0985abfaf47c03"
+            },
+            {
+              "name": "data/sv1-s01_s3.cuav-links.jsonl",
+              "bytes": 8740,
+              "sha256": "83c5759e47d2b8de78a2c7ec1185702a9bf74b0172a993370bbfa453a13866c5",
+              "sha512": "535cb9f430e7db176ce0ef2f2ea7ebc5916ba8511f257ac0151f68c4e096a15fd75cf871a9152c351a5f1bcdf9b184b9efcd08b529c84e6d17bcf112c1b805c5"
+            },
+            {
+              "name": "previews/sv1-s01_s3.png",
+              "bytes": 397244,
+              "sha256": "2f6be2dfd5ba1abbdf818c14b3b8b69d8061e16cfc05082ed1d7aca1cd90fe76",
+              "sha512": "958e743f1b113f0b5571c44eed84b57acf3828c8d5cf671d58a16f8b9de96c05878ae5989d6a34dc886e2b326f0063b8dead798e42efaba6e5fadabfda75121d"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s01_s4",
+          "sample_rate_Hz": 20000000.0,
+          "center_Hz": 2462500000.0,
+          "samples": 19999987,
+          "duration_s": 0.99999935,
+          "usable_band_Hz": [
+            2454500000.0,
+            2470500000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 43.1256,
+          "annotations": 325,
+          "capture": {
+            "full": 323,
+            "none": 2
+          },
+          "files": [
+            {
+              "name": "data/sv1-s01_s4.sigmf-data",
+              "bytes": 79999948,
+              "sha256": "01e5b6e7b9ae0d7403c5c1a2af81084d18b03bce01e15ba5d66ca35146229af3",
+              "sha512": "8a7aa5c60c37eaf9fb6326fb0f8021d99b2166f06b0970873e9774d42c24fd25271360c9d7fee0a8d8bf9ce2135f567eb2c23dd7ff4bd170e390da9017b115dc"
+            },
+            {
+              "name": "data/sv1-s01_s4.sigmf-meta",
+              "bytes": 323202,
+              "sha256": "3cf9e991825b325a7dbadd994f7daa943268eb02f3e5b58835957924bc557ff0",
+              "sha512": "8427882b57cd8a5ebfbc2128af622458fb9847cf95d70e67e1d818126fc347472f93563dc0feebe91dbbcc094497c88110d93f07ca29d7f03ec23fc411b8592d"
+            },
+            {
+              "name": "data/sv1-s01_s4.cuav-links.jsonl",
+              "bytes": 8740,
+              "sha256": "83c5759e47d2b8de78a2c7ec1185702a9bf74b0172a993370bbfa453a13866c5",
+              "sha512": "535cb9f430e7db176ce0ef2f2ea7ebc5916ba8511f257ac0151f68c4e096a15fd75cf871a9152c351a5f1bcdf9b184b9efcd08b529c84e6d17bcf112c1b805c5"
+            },
+            {
+              "name": "previews/sv1-s01_s4.png",
+              "bytes": 412061,
+              "sha256": "766d0bb279b6f2c1df04b85b4593161748361aae00e2b26f2603a80c99bd0bb5",
+              "sha512": "553c0b6ba3cbd6dcc08fb1ffdab943a078bd80390d0329590478a829d322dd1cacb0b6260b29a5b5c30024fdf80b427d5faf64824944ff93b84c69f65528c8dd"
+            }
+          ]
+        }
+      ],
+      "wall_s": 12.1,
+      "realtime_factor": 0.0826
+    },
+    {
+      "id": "s02",
+      "title": "DJI 图传 20 MHz，视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 2,
+        "f_shift_Hz": 20000000
+      },
+      "presets": [
+        "dji-video-20m-a"
+      ],
+      "scenario_id": "sv1-s02",
+      "scenario_sha256": "7be31864fbc65d7b7c49c93bc71f8df89df72a831b1d8e7012200268fb4db17b",
+      "diagram_sha256": "bf107750b5a1b40f13eb5ab59d927625c0d796224e762991eee758eb18657653",
+      "seeds": {
+        "run": 4444900383110417,
+        "scenario": 1185471667446846
+      },
+      "platforms": [
+        {
+          "platform": "dji-1",
+          "primary": "uav-1",
+          "snr_target_dB": 30,
+          "snr_budget_dB_median": 30.000026,
+          "snr_measured_dB_median_s3": 29.945965,
+          "snr_measured_dB_mean_lin_s3": 29.9023,
+          "snr_measured_n_s3": 336,
+          "annotations_s3": 336,
+          "s4_capture": {
+            "full": 336,
+            "partial": 0,
+            "none": 0
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s02_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 336,
+          "capture": {
+            "full": 336
+          },
+          "files": [
+            {
+              "name": "data/sv1-s02_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "22659b4adb7cf026d2d2cb513fb778887bccbb45bcf807e30a68aa0de60bf89e",
+              "sha512": "06c0717e998a29d4522fcd7a1cacdc7a5c8a5f7c54b5544edaac1b1f50728f9e2c2e73648891e85d8354999e7314556955c28eaa8f1072f856a83196826d236b"
+            },
+            {
+              "name": "data/sv1-s02_s3.sigmf-meta",
+              "bytes": 333348,
+              "sha256": "67c9a6226d2d502a0f748233d1c8b4c42c2812feade0d3602fa285a17113e10c",
+              "sha512": "83876c5ef4eba96894f6d9ddd466583c96137021f6d669e87dbd261bf00d73144ff4c890f6fd6d10ce30f5539c8b4c1bbd0bb2af153dfaa60aff33cab37841a9"
+            },
+            {
+              "name": "data/sv1-s02_s3.cuav-links.jsonl",
+              "bytes": 4380,
+              "sha256": "3f267791cff5717cf1e8bed3574596f8b05c6fc2a8cdd310a2433cc1b339edcc",
+              "sha512": "1cd63923906a7253dfe938f6f1b350b34f8bf41f650d9e975faaa186680067bdc234cf149df58c80092ef276f445823190ec821df4744c60ef245eb971596c2f"
+            },
+            {
+              "name": "previews/sv1-s02_s3.png",
+              "bytes": 408991,
+              "sha256": "c2814d848379c1af0c35a0813011754398113a285bebbcc8cd446950e7278e30",
+              "sha512": "adb9801bb97827cec6f49acc6fe8c33d21c067910f75bd9bcb2099871a5654d4a5ff1d9ddf00c7a728f8ec93927c6025b020e153c69fae2c8a06bacbb3803869"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s02_s4",
+          "sample_rate_Hz": 40000000.0,
+          "center_Hz": 2460000000.0,
+          "samples": 39999987,
+          "duration_s": 0.999999675,
+          "usable_band_Hz": [
+            2444000000.0,
+            2476000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 46.1359,
+          "annotations": 336,
+          "capture": {
+            "full": 336
+          },
+          "files": [
+            {
+              "name": "data/sv1-s02_s4.sigmf-data",
+              "bytes": 159999948,
+              "sha256": "15ee08e75615d0c2ddc7eaaf4af87d39476fd54cbd220b24e2335e0733646c6d",
+              "sha512": "9b95f2d20b1ac94818d1c0ad66d034ce1df4210d52f5bfdbd814fb827729842cf26256e75286e47428fb1407ffc906752f6adb5b56a1b0f34343bfca8d0946d7"
+            },
+            {
+              "name": "data/sv1-s02_s4.sigmf-meta",
+              "bytes": 333629,
+              "sha256": "12fa101926ad50b543a52575ef44627d1ba279aaef64793d7839d75d4392e164",
+              "sha512": "8b7618dd0df6a9b264d6ea7e97611983cc58f7628d1856387fe1ad486a2ddcd3bd21ec28a87dace1d843c7b67769da7e524b5f24498858e245805c84a0e6059f"
+            },
+            {
+              "name": "data/sv1-s02_s4.cuav-links.jsonl",
+              "bytes": 4380,
+              "sha256": "3f267791cff5717cf1e8bed3574596f8b05c6fc2a8cdd310a2433cc1b339edcc",
+              "sha512": "1cd63923906a7253dfe938f6f1b350b34f8bf41f650d9e975faaa186680067bdc234cf149df58c80092ef276f445823190ec821df4744c60ef245eb971596c2f"
+            },
+            {
+              "name": "previews/sv1-s02_s4.png",
+              "bytes": 398118,
+              "sha256": "c385fc284187da76f8e9fc182fd086fe0c3e3d5d7ec8c7f0b63869a6591e24d1",
+              "sha512": "3d81778e5dc8e6223cff2345171c9d87e19679436cd3f9db503c2e6fface226183a1a9911d1865a37e82aa9d1d8600928b69c88b0f56fe7b6d12e8b0e1dcd667"
+            }
+          ]
+        }
+      ],
+      "wall_s": 12.5,
+      "realtime_factor": 0.0797
+    },
+    {
+      "id": "s03",
+      "title": "DJI 遥控上行（2.2 MHz 跳频），视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "presets": [
+        "dji-uplink-2m"
+      ],
+      "scenario_id": "sv1-s03",
+      "scenario_sha256": "96584319c325823ff3296fcde0c76cf0ac1ccc25c2872c0f118cfd57bc7146e2",
+      "diagram_sha256": "98fe585b3f495836a1d214f11ed348c0f4ea268a4f022c6c7ae80c5a93b86943",
+      "seeds": {
+        "run": 4330629862360328,
+        "scenario": 2891410234499017
+      },
+      "platforms": [
+        {
+          "platform": "dji-rc",
+          "primary": "rc-1",
+          "snr_target_dB": 30,
+          "snr_budget_dB_median": 29.956768,
+          "snr_measured_dB_median_s3": 29.946184,
+          "snr_measured_dB_mean_lin_s3": 30.2528,
+          "snr_measured_n_s3": 177,
+          "annotations_s3": 177,
+          "s4_capture": {
+            "full": 29,
+            "partial": 11,
+            "none": 137
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s03_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 177,
+          "capture": {
+            "full": 177
+          },
+          "files": [
+            {
+              "name": "data/sv1-s03_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "f7c8fa8953471009bec6cf75ac53ec383d532944ce61d37706be650f83b4a4f8",
+              "sha512": "d90a1dc5ad64c337eeb44b9e2659574e66299fec02becb578a96b6d72e48fe66e0b004ca155e1edbd997faa934a2d9244744dec4afe1511388296dc66438a9b1"
+            },
+            {
+              "name": "data/sv1-s03_s3.sigmf-meta",
+              "bytes": 177358,
+              "sha256": "b00111ba3a5dad74f40952397fffee2d58fb68c926602ecba2d2ffbc5a5797ea",
+              "sha512": "bd8d8652b1e79ab54aef5567a5798ddac42bba5d54426b96b5e335b707a6bbf8ad27e3132b1db7bef3a0235d2fea037c947a742b5f9f5b64422bf1977450e3b8"
+            },
+            {
+              "name": "data/sv1-s03_s3.cuav-links.jsonl",
+              "bytes": 4380,
+              "sha256": "f77561dc4e261b1d6ad31bae0f3ad54a5f362148a36984bf2e9b0ab1a9a9decf",
+              "sha512": "13539c9a6323575e78998e2e9804cf6c90197211a7a003534737139e7ff8d86cee515f3557bb2ff1bc7b4b808d33b2e43df64f30bc279c51e25dacc98b649154"
+            },
+            {
+              "name": "previews/sv1-s03_s3.png",
+              "bytes": 376244,
+              "sha256": "403cb0bf688b327de414337ed710e9d45c469d2927bc4bc01cf7942fff178731",
+              "sha512": "69de3e1522642703bbb4b925a06102cc6bdf658b6feaf059d0ca3827c717117e090212ef6deb66fc9b59414c9043205de090354bfb3dec9539a87ec5aea698a1"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s03_s4",
+          "sample_rate_Hz": 20000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 19999987,
+          "duration_s": 0.99999935,
+          "usable_band_Hz": [
+            2432000000.0,
+            2448000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 43.1256,
+          "annotations": 177,
+          "capture": {
+            "none": 137,
+            "full": 29,
+            "partial": 11
+          },
+          "files": [
+            {
+              "name": "data/sv1-s03_s4.sigmf-data",
+              "bytes": 79999948,
+              "sha256": "523301e58ac4642f20bee084f0a79b7e779d434242821425419822fde45116e8",
+              "sha512": "fc451476996797641b22dfc9854eee8b66387ce57989392bce1273d9943010815ab51686c42997a190682239bca28078d0314536e0796477cc493636bd3debcb"
+            },
+            {
+              "name": "data/sv1-s03_s4.sigmf-meta",
+              "bytes": 165779,
+              "sha256": "20e0ce9c2deede0d04d12105a03a6fdd32d53a2361b0246ca371e7142d657866",
+              "sha512": "0d3b754032c12b7d66eac33213c6aefb8f4fa07f554bd368880d1807e57410aa03a1fc4e9689489ce5b08275d8c4cb3eefe18e2a18af0e02a166ff7c9fb0c041"
+            },
+            {
+              "name": "data/sv1-s03_s4.cuav-links.jsonl",
+              "bytes": 4380,
+              "sha256": "f77561dc4e261b1d6ad31bae0f3ad54a5f362148a36984bf2e9b0ab1a9a9decf",
+              "sha512": "13539c9a6323575e78998e2e9804cf6c90197211a7a003534737139e7ff8d86cee515f3557bb2ff1bc7b4b808d33b2e43df64f30bc279c51e25dacc98b649154"
+            },
+            {
+              "name": "previews/sv1-s03_s4.png",
+              "bytes": 311700,
+              "sha256": "30f6b97e1dd2f34632ba2c07f74989cad8df3f825b89691b802abf2aee630f86",
+              "sha512": "d47b18db203d3376deec2aa828b23289fc47b6145e0d5cff7e8a68ad127f2b685bf3d2167668a13502c4521f34dc267ecc695b004d46c442351ef962ce25be6e"
+            }
+          ]
+        }
+      ],
+      "wall_s": 10.7,
+      "realtime_factor": 0.0937
+    },
+    {
+      "id": "s04",
+      "title": "FrSky D16 v2 遥控（GFSK 跳频），视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "presets": [
+        "frsky-d16v2-fcc"
+      ],
+      "scenario_id": "sv1-s04",
+      "scenario_sha256": "d934dd96fec61e47d71be57629bf045679e70a267da53cfee7989d26b4941dca",
+      "diagram_sha256": "58f2982b41bbbe2b4df51191ff7fc6f4a98f98383357490e5f7ee51a22ca06e9",
+      "seeds": {
+        "run": 3869286731784672,
+        "scenario": 3147625675253955
+      },
+      "platforms": [
+        {
+          "platform": "rc-frsky",
+          "primary": "rc-frsky",
+          "snr_target_dB": 30,
+          "snr_budget_dB_median": 30.053351,
+          "snr_measured_dB_median_s3": 29.832169,
+          "snr_measured_dB_mean_lin_s3": 30.1028,
+          "snr_measured_n_s3": 143,
+          "annotations_s3": 143,
+          "s4_capture": {
+            "full": 33,
+            "partial": 0,
+            "none": 110
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s04_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 143,
+          "capture": {
+            "full": 143
+          },
+          "files": [
+            {
+              "name": "data/sv1-s04_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "07c14e531d80ff325a785d3ebe9703cf5422d8b20af5e82a7792ee84142662f8",
+              "sha512": "532514cb15ca61861e234b3b32571466b26a2e2b58943b859528868b0532d40b53dc0bc6b1f1c124c689e5446efaf6c16498522705b623423f5619f17f73102b"
+            },
+            {
+              "name": "data/sv1-s04_s3.sigmf-meta",
+              "bytes": 146963,
+              "sha256": "17097893d0321bdf62517119ba766f5d9f0aa539d2a75747313d8eca0e70dc41",
+              "sha512": "042285d0808769bc2784512f3724ae10eb025a6dc0116b72a71a73c2b37e2ed04fc7347e16bc8775c42f3369bffe71b439d95d39fd7ab2854ce97ca7baba0d20"
+            },
+            {
+              "name": "data/sv1-s04_s3.cuav-links.jsonl",
+              "bytes": 4438,
+              "sha256": "b14406bcda13260845e4d591f534130d13df5cb7c6fb3fee09708e998bf01d8d",
+              "sha512": "97ac87f23118452a7adc643ee913fc99e56974dac5274239c29f0836c6b4c9472b21b46ea8a2efb00bd2f0d8d787f07a53869ea87a6d7d836fda6c05045b2856"
+            },
+            {
+              "name": "previews/sv1-s04_s3.png",
+              "bytes": 378076,
+              "sha256": "ddd5b7903d5dfb830a215532569f9fe29cd256517d3714642081e17114066cad",
+              "sha512": "3ccac8bcc970826190a894ba6d06d5294afaf5f6735dbf5236e4f2e9ffe049bb967f0fcecff3cf2cfac68e0a3318914e6ebcc297c235fac3050729e396f257c0"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s04_s4",
+          "sample_rate_Hz": 20000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 19999987,
+          "duration_s": 0.99999935,
+          "usable_band_Hz": [
+            2432000000.0,
+            2448000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 43.1256,
+          "annotations": 143,
+          "capture": {
+            "none": 110,
+            "full": 33
+          },
+          "files": [
+            {
+              "name": "data/sv1-s04_s4.sigmf-data",
+              "bytes": 79999948,
+              "sha256": "1db399cb30a3afbc25e758444d6ad1f72cfe54fa812eb7ad6629c285b3f4f973",
+              "sha512": "45a346a8a1ecffaa13cdeb09425e30ea0288ed38a6a37b254c9bb16b1519216ca484ae1e919c4fe9e331988f5919bf695e0c34ff1f2b0d81fe9335525d031154"
+            },
+            {
+              "name": "data/sv1-s04_s4.sigmf-meta",
+              "bytes": 138161,
+              "sha256": "c3c11877e95d00986fa0ce734e1225b768b29a502e2a3ed35f89f8d1232a1fb8",
+              "sha512": "7e66931e51c9bd3acebf0b29a98d27b3a7ad11973450ca34fd5a2da05fa0152e032267466728c335a15f49fa67e1f5157deef9bd44e18f6f7887e4c22fc127bd"
+            },
+            {
+              "name": "data/sv1-s04_s4.cuav-links.jsonl",
+              "bytes": 4438,
+              "sha256": "b14406bcda13260845e4d591f534130d13df5cb7c6fb3fee09708e998bf01d8d",
+              "sha512": "97ac87f23118452a7adc643ee913fc99e56974dac5274239c29f0836c6b4c9472b21b46ea8a2efb00bd2f0d8d787f07a53869ea87a6d7d836fda6c05045b2856"
+            },
+            {
+              "name": "previews/sv1-s04_s4.png",
+              "bytes": 333959,
+              "sha256": "438c33022537fa4d37706c48197aed352c2b9599d95596794c3c15bf5723af84",
+              "sha512": "97d57b71ae3e23f690763875ac8484e9157f12651d799cfa200e79227b3233b8fca47df04994fd61d5cc0d1c763b96200abacddc41645a169fe6d1a98212815f"
+            }
+          ]
+        }
+      ],
+      "wall_s": 12.6,
+      "realtime_factor": 0.0793
+    },
+    {
+      "id": "s05",
+      "title": "Futaba S-FHSS 遥控（2-FSK 跳频），视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "presets": [
+        "futaba-sfhss"
+      ],
+      "scenario_id": "sv1-s05",
+      "scenario_sha256": "9e893382a76c9f2ef929796961b2cdaf1aa9044c79a17e93cdb137d5c8dacb9e",
+      "diagram_sha256": "c10419058d01c3103e17e1f1b0fd6b0a5efaab9524a4bda8a0e87f06a27ccfdd",
+      "seeds": {
+        "run": 2411303837579501,
+        "scenario": 4093953291615027
+      },
+      "platforms": [
+        {
+          "platform": "rc-futaba",
+          "primary": "rc-futaba",
+          "snr_target_dB": 30,
+          "snr_budget_dB_median": 29.90299,
+          "snr_measured_dB_median_s3": 28.339841,
+          "snr_measured_dB_mean_lin_s3": 29.4306,
+          "snr_measured_n_s3": 295,
+          "annotations_s3": 295,
+          "s4_capture": {
+            "full": 108,
+            "partial": 0,
+            "none": 187
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s05_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 295,
+          "capture": {
+            "full": 295
+          },
+          "files": [
+            {
+              "name": "data/sv1-s05_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "1a545ecd6acda3451ec3b580f996b4914f577de8fd57fd655297f32c5831e4c6",
+              "sha512": "aeb4b20da5599437d57560cb57210f878f0fda09864b691875b735d53f515ca4900a74da7bb6bc469bdb70401b0019eaac418232c8b089bcdaceaab2df496109"
+            },
+            {
+              "name": "data/sv1-s05_s3.sigmf-meta",
+              "bytes": 299523,
+              "sha256": "24813d0bab9c54c011eaf07ad2486fba969d72be473e3d1bed113269bda7c380",
+              "sha512": "bad8902f04542e72d34470c6f691d3f288ec16dab2588bf40c45dd0fbdd866e2e8967a11514a4239392eb978c537270940fdabe0d87ae834bf828e841f6d5758"
+            },
+            {
+              "name": "data/sv1-s05_s3.cuav-links.jsonl",
+              "bytes": 4428,
+              "sha256": "8f2c523ea3b93b6afbc35cf8c526bc692e09f6711f1964a3067c4329970df989",
+              "sha512": "76caf3de59c9ccf2f6eb53285fbe5ab197daceb253d94913d0d3f39aba4dc7fd68f87a4065d108209a748b7832cc094e7d6e6a3780ec0913b946cfdfcff20d0e"
+            },
+            {
+              "name": "previews/sv1-s05_s3.png",
+              "bytes": 379369,
+              "sha256": "ff673c66746b61bb7ebc566ee36ce54a6be6f70fd5ad42e4349284041f2283b9",
+              "sha512": "98184424a4a3a0b25eb5325ca29fce655722e5ed148cb345a03b273f00607898fc5d94a27dfc0d56c1fd589baa39e7b64c649619459ea0e203c935cc8b7cced5"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s05_s4",
+          "sample_rate_Hz": 20000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 19999987,
+          "duration_s": 0.99999935,
+          "usable_band_Hz": [
+            2432000000.0,
+            2448000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 43.1256,
+          "annotations": 295,
+          "capture": {
+            "none": 187,
+            "full": 108
+          },
+          "files": [
+            {
+              "name": "data/sv1-s05_s4.sigmf-data",
+              "bytes": 79999948,
+              "sha256": "3631100f8994c79af41b9aa2cf125b19025cef3ddf120f927ceaf407be935320",
+              "sha512": "c76bd2bed5cacff57e1a9a4d60771b8f9eb0afd3ec0ba98ef20a5e85026a0a91c82a0704018d202d9c3ebc78acf61883fa49054f0793733b1b339121f0507589"
+            },
+            {
+              "name": "data/sv1-s05_s4.sigmf-meta",
+              "bytes": 284123,
+              "sha256": "549a689a2e9dad5682cd7e03f74fc97ddf6436d0ac09ce795ba825bd3c210b7c",
+              "sha512": "367562d0664b0225942b051ecf305e73929ee86d77a16f27b49783bc564f5f7c573ce1781d71b27541141f445ce5591d730c3f7267b2a58b65d1cef47d3cf967"
+            },
+            {
+              "name": "data/sv1-s05_s4.cuav-links.jsonl",
+              "bytes": 4428,
+              "sha256": "8f2c523ea3b93b6afbc35cf8c526bc692e09f6711f1964a3067c4329970df989",
+              "sha512": "76caf3de59c9ccf2f6eb53285fbe5ab197daceb253d94913d0d3f39aba4dc7fd68f87a4065d108209a748b7832cc094e7d6e6a3780ec0913b946cfdfcff20d0e"
+            },
+            {
+              "name": "previews/sv1-s05_s4.png",
+              "bytes": 324919,
+              "sha256": "275ce4b09d75d25c996958732a626521215469a7798352f115815347c39c4120",
+              "sha512": "a31683a690e8fdd1740408ed739aeb2fe4faa73fb616cb3f3f2a70bff087aa373c385a876a3e5b893fe729410738296b757b988c3e3d4ebc01e7faf894ca85fe"
+            }
+          ]
+        }
+      ],
+      "wall_s": 10.5,
+      "realtime_factor": 0.0948
+    },
+    {
+      "id": "s06",
+      "title": "DJI 图传 40 MHz（5.8 GHz）+ DroneID，视距",
+      "receiver": "R2",
+      "propagation": "los",
+      "s4": {
+        "decim": 1,
+        "f_shift_Hz": 6500000
+      },
+      "presets": [
+        "dji-droneid",
+        "dji-video-40m"
+      ],
+      "scenario_id": "sv1-s06",
+      "scenario_sha256": "1dbfce9608b411bfba8d87643e024e808e40c4b506249da0fa53e64a3856fc13",
+      "diagram_sha256": "22e37123e103edad0c98dfdacbf3e00db518ef3eb26c0dfcce66442559f32c04",
+      "seeds": {
+        "run": 768478171345232,
+        "scenario": 1967031788121970
+      },
+      "platforms": [
+        {
+          "platform": "dji-1",
+          "primary": "uav-1",
+          "snr_target_dB": 30,
+          "snr_budget_dB_median": 29.999856,
+          "snr_measured_dB_median_s3": 29.411991,
+          "snr_measured_dB_mean_lin_s3": 29.5861,
+          "snr_measured_n_s3": 295,
+          "annotations_s3": 295,
+          "s4_capture": {
+            "full": 295,
+            "partial": 0,
+            "none": 0
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s06_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 5790000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            5750000000.0,
+            5830000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 297,
+          "capture": {
+            "full": 297
+          },
+          "files": [
+            {
+              "name": "data/sv1-s06_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "899d42e42adfb758a4385df28186aaa551b21c8eac17d964309c99fc3aca5565",
+              "sha512": "d9289cfe8e73de1961386264073cc3f3f74631608a2a7ea3ce9a4f90509dc760b28af5a1e4d39ca8933e761b0983ed213a256eb2d0e3625fd9a1e1e8f5b25597"
+            },
+            {
+              "name": "data/sv1-s06_s3.sigmf-meta",
+              "bytes": 297919,
+              "sha256": "36ee718ccfc369598d18c0f327c20423b10a167b3571e217ef459188427e3fce",
+              "sha512": "18c3d2e785dd2fcd8ee4eff93b42fcb789bdb48b3968a4ecdd20f1c875682f9bf82e41669196c63b3374103b132c891d21631cfe411d45f7cb76781d285bb5f9"
+            },
+            {
+              "name": "data/sv1-s06_s3.cuav-links.jsonl",
+              "bytes": 8780,
+              "sha256": "9e3f3adde79a2e4dcf2cfb26d1cc7e1f1398917db7ca467ffebc8d926fc94363",
+              "sha512": "eae8f29ef0d04ee94b0cd2e64ee58402ee87f8749a89b78a79cc74f0c90536ddd9a88cb8b43de0da92df00c477270b183aaf235d11de1d20ce9bf797e2507336"
+            },
+            {
+              "name": "previews/sv1-s06_s3.png",
+              "bytes": 450798,
+              "sha256": "cf49fea5a7f71a50505f994a6303ceb667ed3b73bbfe24b54168fe1ddf45e049",
+              "sha512": "c0dd3fbe49420a904d3870709429128a54b0f75e5250e07eb18f0fde885d20ee5ef645962dba37174317d17bc71b8d581540baea0ca0e61571bf309e89b430b5"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s06_s4",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 5796500000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            5756500000.0,
+            5830000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 49.1462,
+          "annotations": 297,
+          "capture": {
+            "full": 297
+          },
+          "files": [
+            {
+              "name": "data/sv1-s06_s4.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "c774ee5a77b7e580c43116c8b123ce35789fc2068fc283f0fe2141e8bf7a1ef2",
+              "sha512": "e936a09ea02f5ebf5e35686a3b0366d20adb6b0a8068d97dab16b69a965c0d2bcecf59e2484f50afffdef2e144194de43141b9ffa4cd361844dec2f9acd06216"
+            },
+            {
+              "name": "data/sv1-s06_s4.sigmf-meta",
+              "bytes": 298346,
+              "sha256": "a98c110d4c56fed8f370c998bbd7e10ab56d000b068a757c3ef402bd731393d4",
+              "sha512": "9d16c9c1c77ed7533c089344bd7f3d2a5e6be45507685a95dae8f6b38f3b47330650ae3008fc21663027ab43383a234c49a944fa0d5da871256b64553ed53446"
+            },
+            {
+              "name": "data/sv1-s06_s4.cuav-links.jsonl",
+              "bytes": 8780,
+              "sha256": "9e3f3adde79a2e4dcf2cfb26d1cc7e1f1398917db7ca467ffebc8d926fc94363",
+              "sha512": "eae8f29ef0d04ee94b0cd2e64ee58402ee87f8749a89b78a79cc74f0c90536ddd9a88cb8b43de0da92df00c477270b183aaf235d11de1d20ce9bf797e2507336"
+            },
+            {
+              "name": "previews/sv1-s06_s4.png",
+              "bytes": 450815,
+              "sha256": "9c34506fd249a0240730b6def88b47a9a10fd70e6219d6f530766ac2ca5efe91",
+              "sha512": "be8d2e5753240c9aa2cd666b9813ec78f9f49a416c8bfb999eb36e972946ce7ce0c2cef128af3d28eabfb08b00357abc6fe647fd55fb3824fbf0ad7c565ef5b2"
+            }
+          ]
+        }
+      ],
+      "wall_s": 19.0,
+      "realtime_factor": 0.0525
+    },
+    {
+      "id": "s07",
+      "title": "多源：DJI 图传 20 MHz + DroneID + DJI 遥控上行 + FrSky 遥控，视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 2,
+        "f_shift_Hz": 20000000
+      },
+      "presets": [
+        "dji-droneid",
+        "dji-uplink-2m",
+        "dji-video-20m-a",
+        "frsky-d16v2-fcc"
+      ],
+      "scenario_id": "sv1-s07",
+      "scenario_sha256": "e9cfa9bb55d9210daab79093a96f2c4412d2d1f0a33ba3f54bdd6a437988da09",
+      "diagram_sha256": "765e7a50fc4b5e81206d37c58fa72b7455227d5198a7034f680ca686ce7a2deb",
+      "seeds": {
+        "run": 7755407255461163,
+        "scenario": 3448763178134082
+      },
+      "platforms": [
+        {
+          "platform": "dji-1",
+          "primary": "uav-1",
+          "snr_target_dB": 20,
+          "snr_budget_dB_median": 20.000012,
+          "snr_measured_dB_median_s3": 19.9725,
+          "snr_measured_dB_mean_lin_s3": 19.9103,
+          "snr_measured_n_s3": 297,
+          "annotations_s3": 317,
+          "s4_capture": {
+            "full": 317,
+            "partial": 0,
+            "none": 0
+          }
+        },
+        {
+          "platform": "dji-rc",
+          "primary": "rc-1",
+          "snr_target_dB": 20,
+          "snr_budget_dB_median": 19.892594,
+          "snr_measured_dB_median_s3": 20.120868,
+          "snr_measured_dB_mean_lin_s3": 19.9411,
+          "snr_measured_n_s3": 144,
+          "annotations_s3": 180,
+          "s4_capture": {
+            "full": 67,
+            "partial": 5,
+            "none": 108
+          }
+        },
+        {
+          "platform": "rc-frsky",
+          "primary": "rc-frsky",
+          "snr_target_dB": 20,
+          "snr_budget_dB_median": 20.116675,
+          "snr_measured_dB_median_s3": 19.758314,
+          "snr_measured_dB_mean_lin_s3": 20.0233,
+          "snr_measured_n_s3": 143,
+          "annotations_s3": 143,
+          "s4_capture": {
+            "full": 61,
+            "partial": 0,
+            "none": 82
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s07_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 642,
+          "capture": {
+            "full": 642
+          },
+          "files": [
+            {
+              "name": "data/sv1-s07_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "4a478fffd309dd19598d2a7816f4535684f7e6e45e5eedfaff6b0497e52c8861",
+              "sha512": "96fe954d807e86c0497ee00690872d5eb4c1984c3efa58e5319b447a0f04b4dfae11b8bf48d82c7c21921457c2a4c01965da8d2650e1010606737a5e8d87adea"
+            },
+            {
+              "name": "data/sv1-s07_s3.sigmf-meta",
+              "bytes": 635418,
+              "sha256": "91c795452c59fd0975321a86c80197862be3e38712e52ca25c256d238d0ca044",
+              "sha512": "cd07db31981cf37a8d152860d7a9d567c238ce0974a912f068fbce7daa10a11273a388a5bb472b050345e4f5ef80a47fcc3b14fcf6cbacab61c318385743052e"
+            },
+            {
+              "name": "data/sv1-s07_s3.cuav-links.jsonl",
+              "bytes": 17646,
+              "sha256": "8f1b4c0e802c5539cc9a3028384e631978009544b2d547923522ce00df79d333",
+              "sha512": "6b2c7c5b1718efe122fa282343bd2b3447efaf729ec2d083236e1b7d28064a64be16ec9d22174324d4a9266084a8bd5fc9a32aa1a5b7a953a7d330bc4e5375f9"
+            },
+            {
+              "name": "previews/sv1-s07_s3.png",
+              "bytes": 438878,
+              "sha256": "be42a32ddff35546c3ec0d66abcb332263fb426640bc96c45d1b6ca99fae72c3",
+              "sha512": "c8c35e67d2e98faefc9d13c5238fa76bb2450719e6cd5e926d4325cd30b3be38cb2ea80acb64ae4330516a7dfeb09b2c783de7c6a185183a03f6bb53f4884a7a"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s07_s4",
+          "sample_rate_Hz": 40000000.0,
+          "center_Hz": 2460000000.0,
+          "samples": 39999987,
+          "duration_s": 0.999999675,
+          "usable_band_Hz": [
+            2444000000.0,
+            2476000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 46.1359,
+          "annotations": 642,
+          "capture": {
+            "none": 192,
+            "full": 445,
+            "partial": 5
+          },
+          "files": [
+            {
+              "name": "data/sv1-s07_s4.sigmf-data",
+              "bytes": 159999948,
+              "sha256": "6adaa3900a9e54ac243b024dea4312f6ff1b8f47ea9883bb75d942f22f72d496",
+              "sha512": "9341a20ec5dc193c59d003daa1228b6d43e0750686d91f9382d6de18a883fd344f317ba185f976144eb39d9d847edfaabf5e1dfa5686b5be312b42b6979b62b8"
+            },
+            {
+              "name": "data/sv1-s07_s4.sigmf-meta",
+              "bytes": 619811,
+              "sha256": "2cc380c7ff50bc8fadb49abde31ecf173ca3c7b9db72a836a41df07145c0f6ea",
+              "sha512": "bf4b1f0954b714e119f7084ca059d3f7109f1a2e761ab9832b8dc992f06d2d06e51891dde81769602e45332a94dfb91bf22b0f5269bf3d20f6bb1665f20b8b35"
+            },
+            {
+              "name": "data/sv1-s07_s4.cuav-links.jsonl",
+              "bytes": 17646,
+              "sha256": "8f1b4c0e802c5539cc9a3028384e631978009544b2d547923522ce00df79d333",
+              "sha512": "6b2c7c5b1718efe122fa282343bd2b3447efaf729ec2d083236e1b7d28064a64be16ec9d22174324d4a9266084a8bd5fc9a32aa1a5b7a953a7d330bc4e5375f9"
+            },
+            {
+              "name": "previews/sv1-s07_s4.png",
+              "bytes": 422249,
+              "sha256": "da0c08e337d06d576bdd8b0dcca93d2b97fc5d2e0ffbece2313bcbde33e71d30",
+              "sha512": "5864185e438e7aa252a61bd80da0de1084f844ecf48c5e19859f77a2bc66ce29be1bfdbe47887786ef2e9064684e9e3dde9b1e985020a85d058e9cb62a4db635"
+            }
+          ]
+        }
+      ],
+      "wall_s": 18.7,
+      "realtime_factor": 0.0535
+    },
+    {
+      "id": "s08",
+      "title": "纯背景：只有接收机噪声与非理想",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "presets": [],
+      "scenario_id": "sv1-s08",
+      "scenario_sha256": "d4789a676105bcdbaf6f4b7423d5fc75827ae18e04d7bc10711c609bdaf22fa8",
+      "diagram_sha256": "95a0ee1d4779d58ae72eba67b5b82aa72b732005c5186a1eae954739bfeb0ac1",
+      "seeds": {
+        "run": 2696749407377465,
+        "scenario": 1491916901148575
+      },
+      "platforms": [],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s08_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 0,
+          "capture": {},
+          "files": [
+            {
+              "name": "data/sv1-s08_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "4cf16d108548a5dbb7c6ef908afc34292f0c38b414aa0e91c608014e12c60524",
+              "sha512": "8616b4af9840d3a2aeabbd35bb14023e06b1cf117baaba00586140f01d3bc3407f4d339375d48f9114828d76a7f2fd237af70c263427d8b20c44e420dce54929"
+            },
+            {
+              "name": "data/sv1-s08_s3.sigmf-meta",
+              "bytes": 4569,
+              "sha256": "23a366af6cf4cf75a375bba9fde834dd9d716c739ec4c51e4dc14d241d8c1ce6",
+              "sha512": "184bc09344e1802406181691d66a21ebffff71a7faf292e026bf2cfa0fe9566948480dfd86fb8db5cfe66cd02ea46f9931490d756a4a9ed3674e748978f019d5"
+            },
+            {
+              "name": "data/sv1-s08_s3.cuav-links.jsonl",
+              "bytes": 4380,
+              "sha256": "f091dc016d7846fa8b92eb7a6e72dd42f8453695b5aa7db38853aad05f30973e",
+              "sha512": "74e8bfd841a0039602c4e3797b1032f8440a18caff9992e0c77b5bad2340e2df049fb53cf9cad06fda980b2a14b865dd079678870dbad96fba4d2361c35299fb"
+            },
+            {
+              "name": "previews/sv1-s08_s3.png",
+              "bytes": 611953,
+              "sha256": "3d2d196fb2d3809909b53016ad786f2195e418aacb6ba5073fb280cc1fc3039b",
+              "sha512": "7945e8afb53bdc20076980832fde63482fa3b51ac4b63d7d7c35f2d2f9cd4f1a40eb0a88c46f752152ad2037cb8e8c6bbf6c25648843c7c58a33a3f345af9a74"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s08_s4",
+          "sample_rate_Hz": 20000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 19999987,
+          "duration_s": 0.99999935,
+          "usable_band_Hz": [
+            2432000000.0,
+            2448000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 43.1256,
+          "annotations": 0,
+          "capture": {},
+          "files": [
+            {
+              "name": "data/sv1-s08_s4.sigmf-data",
+              "bytes": 79999948,
+              "sha256": "560d4d863c6d5e0aa681d7e7b780a15acfbf2b9717821bde3204c73c84e2a558",
+              "sha512": "7ec2aadd99ecbde2b0126b112ababd973ceedd05a1e8e98476407dc7df192845203138b882c774615f44bb47c211466d54343dc0c7c4c9c69d0d1bb1ee7d7f42"
+            },
+            {
+              "name": "data/sv1-s08_s4.sigmf-meta",
+              "bytes": 5015,
+              "sha256": "a53c8b221b5ab150c8097f364cb2f229747652537981c694d925a9b3eebcebd0",
+              "sha512": "270187047b22213a018fd891e248392c24623ea384274a59a92f72ce7db8df3e6f8a3a680e8fb0d269f9ebd84398cbad572c3a0150b1a0ce382535502664ae84"
+            },
+            {
+              "name": "data/sv1-s08_s4.cuav-links.jsonl",
+              "bytes": 4380,
+              "sha256": "f091dc016d7846fa8b92eb7a6e72dd42f8453695b5aa7db38853aad05f30973e",
+              "sha512": "74e8bfd841a0039602c4e3797b1032f8440a18caff9992e0c77b5bad2340e2df049fb53cf9cad06fda980b2a14b865dd079678870dbad96fba4d2361c35299fb"
+            },
+            {
+              "name": "previews/sv1-s08_s4.png",
+              "bytes": 493727,
+              "sha256": "c9c87b9fde790025238d876c6b38e8f2381ae69db4e7fcb594798ebbc4f5ee62",
+              "sha512": "fc13293679dc0800fd4d6837df254c88a6480b67d9dc2d1cd8e1126a373125e40d56c4fbec39e321fa795e9f654b330c6698c7912ef5996e25c2612e62dda2d4"
+            }
+          ]
+        }
+      ],
+      "wall_s": 10.9,
+      "realtime_factor": 0.092
+    },
+    {
+      "id": "s09",
+      "title": "DJI 图传 20 MHz，非视距（楼后低空）",
+      "receiver": "R1",
+      "propagation": "nlos",
+      "s4": {
+        "decim": 2,
+        "f_shift_Hz": 20000000
+      },
+      "presets": [
+        "dji-video-20m-a"
+      ],
+      "scenario_id": "sv1-s09",
+      "scenario_sha256": "08affc22c5d661e384b0ec8080bb58aec37760f9d09acddcd7273bc8fcb2a434",
+      "diagram_sha256": "5a8f322790e1d7d722660c55bc2599362ec444b47f29a4af60054f03c4ffe278",
+      "seeds": {
+        "run": 7324870760896952,
+        "scenario": 7211439308692773
+      },
+      "platforms": [
+        {
+          "platform": "dji-1",
+          "primary": "uav-1",
+          "snr_target_dB": 10,
+          "snr_budget_dB_median": 9.99476,
+          "snr_measured_dB_median_s3": 7.553084,
+          "snr_measured_dB_mean_lin_s3": 10.8884,
+          "snr_measured_n_s3": 305,
+          "annotations_s3": 305,
+          "s4_capture": {
+            "full": 305,
+            "partial": 0,
+            "none": 0
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s09_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 305,
+          "capture": {
+            "full": 305
+          },
+          "files": [
+            {
+              "name": "data/sv1-s09_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "92c6ebd87c8a088337a87db3d47e45efc2ce7b069e0d3356b362832fb860ecb7",
+              "sha512": "bdc5cf68586cf9c345cd8def01d577219a22a3c5f1c7e12e69a313b5e9c27db0bfd175d66cbf5815cbf1a6c7f7a44bbe61b7d15fce4d5b9e490a8c169402448b"
+            },
+            {
+              "name": "data/sv1-s09_s3.sigmf-meta",
+              "bytes": 307424,
+              "sha256": "b137840f583e84bcd47288a15ab8d81b6bf48c2e08a0ccec6f0ac05ee1dd9f02",
+              "sha512": "687e6066409110f9e81f1727edc0168808ad4f24bd69a7fd4fbe27d297cbbe2c81411cf1e8d1a0f24733c7e2409778af9478bf490eba9cd04c5d79665b6bec4f"
+            },
+            {
+              "name": "data/sv1-s09_s3.cuav-links.jsonl",
+              "bytes": 5090,
+              "sha256": "51a2c4035198211f765fc0604494aebd0b1134b325dc09ac042278ca888878c1",
+              "sha512": "036c02d202b8a8c1b1d3fd10f1e1f492e2717153fde94eb17e800eace66490cee8701139a82ddd95ea88a3a54d6efe48416ac4fac207143100056f0365ace4aa"
+            },
+            {
+              "name": "previews/sv1-s09_s3.png",
+              "bytes": 414047,
+              "sha256": "71e670076cf2c57b0bd771b2e1b223e5d6b626dcf316f46c1299ad718efcb799",
+              "sha512": "4daa3ac297efff84d5782e5e3ad47e55fff1d53d0716031f5c5c5fa86257094a3a42d1db13549955b95cba85006079fbc63cfa5aca968a3a2a84c36f4ff4002e"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s09_s4",
+          "sample_rate_Hz": 40000000.0,
+          "center_Hz": 2460000000.0,
+          "samples": 39999987,
+          "duration_s": 0.999999675,
+          "usable_band_Hz": [
+            2444000000.0,
+            2476000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 46.1359,
+          "annotations": 305,
+          "capture": {
+            "full": 305
+          },
+          "files": [
+            {
+              "name": "data/sv1-s09_s4.sigmf-data",
+              "bytes": 159999948,
+              "sha256": "88475091c53f46c43fec4917f7a9077e2d85a6a0ceee05f40dcb40b9eabeed61",
+              "sha512": "e316e69d57281ceae22fa1c072578ce31aada29b4797ec14f6870a504312d32f85334669b435bb621a9d8dc9b159b8d4d003fe0744312d6d62c75bc3b811693a"
+            },
+            {
+              "name": "data/sv1-s09_s4.sigmf-meta",
+              "bytes": 307704,
+              "sha256": "fe3436c355b09db48daa04b8657d380fbff45b3a9d8f5e52c737410abf2dbbac",
+              "sha512": "7624b56ffc7444961acf0c95a968e58d4fb1f950383738d596835ef18b6b93631d7902764c808ab251cd1e8767a6f5b105180cde254267d18c6a6ada89d7ab4e"
+            },
+            {
+              "name": "data/sv1-s09_s4.cuav-links.jsonl",
+              "bytes": 5090,
+              "sha256": "51a2c4035198211f765fc0604494aebd0b1134b325dc09ac042278ca888878c1",
+              "sha512": "036c02d202b8a8c1b1d3fd10f1e1f492e2717153fde94eb17e800eace66490cee8701139a82ddd95ea88a3a54d6efe48416ac4fac207143100056f0365ace4aa"
+            },
+            {
+              "name": "previews/sv1-s09_s4.png",
+              "bytes": 422722,
+              "sha256": "75dcd1bdef77e70f8d9b6fd75919dc5418d4ebfd0216dcd1443047abab190db9",
+              "sha512": "cb04cebc2c6b4e2f68170b2f19e2b842bf54b98303a2b3f95b785e4c85f58a98496b7379f058206401bcb2d1aecb443adde4807603f4df20315ad2d249e352a6"
+            }
+          ]
+        }
+      ],
+      "wall_s": 13.5,
+      "realtime_factor": 0.074
+    },
+    {
+      "id": "s10",
+      "title": "DJI 遥控上行（2.2 MHz 跳频），非视距（楼后地面）",
+      "receiver": "R1",
+      "propagation": "nlos",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "presets": [
+        "dji-uplink-2m"
+      ],
+      "scenario_id": "sv1-s10",
+      "scenario_sha256": "827ff68814f6644a20c9c12e06ad0bb25590e49d040aee06886944f28a3163a5",
+      "diagram_sha256": "1bdca72b9d5505e9c8ffabb1053edcf8821125479f92334a5514c5bec6d89c3c",
+      "seeds": {
+        "run": 2551621849352929,
+        "scenario": 224968554848029
+      },
+      "platforms": [
+        {
+          "platform": "dji-rc",
+          "primary": "rc-1",
+          "snr_target_dB": 10,
+          "snr_budget_dB_median": 10.114912,
+          "snr_measured_dB_median_s3": 6.3312225,
+          "snr_measured_dB_mean_lin_s3": 9.0523,
+          "snr_measured_n_s3": 178,
+          "annotations_s3": 178,
+          "s4_capture": {
+            "full": 29,
+            "partial": 17,
+            "none": 132
+          }
+        }
+      ],
+      "ops": [
+        {
+          "op_id": "s3",
+          "point": "S3",
+          "stem": "sv1-s10_s3",
+          "sample_rate_Hz": 80000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 80000000,
+          "duration_s": 1.0,
+          "usable_band_Hz": [
+            2400000000.0,
+            2480000000.0
+          ],
+          "state": "valid",
+          "lossless": true,
+          "requant_margin_dB": null,
+          "annotations": 178,
+          "capture": {
+            "full": 178
+          },
+          "files": [
+            {
+              "name": "data/sv1-s10_s3.sigmf-data",
+              "bytes": 320000000,
+              "sha256": "ee1439f4cbae08dbbeedc69444b7abbc25ec0b9815d4df06377da5795bf81791",
+              "sha512": "59ec52a717eb0b62e4e7fba372d25a1daf762ede7a21febdf1339625e1f7805c41bc1b4cf637f0330fe9e6c07efbc0a4949760714ca8a1dfe2bb184c0d5eaaa0"
+            },
+            {
+              "name": "data/sv1-s10_s3.sigmf-meta",
+              "bytes": 180801,
+              "sha256": "93dbe996d49a72ce229fa5fac2be6005a0fe50e8b54e9d52dd965f1228312529",
+              "sha512": "2e9ac9fd285354f781d74e7e4c3585096bf59ecdff97e6650da6076a663e3d59f021d801cb14d9daa2026ca2e2feb005737a8de3ebb93ed8171e3fcac923a3f5"
+            },
+            {
+              "name": "data/sv1-s10_s3.cuav-links.jsonl",
+              "bytes": 5030,
+              "sha256": "af736c68612e9d08bb22dfe7290d16c1407dfd59e5ff87ac8f10f3e192394cd8",
+              "sha512": "b2d2115124c190194983cf16c4598b98cc82a296a4c61c5bfae2ec2514c68fbb56cf7f8aa4a948be2c7167e18248e21ba8a4e3d86f05a201d1b43fd40366090d"
+            },
+            {
+              "name": "previews/sv1-s10_s3.png",
+              "bytes": 391185,
+              "sha256": "f763574a54dd47caed1d544cc6aeafeec722e9cd48e54bf012b35eb99f52cf0b",
+              "sha512": "5ac9866bb0bda967d84392e2a9ebba701c7e9fa285a49e5995e70bf0a3d9c12fd268e196b80925abf5d426a47d7e34458b63de5834212b429a04738e6542794f"
+            }
+          ]
+        },
+        {
+          "op_id": "s4",
+          "point": "S4",
+          "stem": "sv1-s10_s4",
+          "sample_rate_Hz": 20000000.0,
+          "center_Hz": 2440000000.0,
+          "samples": 19999987,
+          "duration_s": 0.99999935,
+          "usable_band_Hz": [
+            2432000000.0,
+            2448000000.0
+          ],
+          "state": "valid",
+          "lossless": false,
+          "requant_margin_dB": 43.1256,
+          "annotations": 178,
+          "capture": {
+            "none": 132,
+            "full": 29,
+            "partial": 17
+          },
+          "files": [
+            {
+              "name": "data/sv1-s10_s4.sigmf-data",
+              "bytes": 79999948,
+              "sha256": "028be0a80ed418de4f3a06c3417a4109392154f107234c724383546468b17293",
+              "sha512": "390bdd59e53e869b097b04c776bb68596c34c78bb319e5457f1149085ea6ee38bef81803703cf99304fe99a546a214bc9326b1db47a08fb8234afc7ac10395c1"
+            },
+            {
+              "name": "data/sv1-s10_s4.sigmf-meta",
+              "bytes": 169237,
+              "sha256": "d4857082da88a11f94d423f39d2f58530220b14adab0dbc33a07dc8b4d6ab64d",
+              "sha512": "adfb2f7198cce9559c05d9a37447d85a14da5f5026bfcd460b71a3507a944dbac17b6e316f1c25c0f5e4ce33c900685275ad29c1a45aefd7d7500742eaf3bfac"
+            },
+            {
+              "name": "data/sv1-s10_s4.cuav-links.jsonl",
+              "bytes": 5030,
+              "sha256": "af736c68612e9d08bb22dfe7290d16c1407dfd59e5ff87ac8f10f3e192394cd8",
+              "sha512": "b2d2115124c190194983cf16c4598b98cc82a296a4c61c5bfae2ec2514c68fbb56cf7f8aa4a948be2c7167e18248e21ba8a4e3d86f05a201d1b43fd40366090d"
+            },
+            {
+              "name": "previews/sv1-s10_s4.png",
+              "bytes": 437845,
+              "sha256": "8e095982c74133113f8dbf84f01b525b246b9ef5c8d4af298c99e76afc1cce8c",
+              "sha512": "bd79cbee716a5adc3b61bc483b34d4302c6b3fa4e2edbed8a6d8b6c6de172ca6ad69321caf9676ef2d8b3020cb9f9986c73e33793e49748e712bf7fba639fab7"
+            }
+          ]
+        }
+      ],
+      "wall_s": 11.1,
+      "realtime_factor": 0.0904
+    }
+  ],
+  "reproduce": [
+    "uv run --quiet --with numpy --with sigmf --with matplotlib python scripts/gen_eval_dataset.py run --set sample-v1"
+  ]
+}

@@ -85,6 +85,16 @@ uv run --quiet --with numpy --with scipy python tests/regression/impairments.py 
 
 约 25 s；运行目录 `data/runs/q4-impairments-*` 跑完即删。④ 那一项要 `data/iq/measured/q0b-params.json`（入 git）。
 
+### 评测数据集生成器冒烟（试样集，D-092）
+
+`eval_dataset_smoke.py` 跑格子文件 `eval-dataset/smoke.json`（一格、2 MS/s、0.2 s、突发信标、视距）：从格子文件一路走到交付件，
+核交付件齐全、`SHA512SUMS` 逐个对得上、读取示例读得出样点、交付件文本里没有本机路径、重跑一格逐字节相同。
+正式的试样集 `eval-dataset/sample-v1.json` 不在这里跑（约 5 分钟、约 4.5 GB），命令见 CLAUDE.md「评测数据集」。
+
+```
+uv run --quiet --with numpy --with sigmf --with matplotlib python tests/regression/eval_dataset_smoke.py   # 已接进 scripts/build-all.sh
+```
+
 ### E3 建筑遮挡（D3-5，D-074）
 
 `e3_occlusion_chain.py` 跑 `diagrams/chain-demo-01-e3.json`（就是全合成那份，只把传播档位
