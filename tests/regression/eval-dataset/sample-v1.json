@@ -1,0 +1,646 @@
+{
+  "schema_version": "cuav-eval-cells/1",
+  "set_id": "sample-v1",
+  "name": "试样集 v1",
+  "stem_prefix": "sv1",
+  "set_seed": 20261004,
+  "duration_s": 1.0,
+  "created_at": "2026-10-04T00:00:00Z",
+  "aoi_id": "beijing-yayuncun",
+  "notes": "14 号报告 §8.2 的 10 段试样集（D-092）：每个 2.4 GHz 预设一段高信噪比视距、5.8 GHz 图传一段、多源一段、纯背景一段、非视距两段。接收配置 R1 / R2 见 14 §8.1；20 MHz 图传的 S4 改为抽取 2、频移 +20 MHz（40 MS/s @ 2460 MHz）——预设只有 2462.5 MHz 一个信道，对准它要频移 22.5 MHz，|f_shift| + fs_out/2 超过输入奈奎斯特，DDC 拒绝运行。只有跳频遥控的段 S4 取 20 MS/s @ 2440 MHz（用户 2026-10-04 定），跳频点有一部分在 S4 通带外，注记的 cuav:capture 照实标出。信噪比目标只对每个平台的主辐射源，是链路预算的带内信噪比（cuav:snr_dB 同式）。",
+  "site": {
+    "id": "site-1",
+    "name": "亚运村侦察站",
+    "lon": 116.405,
+    "lat": 39.99,
+    "alt_m": 30,
+    "antenna_gain_dBi": 3,
+    "nf_dB": 6
+  },
+  "receivers": {
+    "R1": {
+      "fs_Hz": 80000000,
+      "center_Hz": 2440000000,
+      "bw_Hz": 64000000
+    },
+    "R2": {
+      "fs_Hz": 80000000,
+      "center_Hz": 5790000000,
+      "bw_Hz": 64000000
+    }
+  },
+  "chain": {
+    "rx_fe": {
+      "gain_dB": 20,
+      "phase_noise": "pll"
+    },
+    "adc": {
+      "full_scale_dBm": -20,
+      "bits": "14"
+    },
+    "det": {
+      "nfft": 1024
+    }
+  },
+  "propagation": {
+    "los": {
+      "prop_level": "E1",
+      "fading": "rician"
+    },
+    "nlos": {
+      "prop_level": "E3",
+      "fading": "rician"
+    }
+  },
+  "cfo": {
+    "max_ppm": 20,
+    "source": "A：IEEE 802.11 OFDM 发射机中心频率容差 ±20 ppm 作代理（14 附录 A），按平台在 ±20 ppm 上均匀抽"
+  },
+  "frontend_measured": {
+    "use": true,
+    "iq_gain_imbalance_dB": 0.005346,
+    "iq_phase_imbalance_deg": -0.006931,
+    "dc_rel_noise_dB": -40.12,
+    "source": {
+      "grade": "M",
+      "data": "DroneRFb 训练部分的背景片段（类码 B），逐片量、取中位数",
+      "method": "scripts/eval_dataset/frontend.py：安静帧（功率最低一成）上的 I/Q 标准差比与相关系数、整片均值的模方对安静帧噪声功率之比；按前端不平衡模型精确反解",
+      "n_slices": 37,
+      "median": {
+        "std_ratio": 0.999385,
+        "rho": 0.000121042,
+        "dc_rel_noise": 9.73535e-05
+      },
+      "spread": {
+        "std_ratio": [
+          0.997726,
+          1.00342
+        ],
+        "rho": [
+          -0.00280161,
+          0.00463102
+        ]
+      },
+      "holdout_dropped": 0,
+      "holdout_manifest_sha256": "13fccdd815abb233405181069e8035facc719f62859dbf48de8b8f1dfbfe5109",
+      "status": "原型阶段验证值（D-028）"
+    }
+  },
+  "cells": [
+    {
+      "id": "s01",
+      "title": "DJI 图传 10 MHz + DroneID，视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 22500000
+      },
+      "platforms": [
+        {
+          "id": "dji-1",
+          "name": "DJI 无人机",
+          "platform_type": "multirotor",
+          "alt_m": 100,
+          "azimuth_deg": 60,
+          "snr_dB": 30,
+          "primary": "uav-1",
+          "emitters": [
+            {
+              "id": "uav-1",
+              "name": "DJI 图传下行（10 MHz）",
+              "equipment_model": "DJI 10 MHz 图传",
+              "preset": "dji-video-10m",
+              "center_Hz": 2462500000,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            },
+            {
+              "id": "uav-1-droneid",
+              "name": "同一架机的 DroneID",
+              "equipment_model": "DJI DroneID",
+              "preset": "dji-droneid",
+              "center_Hz": 2429500000,
+              "frame_offset_s": 0.1,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            }
+          ],
+          "resolved": {
+            "lon": 116.4095535,
+            "lat": 39.992022,
+            "range_m": 449.053,
+            "azimuth_deg": 60.0,
+            "line_of_sight": true,
+            "distance_m": 454.474,
+            "path_loss_dB": 93.4255,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "s02",
+      "title": "DJI 图传 20 MHz，视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 2,
+        "f_shift_Hz": 20000000
+      },
+      "platforms": [
+        {
+          "id": "dji-1",
+          "name": "DJI 无人机",
+          "platform_type": "multirotor",
+          "alt_m": 100,
+          "azimuth_deg": 120,
+          "snr_dB": 30,
+          "primary": "uav-1",
+          "emitters": [
+            {
+              "id": "uav-1",
+              "name": "DJI 图传下行（20 MHz，A/D/F/G 族时序）",
+              "equipment_model": "DJI 20 MHz 图传",
+              "preset": "dji-video-20m-a",
+              "center_Hz": 2462500000,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            }
+          ],
+          "resolved": {
+            "lon": 116.4081817,
+            "lat": 39.988587,
+            "range_m": 313.784,
+            "azimuth_deg": 120.0,
+            "line_of_sight": true,
+            "distance_m": 321.496,
+            "path_loss_dB": 90.4188,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "s03",
+      "title": "DJI 遥控上行（2.2 MHz 跳频），视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "plan_allow": {
+        "edge": "最低跳频点离 S3 带边不到界面的 5% 保护带；引擎的铁律 4 闸不含保护带、放行（同 D-089 ⑫）",
+        "transition": "只有跳频遥控的段 S4 取 20 MS/s @ 2440 MHz（用户 2026-10-04 定），一部分跳频点在 S4 通带外"
+      },
+      "platforms": [
+        {
+          "id": "dji-rc",
+          "name": "DJI 遥控器",
+          "platform_type": "multirotor",
+          "alt_m": 1.5,
+          "azimuth_deg": 200,
+          "snr_dB": 30,
+          "primary": "rc-1",
+          "emitters": [
+            {
+              "id": "rc-1",
+              "name": "遥控器上行（2.2 MHz 跳频）",
+              "equipment_model": "DJI 遥控器",
+              "preset": "dji-uplink-2m",
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 0
+            }
+          ],
+          "resolved": {
+            "lon": 116.40203,
+            "lat": 39.9837227,
+            "range_m": 741.723,
+            "azimuth_deg": 200.0,
+            "line_of_sight": true,
+            "distance_m": 742.271,
+            "path_loss_dB": 97.4824,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "s04",
+      "title": "FrSky D16 v2 遥控（GFSK 跳频），视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "plan_allow": {
+        "edge": "最低跳频点离 S3 带边不到界面的 5% 保护带；引擎的铁律 4 闸不含保护带、放行（同 D-089 ⑫）",
+        "transition": "只有跳频遥控的段 S4 取 20 MS/s @ 2440 MHz（用户 2026-10-04 定），一部分跳频点在 S4 通带外"
+      },
+      "platforms": [
+        {
+          "id": "rc-frsky",
+          "name": "FrSky 遥控器",
+          "platform_type": "multirotor",
+          "alt_m": 1.5,
+          "azimuth_deg": 250,
+          "snr_dB": 30,
+          "primary": "rc-frsky",
+          "emitters": [
+            {
+              "id": "rc-frsky",
+              "name": "FrSky D16 v2（FCC）遥控上行",
+              "equipment_model": "FrSky X 系列遥控器",
+              "preset": "frsky-d16v2-fcc",
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 0
+            }
+          ],
+          "resolved": {
+            "lon": 116.3775824,
+            "lat": 39.98232,
+            "range_m": 2492.199,
+            "azimuth_deg": 250.0,
+            "line_of_sight": true,
+            "distance_m": 2492.366,
+            "path_loss_dB": 108.1598,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "s05",
+      "title": "Futaba S-FHSS 遥控（2-FSK 跳频），视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "plan_allow": {
+        "edge": "S-FHSS 的 0 号信道离 S3 带边不到界面的 5% 保护带；引擎的铁律 4 闸不含保护带、放行（D-089 ⑫）",
+        "transition": "只有跳频遥控的段 S4 取 20 MS/s @ 2440 MHz（用户 2026-10-04 定），一部分跳频点在 S4 通带外"
+      },
+      "platforms": [
+        {
+          "id": "rc-futaba",
+          "name": "Futaba 遥控器",
+          "platform_type": "multirotor",
+          "alt_m": 1.5,
+          "azimuth_deg": 300,
+          "snr_dB": 30,
+          "primary": "rc-futaba",
+          "emitters": [
+            {
+              "id": "rc-futaba",
+              "name": "Futaba S-FHSS 遥控上行",
+              "equipment_model": "Futaba S-FHSS 遥控器",
+              "preset": "futaba-sfhss",
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 0
+            }
+          ],
+          "resolved": {
+            "lon": 116.3800904,
+            "lat": 40.0010577,
+            "range_m": 2456.159,
+            "azimuth_deg": 300.0,
+            "line_of_sight": true,
+            "distance_m": 2456.331,
+            "path_loss_dB": 107.8722,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "s06",
+      "title": "DJI 图传 40 MHz（5.8 GHz）+ DroneID，视距",
+      "receiver": "R2",
+      "propagation": "los",
+      "s4": {
+        "decim": 1,
+        "f_shift_Hz": 6500000
+      },
+      "platforms": [
+        {
+          "id": "dji-1",
+          "name": "DJI 无人机（O3 类）",
+          "platform_type": "multirotor",
+          "alt_m": 100,
+          "azimuth_deg": 30,
+          "snr_dB": 30,
+          "primary": "uav-1",
+          "emitters": [
+            {
+              "id": "uav-1",
+              "name": "DJI 图传下行（40 MHz，5.8 GHz）",
+              "equipment_model": "DJI 40 MHz 图传",
+              "preset": "dji-video-40m",
+              "center_Hz": 5796500000,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            },
+            {
+              "id": "uav-1-droneid",
+              "name": "同一架机的 DroneID（5.8 GHz）",
+              "equipment_model": "DJI DroneID",
+              "preset": "dji-droneid",
+              "center_Hz": 5776500000,
+              "frame_offset_s": 0.1,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            }
+          ],
+          "resolved": {
+            "lon": 116.4053897,
+            "lat": 39.9905192,
+            "range_m": 66.565,
+            "azimuth_deg": 30.0,
+            "line_of_sight": true,
+            "distance_m": 96.598,
+            "path_loss_dB": 87.4105,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 29.9999
+          }
+        }
+      ]
+    },
+    {
+      "id": "s07",
+      "title": "多源：DJI 图传 20 MHz + DroneID + DJI 遥控上行 + FrSky 遥控，视距",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 2,
+        "f_shift_Hz": 20000000
+      },
+      "plan_allow": {
+        "edge": "遥控的最低跳频点离 S3 带边不到界面的 5% 保护带；引擎的铁律 4 闸不含保护带、放行（同 D-089 ⑫）",
+        "transition": "S4 对准图传；DroneID 与遥控的大部分跳频点在 S4 通带外，只在 S3 里"
+      },
+      "platforms": [
+        {
+          "id": "dji-1",
+          "name": "DJI 无人机",
+          "platform_type": "multirotor",
+          "alt_m": 100,
+          "azimuth_deg": 80,
+          "snr_dB": 20,
+          "primary": "uav-1",
+          "emitters": [
+            {
+              "id": "uav-1",
+              "name": "DJI 图传下行（20 MHz，A/D/F/G 族时序）",
+              "equipment_model": "DJI 20 MHz 图传",
+              "preset": "dji-video-20m-a",
+              "center_Hz": 2462500000,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            },
+            {
+              "id": "uav-1-droneid",
+              "name": "同一架机的 DroneID",
+              "equipment_model": "DJI DroneID",
+              "preset": "dji-droneid",
+              "center_Hz": 2429500000,
+              "frame_offset_s": 0.1,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            }
+          ],
+          "resolved": {
+            "lon": 116.4166953,
+            "lat": 39.9915856,
+            "range_m": 1014.25,
+            "azimuth_deg": 80.0,
+            "line_of_sight": true,
+            "distance_m": 1016.661,
+            "path_loss_dB": 100.4188,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 20.0
+          }
+        },
+        {
+          "id": "dji-rc",
+          "name": "DJI 遥控器",
+          "platform_type": "multirotor",
+          "alt_m": 1.5,
+          "azimuth_deg": 95,
+          "snr_dB": 20,
+          "primary": "rc-1",
+          "emitters": [
+            {
+              "id": "rc-1",
+              "name": "遥控器上行（2.2 MHz 跳频）",
+              "equipment_model": "DJI 遥控器",
+              "preset": "dji-uplink-2m",
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 0
+            }
+          ],
+          "resolved": {
+            "lon": 116.432308,
+            "lat": 39.988159,
+            "range_m": 2341.251,
+            "azimuth_deg": 95.0,
+            "line_of_sight": true,
+            "distance_m": 2341.427,
+            "path_loss_dB": 107.4824,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 20.0
+          }
+        },
+        {
+          "id": "rc-frsky",
+          "name": "FrSky 遥控器（第三方）",
+          "platform_type": "multirotor",
+          "alt_m": 1.5,
+          "azimuth_deg": 160,
+          "snr_dB": 20,
+          "primary": "rc-frsky",
+          "emitters": [
+            {
+              "id": "rc-frsky",
+              "name": "FrSky D16 v2（FCC）遥控上行",
+              "equipment_model": "FrSky X 系列遥控器",
+              "preset": "frsky-d16v2-fcc",
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 0
+            }
+          ],
+          "resolved": {
+            "lon": 116.436226,
+            "lat": 39.9239412,
+            "range_m": 7805.001,
+            "azimuth_deg": 160.0,
+            "line_of_sight": true,
+            "distance_m": 7805.062,
+            "path_loss_dB": 118.1598,
+            "diffraction_dB": 0.0,
+            "snr_budget_dB": 20.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "s08",
+      "title": "纯背景：只有接收机噪声与非理想",
+      "receiver": "R1",
+      "propagation": "los",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "platforms": [
+        {
+          "id": "idle",
+          "name": "占位（全程关断）",
+          "platform_type": "multirotor",
+          "alt_m": 100,
+          "azimuth_deg": 0,
+          "range_m": 1000,
+          "off": true,
+          "emitters": [
+            {
+              "id": "idle",
+              "name": "占位辐射源（全程关断）",
+              "equipment_model": "无",
+              "waveform": {
+                "type": "tone",
+                "offset_Hz": 0
+              },
+              "center_Hz": 2440000000,
+              "bw_Hz": 10000,
+              "tx_power_dBm": 0,
+              "antenna_gain_dBi": 0
+            }
+          ],
+          "resolved": {
+            "lon": 116.405,
+            "lat": 39.9990061,
+            "range_m": 1000.0,
+            "azimuth_deg": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "s09",
+      "title": "DJI 图传 20 MHz，非视距（楼后低空）",
+      "receiver": "R1",
+      "propagation": "nlos",
+      "s4": {
+        "decim": 2,
+        "f_shift_Hz": 20000000
+      },
+      "platforms": [
+        {
+          "id": "dji-1",
+          "name": "DJI 无人机",
+          "platform_type": "multirotor",
+          "alt_m": 40,
+          "snr_dB": 10,
+          "primary": "uav-1",
+          "search": {
+            "range_m": [
+              100,
+              1500,
+              20
+            ],
+            "azimuth_step_deg": 1,
+            "min_diffraction_dB": 10,
+            "tol_dB": 0.5
+          },
+          "emitters": [
+            {
+              "id": "uav-1",
+              "name": "DJI 图传下行（20 MHz，A/D/F/G 族时序）",
+              "equipment_model": "DJI 20 MHz 图传",
+              "preset": "dji-video-20m-a",
+              "center_Hz": 2462500000,
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 2
+            }
+          ],
+          "resolved": {
+            "lon": 116.4072705,
+            "lat": 39.9868492,
+            "range_m": 400,
+            "azimuth_deg": 151.0,
+            "line_of_sight": false,
+            "distance_m": 400.124,
+            "path_loss_dB": 110.4241,
+            "diffraction_dB": 18.1049,
+            "snr_budget_dB": 9.9948,
+            "search_points": 25560
+          }
+        }
+      ]
+    },
+    {
+      "id": "s10",
+      "title": "DJI 遥控上行（2.2 MHz 跳频），非视距（楼后地面）",
+      "receiver": "R1",
+      "propagation": "nlos",
+      "s4": {
+        "decim": 4,
+        "f_shift_Hz": 0
+      },
+      "plan_allow": {
+        "edge": "最低跳频点离 S3 带边不到界面的 5% 保护带；引擎的铁律 4 闸不含保护带、放行（同 D-089 ⑫）",
+        "transition": "只有跳频遥控的段 S4 取 20 MS/s @ 2440 MHz（用户 2026-10-04 定），一部分跳频点在 S4 通带外"
+      },
+      "platforms": [
+        {
+          "id": "dji-rc",
+          "name": "DJI 遥控器",
+          "platform_type": "multirotor",
+          "alt_m": 1.5,
+          "snr_dB": 10,
+          "primary": "rc-1",
+          "search": {
+            "range_m": [
+              100,
+              1500,
+              20
+            ],
+            "azimuth_step_deg": 1,
+            "min_diffraction_dB": 10,
+            "tol_dB": 0.5
+          },
+          "emitters": [
+            {
+              "id": "rc-1",
+              "name": "遥控器上行（2.2 MHz 跳频）",
+              "equipment_model": "DJI 遥控器",
+              "preset": "dji-uplink-2m",
+              "tx_power_dBm": 20,
+              "antenna_gain_dBi": 0
+            }
+          ],
+          "resolved": {
+            "lon": 116.4080947,
+            "lat": 39.9870603,
+            "range_m": 420,
+            "azimuth_deg": 141.0,
+            "line_of_sight": false,
+            "distance_m": 420.971,
+            "path_loss_dB": 117.4788,
+            "diffraction_dB": 24.7192,
+            "snr_budget_dB": 10.0036,
+            "search_points": 25560
+          }
+        }
+      ]
+    }
+  ]
+}
