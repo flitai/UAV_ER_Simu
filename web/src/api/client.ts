@@ -477,6 +477,37 @@ export interface DetectionRow {
   snr_dB: number
   overload: boolean
   noise_frames_used: number
+  /** 分子带（Q-4b，D-093）：检测器开了 subband_bins 才有这两个键 */
+  subband_hit?: boolean
+  subbands?: SubbandHitRow[]
+}
+
+/** 分子带检测的一簇：频段内一串相邻的被标记频点（绝对频率）；段号与帧级的 segment_id 是两套编号 */
+export interface SubbandHitRow {
+  f_lo_Hz: number
+  f_hi_Hz: number
+  bins: number
+  statistic: number
+  snr_dB: number
+  band_power_dBm?: number
+  noise_dBm?: number
+  segment_id: number
+}
+
+/** 检测摘要里分子带那一节（检测器开了 subband_bins 才有） */
+export interface SubbandSummary {
+  bins: number
+  levels: number
+  tests: number
+  pfa_test: number
+  window: string
+  threshold_rule: string
+  link_frames: number
+  guard_bins: number
+  segments: number
+  hit_frames: number
+  stale_frames: number
+  never_full_bins: number
 }
 
 export interface DetectionNodeSummary {
@@ -504,6 +535,7 @@ export interface DetectionNodeSummary {
   state: string
   notes: string[]
   trace: Record<string, unknown>
+  subband?: SubbandSummary
 }
 
 export interface DetectionsIndex {
@@ -550,6 +582,8 @@ export interface DetectionsQuery {
   t1?: number
   stride?: number
   hit?: boolean
+  /** 分子带（Q-4b，D-093）：只取子带有簇的帧 */
+  subband_hit?: boolean
   site_id?: string
   node_id?: string
 }
@@ -566,6 +600,7 @@ export function getDetections(task: string, q: DetectionsQuery = {}, base = ''):
     sp.set('t1', String(q.t1 ?? 1e9))
     sp.set('stride', String(stride))
     if (q.hit !== undefined) sp.set('hit', q.hit ? 'true' : 'false')
+    if (q.subband_hit !== undefined) sp.set('subband_hit', q.subband_hit ? 'true' : 'false')
     if (q.site_id) sp.set('site_id', q.site_id)
     if (q.node_id) sp.set('node_id', q.node_id)
     return `${base}/api/v1/results/${encodeURIComponent(task)}/detections?${sp.toString()}`

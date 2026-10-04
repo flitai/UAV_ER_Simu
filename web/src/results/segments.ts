@@ -23,6 +23,11 @@ export interface DetectionSegment {
   overload: boolean
   f_lo_Hz: number
   f_hi_Hz: number
+  /**
+   * 分子带段（Q-4b，D-093）：段号是分子带那一套编号，与帧级的 segment_id 不是一回事；
+   * 频段是该段的核心频段（见 tfSegmentsOf）。识别行挂在帧级段上，所以这种段不按识别行着色。
+   */
+  tf?: true
 }
 
 /**
@@ -107,4 +112,72 @@ export function frameDurationByNode(rows: readonly DetectionRow[],
     out[id] = est !== undefined && Number.isFinite(est) ? est : 0
   }
   return out
+}
+
+/**
+ * 分子带段（Q-4b，D-093）：检测行的 `subbands` 按 (node_id, 分子带段号) 分组。
+ *
+ * 频段取**核心**——在该段至少一半的帧里命中过的频点（没有就取全部命中过的），与评价器配对用的频段同一条规则
+ * （`engine/src/evaluation.cpp` 的 tf_metrics、`algos/reference/evaluate.py` 的 tf_segments）：
+ * 界面上框出来的就是评价器拿去和真值比的那一块。频点下标 floor((簇 f_lo − 参考) / df + 0.5)，
+ * 参考取该节点第一行的帧级 f_lo，df = 1 / 帧长（帧长 = nfft 个样点，不重叠）。
+ * 抽稀时看到的只是部分帧，核心频段与帧数都是近似的，界面要写明「已抽稀」。
+ */
+export function tfSegmentsOf(rows: readonly DetectionRow[], dt_s: FrameDt, stride = 1): DetectionSegment[] {
+  interface Acc { seg: DetectionSegment; ref: number; df: number; frames: number; frame: number; count: Map<number, number> }
+  const by = new Map<string, Acc>()
+  const refOf = new Map<string, number>()
+  for (const r of rows) {
+    const subs = r.subbands
+    if (!subs || subs.length === 0) continue
+    const d = dtOf(dt_s, r.node_id)
+    if (!(d > 0)) continue
+    let ref = refOf.get(r.node_id)
+    if (ref === undefined) { ref = r.f_lo_Hz; refOf.set(r.node_id, ref) }
+    const df = 1 / d
+    const seen = new Map<string, Set<number>>()
+    for (const h of subs) {
+      const key = `${r.node_id}|tf${h.segment_id}`
+      let a = by.get(key)
+      const p = typeof h.band_power_dBm === 'number' ? h.band_power_dBm : null
+      if (!a) {
+        a = {
+          seg: {
+            key, node_id: r.node_id, site_id: r.site_id ?? null, segment_id: h.segment_id,
+            t_start: r.t_s, t_end: r.t_s + d, frames: 0,
+            peak_statistic: h.statistic, peak_band_power_dBm: p, peak_snr_dB: h.snr_dB,
+            overload: false, f_lo_Hz: h.f_lo_Hz, f_hi_Hz: h.f_hi_Hz, tf: true,
+          },
+          ref, df, frames: 0, frame: -1, count: new Map(),
+        }
+        by.set(key, a)
+      }
+      const g = a.seg
+      if (a.frame !== r.frame_index) { a.frame = r.frame_index; a.frames += 1; seen.set(key, new Set()) }
+      let got = seen.get(key)
+      if (!got) { got = new Set(); seen.set(key, got) }
+      const i0 = Math.floor((h.f_lo_Hz - a.ref) / a.df + 0.5)
+      for (let k = 0; k < h.bins; k++) {
+        const i = i0 + k
+        if (!got.has(i)) { got.add(i); a.count.set(i, (a.count.get(i) ?? 0) + 1) }
+      }
+      if (r.t_s < g.t_start) g.t_start = r.t_s
+      if (r.t_s + d > g.t_end) g.t_end = r.t_s + d
+      if (h.statistic > g.peak_statistic) g.peak_statistic = h.statistic
+      if (p !== null && (g.peak_band_power_dBm === null || p > g.peak_band_power_dBm)) g.peak_band_power_dBm = p
+      if (h.snr_dB > g.peak_snr_dB) g.peak_snr_dB = h.snr_dB
+      if (r.overload) g.overload = true
+    }
+  }
+  const out: DetectionSegment[] = []
+  for (const a of by.values()) {
+    let core = [...a.count.entries()].filter(([, c]) => 2 * c >= a.frames).map(([i]) => i)
+    if (core.length === 0) core = [...a.count.keys()]
+    core.sort((x, y) => x - y)
+    a.seg.f_lo_Hz = a.ref + core[0] * a.df
+    a.seg.f_hi_Hz = a.ref + (core[core.length - 1] + 1) * a.df
+    a.seg.frames = a.frames * stride
+    out.push(a.seg)
+  }
+  return out.sort((a, b) => a.t_start - b.t_start || a.node_id.localeCompare(b.node_id) || a.segment_id - b.segment_id)
 }

@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { DetectionRow } from '../api/client.js'
-import { frameDurationByNode, frameDurationOf, segmentsOf } from './segments.js'
+import { frameDurationByNode, frameDurationOf, segmentsOf, tfSegmentsOf } from './segments.js'
+import { subbandModeOf, visibleSegments, type DetectionState } from './detectionStore.js'
 
 const row = (node: string, i: number, seg: number | null, extra: Partial<DetectionRow> = {}): DetectionRow => ({
   t_s: i * 0.002048, node_id: node, site_id: node.includes('__') ? node.split('__')[1] : undefined,
@@ -73,4 +74,65 @@ test('逐站帧长：各站按自己的 dt 算突发时长（M-2，D-070）', ()
   const flat = segmentsOf(rows, 0.002048)
   assert.equal(flat.find((x) => x.node_id === 'det__site-2')!.t_end, 0.004096 + 0.002048)
   assert.ok(s2.t_end > flat.find((x) => x.node_id === 'det__site-2')!.t_end)
+})
+
+// 分子带（Q-4b，D-093）
+const DT = 0.002048
+const DF = 1 / DT
+const REF = 2.44e9 - 2.25e5
+const cl = (seg: number, i0: number, n: number, stat = 3, snr = 6) =>
+  ({ f_lo_Hz: REF + i0 * DF, f_hi_Hz: REF + (i0 + n) * DF, bins: n, statistic: stat, snr_dB: snr, band_power_dBm: -60 + stat, segment_id: seg })
+
+test('tfSegmentsOf：按 (node_id, 分子带段号) 分组，频段取核心（至少一半的帧里命中过的频点），同一帧多簇只计一帧', () => {
+  const rows = [
+    row('det', 0, null, { subband_hit: false, subbands: [] }),
+    row('det', 1, null, { subband_hit: true, subbands: [cl(0, 10, 4)] }),
+    row('det', 2, 7, { subband_hit: true, subbands: [cl(0, 10, 6, 9, 12), cl(1, 40, 2)] }),
+    row('det', 3, null, { subband_hit: true, subbands: [cl(0, 12, 2), cl(0, 20, 1)], overload: true }),
+    row('det__site-2', 2, null, { subband_hit: true, subbands: [cl(0, 30, 2)] }),
+  ]
+  const segs = tfSegmentsOf(rows, DT)
+  assert.equal(segs.length, 3)
+  const a = segs.find((g) => g.key === 'det|tf0')!
+  assert.equal(a.tf, true)
+  assert.equal(a.frames, 3)
+  assert.ok(Math.abs(a.t_start - DT) < 1e-12 && Math.abs(a.t_end - 4 * DT) < 1e-12)
+  // 计数 10:2 11:2 12:3 13:3 14:1 15:1 20:1，三帧里至少两帧 → 10..13
+  assert.ok(Math.abs(a.f_lo_Hz - (REF + 10 * DF)) < 1e-6)
+  assert.ok(Math.abs(a.f_hi_Hz - (REF + 14 * DF)) < 1e-6)
+  assert.equal(a.peak_statistic, 9)
+  assert.equal(a.peak_snr_dB, 12)
+  assert.equal(a.overload, true)
+  const b = segs.find((g) => g.key === 'det|tf1')!
+  assert.equal(b.frames, 1)
+  assert.ok(Math.abs(b.f_lo_Hz - (REF + 40 * DF)) < 1e-6 && Math.abs(b.f_hi_Hz - (REF + 42 * DF)) < 1e-6)
+  const c = segs.find((g) => g.key === 'det__site-2|tf0')!
+  assert.equal(c.site_id, 'site-2')
+  // 帧级段号与分子带段号是两套编号：帧级 segment_id 7 不出现在分子带段里
+  assert.ok(!segs.some((g) => g.segment_id === 7))
+  // 抽稀时帧数按 stride 估
+  assert.equal(tfSegmentsOf(rows, DT, 4).find((g) => g.key === 'det|tf0')!.frames, 12)
+})
+
+test('tfSegmentsOf：一个频点都没过半时取全部命中过的频点；没有 subbands 的行不进段', () => {
+  const rows = [
+    row('det', 0, null, { subband_hit: true, subbands: [cl(0, 10, 2)] }),
+    row('det', 1, null, { subband_hit: true, subbands: [cl(0, 13, 2)] }),
+    row('det', 2, null, { subband_hit: true, subbands: [cl(0, 16, 2)] }),
+    row('det', 3, 0),
+  ]
+  const [g] = tfSegmentsOf(rows, DT)
+  assert.ok(Math.abs(g.f_lo_Hz - (REF + 10 * DF)) < 1e-6 && Math.abs(g.f_hi_Hz - (REF + 18 * DF)) < 1e-6)
+  assert.equal(tfSegmentsOf([row('det', 0, 0)], DT).length, 0)
+})
+
+test('visibleSegments：分子带模式下给分子带段，站过滤照旧；subbandModeOf 认索引与行上的键', () => {
+  const frameSeg = segmentsOf([row('det', 1, 0)], DT)
+  const tfSeg = tfSegmentsOf([row('det', 1, null, { subbands: [cl(3, 10, 2)] }), row('det__site-2', 1, null, { subbands: [cl(0, 10, 2)] })], DT)
+  const base = { segments: frameSeg, tfSegments: tfSeg, siteFilter: null } as unknown as DetectionState
+  assert.equal(visibleSegments({ ...base, subbandMode: false }), frameSeg)
+  assert.deepEqual(visibleSegments({ ...base, subbandMode: true }).map((g) => g.key), ['det|tf3', 'det__site-2|tf0'])
+  assert.deepEqual(visibleSegments({ ...base, subbandMode: true, siteFilter: 'site-2' }).map((g) => g.key), ['det__site-2|tf0'])
+  assert.equal(subbandModeOf(null, [row('det', 1, 0)]), false)
+  assert.equal(subbandModeOf(null, [row('det', 1, 0, { subband_hit: false })]), true)
 })

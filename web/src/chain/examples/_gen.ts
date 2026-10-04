@@ -3,6 +3,7 @@
 //   npx tsx src/chain/examples/_gen.ts            > src/chain/examples/default.ts   （缺省链路；写成 TS 常量）
 //   npx tsx src/chain/examples/_gen.ts golden-02    > ../tests/regression/diagrams/chain-golden-02.json
 //   npx tsx src/chain/examples/_gen.ts golden-02-ddc > ../tests/regression/diagrams/chain-golden-02-ddc.json
+//   npx tsx src/chain/examples/_gen.ts golden-02-subband > ../tests/regression/diagrams/chain-golden-02-subband.json
 //   npx tsx src/chain/examples/_gen.ts golden-02-chan > ../tests/regression/diagrams/chain-golden-02-chan.json
 //   npx tsx src/chain/examples/_gen.ts golden-02-dsp > ../tests/regression/diagrams/chain-golden-02-dsp.json
 //   npx tsx src/chain/examples/_gen.ts synthetic > ../tests/regression/diagrams/chain-synthetic.json
@@ -80,6 +81,21 @@ if (mode === 'default') {
   c.slots.rx_fe.params = { gain_dB: 20 }
   c.slots.adc.params = { full_scale_dBm: -20 }
   c.slots.det.params = { nfft: 1024 }
+  process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
+} else if (mode === 'golden-02-subband') {
+  // 同一条宽带链，检测器开**分子带**（Q-4b，D-093）：最小块 8 个频点、按级加倍。
+  // golden-02 那份夹具一字不改，这是另起的一份。帧级判决一字不动，多出来的是每行的 subbands
+  // 与评价里的 segments_tf：帧级段号 181 把同时出现的图传与跳频并成一段，分子带下各成各的。
+  const { doc: scenario, sha } = loadScenario('golden-02')
+  const c: ChainState = emptyChain('synthetic', 'chain-golden-02-subband')
+  c.name = '典型链路 · 全合成 · golden-02 宽带 · 分子带检测'
+  c.scenario = { scenario_id: 'golden-02', sha256: sha }
+  c.siteIds = ['site-1']
+  c.emitterIds = ['uav-1', 'uav-2']
+  c.run = { duration_s: 6, seed: 20260915 }
+  c.slots.rx_fe.params = { gain_dB: 20 }
+  c.slots.adc.params = { full_scale_dBm: -20 }
+  c.slots.det.params = { nfft: 1024, subband_bins: 8 }
   process.stdout.write(serialize(compile(c, cat, scenario).doc, cat))
 } else if (mode === 'golden-02-ddc') {
   // 同一条宽带链，但**启用 DDC**（M-2，D-070）：10 MS/s 的观测带里选出 2438.5 MHz 的图传，
@@ -341,5 +357,5 @@ if (mode === 'default') {
     throw e
   }
 } else {
-  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | golden-01-e3 | replay | mixed | ofdm | gfsk | impairments | 3x3-aoa | 3x3-tdoa | eval`)
+  throw new Error(`未知模式 ${mode}：default | golden-02 | golden-02-subband | golden-02-ddc | golden-02-chan | golden-02-dsp | synthetic | golden-01-e3 | replay | mixed | ofdm | gfsk | impairments | 3x3-aoa | 3x3-tdoa | eval`)
 }

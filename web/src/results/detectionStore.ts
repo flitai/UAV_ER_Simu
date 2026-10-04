@@ -7,7 +7,7 @@
 import { useEffect } from 'react'
 import { getDetections, getDetectionsIndex, type DetectionRow, type DetectionsIndex } from '../api/client.js'
 import type { RunState } from '../state/types.js'
-import { frameDurationByNode, frameDurationOf, segmentsOf, type DetectionSegment } from './segments.js'
+import { frameDurationByNode, frameDurationOf, segmentsOf, tfSegmentsOf, type DetectionSegment } from './segments.js'
 
 export type DetectionStatus = 'idle' | 'polling' | 'final' | 'none'
 
@@ -16,6 +16,14 @@ export interface DetectionState {
   /** 命中帧（`hit=true` 取回的行）；非命中帧不进浏览器 */
   rows: DetectionRow[]
   segments: DetectionSegment[]
+  /**
+   * 分子带（Q-4b，D-093）：检测器开了 subband_bins 时为真。此时另取 `subband_hit=true` 的行
+   * （帧级没命中、子带有簇的帧 `hit=true` 取不到），按分子带段号分组成 `tfSegments`。
+   * 帧级的 `rows` / `segments` 照旧取、照旧算：识别行挂在帧级段上。
+   */
+  subbandMode: boolean
+  subRows: DetectionRow[]
+  tfSegments: DetectionSegment[]
   index: DetectionsIndex | null
   /** 实际用的抽稀步长；> 1 表示服务端 413 后按建议重取过，段的起止是近似的 */
   stride: number
@@ -28,7 +36,7 @@ export interface DetectionState {
 }
 
 const initial = (): DetectionState => ({
-  taskId: null, rows: [], segments: [], index: null, stride: 1, dt_s: 0, siteFilter: null, status: 'idle', error: null, fetches: 0,
+  taskId: null, rows: [], segments: [], subbandMode: false, subRows: [], tfSegments: [], index: null, stride: 1, dt_s: 0, siteFilter: null, status: 'idle', error: null, fetches: 0,
 })
 
 let state: DetectionState = initial()
@@ -50,9 +58,19 @@ export const detectionStore = {
   subscribe(f: () => void): () => void { subs.add(f); return () => { subs.delete(f) } },
 }
 
-/** 站过滤后的段：右栏下拉选了站就只看那一站的 */
+/**
+ * 站过滤后的段：右栏下拉选了站就只看那一站的。
+ * 分子带模式下给分子带段——突发表、时间线、瀑布与频谱的叠加都画它；帧级段只留给识别对照。
+ */
 export function visibleSegments(st: DetectionState): DetectionSegment[] {
-  return st.siteFilter ? st.segments.filter((g) => g.site_id === st.siteFilter) : st.segments
+  const all = st.subbandMode ? st.tfSegments : st.segments
+  return st.siteFilter ? all.filter((g) => g.site_id === st.siteFilter) : all
+}
+
+/** 检测器开了分子带没有：索引里有 subband 一节，或者行上带 subband_hit 键（运行中索引还没写出来） */
+export function subbandModeOf(index: DetectionsIndex | null, rows: readonly DetectionRow[]): boolean {
+  if (index && Object.values(index.nodes).some((n) => n.subband !== undefined)) return true
+  return rows.some((r) => r.subband_hit !== undefined)
 }
 
 /** 本次任务里出现过的站号（索引优先，运行中索引还没写出来就从段里取）。检测页签的下拉与时间线、评价页签共用。 */
@@ -73,6 +91,7 @@ export function focusSite(st: DetectionState): string | null {
 export function probeDetections(st: DetectionState) {
   return {
     taskId: st.taskId, status: st.status, rows: st.rows.length, segments: st.segments.length,
+    subbandMode: st.subbandMode, subRows: st.subRows.length, tfSegments: st.tfSegments.length,
     visibleSegments: visibleSegments(st).length, siteFilter: st.siteFilter, stride: st.stride,
     indexFinal: st.index?.final ?? false, nodes: st.index ? Object.keys(st.index.nodes).sort() : [],
     hits: st.index ? Object.values(st.index.nodes).reduce((a, n) => a + n.hits, 0) : st.rows.length,
@@ -91,7 +110,8 @@ const POLL_MS = 2000
 const TERMINAL = new Set<RunState>(['finished', 'failed', 'cancelled'])
 
 async function fetchOnce(taskId: string, final: boolean): Promise<void> {
-  const r = await getDetections(taskId, { hit: true })
+  // 两次请求一起发：没开分子带时第二次按过滤条件取不到任何行（键不存在），只多一次小请求
+  const [r, sr] = await Promise.all([getDetections(taskId, { hit: true }), getDetections(taskId, { subband_hit: true })])
   if (detectionStore.get().taskId !== taskId) return          // 换任务了，丢掉这次结果
   if (r.status === 'none') { detectionStore.patch({ status: 'none', rows: [], segments: [], fetches: detectionStore.get().fetches + 1 }); return }
   if (r.status === 'not_ready') { detectionStore.patch({ status: 'polling', fetches: detectionStore.get().fetches + 1 }); return }
@@ -109,10 +129,15 @@ async function fetchOnce(taskId: string, final: boolean): Promise<void> {
   const byNode = index
     ? Object.fromEntries(Object.entries(index.nodes).map(([k, v]) => [k, v.dt_s]))
     : null
+  const subRows = sr.status === 'ok' ? sr.rows : []
+  const subStride = sr.status === 'ok' ? sr.stride : 1
+  const subbandMode = subbandModeOf(index, r.rows) || subRows.length > 0
   const dtByNode = frameDurationByNode(r.rows, byNode)
+  const dtSub = frameDurationByNode(subRows, byNode)
   detectionStore.patch({
-    rows: r.rows, stride: r.stride, dt_s: dt, index,
+    rows: r.rows, stride: Math.max(r.stride, subbandMode ? subStride : 1), dt_s: dt, index,
     segments: segmentsOf(r.rows, dtByNode, r.stride),
+    subbandMode, subRows, tfSegments: subbandMode ? tfSegmentsOf(subRows, dtSub, subStride) : [],
     status: final ? 'final' : 'polling', error: null, fetches: detectionStore.get().fetches + 1,
   })
 }

@@ -8,7 +8,10 @@
 //   ④ **跳频突发的起止与场景活动时间线差 ≤ 一帧**（06 §9C G-6 的验收条款）：
 //      真值行的起点必须落在「突发周期的整数倍」上，误差不超过一帧 nfft/fs = 102.4 µs；
 //   ⑤ 场景页能建并改跳频活动（G-6 的界面最小集），改完即脏、可保存；
-//   ⑥ 同种子重跑，产品文件逐字节相同（铁律 9）。
+//   ⑥ 同种子重跑，产品文件逐字节相同（铁律 9）；
+//   ⑦ 检测器开分子带（Q-4b，D-093）：框图页右栏把 subband_bins 填 8 再跑一遍，结果页「检测识别」
+//      改列分子带段——帧级段号 181 把 5–6 s 里同时出现的图传与跳频并成一段，分子带下各成各的；
+//      时间线检测那一行画的就是这些段；评价多出 segments_tf，跳频源逐个配上真值。
 //
 // 跑序接在 slice8 之后（slice4 依赖「最近一个任务」是缺省链，本文件会换成 golden-02，故放末位）。
 //
@@ -187,6 +190,72 @@ try {
     restored === trackSha, `${String(restored).slice(0, 8)}… vs 基准 ${String(trackSha).slice(0, 8)}…`)
   await page.evaluate("(window.location.hash = '#/results', true)")
   await sleep(300)
+
+  // ---------- ⑦ 分子带检测（Q-4b，D-093） ----------
+  trace('进入 ⑦ 分子带')
+  await page.evaluate("(window.location.hash = '#/diagram', true)")
+  await page.waitFor((s) => s.app?.view === 'diagram', { label: '回框图页' })
+  await sleep(600)
+  await page.evaluate("(document.querySelector('[data-slot=det]').click(), true)")
+  await sleep(400)
+  const hasField = await page.evaluate("!!document.querySelector('[data-form=slot] [data-field=subband_bins]')")
+  check('检测卡片的右栏里有「分子带最小块宽」一项（参数面板按组件目录生成）', hasField === true)
+  await page.evaluate(setInput('[data-form=slot] [data-field=subband_bins]', '8'))
+  await sleep(500)
+  const fieldVal = await page.evaluate("document.querySelector('[data-form=slot] [data-field=subband_bins]')?.value ?? ''")
+  check('填 8 后留在框里（值进了链路状态，没被回滚）', fieldVal === '8', fieldVal)
+  for (let i = 0; i < 60; i++) {
+    if (await page.evaluate("(!document.querySelector('[data-action=run]')?.disabled)")) break
+    await sleep(250)
+  }
+  const before7 = (await page.evaluate('window.__probe()')).app.context.taskId
+  await page.evaluate("(document.querySelector('[data-action=run]').click(), true)")
+  st = await page.waitFor((s) => s.app?.context?.taskId && s.app.context.taskId !== before7, { label: '分子带任务已提交' })
+  const sbTask = st.app.context.taskId
+  st = await page.waitFor((s) => ['finished', 'failed', 'cancelled'].includes(s.app?.task?.runState), { label: '分子带任务结束', timeoutMs: 600000 })
+  check('分子带任务跑完且未降级', st.app.task.runState === 'finished' && st.app.task.result === 'valid',
+    `${sbTask} ${st.app.task.runState} / ${st.app.task.result}`)
+
+  await page.evaluate("(window.location.hash = '#/results', true)")
+  await page.waitFor((s) => s.app?.view === 'results', { label: '结果页' })
+  await page.evaluate("(document.querySelector('[data-results-tab=detections]').click(), true)")
+  st = await page.waitFor((s) => s.app?.resultsTab === 'detections'
+    && s.app?.results?.detections?.taskId === sbTask && s.app?.results?.detections?.status === 'final',
+    { label: '分子带检测行到齐', timeoutMs: 60000 })
+  const det7 = st.app.results.detections
+  check('检测 store 认出分子带模式，分子带段多于帧级段', det7.subbandMode === true && det7.tfSegments > det7.segments,
+    `分子带段 ${det7.tfSegments}，帧级段 ${det7.segments}，子带命中行 ${det7.subRows}`)
+  await sleep(500)
+  const ui7 = await evalJson(page, `({
+    mode: document.querySelector('[data-det-panel]')?.dataset.detMode ?? null,
+    head: document.querySelector('[data-det-subband]')?.textContent ?? '',
+    rows: document.querySelectorAll('[data-det-table] [data-det-row]').length,
+    bands: document.querySelectorAll('[data-det-table] [data-det-band]').length,
+    labels: document.querySelectorAll('[data-det-table] [data-det-label]').length,
+    lane: document.querySelectorAll('[data-tl3-lane=detect] [data-tl3-band]').length,
+  })`)
+  check('突发表改列分子带段：每行一个频段，不列识别三列（识别挂在帧级段上）',
+    ui7.mode === 'subband' && ui7.rows === det7.visibleSegments && ui7.bands === ui7.rows && ui7.labels === 0,
+    JSON.stringify(ui7))
+  check('页头写出分子带的块宽、级数与检验数', /8 频点起/.test(ui7.head) && /次检验/.test(ui7.head), ui7.head)
+  check('时间线检测那一行画的是分子带段', ui7.lane === det7.visibleSegments, `${ui7.lane} 条 / ${det7.visibleSegments} 段`)
+
+  const tf7 = await page.evaluateAsync(`(async () => {
+    const m = await fetch('/api/v1/results/${sbTask}/metrics').then(r => r.json())
+    const rows = await fetch('/api/v1/results/${sbTask}/detections?hit=true&t0=5&t1=6').then(r => r.json())
+    const s = m.sites[0]
+    // 5–6 s 两源同时出现：帧级把它们并成几段，分子带下有几段（只取这一秒：全程的行带 subbands 会撞 16 MiB）
+    const frameSegs = new Set(rows.filter(r => r.t_s >= 5 && r.t_s < 6).map(r => r.segment_id)).size
+    const sbRows = await fetch('/api/v1/results/${sbTask}/detections?subband_hit=true&t0=5&t1=6').then(r => r.json())
+    const tfSegs = new Set(sbRows.filter(r => r.t_s >= 5 && r.t_s < 6).flatMap(r => r.subbands.map(h => h.segment_id))).size
+    return { tf: s.segments_tf ?? null, frameSegs, tfSegs }
+  })()`)
+  const hop7 = tf7.tf?.per_emitter?.['uav-2']
+  check('评价多出 segments_tf，跳频源一对一配上的突发 ≥ 200 个、没有一个被并掉',
+    tf7.tf !== null && hop7?.matched >= 200 && hop7?.merged === 0 && tf7.tf.fragments === 0,
+    JSON.stringify({ matched: hop7?.matched, truth: hop7?.truth, merged: hop7?.merged, fragments: tf7.tf?.fragments, false_segments: tf7.tf?.false_segments }))
+  check('5–6 s 两源同时出现：帧级只有一段，分子带下多段',
+    tf7.frameSegs === 1 && tf7.tfSegs > 10, `帧级 ${tf7.frameSegs} 段，分子带 ${tf7.tfSegs} 段`)
 
   check('全程无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '))
 } catch (e) {

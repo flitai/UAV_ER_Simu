@@ -1267,6 +1267,26 @@ test('GFSK 族（Q-3，D-089）：回归夹具 chain-gfsk 解得开、往返逐�
   for (const c of planChecks(chain, freqPlan(chain, shifted), shifted)) assert.equal(c.ok, true, `${c.id}：${c.detail}`)
 })
 
+test('分子带（Q-4b，D-093）：回归夹具 chain-golden-02-subband 解得开、往返逐字节；与 golden-02 只差检测器的 subband_bins', () => {
+  const g2 = JSON.parse(
+    readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json'), 'utf8'),
+  ) as ScenarioDoc
+  const text = readFileSync(join(ROOT, 'tests/regression/diagrams/chain-golden-02-subband.json'), 'utf8')
+  const r = parseDoc(text)
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  const chain = parseChain(r.doc)!
+  assert.ok(chain, '夹具应能被 parseChain 解开')
+  assert.equal(chain.slots.det.params.subband_bins, 8)
+  assert.equal(serialize(compile(chain, cat, g2).doc, cat), text, '往返逐字节相同')
+  for (const c of planChecks(chain, freqPlan(chain, g2), g2)) assert.equal(c.ok, true, `${c.id}：${c.detail}`)
+  // 关掉分子带（值回到缺省 0 即不写这个键）：检测器节点与 golden-02 夹具的检测器节点逐字段相同
+  const off = { ...chain, slots: { ...chain.slots, det: { ...chain.slots.det, params: { nfft: 1024 } } } }
+  const plain = parseOk(readFileSync(join(ROOT, 'tests/regression/diagrams/chain-golden-02.json'), 'utf8'))
+  const det = (d: DiagramDoc) => JSON.stringify(d.nodes.find((n) => n.id === 'det')!.params)
+  assert.equal(det(compile(off, cat, g2).doc), det(plain))
+})
+
 test('OFDM 族（Q-2，D-088）：回归夹具 chain-ofdm 解得开、频率计划全过；站点降到 10 MS/s 时「采样率在重采样档位里」一条报出可取值', () => {
   const ofdmScenario = JSON.parse(
     readFileSync(join(ROOT, 'tests/regression/scenarios/ofdm-80m.scenario.json'), 'utf8'),

@@ -65,6 +65,8 @@ export function DetectionView() {
   const [grain, setGrain] = useState<'segment' | 'frame'>('segment')
 
   const segs = visibleSegments(st)
+  // 分子带（Q-4b，D-093）：突发表列分子带段，多一列频段；识别三列只对帧级段有意义，此时不列
+  const tf = st.subbandMode
   const sites = siteIdsOf(st)
   // 表跟着站下拉走（「全部」就是全部），时间线只能画一站故跟焦点站走——差别写在 timeline3.ts 的头注里
   const frames = useFrameRows(s.task.id, st.siteFilter, s.task.runState, grain === 'frame')
@@ -72,6 +74,7 @@ export function DetectionView() {
   const node = st.index ? (st.siteFilter
     ? Object.values(st.index.nodes).find((n) => n.site_id === st.siteFilter) ?? null
     : Object.values(st.index.nodes)[0] ?? null) : null
+  const sub = node?.subband ?? null
   const frameCount = st.index ? Object.values(st.index.nodes).filter((n) => !st.siteFilter || n.site_id === st.siteFilter).reduce((a, n) => a + n.frames, 0) : null
   const hits = st.index ? Object.values(st.index.nodes).filter((n) => !st.siteFilter || n.site_id === st.siteFilter).reduce((a, n) => a + n.hits, 0)
     : st.rows.filter((r) => !st.siteFilter || r.site_id === st.siteFilter).length
@@ -93,7 +96,7 @@ export function DetectionView() {
   const recRows = st.siteFilter ? rec.rows.filter((r) => (r.site_id ?? null) === st.siteFilter) : rec.rows
 
   return (
-    <div className="det-panel" data-det-panel data-det-status={st.status}>
+    <div className="det-panel" data-det-panel data-det-status={st.status} data-det-mode={tf ? 'subband' : 'frame'}>
       <DetectionTimeline />
       <div className="det-head">
         <span><b>{segs.length}</b> 段</span>
@@ -101,6 +104,7 @@ export function DetectionView() {
         {node && <span>门限 <b>{node.threshold.toFixed(3)}</b></span>}
         {node && <span>频段 <b>{fmtHz(node.f_lo_Hz)} – {fmtHz(node.f_hi_Hz)}</b>{node.m_bins ? ` · M ${node.m_bins}` : ''}</span>}
         {node && <span>噪声窗 <b>{node.noise_window_frames}</b> 帧{node.noise_stale_frames > 0 ? `，陈旧 ${node.noise_stale_frames}` : ''}</span>}
+        {sub && <span data-det-subband>分子带 <b>{sub.bins}</b> 频点起 · {sub.levels} 级 · {sub.tests} 次检验 · 子带命中 <b>{sub.hit_frames}</b> 帧</span>}
         {rec.rows.length > 0 && <span data-rec-count>识别 <b>{recognized}</b> / {rec.rows.length}</span>}
         {st.stride > 1 && <span className="muted">已抽稀 1/{st.stride}</span>}
         <span className="spacer" />
@@ -126,7 +130,7 @@ export function DetectionView() {
           <table className="site-table det-table" data-det-table>
             <thead>
               <tr>
-                <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th><th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削波</th><th>标签</th><th>后验</th><th>结论</th>
+                <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th>{tf && <th>频段</th>}<th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削波</th>{!tf && <><th>标签</th><th>后验</th><th>结论</th></>}
               </tr>
             </thead>
             <tbody>
@@ -138,11 +142,12 @@ export function DetectionView() {
                   <td className="num">{fmtSeconds(g.t_end)}</td>
                   <td className="num">{(g.t_end - g.t_start).toFixed(3)}</td>
                   <td className="num">{g.frames}</td>
+                  {tf && <td className="num" data-det-band>{fmtHz(g.f_lo_Hz)} – {fmtHz(g.f_hi_Hz)}</td>}
                   <td className="num">{g.peak_statistic >= 100 ? g.peak_statistic.toExponential(2) : g.peak_statistic.toFixed(2)}</td>
                   <td className="num">{g.peak_band_power_dBm === null ? '—' : fmtDb(g.peak_band_power_dBm, '')}</td>
                   <td className="num">{g.peak_snr_dB.toFixed(1)}</td>
                   <td className="num">{g.overload ? '▲' : ''}</td>
-                  {(() => {
+                  {!tf && (() => {
                     const r = rec.byKey[recKey(g.site_id, g.segment_id)]
                     return (
                       <>
@@ -171,7 +176,7 @@ export function DetectionView() {
           <table className="site-table det-table" data-frame-table>
             <thead>
               <tr>
-                <th>t s</th>{sites.length > 0 && <th>站</th>}<th>帧</th><th>频段</th><th>Λ</th><th>η</th><th>dBm</th><th>噪声 dBm</th><th>信噪比 dB</th><th>命中</th><th>段</th><th>削波</th>
+                <th>t s</th>{sites.length > 0 && <th>站</th>}<th>帧</th><th>频段</th><th>Λ</th><th>η</th><th>dBm</th><th>噪声 dBm</th><th>信噪比 dB</th><th>命中</th><th>段</th>{tf && <th>子带</th>}<th>削波</th>
               </tr>
             </thead>
             <tbody>
@@ -189,6 +194,7 @@ export function DetectionView() {
                   <td className="num">{r.snr_dB.toFixed(1)}</td>
                   <td className="num">{r.hit ? '●' : ''}</td>
                   <td className="num">{r.segment_id ?? ''}</td>
+                  {tf && <td className="num" data-frame-subbands>{r.subbands && r.subbands.length > 0 ? r.subbands.map((h) => h.segment_id).join(' ') : ''}</td>}
                   <td className="num">{r.overload ? '▲' : ''}</td>
                 </tr>
               ))}

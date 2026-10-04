@@ -74,7 +74,9 @@ export function timeline3(
       t0, t1,
       text: String(g.segment_id),
       color: '#a33333',
-      title: `突发 #${g.segment_id} · ${g.t_start.toFixed(3)}–${g.t_end.toFixed(3)} s · ${g.frames} 帧 · 峰值 Λ ${g.peak_statistic.toFixed(2)}`,
+      title: g.tf
+        ? `子带段 #${g.segment_id} · ${g.t_start.toFixed(3)}–${g.t_end.toFixed(3)} s · ${(g.f_lo_Hz / 1e6).toFixed(3)}–${(g.f_hi_Hz / 1e6).toFixed(3)} MHz · ${g.frames} 帧 · 峰值 Λ ${g.peak_statistic.toFixed(2)}`
+        : `突发 #${g.segment_id} · ${g.t_start.toFixed(3)}–${g.t_end.toFixed(3)} s · ${g.frames} 帧 · 峰值 Λ ${g.peak_statistic.toFixed(2)}`,
     }
   })
 

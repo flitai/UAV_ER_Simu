@@ -21,6 +21,7 @@ import { TraceState, peakOf } from './trace.js'
 import { TERMINAL } from '../state/reducer.js'
 import { signalHooks, viewStore } from './viewStore.js'
 import { detectionStore, visibleSegments } from '../results/detectionStore.js'
+import type { DetectionSegment } from '../results/segments.js'
 import { recKey, recognitionStore } from '../results/recognitionStore.js'
 import { labelStyle, UNRECOGNIZED } from '../results/labels.js'
 import { themeStore, withAlpha } from '../shell/theme.js'
@@ -70,8 +71,10 @@ const FONT = '11px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", s
  * 一个检测突发在图上的色与名（V-8，随 C-9）：按该段的识别行取；没有识别行（识别器未接、或该段没出行）
  * 保持 C-3 的红框、不写字。识别行与检测段按「站 + 段号」对（两者是不同节点，recKey 的注释说了缘由）。
  */
-function segmentStyle(siteId: string | null, segmentId: number) {
-  const r = recognitionStore.get().byKey[recKey(siteId, segmentId)]
+function segmentStyle(g: DetectionSegment) {
+  // 分子带段（Q-4b，D-093）的段号是另一套编号，识别行挂在帧级段上，对不上就不对：保持红框、不写字
+  if (g.tf) return UNRECOGNIZED
+  const r = recognitionStore.get().byKey[recKey(g.site_id, g.segment_id)]
   if (!r) return UNRECOGNIZED
   return labelStyle(r.result === 'unknown' ? 'unknown' : r.label)
 }
@@ -561,7 +564,7 @@ export class SignalRenderer {
         const xa = Math.max(x0, xOfRel(g.f_lo_Hz - center))
         const xb = Math.min(x1, xOfRel(g.f_hi_Hz - center))
         if (xb <= xa) continue
-        const st = segmentStyle(g.site_id, g.segment_id)
+        const st = segmentStyle(g)
         ctx.fillStyle = st.color + '1a'
         ctx.fillRect(xa, y0, xb - xa, ph)
         ctx.strokeStyle = st.color
@@ -688,7 +691,7 @@ export class SignalRenderer {
           // 三道描边：外白 4 px、中间类别色 2 px、内墨 1 px。viridis 从深蓝到亮黄整条都有，
           // **任何单一颜色都不可能对整条色带都够 3:1**——白与墨这一对可以（十个锚点上最低 3.33:1，
           // display-route.md §4），边界因此在哪都看得见；中间那道色只管区分类别，不承担分离。
-          const st = segmentStyle(g.site_id, g.segment_id)
+          const st = segmentStyle(g)
           const rx = Math.round(xa) + 0.5, ry = Math.round(yTop) + 0.5
           const rw = Math.round(xb - xa), rh = Math.max(1, Math.round(h))
           ctx.fillStyle = st.color + '1a'
