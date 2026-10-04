@@ -103,7 +103,9 @@ struct TfEmitterMetrics {
 
 struct TfSegmentMetrics {
     bool present = false;
-    std::uint64_t truth = 0, truth_out_of_band = 0, segments = 0, matched = 0;
+    // truth_partial：频段落在检测频段内不足 match_overlap 的真值行——频率重叠比够不到配对条件，
+    // 不论检测器怎样都配不上，不进分母（与 truth_out_of_band 同理，只是部分在外）
+    std::uint64_t truth = 0, truth_out_of_band = 0, truth_partial = 0, segments = 0, matched = 0;
     std::uint64_t false_segments = 0, fragments = 0, merged_truth = 0;
     double pd_burst = eval_nan();
     std::map<std::string, TfEmitterMetrics> per_emitter;

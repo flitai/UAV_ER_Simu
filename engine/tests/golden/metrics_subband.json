@@ -6179,8 +6179,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6202,8 +6202,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6225,8 +6225,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6248,8 +6248,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6271,8 +6271,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6294,8 +6294,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6317,8 +6317,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6340,8 +6340,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6363,8 +6363,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6386,8 +6386,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6409,8 +6409,8 @@
     "subband_hit": true,
     "subbands": [
      {
-      "f_lo_Hz": 2440448437.5,
-      "f_hi_Hz": 2440471875.0,
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
       "bins": 6,
       "statistic": 9.0,
       "snr_dB": 9.542425094393248,
@@ -6555,8 +6555,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 341,
@@ -6569,8 +6578,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 342,
@@ -6583,8 +6601,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 343,
@@ -6597,8 +6624,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 344,
@@ -6611,8 +6647,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 345,
@@ -6625,8 +6670,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 346,
@@ -6639,8 +6693,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 347,
@@ -6653,8 +6716,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 348,
@@ -6667,8 +6739,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 349,
@@ -6681,8 +6762,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 350,
@@ -6695,8 +6785,17 @@
     "hit": false,
     "segment_id": null,
     "overload": false,
-    "subband_hit": false,
-    "subbands": []
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
    },
    {
     "frame_index": 351,
@@ -7452,10 +7551,20 @@
     "emitter_id": "e-cfo",
     "label": "rc_hopping",
     "waveform": "ofdm",
-    "center_Hz": 2440421093.75,
+    "center_Hz": 2440362500.0,
     "bw_Hz": 23437.5,
     "in_band": true,
     "cfo_Hz": 39062.5
+   },
+   {
+    "t_s": 0.08703999999999999,
+    "t_end_s": 0.08985599999999999,
+    "emitter_id": "e-edge",
+    "label": "rc_hopping",
+    "waveform": "ofdm",
+    "center_Hz": 2440452343.75,
+    "bw_Hz": 39062.5,
+    "in_band": true
    }
   ]
  },
@@ -7463,9 +7572,10 @@
   "segments_tf": {
    "truth": 6,
    "truth_out_of_band": 1,
-   "segments": 7,
+   "truth_partial": 1,
+   "segments": 8,
    "matched": 5,
-   "false_segments": 1,
+   "false_segments": 2,
    "fragments": 1,
    "merged_truth": 1,
    "pd_burst": 0.8333333333333334,

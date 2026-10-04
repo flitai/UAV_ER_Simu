@@ -95,6 +95,27 @@ uv run --quiet --with numpy --with scipy python tests/regression/impairments.py 
 uv run --quiet --with numpy --with sigmf --with matplotlib python tests/regression/eval_dataset_smoke.py   # 已接进 scripts/build-all.sh
 ```
 
+### 分子带检测（Q-4b，D-093）
+
+`subband_detection.py` 检测器开 `subband_bins = 8`，跑真引擎：
+
+1. **帧级一字不动**：`diagrams/chain-golden-02.json` 与 `diagrams/chain-golden-02-subband.json`（只差检测器的 `subband_bins`）
+   各跑一次，谱与包络产品逐字节相同，检测行去掉 `subband_hit` / `subbands` 后逐行相同，`metrics.json` 除 `segments_tf` 外逐值相同；
+2. **golden-02**：3.0–4.5 s 只有跳频，按验收规则判（分子带突发检出率 ≥ 帧级 − 0.02、碎片 ≤ 2%）；
+   5–6 s 图传与跳频同时出现，只报数：帧级 1 段盖住 100 个跳频突发，分子带配上 76 个，漏的 24 个都在 2440.375 / 2440.6875 MHz——
+   图传的 4 阶巴特沃斯裙边在那里仍高出底噪约 8 dB，两者在时频面上连成一片；
+3. **试样集十格的宽带版本**（由格子文件 `eval-dataset/sample-v1.json` 现场生成，80 MS/s、DDC 旁路、0.5 s）：
+   单源视距 s02–s05 按同一条验收规则判；多源 s01 / s06 / s07 与非视距 s09 / s10 只报数（用户 2026-10-04 定）；
+   纯背景 s08 暖机后的子带命中帧占比对设计的 pfa（判 ≤ 2·pfa，缘由在脚本头注）；
+4. 每次运行都用 `algos/reference/evaluate.py` 逐值核对 `metrics.json`。
+
+```
+uv run --quiet python tests/regression/subband_detection.py    # 已接进 scripts/build-all.sh；--cells s03,s07 只跑第 3 部分的这几格（调试用）
+```
+
+约 3 分钟；运行目录 `data/runs/q4b-subband/` 与临时框图 `data/tmp/q4b-subband/` 跑完即删。宽带框图的频率计划放行表在脚本里（`WB_ALLOW`），
+五格都只放行界面那条提示性的保护带检查，缘由逐条写着。实测数字见 D-093。
+
 ### E3 建筑遮挡（D3-5，D-074）
 
 `e3_occlusion_chain.py` 跑 `diagrams/chain-demo-01-e3.json`（就是全合成那份，只把传播档位
@@ -165,6 +186,7 @@ uv run --quiet python tests/regression/e3_occlusion_chain.py    # 已接进 scri
 | `chain-synthetic.json` | 全合成，demo-01，20 s，S0–S3 四个观测点（C-11） | 电平链、ADC 量化与削波、同种子复现 |
 | `chain-replay.json` | 实测回放，前六个环节不适用（C-11） | 采样率与中心频率取自清单、四态如实传出 |
 | `chain-mixed.json` | 混合增强，80 MS/s 短窗（C-11） | 合成目标走全链、实测背景在 S4 相加；配套场景 `scenarios/mixed-wideband.scenario.json` |
+| `chain-golden-02-subband.json` | 同 `chain-golden-02.json` 但检测器开分子带，`subband_bins = 8`（Q-4b） | 帧级判决一字不动、每行多 `subbands`、评价多 `segments_tf`；`_gen.ts golden-02-subband` 生成 |
 | `chain-impairments.json` | 全合成，2 MS/s 单站单源，本振相噪 + 莱斯衰落开（Q-4） | 三项非理想全开的演示配置（载频偏差在场景 `scenarios/impairments.scenario.json` 里）；`_gen.ts impairments` 生成 |
 
 再生成（改了槽位表或编译规则之后；经真实的 parseChain → compile 路径，参数一件不丢，2026-09-14 起 `_gen.ts` 带模式参数）：

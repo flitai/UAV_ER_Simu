@@ -280,17 +280,21 @@ def evaluate(det_rows: list[dict], rec_rows: list[dict], truth_rows: list[dict],
 
 # ---------------------------------------------------------------- 分子带的突发级指标（Q-4b，D-093）
 
-def tf_segments(det: list[dict], truth: list[dict], params: dict):
+def tf_segments(det: list[dict], truth: list[dict], params: dict, detail: dict | None = None):
     """检测器开了分子带时（检测行带 subbands）按「时间 × 频率」一对一配对；没开返回 None。
 
     口径（C++ engine/src/evaluation.cpp 的 tf_metrics 同序）：
       段      分子带段号相同的簇；时间 [首帧 t_s, 末帧 t_s + dt)；频段取核心——在该段至少一半的帧里命中的频点
               （没有就取全部命中过的），频点下标 floor((簇 f_lo − 参考) / df + 0.5)，参考是第一行的帧级 f_lo，df = 1 / dt
       真值    in_band 且有中心频率的行；频段 = 名义中心 + 载频偏差 ± 带宽 / 2（不含场景 offset_Hz：truth.jsonl 里没有它，
-              机型预设没有 offset，单音类的 offset 小于半带宽）
+              机型预设没有 offset，单音类的 offset 小于半带宽）；频段落在检测频段（帧级 f_lo / f_hi）内不足
+              match_overlap 的行计 truth_partial、不进分母——频率重叠比够不到配对条件，检测器怎样都配不上
       候选    时间重叠比与频率重叠比（都对两者中较短 / 较窄的那个）都 ≥ match_overlap
       配对    按「时间比 × 频率比」从大到小贪心，平局按真值 t_s、emitter_id、段号、真值序号；每段至多一行真值、每行真值至多一段
-      计数    配上 / 被并掉（有候选没配上）/ 碎片（有候选没配上的段）/ 虚警段（没有候选的段）"""
+      计数    配上 / 被并掉（有候选没配上）/ 碎片（有候选没配上的段）/ 虚警段（没有候选的段）
+
+    detail 给了就把中间结果填进去（回归脚本用，不影响返回值）：segments = [(段号, 起, 止, 核心频段下沿, 上沿)]、
+    truth = 参加配对的真值行、seg_of = {真值序号: 段序号}、false = 没有候选的段序号。"""
     if not any("subbands" in r for r in det):
         return None
     dt = float(params["frame_dt_s"])
@@ -331,7 +335,9 @@ def tf_segments(det: list[dict], truth: list[dict], params: dict):
             core = sorted(sg["count"])
         seg_list.append((sid, sg["t0"], sg["t1"], ref + core[0] * df, ref + (core[-1] + 1) * df))
     oob = 0
+    partial = 0
     tl = []
+    band_lo, band_hi = float(det[0]["f_lo_Hz"]), float(det[0]["f_hi_Hz"])   # 帧级检测频段，每行相同
     for t in truth:
         if not t.get("in_band", True):
             oob += 1
@@ -339,7 +345,13 @@ def tf_segments(det: list[dict], truth: list[dict], params: dict):
         if t.get("center_Hz") is None or t.get("bw_Hz") is None:
             continue
         c = float(t["center_Hz"]) + float(t.get("cfo_Hz", 0.0))
-        tl.append((t, c - float(t["bw_Hz"]) / 2.0, c + float(t["bw_Hz"]) / 2.0))
+        f0, f1 = c - float(t["bw_Hz"]) / 2.0, c + float(t["bw_Hz"]) / 2.0
+        inside = (max(0.0, min(f1, band_hi) - max(f0, band_lo)) / (f1 - f0) if f1 > f0
+                  else (1.0 if band_lo <= c <= band_hi else 0.0))
+        if inside < mo:
+            partial += 1
+            continue
+        tl.append((t, f0, f1))
     pairs = []
     cand_s = set()
     cand_t = set()
@@ -387,8 +399,11 @@ def tf_segments(det: list[dict], truth: list[dict], params: dict):
                         "pd_burst": _ratio(e["matched"], e["truth"]),
                         "detect_delay_mean_s": None if e["delay_n"] == 0 else e["delay_sum"] / e["delay_n"]}
     false_s = sum(1 for si in range(len(seg_list)) if si not in cand_s)
+    if detail is not None:
+        detail.update({"segments": seg_list, "truth": [t for t, _, _ in tl], "seg_of": dict(seg_of),
+                       "false": [si for si in range(len(seg_list)) if si not in cand_s]})
     frag = sum(1 for si in range(len(seg_list)) if si in cand_s and si not in used_s)
-    return {"truth": len(tl), "truth_out_of_band": oob, "segments": len(seg_list), "matched": matched,
+    return {"truth": len(tl), "truth_out_of_band": oob, "truth_partial": partial, "segments": len(seg_list), "matched": matched,
             "false_segments": false_s, "fragments": frag, "merged_truth": merged,
             "pd_burst": _ratio(matched, len(tl)), "per_emitter": per_out}
 
@@ -640,7 +655,8 @@ def golden_case_subband() -> tuple[list[dict], list[dict], dict]:
     put(200, 220, 50, 55, 3)           # 一行真值被切成两段：前一段配上
     put(230, 260, 50, 55, 4)           #                     后一段是碎片
     put(300, 302, 10, 12, 5)           # 虚警段
-    put(320, 330, 230, 235, 6)         # 靠载频偏差才对得上的源
+    put(320, 330, 215, 220, 6)         # 靠载频偏差才对得上的源
+    put(340, 350, 226, 229, 7)         # 贴着检测频段上沿的源：真值大半在频段外，不进分母，这一段因此是虚警段
     truth = []
 
     def add(eid: str, label: str, f0: int, f1: int, lo: int, hi: int, in_band: bool = True, cfo: float = 0.0) -> None:
@@ -657,7 +673,9 @@ def golden_case_subband() -> tuple[list[dict], list[dict], dict]:
     add("e-cochan", "rc_hopping", 100, 110, 120, 125)        # 落在图传带内、同时：被并掉
     add("e-frag", "rc_hopping", 200, 260, 50, 55)
     add("e-oob", "video_link", 10, 20, 0, 5, in_band=False)
-    add("e-cfo", "rc_hopping", 320, 330, 230, 235, cfo=10 * df)   # 名义中心差 10 个频点，载频偏差补回来
+    add("e-cfo", "rc_hopping", 320, 330, 215, 220, cfo=10 * df)   # 名义中心差 10 个频点，载频偏差补回来
+    # 检测频段到参考 + 900 kHz（频点 230.4 处）为止：频点 226–235 只有 44% 在频段内，计 truth_partial
+    add("e-edge", "rc_hopping", 340, 350, 226, 235)
     det = []
     for i in range(n_frames):
         subs = [{"f_lo_Hz": ref + lo * df, "f_hi_Hz": ref + (hi + 1) * df, "bins": hi - lo + 1, "statistic": 9.0,
@@ -687,7 +705,8 @@ def write_golden_subband(path: str) -> int:
         json.dump(doc, fh, ensure_ascii=False, indent=1)
         fh.write("\n")
     tf = expected["segments_tf"]
-    print(f"分子带配对：真值 {tf['truth']}（频段外 {tf['truth_out_of_band']}）段 {tf['segments']} 配上 {tf['matched']} "
+    print(f"分子带配对：真值 {tf['truth']}（频段外 {tf['truth_out_of_band']}、部分在外 {tf['truth_partial']}）"
+          f"段 {tf['segments']} 配上 {tf['matched']} "
           f"虚警段 {tf['false_segments']} 碎片 {tf['fragments']} 被并掉 {tf['merged_truth']}")
     for eid, e in tf["per_emitter"].items():
         print(f"  {eid}: {e['matched']}/{e['truth']}（并掉 {e['merged']}），时延 {e['detect_delay_mean_s']}")

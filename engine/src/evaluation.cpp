@@ -110,11 +110,17 @@ TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector
     }
     struct T { const TruthRow* r; double f0, f1; };
     std::vector<T> tl;
+    const double band_lo = det.front().f_lo_Hz, band_hi = det.front().f_hi_Hz;   // 帧级检测频段，每行相同
     for (const auto& r : truth) {
         if (!r.in_band) { m.truth_out_of_band++; continue; }
         if (std::isnan(r.center_Hz) || std::isnan(r.bw_Hz)) continue;
         const double c = r.center_Hz + r.cfo_Hz;
-        tl.push_back(T{&r, c - r.bw_Hz / 2.0, c + r.bw_Hz / 2.0});
+        const double f0 = c - r.bw_Hz / 2.0, f1 = c + r.bw_Hz / 2.0;
+        // 落在检测频段内的比例：带宽为 0 时按中心在不在频段内
+        const double inside = f1 > f0 ? std::max(0.0, std::min(f1, band_hi) - std::max(f0, band_lo)) / (f1 - f0)
+                                      : ((c >= band_lo && c <= band_hi) ? 1.0 : 0.0);
+        if (inside < p.match_overlap) { m.truth_partial++; continue; }
+        tl.push_back(T{&r, f0, f1});
     }
     struct Pair { double neg_score; double ta; std::string eid; std::int64_t sid; std::size_t ti, si; };
     std::vector<Pair> pairs;
@@ -485,7 +491,8 @@ json metrics_section_json(const EvaluationMetrics& m, const EvalParams& p, const
                                  {"pd_burst", num(kv.second.pd_burst)},
                                  {"detect_delay_mean_s", num(kv.second.detect_delay_mean_s)}};
         }
-        j["segments_tf"] = json{{"truth", t.truth}, {"truth_out_of_band", t.truth_out_of_band}, {"segments", t.segments},
+        j["segments_tf"] = json{{"truth", t.truth}, {"truth_out_of_band", t.truth_out_of_band},
+                                {"truth_partial", t.truth_partial}, {"segments", t.segments},
                                 {"matched", t.matched}, {"false_segments", t.false_segments}, {"fragments", t.fragments},
                                 {"merged_truth", t.merged_truth}, {"pd_burst", num(t.pd_burst)}, {"per_emitter", per}};
     }

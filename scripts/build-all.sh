@@ -116,6 +116,16 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 分子带检测：帧级一字不动、单源判、多源与非视距报数（Q-4b，D-093）===\n'
+# 同一条 golden-02 链开与不开分子带，帧级产品与检测行逐字节相同；golden-02 与试样集十格的宽带版本（80 MS/s、DDC 旁路、0.5 s）
+# 逐辐射源配对，单源视距段按「分子带检出率 ≥ 帧级 − 0.02、碎片 ≤ 2%」判；纯背景的子带命中帧占比对 pfa。
+# 约 3 分钟（要 node 编译试样集的宽带框图）；运行目录用完即删。
+if command -v uv >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && [ -x "$root/engine/build/cuav_run" ]; then
+  uv run --quiet python tests/regression/subband_detection.py
+else
+  echo "跳过：需要 uv、node 与 engine/build/cuav_run（缺一）" >&2
+fi
+
 printf '=== E3 建筑遮挡：从保存的典型链路核对（D3-5，D-074）===\n'
 # 视距由建筑几何给出、刀口损耗只进 extra_loss_dB、恒等式照旧成立、07 §1.5 的起飞点锚点。
 # 要真实建筑集 data/scene/<aoi>/buildings.geojson（不入 git），缺数据时脚本自己明说跳过、不当作通过。

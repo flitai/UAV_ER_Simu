@@ -231,7 +231,7 @@ TEST_CASE("评价：truth_source = none 即 not_applicable 但计数照给；门
 }
 
 // 分子带配对（Q-4b，D-093）：黄金基准 tests/golden/metrics_subband.json 由
-// algos/reference/evaluate.py --write-golden-subband 生成，每种计数（配上、被并掉、碎片、虚警段、频段外、载频偏差）各一个情形
+// algos/reference/evaluate.py --write-golden-subband 生成，每种计数（配上、被并掉、碎片、虚警段、频段外、部分在频段外、载频偏差）各一个情形
 TEST_CASE("黄金基准：分子带的时间 × 频率一对一配对逐值复现 Python 参考实现（Q-4b）") {
     std::ifstream f((std::string(CUAV_SOURCE_DIR) + "/tests/golden/metrics_subband.json").c_str());
     REQUIRE_MESSAGE(f.good(), "黄金基准缺失：uv run --quiet python algos/reference/evaluate.py --write-golden-subband engine/tests/golden/metrics_subband.json");
