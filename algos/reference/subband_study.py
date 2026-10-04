@@ -200,6 +200,9 @@ def detect_full(P: np.ndarray, n: np.ndarray, window: str) -> list[tuple[int, in
     return segs
 
 
+LEVEL0: dict = {}
+
+
 def marked_bins(P: np.ndarray, n: np.ndarray, window: str, k0: int, multi: bool, cal: bool = False) -> np.ndarray:
     F, M = P.shape
     sizes = [k0]
@@ -229,8 +232,32 @@ def marked_bins(P: np.ndarray, n: np.ndarray, window: str, k0: int, multi: bool,
             sub_any = below.reshape(F, -1, 2).any(axis=2)[:, :hit.shape[1]]
             marked = hit & ~sub_any
         mask |= np.repeat(marked, S, axis=1)[:, :M]
+        if prev_hit is None:
+            LEVEL0["mask"] = np.repeat(marked, S, axis=1)[:, :M]
         prev_hit, sub_any_prev = hit, sub_any
     return mask
+
+
+def clusters_l0(mask: np.ndarray, l0: np.ndarray, bridge: int) -> list[tuple[int, int, int]]:
+    """同 clusters，但只在间隙两侧的频点都是第 0 级标记时才并（粗块标记的串不与别的串合并）。"""
+    F, M = mask.shape
+    pad = np.zeros((F, M + 2), dtype=np.int8)
+    pad[:, 1:-1] = mask
+    d = np.diff(pad, axis=1)
+    fs_, ks = np.nonzero(d == 1)
+    fe_, ke = np.nonzero(d == -1)
+    out = []
+    i = 0
+    while i < len(fs_):
+        f, lo, hi = fs_[i], ks[i], ke[i] - 1
+        j = i + 1
+        while (j < len(fs_) and fs_[j] == f and ks[j] - hi - 1 <= bridge
+               and l0[f, hi] and l0[f, ks[j]]):
+            hi = ke[j] - 1
+            j += 1
+        out.append((int(f), int(lo), int(hi)))
+        i = j
+    return out
 
 
 def clusters(mask: np.ndarray, bridge: int) -> list[tuple[int, int, int]]:
@@ -420,6 +447,11 @@ VARIANTS = [
                                        "link": "recent", "window_frames": 64}),
     ("sub-hann-16-multi-cal-recent64", {"kind": "sub", "window": "hann", "k0": 16, "multi": True, "bridge": 16, "cal": True,
                                         "link": "recent", "window_frames": 64}),
+    # 第四轮：不做簇内合并（同一帧的几个簇经连接进同一段，合并间隙会把粗块与邻居粘在一起）
+    ("sub-hann-8-multi-cal-recent64-nobridge", {"kind": "sub", "window": "hann", "k0": 8, "multi": True, "bridge": 0,
+                                                "cal": True, "link": "recent", "window_frames": 64, "tol": 8}),
+    ("sub-hann-8-multi-cal-recent64-bridgeL0", {"kind": "sub", "window": "hann", "k0": 8, "multi": True, "bridge": 8,
+                                                "bridge_l0": True, "cal": True, "link": "recent", "window_frames": 64}),
 ]
 
 
@@ -442,7 +474,8 @@ def run_case(name: str, stem: str) -> list[dict]:
         if v["kind"] == "full":
             segs = detect_full(P, n, v["window"])
         else:
-            cl = clusters(marked_bins(P, n, v["window"], v["k0"], v["multi"], v.get("cal", False)), v["bridge"])
+            mk = marked_bins(P, n, v["window"], v["k0"], v["multi"], v.get("cal", False))
+            cl = clusters_l0(mk, LEVEL0["mask"], v["bridge"]) if v.get("bridge_l0") else clusters(mk, v["bridge"])
             if v.get("link") == "last":
                 segs = link_last(cl, v.get("tol", v["k0"]), P.shape[1])
             elif v.get("link") == "recent":

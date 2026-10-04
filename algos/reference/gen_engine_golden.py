@@ -134,6 +134,84 @@ def tone_burst(n: int, fs: float, offset_Hz: float, amplitude: float,
     return out
 
 
+# 分子带（Q-4b，D-093）的输入：噪声 + 13 个门控单音，各自考一种情形
+SUBBAND_TONES = [
+    # (频偏 Hz, 幅度, 起帧, 止帧, 用途)。幅度按 Hann 窗的能量算过（nfft 256：单音能量 ≈ A²·24576，
+    # 每频点噪声 ≈ 96）：8 频点块的门限约 5.0、32 频点块约 2.55（pfa 1e-3 分给 58 次检验）
+    (100e3, 0.5, 400, 2400, "长时间的强单音"),
+    (220e3, 0.4, 1000, 1060, "与强单音同时出现的短突发（相距约 30 个频点，应自成一段）"),
+    (-150e3, 0.5, 1500, 1530, "跳频：第一跳"),
+    (-250e3, 0.5, 1530, 1560, "跳频：第二跳（换到约 26 个频点外，超过连接容差，应另起一段）"),
+] + [(-320e3 + 12e3 * k, 0.19, 2000, 2600, "一排弱单音：8 频点块检不出，16 / 32 频点块检得出")
+     for k in range(8)] + [
+    (300e3, 0.5, 2700, 2900, "孤立单音"),
+]
+
+
+def write_subband(args, noise: np.ndarray) -> int:
+    import subband as sb
+    import features as ft
+    n = noise.size
+    x = noise.astype(np.complex64)
+    # AddMixer 链：每级 a = 单音、b = 上一级的和，complex64 相加（一次加法交换律逐位成立）
+    for off, amp, f0, f1, _ in SUBBAND_TONES:
+        x = (tone_burst(n, args.sample_rate, off, amp, f0 * args.nfft, f1 * args.nfft) + x).astype(np.complex64)
+    band = ft.band_bins(args.nfft, args.sample_rate, args.band_lo, args.band_hi)
+    M = len(band)
+    p, wsq = sb.frame_power_hann(x, args.nfft, band)
+    det = sb.SubbandDetector(M, args.subband_bins, args.pfa, args.window_frames, args.merge_gap)
+    rows = []
+    for f in range(p.shape[0]):
+        cl = det.frame([float(v) for v in p[f]], f)
+        if cl:
+            rows.append([f, [[c["lo"], c["hi"], c["segment_id"], c["statistic"]] for c in cl]])
+    if det.min_margin < 1e-5:
+        raise SystemExit(f"有块卡在门限 ±1e-5 内（最小 {det.min_margin:.2e}）：一次判决翻转会改变环的内容并一路传下去，"
+                         "换种子或幅度后重生成")
+    summ = det.summary()
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧能量检测器分子带模式与 algos/reference/subband.py 的逐帧对拍基准（Q-4b，D-093）",
+        "generator": "algos/reference/gen_engine_golden.py --mode subband",
+        "params": {
+            "seed": args.seed, "nfft": args.nfft, "frames": args.frames, "sample_rate_Hz": args.sample_rate,
+            "band_lo_Hz": args.band_lo, "band_hi_Hz": args.band_hi, "pfa": args.pfa, "noise_power": 1.0,
+            "noise_mode": "sliding", "noise_window_frames": args.window_frames, "merge_gap_frames": args.merge_gap,
+            "subband_bins": args.subband_bins,
+            "tones": [{"offset_Hz": o, "amplitude": a, "phase_rad": 0.0, "start_sample": f0 * args.nfft,
+                       "stop_sample": f1 * args.nfft, "role": r} for o, a, f0, f1, r in SUBBAND_TONES],
+        },
+        "tolerance": {
+            "threshold_rel": 1e-9,
+            "eigen_abs": 1e-12,
+            "statistic_rel": 1e-5,
+            "note": "门限 1e-9（两侧特征值用不同方法求：Python 用通用特征分解、引擎用久期方程）；簇的统计量 1e-5"
+                    "（float32 FFT）；簇的首末频点、段号、每帧簇数完全相同——生成器已断言没有块卡在门限 ±1e-5 内（与 sliding 基准同一判据；float32 FFT 实测相对差 4e-7）",
+        },
+        "expected": {
+            "m_bins": M,
+            "sizes": det.sizes,
+            "tests": det.tests,
+            "pfa_test": det.pfa_test,
+            "thresholds": {str(k): v for k, v in sorted(det.eta.items())},
+            "eigenvalues": {str(S): [float(v) for v in sb.corr_eigs(S)] for S in (1, 2, 8, 9)},
+            "frames": int(p.shape[0]),
+            "window_sum_sq": wsq,
+            "min_margin": det.min_margin,
+            **{k: v for k, v in summ.items() if k in ("segments", "hit_frames", "never_full_bins", "stale_frames",
+                                                         "degraded")},
+            "rows": rows,
+        },
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print(f"subband 黄金基准：{p.shape[0]} 帧，有簇的帧 {summ['hit_frames']}，段 {summ['segments']}，"
+          f"检验 {det.tests}（{len(det.sizes)} 级），最小裕度 {det.min_margin:.2e} → {args.out}")
+    return 0
+
+
 def write_sliding(args, noise: np.ndarray, mask: np.ndarray, m_bins: int, eta: float) -> int:
     n = noise.size
     tone = tone_burst(n, args.sample_rate, args.tone_offset, args.tone_amplitude,
@@ -1407,11 +1485,12 @@ def main(argv=None) -> int:
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
                                       "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk",
-                                      "gfsk_frame", "scene_gfsk", "phase_noise", "fading"),
+                                      "gfsk_frame", "scene_gfsk", "phase_noise", "fading", "subband"),
                     default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
     ap.add_argument("--merge-gap", type=int, default=2, help="sliding：突发合并空隙")
+    ap.add_argument("--subband-bins", type=int, default=8, help="subband：最小块宽 K0")
     ap.add_argument("--tone-offset", type=float, default=50e3, help="sliding：单音频偏 Hz")
     ap.add_argument("--tone-amplitude", type=float, default=0.75, help="sliding：单音幅度（线性）")
     ap.add_argument("--tone-start-frame", type=int, default=1500)
@@ -1521,6 +1600,8 @@ def main(argv=None) -> int:
 
     if args.mode == "sliding":
         return write_sliding(args, x, mask, m_bins, eta)
+    if args.mode == "subband":
+        return write_subband(args, x)
     if args.mode == "features":
         return write_features(args, x, mask, m_bins, eta)
 
