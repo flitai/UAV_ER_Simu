@@ -210,6 +210,13 @@ json recognition_json(const RecognitionReport& r) {
            {"evidence_quality", x.evidence_quality}, {"library_version", x.library_version},
            {"trace", trace_json(r.trace)}};
     if (!r.site_id.empty()) j["site_id"] = r.site_id;
+    // Q-4c（D-094）：库格式 /2 才有模板名；分子带口径才写段的口径与核心频段。帧级口径 + 库 v1 的运行逐字节不变
+    if (!x.template_id.empty()) j["template"] = x.template_id;
+    if (x.subband) {
+        j["basis"] = "subband";
+        j["f_lo_Hz"] = x.f_lo_Hz;
+        j["f_hi_Hz"] = x.f_hi_Hz;
+    }
     return j;
 }
 

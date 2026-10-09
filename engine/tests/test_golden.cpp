@@ -622,6 +622,71 @@ TEST_CASE("黄金基准：引擎的模板匹配识别器逐行复现 Python 参�
 }
 
 
+// 库格式 /2（Q-4c，D-094）：测试专用库 engine/tests/golden/recognition_v2_library.json（同一标签两个模板），
+// 手造的分子带口径特征行（占空比与峰均比缺失）；后验与距离 1e-9，标签、模板、判决、top_n 顺序逐字相同。
+TEST_CASE("黄金基准：库格式 /2 下引擎的模板匹配识别器逐行复现 Python 参考实现（按标签取最大、模板名、占空比缺失）") {
+    const std::string path = std::string(CUAV_SOURCE_DIR) + "/tests/golden/recognition_v2.json";
+    std::ifstream f(path.c_str());
+    REQUIRE_MESSAGE(f.good(), "打不开黄金基准 " << path);
+    nlohmann::json g;
+    f >> g;
+    const std::string lib = std::string(CUAV_SOURCE_DIR) + "/../" + g.at("library").get<std::string>();
+    const auto& p = g.at("params");
+    const double rel = g.at("tolerance").at("rel").get<double>();
+    TemplateClassifier c;
+    std::string err;
+    REQUIRE_MESSAGE(c.configure({{"accept_threshold", p.at("accept_threshold").get<double>()},
+                                 {"ambiguity_margin", p.at("ambiguity_margin").get<double>()},
+                                 {"unknown_distance", p.at("unknown_distance").get<double>()}},
+                                {{"library_path", lib}, {"min_quality", p.at("min_quality").get<std::string>()},
+                                 {"library_version", g.at("library_version").get<std::string>()},
+                                 {"basis", g.at("feature_basis").get<std::string>()}}, err), err);
+    const auto& rows = g.at("rows");
+    const auto& want = g.at("expected");
+    REQUIRE(rows.size() == want.size());
+    auto close = [&](double a, double b) { return std::fabs(a - b) <= rel * std::max(std::fabs(b), 1e-300) || std::fabs(a - b) < 1e-300; };
+    std::size_t bad = 0, with_tpl = 0;
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        const auto& r = rows[i];
+        FeatureRow fr;
+        fr.subband = r.at("basis").get<std::string>() == "subband";
+        fr.t_s = r.at("t_s").get<double>(); fr.t_end_s = r.at("t_end_s").get<double>();
+        fr.duration_s = r.at("duration_s").get<double>(); fr.segment_id = r.at("segment_id").get<std::int64_t>();
+        fr.frames = r.at("frames").get<std::uint64_t>(); fr.center_Hz = r.at("center_Hz").get<double>();
+        fr.bandwidth_Hz = r.at("bandwidth_Hz").get<double>(); fr.signal_bins = r.at("signal_bins").get<std::size_t>();
+        fr.has_dBm = r.at("has_dBm").get<bool>(); fr.band_power_dBm = r.at("band_power_dBm").get<double>();
+        fr.peak_dBm = r.at("peak_dBm").get<double>(); fr.snr_dB = r.at("snr_dB").get<double>();
+        fr.spectral_flatness = r.at("spectral_flatness").get<double>();
+        fr.overload = r.at("overload").get<bool>();
+        fr.quality = r.at("quality").get<std::string>(); fr.has_prev = r.at("has_prev").get<bool>();
+        fr.interval_from_prev_s = r.at("interval_from_prev_s").get<double>(); fr.hop_from_prev_Hz = r.at("hop_from_prev_Hz").get<double>();
+        fr.f_lo_Hz = r.at("f_lo_Hz").get<double>(); fr.f_hi_Hz = r.at("f_hi_Hz").get<double>();
+        CHECK(r.at("duty").is_null());
+        const RecognitionRow got = c.classify(fr);
+        const auto& w = want[i];
+        std::string why;
+        if (got.label != w.at("label").get<std::string>()) why += " label";
+        if (got.result != w.at("result").get<std::string>()) why += " result";
+        const std::string tpl = w.contains("template") ? w.at("template").get<std::string>() : std::string();
+        if (got.template_id != tpl) why += " template";
+        if (!tpl.empty()) ++with_tpl;
+        const std::string uk = w.at("unknown_kind").is_null() ? std::string() : w.at("unknown_kind").get<std::string>();
+        if (got.unknown_kind != uk) why += " unknown_kind";
+        if (!close(got.posterior, w.at("posterior").get<double>())) why += " posterior";
+        if (w.at("distance").is_null() ? got.distance >= 0.0 : !close(got.distance, w.at("distance").get<double>())) why += " distance";
+        const auto& top = w.at("top_n");
+        if (got.top_n.size() != top.size()) why += " top_n.size";
+        else for (std::size_t n = 0; n < top.size(); ++n) {
+            if (got.top_n[n].label != top[n].at("label").get<std::string>()) why += " top_n.label";
+            if (!close(got.top_n[n].posterior, top[n].at("posterior").get<double>())) why += " top_n.posterior";
+            if (!close(got.top_n[n].distance, top[n].at("distance").get<double>())) why += " top_n.distance";
+        }
+        if (!why.empty()) { ++bad; MESSAGE("第 " << i << " 行不符：" << why); }
+    }
+    CHECK(bad == 0);
+    CHECK(with_tpl >= 3);
+}
+
 TEST_CASE("黄金基准：noise 波形的带限与频率搬移逐值复现 Python 参考（C-8 / G-6，D-069）") {
     std::ifstream f((std::string(CUAV_SOURCE_DIR) + "/tests/golden/scene_noise_bandlimit.json").c_str());
     REQUIRE_MESSAGE(f.good(), "黄金基准缺失：uv run --quiet --with numpy python "

@@ -20,6 +20,11 @@
 
 用法：
     uv run --quiet python algos/reference/classify.py --write-golden engine/tests/golden/recognition.json
+    uv run --quiet python algos/reference/classify.py --write-golden-v2 engine/tests/golden/recognition_v2.json
+
+库格式 /2（Q-4c，D-094；14 号报告 §8.6）：模板有唯一 id、标签可以重复——一个标签取它几个模板里似然最大的那一个
+（不求和，免得模板多的标签先验被抬高），top_n 按标签排；识别行多写 template（获胜标签的那个模板）。
+/1 每个标签一个模板，结果逐位不变。
 """
 from __future__ import annotations
 
@@ -31,11 +36,17 @@ import os
 QUALITY_RANK = {"full": 3, "overload": 2, "short": 1, "low_snr": 0}
 
 
+SCHEMAS = ("cuav-recognition-library/1", "cuav-recognition-library/2")
+
+
 def load_library(path: str) -> dict:
+    """读库。/1 与 /2 两种格式（/2：Q-4c，D-094——模板必有唯一 id、标签可重复、feature_basis）。
+    结构校验以引擎为准（未知键、区间颠倒等由 recognition.cpp 的 load_library 拒），这里只取算法要用的量。"""
     with open(path, encoding="utf-8") as fh:
         lib = json.load(fh)
-    if lib.get("schema") != "cuav-recognition-library/1":
-        raise ValueError("模板库 schema 必须是 cuav-recognition-library/1")
+    if lib.get("schema") not in SCHEMAS:
+        raise ValueError("模板库 schema 必须是 " + " / ".join(SCHEMAS))
+    v2 = lib["schema"] == SCHEMAS[1]
     feats = []
     floors = lib["distance"].get("log_floor", {})
     for name in lib["feature_order"]:
@@ -43,17 +54,24 @@ def load_library(path: str) -> dict:
         log = fd["domain"] == "log"
         feats.append({"name": name, "log": log, "abs": bool(fd.get("abs", False)),
                       "floor": float(floors[name]) if log else 0.0})
+    labels: list[str] = []
+    for t in lib["templates"]:
+        if t["label"] not in labels:
+            labels.append(t["label"])
     return {"version": lib["library_version"], "log_scale": float(lib["distance"]["log_scale"]),
-            "features": feats, "templates": lib["templates"]}
+            "basis": lib["feature_basis"] if v2 else "frame", "has_ids": v2,
+            "features": feats, "templates": lib["templates"], "labels": labels}
 
 
 def feature_value(row: dict, fdef: dict):
-    """返回 (可用, 值)，与引擎 feature_value 同规则。"""
+    """返回 (可用, 值)，与引擎 feature_value 同规则。分子带口径的行里占空比与峰均比是 null（无定义），按缺失算。"""
     n = fdef["name"]
     if n == "bandwidth_Hz":
         if int(row.get("signal_bins", 0)) == 0:
             return False, 0.0
         return True, float(row["bandwidth_Hz"])
+    if n in ("duty", "crest_factor_dB") and row.get(n) is None:
+        return False, 0.0
     if n in ("duration_s", "duty", "spectral_flatness", "center_Hz", "snr_dB", "crest_factor_dB"):
         return True, float(row[n])
     if n == "hop_from_prev_Hz":
@@ -123,19 +141,29 @@ def classify_row(row: dict, lib: dict, accept_threshold: float = 0.5, ambiguity_
             D[k] = num / den
             L[k] = math.exp(-D[k] / 2.0)
             usable[k] = True
-    Lu = math.exp(-unknown_distance / 2.0)
-    denom = 0.0
-    for k in range(len(tpls)):
-        denom = denom + L[k]
-    denom = denom + Lu
-    p = [L[k] / denom for k in range(len(tpls))]
-    pu = Lu / denom
-    order = sorted(range(len(tpls)), key=lambda k: -p[k])   # 稳定排序：并列保持库序
-    top = []
-    for k in order:
+    # 按标签归并：一个标签取它几个模板里似然最大的那一个（并列取库序在前的）。/1 每个标签一个模板，归并前后逐位相同。
+    labels = lib["labels"]
+    best = {}
+    for k, t in enumerate(tpls):
         if not usable[k]:
             continue
-        top.append({"label": tpls[k]["label"], "posterior": p[k], "distance": D[k]})
+        b = best.get(t["label"])
+        if b is None or L[k] > L[b]:
+            best[t["label"]] = k
+    LL = [L[best[lab]] if lab in best else 0.0 for lab in labels]
+    Lu = math.exp(-unknown_distance / 2.0)
+    denom = 0.0
+    for i in range(len(labels)):
+        denom = denom + LL[i]
+    denom = denom + Lu
+    p = [LL[i] / denom for i in range(len(labels))]
+    pu = Lu / denom
+    order = sorted(range(len(labels)), key=lambda i: -p[i])   # 稳定排序：并列保持库序
+    top = []
+    for i in order:
+        if labels[i] not in best:
+            continue
+        top.append({"label": labels[i], "posterior": p[i], "distance": D[best[labels[i]]]})
         if len(top) == 3:
             break
     min_d = math.inf
@@ -151,6 +179,8 @@ def classify_row(row: dict, lib: dict, accept_threshold: float = 0.5, ambiguity_
         r["distance"] = top[0]["distance"]
         r["result"] = "known" if (p1 - p2 >= ambiguity_margin) else "ambiguous"
         r["unknown_kind"] = None
+        if lib.get("has_ids"):
+            r["template"] = tpls[best[top[0]["label"]]]["id"]
     else:
         r["label"] = "unknown"
         r["posterior"] = pu
@@ -216,14 +246,73 @@ def write_golden(path: str, library: str) -> int:
     return 0
 
 
+def _sb(seg, t0, dur, bw, flat, prev=None, quality="full", bins=40) -> dict:
+    """分子带口径的手造特征行（Q-4c）：占空比与峰均比是 null。"""
+    d = _row(seg, t0, dur, bw, bins, None, flat, quality=quality, prev=prev)
+    d.update({"basis": "subband", "duty": None, "crest_factor_dB": None,
+              "f_lo_Hz": 2.44e9 - bw / 2.0, "f_hi_Hz": 2.44e9 + bw / 2.0})
+    return d
+
+
+def golden_rows_v2() -> list[dict]:
+    """库格式 /2 的手造行（Q-4c，D-094）：同一标签两个模板、同频重发、占空比缺失、开放集、低质量。"""
+    return [
+        _sb(0, 0.0, 0.00107, 18e6, 0.9, prev=(0.002, 0.0)),            # 宽突发 → video_link / wide_burst
+        _sb(1, 0.01, 2.0, 2e6, 0.95),                                     # 宽连续：duty 缺失，只靠带宽与时长 → video_link / wide_continuous
+        _sb(2, 0.02, 0.0005, 2.2e6, 0.9, prev=(0.0035, 9e6)),            # 中宽跳频 → rc_hopping / mid_hop
+        _sb(3, 0.03, 0.0005, 2.2e6, 0.9, prev=(0.0035, 3.0)),            # 同频重发：跳频差落到 1 Hz 下限（测试库的下界故意不含 0）
+        _sb(4, 0.04, 0.0028, 2e5, 0.6, prev=(0.004, 4.5e6)),             # 窄跳频 → rc_hopping / narrow_hop
+        _sb(5, 0.05, 0.00064, 9e6, 0.95),                                 # 0.64 ms、9 MHz → droneid（与宽突发相邻）
+        _sb(6, 0.06, 0.0008, 9e6, 0.95, prev=(0.001, 0.0)),              # 介于 droneid 与宽突发之间 → 歧义或二者之一
+        _sb(7, 0.07, 0.2, 5e4, 0.3, prev=(0.5, 0.0)),                    # 离谁都远 → unknown_novel
+        _sb(8, 0.08, 0.00002, 3e5, 0.9, quality="short", prev=(0.01, 2e6)),   # short 仍算
+        _sb(9, 0.09, 0.0001, 0.0, 0.5, quality="low_snr", bins=0),       # low_snr → unknown_low_quality
+    ]
+
+
+def write_golden_v2(path: str, library: str) -> int:
+    lib = load_library(library)
+    params = {"accept_threshold": 0.5, "ambiguity_margin": 0.2, "unknown_distance": 4.0, "min_quality": "short"}
+    rows = golden_rows_v2()
+    expected = [classify_row(r, lib, **params) for r in rows]
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧模板匹配识别器在库格式 /2 下与 algos/reference/classify.py 的逐行对拍基准（Q-4c，D-094）："
+                   "同一标签多个模板取似然大的、分子带口径的占空比缺失、识别行写 template",
+        "generator": "algos/reference/classify.py --write-golden-v2",
+        "library": os.path.relpath(library, root).replace(os.sep, "/"),
+        "library_version": lib["version"],
+        "feature_basis": lib["basis"],
+        "params": params,
+        "tolerance": {"rel": 1e-9, "note": "两侧同为 float64 同算法；后验与距离按相对误差 1e-9，标签、模板、判决、unknown_kind、top_n 的顺序逐字相同"},
+        "rows": rows,
+        "expected": expected,
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    for r, e in zip(rows, expected):
+        print(f"seg {r['segment_id']:2d} {r['quality']:8s} → {e['result']:9s} {e['label']:12s} {e.get('template') or '':16s} "
+              f"p={e['posterior']:.4f} D={'—' if e['distance'] is None else f'{e['distance']:.3f}'} {e['unknown_kind'] or ''}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="模板匹配识别参考实现")
     here = os.path.dirname(os.path.abspath(__file__))
     ap.add_argument("--library", default=os.path.join(here, "..", "..", "models", "recognition", "library-v1.json"))
     ap.add_argument("--write-golden", help="生成黄金基准到该路径")
+    ap.add_argument("--write-golden-v2", help="生成库格式 /2 的黄金基准到该路径（库缺省取测试专用库）")
     args = ap.parse_args(argv)
     if args.write_golden:
         return write_golden(args.write_golden, args.library)
+    if args.write_golden_v2:
+        lib = args.library
+        if lib == ap.get_default("library"):
+            lib = os.path.join(here, "..", "..", "engine", "tests", "golden", "recognition_v2_library.json")
+        return write_golden_v2(args.write_golden_v2, lib)
     ap.print_help()
     return 1
 

@@ -307,6 +307,17 @@ bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const
     auto t = snaps.find(tn);
     auto f = snaps.find(fn);
     if (t == snaps.end() || f == snaps.end()) return true;
+    // Q-4c（D-094）：识别器的口径必须与上游特征提取器相同（帧级突发的特征不能拿分子带口径的库去比，反之亦然）
+    if (t->second.type == "TemplateClassifier" && tp == "in" && f->second.type == "FeatureExtractor") {
+        const std::string bf = effective_text(f->second.info, f->second.txt, "basis", "frame");
+        const std::string bt = effective_text(t->second.info, t->second.txt, "basis", "frame");
+        if (bf != bt) {
+            err = fail("param", tn, tp, who + "：识别器 " + tn + " 的 basis = " + bt + "，上游特征提取器 " + fn +
+                       " 的 basis = " + bf + "——两者必须相同（Q-4c，D-094）");
+            return false;
+        }
+        return true;
+    }
     const bool to_feat = t->second.type == "FeatureExtractor";
     const bool to_eval = t->second.type == "Evaluator";     // C-5：评价器按帧时长 nfft / fs 判帧真值，也要与检测器同帧
     if ((!to_feat && !to_eval) || tp != "det" || f->second.type != "EnergyDetector") return true;

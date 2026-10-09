@@ -2513,7 +2513,7 @@
     },
     {
       "category": "algorithm",
-      "description": "EM-S-04 E2 工程模板加权匹配（10 报告 §4.4）：对每行突发特征逐模板取区间外距离、按权重平均成综合距离，似然 exp(−D/2) 加未知假设 exp(−unknown_distance/2) 归一成后验；最大后验过接受门限且领先次大 ambiguity_margin 才判 known，领先不足为 ambiguous，不过门限为 unknown（开放集）；特征质量低于 min_quality 直接 unknown_low_quality。标签只到 signal_role 层（video_link / telemetry_burst / rc_hopping / cw_beacon）；模板库取值标 assumed，只对合成波形有效（models/recognition/README.md）；口径与 algos/reference/classify.py 一致",
+      "description": "EM-S-04 E2 工程模板加权匹配（10 报告 §4.4）：对每行突发特征逐模板取区间外距离、按权重平均成综合距离，似然 exp(−D/2) 加未知假设 exp(−unknown_distance/2) 归一成后验；最大后验过接受门限且领先次大 ambiguity_margin 才判 known，领先不足为 ambiguous，不过门限为 unknown（开放集）；特征质量低于 min_quality 直接 unknown_low_quality。标签只到 signal_role 层，取哪几类、区间多宽由模板库定（models/recognition/README.md）；库格式 /2 一个标签可有几个模板、取似然最大的那个并给出模板名，库声明的特征口径须与 basis 一致（Q-4c，D-094）；口径与 algos/reference/classify.py 一致",
       "display_name": "模板匹配识别",
       "implementation": "cpp",
       "model_id": "EM-S-04",
@@ -2526,6 +2526,18 @@
           "name": "library_version",
           "required": false,
           "type": "string",
+          "unit": ""
+        },
+        {
+          "default": "frame",
+          "description": "特征行的口径，必须与上游特征提取器相同（装载器核对）、与模板库声明的 feature_basis 相同（装库时核对）；v1 是帧级口径（Q-4c，D-094）",
+          "enum": [
+            "frame",
+            "subband"
+          ],
+          "name": "basis",
+          "required": false,
+          "type": "enum",
           "unit": ""
         },
         {

@@ -1,0 +1,66 @@
+{
+  "schema": "cuav-recognition-library/2",
+  "library_version": "v99",
+  "label_layer": "signal_role",
+  "source": "assumed",
+  "feature_basis": "subband",
+  "notes": [
+    "测试专用（Q-4c，D-094）：只给 recognition_v2.json 黄金基准与库格式 /2 的单测用，不是 models/recognition 里的库，取值是手编的、不代表任何波形。",
+    "要盖到 /2 的几条新规则：同一标签两个模板取似然大的、占空比在分子带口径下是 null（缺失不计）、识别行写 template。"
+  ],
+  "distance": {
+    "log_scale": 0.3,
+    "log_floor": { "bandwidth_Hz": 1.0, "duration_s": 1e-06, "hop_from_prev_Hz": 1.0, "interval_from_prev_s": 1e-06 }
+  },
+  "feature_order": ["bandwidth_Hz", "duration_s", "duty", "spectral_flatness", "hop_from_prev_Hz", "interval_from_prev_s"],
+  "features": {
+    "bandwidth_Hz": { "domain": "log" },
+    "duration_s": { "domain": "log" },
+    "duty": { "domain": "linear" },
+    "spectral_flatness": { "domain": "linear" },
+    "hop_from_prev_Hz": { "domain": "log", "abs": true },
+    "interval_from_prev_s": { "domain": "log" }
+  },
+  "templates": [
+    {
+      "id": "wide_burst",
+      "label": "video_link",
+      "description": "宽、毫秒级突发",
+      "intervals": { "bandwidth_Hz": [7e6, 40e6], "duration_s": [0.0008, 0.0025], "spectral_flatness": [0.5, 1.0], "interval_from_prev_s": [0.0005, 0.005] },
+      "weights": { "bandwidth_Hz": 2.0, "duration_s": 2.0, "spectral_flatness": 1.0, "interval_from_prev_s": 1.0 },
+      "provenance": { "bandwidth_Hz": "S+M", "duration_s": "S+M", "spectral_flatness": "S", "interval_from_prev_s": "S+M" }
+    },
+    {
+      "id": "wide_continuous",
+      "label": "video_link",
+      "description": "宽、连续",
+      "intervals": { "bandwidth_Hz": [1e6, 40e6], "duration_s": [0.5, null], "duty": [0.8, 1.0] },
+      "weights": { "bandwidth_Hz": 2.0, "duration_s": 2.0, "duty": 1.0 },
+      "provenance": { "bandwidth_Hz": "S", "duration_s": "S", "duty": "S" }
+    },
+    {
+      "id": "mid_hop",
+      "label": "rc_hopping",
+      "description": "中宽、半毫秒、跳频",
+      "intervals": { "bandwidth_Hz": [1e6, 5e6], "duration_s": [0.0003, 0.0007], "hop_from_prev_Hz": [500e3, null] },
+      "weights": { "bandwidth_Hz": 2.0, "duration_s": 2.0, "hop_from_prev_Hz": 1.0 },
+      "provenance": { "bandwidth_Hz": "S+M", "duration_s": "S+M", "hop_from_prev_Hz": "S" }
+    },
+    {
+      "id": "narrow_hop",
+      "label": "rc_hopping",
+      "description": "窄、毫秒级、跳频",
+      "intervals": { "bandwidth_Hz": [80e3, 600e3], "duration_s": [0.001, 0.0035], "hop_from_prev_Hz": [500e3, null] },
+      "weights": { "bandwidth_Hz": 2.0, "duration_s": 2.0, "hop_from_prev_Hz": 1.0 },
+      "provenance": { "bandwidth_Hz": "S+M", "duration_s": "S+M", "hop_from_prev_Hz": "S" }
+    },
+    {
+      "id": "beacon",
+      "label": "droneid",
+      "description": "宽、0.64 ms",
+      "intervals": { "bandwidth_Hz": [7e6, 11e6], "duration_s": [0.0005, 0.0008] },
+      "weights": { "bandwidth_Hz": 2.0, "duration_s": 2.0 },
+      "provenance": { "bandwidth_Hz": "S", "duration_s": "S" }
+    }
+  ]
+}

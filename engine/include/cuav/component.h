@@ -124,6 +124,11 @@ struct RecognitionRow {
     std::string unknown_kind;                   // unknown 时：unknown_low_quality / unknown_novel / unknown_ambiguous
     std::string evidence_quality;               // 特征行的 quality
     std::string library_version;
+    // Q-4c（D-094）：库格式 /2 的模板有 id，判了标签时给出获胜标签的那个模板（/1 的库留空、运行器不写）；
+    // 分子带口径的特征行带过来的段身份（segment_id 是分子带段号）与核心频段
+    std::string template_id;
+    bool subband = false;
+    double f_lo_Hz = 0.0, f_hi_Hz = 0.0;
 };
 
 struct RecognitionList {

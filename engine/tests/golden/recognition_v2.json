@@ -1,0 +1,550 @@
+{
+  "schema": "cuav-engine-golden/1",
+  "purpose": "引擎侧模板匹配识别器在库格式 /2 下与 algos/reference/classify.py 的逐行对拍基准（Q-4c，D-094）：同一标签多个模板取似然大的、分子带口径的占空比缺失、识别行写 template",
+  "generator": "algos/reference/classify.py --write-golden-v2",
+  "library": "engine/tests/golden/recognition_v2_library.json",
+  "library_version": "v99",
+  "feature_basis": "subband",
+  "params": {
+    "accept_threshold": 0.5,
+    "ambiguity_margin": 0.2,
+    "unknown_distance": 4.0,
+    "min_quality": "short"
+  },
+  "tolerance": {
+    "rel": 1e-09,
+    "note": "两侧同为 float64 同算法；后验与距离按相对误差 1e-9，标签、模板、判决、unknown_kind、top_n 的顺序逐字相同"
+  },
+  "rows": [
+    {
+      "t_s": 0.0,
+      "t_end_s": 0.00107,
+      "duration_s": 0.00107,
+      "segment_id": 0,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 18000000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.9,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.002,
+      "hop_from_prev_Hz": 0.0,
+      "basis": "subband",
+      "f_lo_Hz": 2431000000.0,
+      "f_hi_Hz": 2449000000.0
+    },
+    {
+      "t_s": 0.01,
+      "t_end_s": 2.01,
+      "duration_s": 2.0,
+      "segment_id": 1,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 2000000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.95,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": false,
+      "interval_from_prev_s": 0.0,
+      "hop_from_prev_Hz": 0.0,
+      "basis": "subband",
+      "f_lo_Hz": 2439000000.0,
+      "f_hi_Hz": 2441000000.0
+    },
+    {
+      "t_s": 0.02,
+      "t_end_s": 0.0205,
+      "duration_s": 0.0005,
+      "segment_id": 2,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 2200000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.9,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.0035,
+      "hop_from_prev_Hz": 9000000.0,
+      "basis": "subband",
+      "f_lo_Hz": 2438900000.0,
+      "f_hi_Hz": 2441100000.0
+    },
+    {
+      "t_s": 0.03,
+      "t_end_s": 0.0305,
+      "duration_s": 0.0005,
+      "segment_id": 3,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 2200000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.9,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.0035,
+      "hop_from_prev_Hz": 3.0,
+      "basis": "subband",
+      "f_lo_Hz": 2438900000.0,
+      "f_hi_Hz": 2441100000.0
+    },
+    {
+      "t_s": 0.04,
+      "t_end_s": 0.0428,
+      "duration_s": 0.0028,
+      "segment_id": 4,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 200000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.6,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.004,
+      "hop_from_prev_Hz": 4500000.0,
+      "basis": "subband",
+      "f_lo_Hz": 2439900000.0,
+      "f_hi_Hz": 2440100000.0
+    },
+    {
+      "t_s": 0.05,
+      "t_end_s": 0.050640000000000004,
+      "duration_s": 0.00064,
+      "segment_id": 5,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 9000000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.95,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": false,
+      "interval_from_prev_s": 0.0,
+      "hop_from_prev_Hz": 0.0,
+      "basis": "subband",
+      "f_lo_Hz": 2435500000.0,
+      "f_hi_Hz": 2444500000.0
+    },
+    {
+      "t_s": 0.06,
+      "t_end_s": 0.0608,
+      "duration_s": 0.0008,
+      "segment_id": 6,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 9000000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.95,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.001,
+      "hop_from_prev_Hz": 0.0,
+      "basis": "subband",
+      "f_lo_Hz": 2435500000.0,
+      "f_hi_Hz": 2444500000.0
+    },
+    {
+      "t_s": 0.07,
+      "t_end_s": 0.27,
+      "duration_s": 0.2,
+      "segment_id": 7,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 50000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.3,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "full",
+      "has_prev": true,
+      "interval_from_prev_s": 0.5,
+      "hop_from_prev_Hz": 0.0,
+      "basis": "subband",
+      "f_lo_Hz": 2439975000.0,
+      "f_hi_Hz": 2440025000.0
+    },
+    {
+      "t_s": 0.08,
+      "t_end_s": 0.08002000000000001,
+      "duration_s": 2e-05,
+      "segment_id": 8,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 300000.0,
+      "signal_bins": 40,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.9,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "short",
+      "has_prev": true,
+      "interval_from_prev_s": 0.01,
+      "hop_from_prev_Hz": 2000000.0,
+      "basis": "subband",
+      "f_lo_Hz": 2439850000.0,
+      "f_hi_Hz": 2440150000.0
+    },
+    {
+      "t_s": 0.09,
+      "t_end_s": 0.0901,
+      "duration_s": 0.0001,
+      "segment_id": 9,
+      "frames": 10,
+      "center_Hz": 2440000000.0,
+      "bandwidth_Hz": 0.0,
+      "signal_bins": 0,
+      "has_dBm": true,
+      "band_power_dBm": -60.0,
+      "peak_dBm": -65.0,
+      "snr_dB": 12.0,
+      "spectral_flatness": 0.5,
+      "crest_factor_dB": null,
+      "duty": null,
+      "overload": false,
+      "quality": "low_snr",
+      "has_prev": false,
+      "interval_from_prev_s": 0.0,
+      "hop_from_prev_Hz": 0.0,
+      "basis": "subband",
+      "f_lo_Hz": 2440000000.0,
+      "f_hi_Hz": 2440000000.0
+    }
+  ],
+  "expected": [
+    {
+      "t_s": 0.0,
+      "t_end_s": 0.00107,
+      "segment_id": 0,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "video_link",
+          "posterior": 0.6024100543684839,
+          "distance": 0.0
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.31362754814250193,
+          "distance": 1.305464474809696
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.002435062156471952,
+          "distance": 11.021932168769036
+        }
+      ],
+      "label": "video_link",
+      "posterior": 0.6024100543684839,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null,
+      "template": "wide_burst"
+    },
+    {
+      "t_s": 0.01,
+      "t_end_s": 2.01,
+      "segment_id": 1,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "video_link",
+          "posterior": 0.8789644118774592,
+          "distance": 0.0
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.0016246907614054353,
+          "distance": 12.586853825621084
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.00045599972479673897,
+          "distance": 15.1280149655861
+        }
+      ],
+      "label": "video_link",
+      "posterior": 0.8789644118774592,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null,
+      "template": "wide_continuous"
+    },
+    {
+      "t_s": 0.02,
+      "t_end_s": 0.0205,
+      "segment_id": 2,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "rc_hopping",
+          "posterior": 0.5204589277786544,
+          "distance": 0.0
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.21072806722622772,
+          "distance": 1.8082849088186423
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.1983765485911699,
+          "distance": 1.9290879811517374
+        }
+      ],
+      "label": "rc_hopping",
+      "posterior": 0.5204589277786544,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null,
+      "template": "mid_hop"
+    },
+    {
+      "t_s": 0.03,
+      "t_end_s": 0.0305,
+      "segment_id": 3,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "video_link",
+          "posterior": 0.43093811882142,
+          "distance": 1.8082849088186423
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.4056793088525264,
+          "distance": 1.9290879811517374
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.019340279248036947,
+          "distance": 8.01583405915748
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.14404229307801666,
+      "distance": 1.8082849088186423,
+      "result": "unknown",
+      "unknown_kind": "unknown_ambiguous"
+    },
+    {
+      "t_s": 0.04,
+      "t_end_s": 0.0428,
+      "segment_id": 4,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "rc_hopping",
+          "posterior": 0.7789396291400786,
+          "distance": 0.0
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.10147168527461092,
+          "distance": 4.076307496440463
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.014170670251415898,
+          "distance": 8.013518383307968
+        }
+      ],
+      "label": "rc_hopping",
+      "posterior": 0.7789396291400786,
+      "distance": 0.0,
+      "result": "known",
+      "unknown_kind": null,
+      "template": "narrow_hop"
+    },
+    {
+      "t_s": 0.05,
+      "t_end_s": 0.050640000000000004,
+      "segment_id": 5,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "droneid",
+          "posterior": 0.3831645944558384,
+          "distance": 0.0
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.33020123771506266,
+          "distance": 0.29752473508561295
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.23477847891217615,
+          "distance": 0.9796444415035281
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.05185568891692273,
+      "distance": 0.0,
+      "result": "unknown",
+      "unknown_kind": "unknown_ambiguous"
+    },
+    {
+      "t_s": 0.06,
+      "t_end_s": 0.0608,
+      "segment_id": 6,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "video_link",
+          "posterior": 0.46660842381451,
+          "distance": 0.0
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.46660842381451,
+          "distance": 0.0
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.003634569173453714,
+          "distance": 9.709999661638406
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.06314858319752613,
+      "distance": 0.0,
+      "result": "unknown",
+      "unknown_kind": "unknown_ambiguous"
+    },
+    {
+      "t_s": 0.07,
+      "t_end_s": 0.27,
+      "segment_id": 7,
+      "evidence_quality": "full",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "video_link",
+          "posterior": 0.21997757637747192,
+          "distance": 6.520038342380243
+        },
+        {
+          "label": "rc_hopping",
+          "posterior": 0.0035574772029318734,
+          "distance": 14.768986288000757
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.0009364042572866025,
+          "distance": 17.438505567452584
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.7755285421623096,
+      "distance": 6.520038342380243,
+      "result": "unknown",
+      "unknown_kind": "unknown_novel"
+    },
+    {
+      "t_s": 0.08,
+      "t_end_s": 0.08002000000000001,
+      "segment_id": 8,
+      "evidence_quality": "short",
+      "library_version": "v99",
+      "top_n": [
+        {
+          "label": "rc_hopping",
+          "posterior": 0.3169922854808333,
+          "distance": 5.2160306739041955
+        },
+        {
+          "label": "video_link",
+          "posterior": 0.07944297291304138,
+          "distance": 7.983706664194622
+        },
+        {
+          "label": "droneid",
+          "posterior": 0.021318895510586144,
+          "distance": 10.614597963749084
+        }
+      ],
+      "label": "unknown",
+      "posterior": 0.5822458460955392,
+      "distance": 5.2160306739041955,
+      "result": "unknown",
+      "unknown_kind": "unknown_novel"
+    },
+    {
+      "t_s": 0.09,
+      "t_end_s": 0.0901,
+      "segment_id": 9,
+      "evidence_quality": "low_snr",
+      "library_version": "v99",
+      "label": "unknown",
+      "result": "unknown",
+      "unknown_kind": "unknown_low_quality",
+      "posterior": 0.0,
+      "distance": null,
+      "top_n": []
+    }
+  ]
+}

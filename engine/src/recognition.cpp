@@ -56,12 +56,15 @@ bool TemplateClassifier::load_library(const std::string& path, Library& lib, std
     nlohmann::json j;
     try { f >> j; } catch (const std::exception& e) { err = "模板库不是合法 JSON：" + path + "：" + e.what(); return false; }
     if (!j.is_object()) { err = "模板库顶层必须是对象"; return false; }
-    static const std::set<std::string> kTop = {"schema", "library_version", "label_layer", "source", "notes", "distance",
-                                               "feature_order", "features", "templates", "scenario_waveform_map"};
-    if (!check_keys(j, kTop, "模板库", err)) return false;
-    if (!j.contains("schema") || !j["schema"].is_string() || j["schema"] != "cuav-recognition-library/1") {
-        err = "模板库 schema 必须是 cuav-recognition-library/1"; return false;
+    if (!j.contains("schema") || !j["schema"].is_string() ||
+        (j["schema"] != "cuav-recognition-library/1" && j["schema"] != "cuav-recognition-library/2")) {
+        err = "模板库 schema 必须是 cuav-recognition-library/1 或 /2"; return false;
     }
+    const bool v2 = j["schema"] == "cuav-recognition-library/2";
+    std::set<std::string> kTop = {"schema", "library_version", "label_layer", "source", "notes", "distance",
+                                  "feature_order", "features", "templates", "scenario_waveform_map"};
+    if (v2) { kTop.insert("feature_basis"); kTop.insert("calibration"); }
+    if (!check_keys(j, kTop, "模板库", err)) return false;
     for (const char* k : {"library_version", "source", "distance", "feature_order", "features", "templates"}) {
         if (!j.contains(k)) { err = std::string("模板库缺 ") + k; return false; }
     }
@@ -69,6 +72,23 @@ bool TemplateClassifier::load_library(const std::string& path, Library& lib, std
     Library out;
     out.version = j["library_version"].get<std::string>();
     out.source = j["source"].get<std::string>();
+    out.has_ids = v2;
+    if (v2) {
+        if (!j.contains("feature_basis") || !j["feature_basis"].is_string() ||
+            (j["feature_basis"] != "frame" && j["feature_basis"] != "subband")) {
+            err = "模板库（/2）的 feature_basis 必须是 frame / subband"; return false;
+        }
+        out.feature_basis = j["feature_basis"].get<std::string>();
+        if (j.contains("calibration")) {
+            const nlohmann::json& c = j["calibration"];
+            static const std::set<std::string> kCal = {"ref", "sha256"};
+            if (!c.is_object()) { err = "模板库 calibration 必须是对象"; return false; }
+            if (!check_keys(c, kCal, "模板库 calibration", err)) return false;
+            for (auto it = c.begin(); it != c.end(); ++it) {
+                if (!it.value().is_string()) { err = "模板库 calibration." + it.key() + " 必须是字符串"; return false; }
+            }
+        }
+    }
 
     const nlohmann::json& dist = j["distance"];
     if (!dist.is_object()) { err = "模板库 distance 必须是对象"; return false; }
@@ -125,16 +145,25 @@ bool TemplateClassifier::load_library(const std::string& path, Library& lib, std
 
     const nlohmann::json& tpls = j["templates"];
     if (!tpls.is_array() || tpls.empty()) { err = "模板库 templates 必须是非空数组"; return false; }
-    std::set<std::string> labels;
+    std::set<std::string> labels, ids;
     for (const auto& t : tpls) {
         if (!t.is_object()) { err = "模板库 templates 的元素必须是对象"; return false; }
-        static const std::set<std::string> kTpl = {"label", "description", "intervals", "weights"};
+        std::set<std::string> kTpl = {"label", "description", "intervals", "weights"};
+        if (v2) { kTpl.insert("id"); kTpl.insert("provenance"); }
         if (!check_keys(t, kTpl, "模板", err)) return false;
         if (!t.contains("label") || !t["label"].is_string() || t["label"].get<std::string>().empty()) { err = "模板缺 label"; return false; }
         Template tp;
         tp.label = t["label"].get<std::string>();
         if (tp.label == "unknown") { err = "模板标签不能叫 unknown：那是开放集的保留名"; return false; }
-        if (!labels.insert(tp.label).second) { err = "模板标签重复：" + tp.label; return false; }
+        if (v2) {
+            // /2：一个标签可以有几个模板，模板靠 id 区分
+            if (!t.contains("id") || !t["id"].is_string() || t["id"].get<std::string>().empty()) { err = "模板（/2）缺 id"; return false; }
+            tp.id = t["id"].get<std::string>();
+            if (!ids.insert(tp.id).second) { err = "模板 id 重复：" + tp.id; return false; }
+        } else if (labels.count(tp.label)) {
+            err = "模板标签重复：" + tp.label; return false;
+        }
+        if (!labels.count(tp.label)) { labels.insert(tp.label); out.labels.push_back(tp.label); }
         if (t.contains("description")) {
             if (!t["description"].is_string()) { err = "模板 " + tp.label + " 的 description 必须是字符串"; return false; }
             tp.description = t["description"].get<std::string>();
@@ -179,6 +208,18 @@ bool TemplateClassifier::load_library(const std::string& path, Library& lib, std
         for (auto it = ws.begin(); it != ws.end(); ++it) {
             if (!iv.contains(it.key())) { err = "模板 " + tp.label + " 给了 " + it.key() + " 权重却没有区间"; return false; }
         }
+        if (t.contains("provenance")) {
+            // 逐特征的出处档（S 合成 / M 实测 / S+M 两者取并 / A 假定），只记录、不参与计算；键必须是这个模板有区间的特征
+            const nlohmann::json& pv = t["provenance"];
+            if (!pv.is_object()) { err = "模板 " + tp.id + " 的 provenance 必须是对象"; return false; }
+            for (auto it = pv.begin(); it != pv.end(); ++it) {
+                if (!iv.contains(it.key())) { err = "模板 " + tp.id + " 的 provenance 写了没有区间的特征 " + it.key(); return false; }
+                const std::string v = it.value().is_string() ? it.value().get<std::string>() : std::string();
+                if (v != "S" && v != "M" && v != "S+M" && v != "A") {
+                    err = "模板 " + tp.id + " 的 provenance." + it.key() + " 必须是 S / M / S+M / A"; return false;
+                }
+            }
+        }
         out.templates.push_back(tp);
     }
     lib = out;
@@ -215,6 +256,17 @@ bool TemplateClassifier::configure(const std::map<std::string, double>& params,
         err = "TemplateClassifier 的模板库文件声明 library_version = " + lib_.version + "，与参数 " + library_version_ + " 不同";
         return false;
     }
+    subband_ = false;
+    auto bs = text_params.find("basis");
+    const std::string basis = (bs == text_params.end() || bs->second.empty()) ? std::string("frame") : bs->second;
+    if (basis != "frame" && basis != "subband") { err = "TemplateClassifier 的 basis 必须是 frame / subband"; return false; }
+    subband_ = basis == "subband";
+    if (lib_.feature_basis != basis) {
+        err = "TemplateClassifier 的模板库 " + lib_.version + " 是按" + (lib_.feature_basis == "subband" ? "分子带段" : "帧级突发") +
+              "的特征标定的（feature_basis = " + lib_.feature_basis + "），本节点的 basis = " + basis +
+              "——口径不同的特征不能拿这份库去比（Q-4c，D-094）";
+        return false;
+    }
     auto sid = text_params.find("site_id");
     site_id_ = sid == text_params.end() ? std::string() : sid->second;
     return true;
@@ -240,22 +292,20 @@ ModelTrace TemplateClassifier::trace() const {
 }
 
 std::vector<std::string> TemplateClassifier::labels() const {
-    std::vector<std::string> v;
-    for (const auto& t : lib_.templates) v.push_back(t.label);
-    return v;
+    return lib_.labels;
 }
 
 bool TemplateClassifier::feature_value(const FeatureRow& f, const FeatureDef& def, double& x) const {
     const std::string& n = def.name;
     if (n == "bandwidth_Hz") { if (f.signal_bins == 0) return false; x = f.bandwidth_Hz; return true; }
     if (n == "duration_s") { x = f.duration_s; return true; }
-    if (n == "duty") { x = f.duty; return true; }
+    if (n == "duty") { if (f.subband) return false; x = f.duty; return true; }   // 分子带口径下无定义
     if (n == "spectral_flatness") { x = f.spectral_flatness; return true; }
     if (n == "hop_from_prev_Hz") { if (!f.has_prev) return false; x = def.abs ? std::fabs(f.hop_from_prev_Hz) : f.hop_from_prev_Hz; return true; }
     if (n == "interval_from_prev_s") { if (!f.has_prev) return false; x = f.interval_from_prev_s; return true; }
     if (n == "center_Hz") { x = f.center_Hz; return true; }
     if (n == "snr_dB") { x = f.snr_dB; return true; }
-    if (n == "crest_factor_dB") { x = f.crest_factor_dB; return true; }
+    if (n == "crest_factor_dB") { if (f.subband) return false; x = f.crest_factor_dB; return true; }
     if (n == "band_power_dBm") { if (!f.has_dBm) return false; x = f.band_power_dBm; return true; }
     if (n == "peak_dBm") { if (!f.has_dBm) return false; x = f.peak_dBm; return true; }
     return false;
@@ -289,6 +339,9 @@ RecognitionRow TemplateClassifier::classify(const FeatureRow& f) const {
     r.segment_id = f.segment_id;
     r.evidence_quality = f.quality;
     r.library_version = lib_.version;
+    r.subband = f.subband;
+    r.f_lo_Hz = f.f_lo_Hz;
+    r.f_hi_Hz = f.f_hi_Hz;
     if (quality_rank(f.quality) < quality_rank(min_quality_)) {
         r.label = "unknown";
         r.result = "unknown";
@@ -318,22 +371,33 @@ RecognitionRow TemplateClassifier::classify(const FeatureRow& f) const {
             usable[k] = true;
         }
     }
+    // 按标签归并：一个标签取它几个模板里似然最大的那一个（并列取库序在前的）。/1 每个标签一个模板，逐位不变。
+    const std::size_t NL = lib_.labels.size();
+    std::vector<std::size_t> best(NL, K);
+    for (std::size_t k = 0; k < K; ++k) {
+        if (!usable[k]) continue;
+        const std::size_t li = static_cast<std::size_t>(
+            std::find(lib_.labels.begin(), lib_.labels.end(), lib_.templates[k].label) - lib_.labels.begin());
+        if (best[li] == K || L[k] > L[best[li]]) best[li] = k;
+    }
     const double Lu = std::exp(-unknown_distance_ / 2.0);
     double denom = 0.0;
-    for (std::size_t k = 0; k < K; ++k) denom += L[k];
+    for (std::size_t i = 0; i < NL; ++i) denom += best[i] == K ? 0.0 : L[best[i]];
     denom += Lu;
-    std::vector<double> p(K, 0.0);
-    for (std::size_t k = 0; k < K; ++k) p[k] = L[k] / denom;
+    std::vector<double> p(NL, 0.0);
+    for (std::size_t i = 0; i < NL; ++i) p[i] = (best[i] == K ? 0.0 : L[best[i]]) / denom;
     const double pu = Lu / denom;
-    std::vector<std::size_t> idx(K);
+    std::vector<std::size_t> idx(NL);
     std::iota(idx.begin(), idx.end(), 0);
     std::stable_sort(idx.begin(), idx.end(), [&](std::size_t a, std::size_t b) { return p[a] > p[b]; });
+    std::size_t win = K;
     for (std::size_t n = 0; n < idx.size() && r.top_n.size() < 3; ++n) {
-        if (!usable[idx[n]]) continue;
+        if (best[idx[n]] == K) continue;
         RecognitionCandidate c;
-        c.label = lib_.templates[idx[n]].label;
+        c.label = lib_.labels[idx[n]];
         c.posterior = p[idx[n]];
-        c.distance = D[idx[n]];
+        c.distance = D[best[idx[n]]];
+        if (r.top_n.empty()) win = best[idx[n]];
         r.top_n.push_back(c);
     }
     double min_d = inf;
@@ -345,6 +409,7 @@ RecognitionRow TemplateClassifier::classify(const FeatureRow& f) const {
         r.posterior = p1;
         r.distance = r.top_n[0].distance;
         r.result = (p1 - p2 >= ambiguity_margin_) ? "known" : "ambiguous";
+        if (lib_.has_ids) r.template_id = lib_.templates[win].id;
     } else {
         r.label = "unknown";
         r.posterior = pu;
@@ -366,7 +431,6 @@ void TemplateClassifier::report(const RecognitionRow& r) {
 }
 
 Step TemplateClassifier::process(PortMap& in, PortMap& out, std::string& err) {
-    (void)err;
     auto it = in.find("in");
     if (it == in.end() || !it->second.has_data) return Step::Idle;
     const FeatureVector& fv = it->second.features;
@@ -374,6 +438,11 @@ Step TemplateClassifier::process(PortMap& in, PortMap& out, std::string& err) {
     o.type = PortType::RecognitionList;
     o.has_data = true;                    // 消费即产出（可为空），与特征提取器同一约定
     for (const FeatureRow& f : fv.items) {
+        if (f.subband != subband_) {
+            err = std::string("TemplateClassifier 的 basis = ") + (subband_ ? "subband" : "frame") + "，收到的特征行却是" +
+                  (f.subband ? "分子带段" : "帧级突发") + "——上游特征提取器的 basis 与本节点不同（装载器本该拦住）";
+            return Step::Error;
+        }
         RecognitionRow r = classify(f);
         o.recognitions.items.push_back(r);
         report(r);
@@ -401,8 +470,9 @@ ComponentInfo TemplateClassifier::describe() const {
     i.description = "EM-S-04 E2 工程模板加权匹配（10 报告 §4.4）：对每行突发特征逐模板取区间外距离、按权重平均成综合距离，"
                     "似然 exp(−D/2) 加未知假设 exp(−unknown_distance/2) 归一成后验；最大后验过接受门限且领先次大 ambiguity_margin "
                     "才判 known，领先不足为 ambiguous，不过门限为 unknown（开放集）；特征质量低于 min_quality 直接 unknown_low_quality。"
-                    "标签只到 signal_role 层（video_link / telemetry_burst / rc_hopping / cw_beacon）；模板库取值标 assumed，"
-                    "只对合成波形有效（models/recognition/README.md）；口径与 algos/reference/classify.py 一致";
+                    "标签只到 signal_role 层，取哪几类、区间多宽由模板库定（models/recognition/README.md）；"
+                    "库格式 /2 一个标签可有几个模板、取似然最大的那个并给出模板名，库声明的特征口径须与 basis 一致（Q-4c，D-094）；"
+                    "口径与 algos/reference/classify.py 一致";
     i.model_layer = "M2";
     i.model_level = "E2";
     i.model_id = "EM-S-04";
@@ -414,6 +484,10 @@ ComponentInfo TemplateClassifier::describe() const {
     i.scene_bindable = true;
     i.params = {
         ParamSpec::text("library_version", "模板库版本，形如 v1；库文件位置由装载器据此注入（D-037）").def_text("v1"),
+        ParamSpec::choice("basis", {"frame", "subband"},
+                          "特征行的口径，必须与上游特征提取器相同（装载器核对）、与模板库声明的 feature_basis 相同（装库时核对）；"
+                          "v1 是帧级口径（Q-4c，D-094）")
+            .def_text("frame"),
         ParamSpec::number("accept_threshold", "", "最大后验不低于它才判 known / ambiguous，否则 unknown；"
                                                   "未知假设恒占一份似然，四模板下正确类在 D = 0 时的后验常在 0.55–0.8，故缺省 0.5（模型卡 §2）")
             .def(0.5).at_least(0.0).at_most(1.0),

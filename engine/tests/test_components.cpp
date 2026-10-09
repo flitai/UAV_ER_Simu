@@ -1209,7 +1209,11 @@ TEST_CASE("模板识别：坏库被拒——未知键、区间颠倒、线性特
     bad("no_weight.json", "\"weights\": { \"bandwidth_Hz\": 2.0, \"duration_s\": 1.0, \"duty\": 2.0, \"spectral_flatness\": 1.0 }",
         "\"weights\": { \"bandwidth_Hz\": 2.0, \"duration_s\": 1.0, \"duty\": 2.0 }", "缺正的权重");
     bad("no_such_feature.json", "\"bandwidth_Hz\", \"duration_s\", \"duty\"", "\"bandwidth_Hz\", \"nonesuch\", \"duty\"", "没有的特征");
-    bad("bad_schema.json", "cuav-recognition-library/1", "cuav-recognition-library/2", "schema");
+    bad("bad_schema.json", "cuav-recognition-library/1", "cuav-recognition-library/9", "schema");
+    // 把 /1 的库改标成 /2：/2 必填 feature_basis 与模板 id，缺了就拒（Q-4c，D-094）
+    bad("v2_without_basis.json", "cuav-recognition-library/1", "cuav-recognition-library/2", "feature_basis");
+    // /1 里标签仍不许重复（一个标签几个模板是 /2 才有的事）
+    bad("v1_repeat_label.json", "\"label\": \"telemetry_burst\"", "\"label\": \"video_link\"", "标签重复");
 
     TemplateClassifier c;
     CHECK_FALSE(c.configure({}, {{"library_path", library_v1()}, {"library_version", "v2"}}, err));
@@ -1218,6 +1222,65 @@ TEST_CASE("模板识别：坏库被拒——未知键、区间颠倒、线性特
     CHECK(err.find("打不开") != std::string::npos);
     CHECK_FALSE(c.configure({}, {}, err));
     CHECK(err.find("library_path") != std::string::npos);
+}
+
+TEST_CASE("模板识别：库格式 /2——一个标签几个模板、取似然大的并给出模板名；口径与库不符即拒；坏的 /2 库被拒（Q-4c，D-094）") {
+    const std::string lib2 = std::string(CUAV_SOURCE_DIR) + "/tests/golden/recognition_v2_library.json";
+    std::string err;
+    TemplateClassifier::Library lib;
+    REQUIRE_MESSAGE(TemplateClassifier::load_library(lib2, lib, err), err);
+    CHECK(lib.has_ids);
+    CHECK(lib.feature_basis == "subband");
+    CHECK(lib.templates.size() == 5);
+    CHECK(lib.labels == std::vector<std::string>{"video_link", "rc_hopping", "droneid"});
+
+    // 口径：库是 subband，节点缺省 frame → 拒；v1 是 frame，节点写 subband → 拒
+    TemplateClassifier c;
+    CHECK_FALSE(c.configure({}, {{"library_path", lib2}, {"library_version", "v99"}}, err));
+    CHECK(err.find("feature_basis") != std::string::npos);
+    CHECK_FALSE(c.configure({}, {{"library_path", library_v1()}, {"basis", "subband"}}, err));
+    CHECK(err.find("feature_basis") != std::string::npos);
+    REQUIRE_MESSAGE(c.configure({}, {{"library_path", lib2}, {"library_version", "v99"}, {"basis", "subband"}}, err), err);
+    CHECK(c.labels() == std::vector<std::string>{"video_link", "rc_hopping", "droneid"});
+
+    // 窄跳频：rc_hopping 的两个模板里 narrow_hop 似然大；占空比在分子带口径下缺失、不计
+    FeatureRow f = feat_row(2e5, 30, 0.0028, 0.0, 0.6, "full", true, 0.004, 4.5e6);
+    f.subband = true;
+    f.f_lo_Hz = 2.4399e9;
+    f.f_hi_Hz = 2.4401e9;
+    RecognitionRow r = c.classify(f);
+    CHECK(r.result == "known");
+    CHECK(r.label == "rc_hopping");
+    CHECK(r.template_id == "narrow_hop");
+    CHECK(r.subband);
+    CHECK(r.f_lo_Hz == 2.4399e9);
+    REQUIRE(!r.top_n.empty());
+    CHECK(r.top_n[0].label == "rc_hopping");
+    for (std::size_t i = 1; i < r.top_n.size(); ++i) CHECK(r.top_n[i].label != "rc_hopping");   // 按标签排，不按模板
+
+    // 坏的 /2 库
+    const std::string good = [&] {
+        std::ifstream in(lib2.c_str(), std::ios::binary);
+        std::ostringstream o; o << in.rdbuf(); return o.str();
+    }();
+    auto bad = [&](const std::string& name, const std::string& from, const std::string& to, const std::string& expect) {
+        std::string t = good;
+        const std::size_t pos = t.find(from);
+        REQUIRE_MESSAGE(pos != std::string::npos, "夹具里找不到 " << from);
+        t.replace(pos, from.size(), to);
+        TemplateClassifier::Library l;
+        std::string e;
+        CHECK_FALSE(TemplateClassifier::load_library(write_temp(name, t), l, e));
+        CHECK_MESSAGE(e.find(expect) != std::string::npos, name << "：报错 " << e << " 不含 " << expect);
+    };
+    bad("v2_dup_id.json", "\"id\": \"wide_continuous\"", "\"id\": \"wide_burst\"", "id 重复");
+    bad("v2_no_id.json", "\"id\": \"beacon\",", "", "缺 id");
+    bad("v2_bad_basis.json", "\"feature_basis\": \"subband\"", "\"feature_basis\": \"burst\"", "feature_basis");
+    bad("v2_bad_prov.json", "\"provenance\": { \"bandwidth_Hz\": \"S\", \"duration_s\": \"S\" }",
+        "\"provenance\": { \"bandwidth_Hz\": \"measured\", \"duration_s\": \"S\" }", "S / M / S+M / A");
+    bad("v2_prov_key.json", "\"provenance\": { \"bandwidth_Hz\": \"S\", \"duration_s\": \"S\" }",
+        "\"provenance\": { \"bandwidth_Hz\": \"S\", \"duty\": \"S\" }", "没有区间的特征");
+    bad("v2_unknown_key.json", "\"feature_basis\"", "\"calibration\": {\"note\": \"x\"}, \"feature_basis\"", "未知键");
 }
 
 TEST_CASE("模板识别：接在特征提取器之后跑通一条链——每行特征一行识别，持续半秒的单音判为 cw_beacon，行带节点名与 trace") {

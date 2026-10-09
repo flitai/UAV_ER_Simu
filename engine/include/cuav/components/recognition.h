@@ -11,7 +11,12 @@
 //   先验均匀，p_k = L_k / (Σ_j L_j + L_u)。判决：max p ≥ accept_threshold 且与次大之差 ≥ ambiguity_margin → known；
 //   差不足 → ambiguous（仍给 Top-1）；max p 低于门限 → unknown（最近模板距离 > unknown_distance 为 unknown_novel，
 //   否则 unknown_ambiguous）；特征行 quality 低于 min_quality 的直接 unknown_low_quality，不算后验。
-// 标签只到 signal_role 层（video_link / telemetry_burst / rc_hopping / cw_beacon），型号级随 T 线。
+// 标签只到 signal_role 层，型号级随 T 线。
+//
+// 库格式 /2（Q-4c，D-094；14 号报告 §8.6）：模板有唯一 id、标签可以重复——一个标签取它几个模板里似然最大的那一个
+// （不求和，免得模板多的标签先验被抬高），后验与 top_n 按标签算；识别行多给 template_id。库声明 feature_basis
+// （frame / subband），必须等于本组件的 basis 参数（装库时核对），特征行的口径也逐行核对。/1 的库按帧级口径、
+// 每个标签一个模板，结果逐位不变。
 
 #ifndef CUAV_COMPONENTS_RECOGNITION_H
 #define CUAV_COMPONENTS_RECOGNITION_H
@@ -52,6 +57,7 @@ public:
         double floor = 0.0;
     };
     struct Template {
+        std::string id;                // /2 必有且唯一；/1 留空
         std::string label;
         std::string description;
         std::vector<bool> used;        // 按 feature_order 的下标：该模板是否声明了这个特征
@@ -62,9 +68,12 @@ public:
     struct Library {
         std::string version;
         std::string source;
+        std::string feature_basis = "frame";   // /1 恒为 frame
+        bool has_ids = false;                  // /2
         double log_scale = 0.3;
         std::vector<FeatureDef> features;   // 按 feature_order
         std::vector<Template> templates;
+        std::vector<std::string> labels;    // 不重复，按模板里首次出现的顺序
     };
     static bool load_library(const std::string& path, Library& lib, std::string& err);
 
@@ -74,6 +83,7 @@ private:
     double unknown_distance_ = 4.0;
     std::string min_quality_ = "short";
     std::string library_version_ = "v1";
+    bool subband_ = false;            // basis = subband
     std::string library_path_;
     std::string site_id_;
     std::string node_name_;

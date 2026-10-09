@@ -849,6 +849,18 @@ TEST_CASE("装载器：library_version 换成内部参数 library_path 注入（
         bad["nodes"][6]["params"]["library_path"] = "models/recognition/library-v1.json";
         expect_fail(bad, "internal_param");
     }
+    {   // Q-4c（D-094）：特征提取器按分子带段、识别器按帧级——口径不同即拒，错误落在识别器的 in 口上
+        json bad = base;
+        bad["nodes"][3]["params"]["subband_bins"] = 8;
+        bad["nodes"][5]["params"]["basis"] = "subband";
+        LoadedDiagram d;
+        DiagramError e;
+        CHECK_FALSE(load_diagram(bad, r, nullptr, o, d, e));
+        CHECK(e.code == "param");
+        CHECK(e.node_id == "rec");
+        CHECK(e.port == "in");
+        CHECK(e.message.find("basis") != std::string::npos);
+    }
 }
 
 
