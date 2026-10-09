@@ -142,7 +142,9 @@
         "scenario_id": "golden-02",
         "site_id": "site-1"
       },
-      "params": {}
+      "params": {
+        "basis": "subband"
+      }
     },
     {
       "id": "rec",
@@ -151,7 +153,10 @@
         "scenario_id": "golden-02",
         "site_id": "site-1"
       },
-      "params": {}
+      "params": {
+        "library_version": "v2",
+        "basis": "subband"
+      }
     },
     {
       "id": "eval",
@@ -160,7 +165,9 @@
         "scenario_id": "golden-02",
         "site_id": "site-1"
       },
-      "params": {}
+      "params": {
+        "basis": "subband"
+      }
     }
   ],
   "edges": [

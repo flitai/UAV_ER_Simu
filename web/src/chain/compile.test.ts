@@ -14,7 +14,7 @@ import type { Catalog } from '../api/catalog.js'
 import { serialize, parse as parseDoc, type DiagramDoc } from '../diagram/doc.js'
 import type { ScenarioDoc } from '../state/types.js'
 import { compile, nodeId, parseChain, splitNodeId, switchMode } from './compile.js'
-import { emptyChain, fromSceneOf, missingParams, PROPAGATION_PARAMS, retiredNote, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
+import { emptyChain, fromSceneOf, missingParams, PROPAGATION_PARAMS, recognitionMode, retiredNote, slotState, SLOTS, SLOT_BY_ID, TAP_ORDER, tapLabel, type ChainState } from './model.js'
 import { propConflict, propView, visiblePropParams } from './effects.js'
 import { freqPlan, planChecks, planOk } from './plan.js'
 import { DEFAULT_CHAIN_TEXT } from './examples/default.js'
@@ -1267,7 +1267,7 @@ test('GFSK 族（Q-3，D-089）：回归夹具 chain-gfsk 解得开、往返逐�
   for (const c of planChecks(chain, freqPlan(chain, shifted), shifted)) assert.equal(c.ok, true, `${c.id}：${c.detail}`)
 })
 
-test('分子带（Q-4b，D-093）：回归夹具 chain-golden-02-subband 解得开、往返逐字节；与 golden-02 只差检测器的 subband_bins', () => {
+test('分子带（Q-4b / Q-4c）：回归夹具 chain-golden-02-subband 解得开、往返逐字节；与 golden-02 只差检测器的 subband_bins 与随它派生的口径和库版本', () => {
   const g2 = JSON.parse(
     readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json'), 'utf8'),
   ) as ScenarioDoc
@@ -1285,6 +1285,46 @@ test('分子带（Q-4b，D-093）：回归夹具 chain-golden-02-subband 解得�
   const plain = parseOk(readFileSync(join(ROOT, 'tests/regression/diagrams/chain-golden-02.json'), 'utf8'))
   const det = (d: DiagramDoc) => JSON.stringify(d.nodes.find((n) => n.id === 'det')!.params)
   assert.equal(det(compile(off, cat, g2).doc), det(plain))
+  // Q-4c（D-094）：其余节点里只有特征 / 识别 / 评价多了随分子带开关派生的键，别的一字不差
+  const fx = r.doc
+  const extra: Record<string, Record<string, unknown>> = {
+    feat: { basis: 'subband' }, rec: { basis: 'subband', library_version: 'v2' }, eval: { basis: 'subband' },
+  }
+  for (const n of fx.nodes) {
+    if (n.id === 'det') continue
+    const p = plain.nodes.find((m) => m.id === n.id)!
+    assert.deepEqual(n.params, { ...p.params, ...(extra[n.id] ?? {}) }, n.id)
+  }
+})
+
+test('分子带识别（Q-4c，D-094）：检测器开分子带，特征 / 识别 / 评价切到分子带口径、识别库取 v2；关着一个键也不写，状态里的旧值不漏进框图', () => {
+  const g2 = JSON.parse(
+    readFileSync(join(ROOT, 'data/scene/beijing-yayuncun/scenarios/golden-02.scenario.json'), 'utf8'),
+  ) as ScenarioDoc
+  const chain = parseChain(parseOk(readFileSync(join(ROOT, 'tests/regression/diagrams/chain-golden-02.json'), 'utf8')))!
+  assert.ok(chain)
+  const on: ChainState = { ...chain, slots: { ...chain.slots, det: { ...chain.slots.det, params: { ...chain.slots.det.params, subband_bins: 8 } } } }
+  const params = (d: DiagramDoc, id: string) => d.nodes.find((n) => n.id === id)!.params
+  const dOn = compile(on, cat, g2).doc
+  assert.equal(params(dOn, 'feat').basis, 'subband')
+  assert.equal(params(dOn, 'rec').basis, 'subband')
+  assert.equal(params(dOn, 'rec').library_version, 'v2')
+  assert.equal(params(dOn, 'eval').basis, 'subband')
+  assert.deepEqual(recognitionMode(on, 'site-1'), { basis: 'subband', library_version: 'v2' })
+  assert.deepEqual(recognitionMode(chain, 'site-1'), { basis: 'frame', library_version: 'v1' })
+  // 往返逐字节：派生的键反解进状态后再编译，结果不变
+  const text = serialize(dOn, cat)
+  assert.equal(serialize(compile(parseChain(parseOk(text))!, cat, g2).doc, cat), text)
+  // 关着：三处一个键也不写（既有框图因此逐字节不变）；状态里残留的旧值也不写——口径与库只随分子带开关
+  const stale: ChainState = { ...chain, slots: { ...chain.slots, rec: { ...chain.slots.rec, params: { library_version: 'v2', basis: 'subband' } },
+    feat: { ...chain.slots.feat, params: { basis: 'subband' } }, eval: { ...chain.slots.eval, params: { basis: 'subband' } } } }
+  for (const c of [chain, stale]) {
+    const d = compile(c, cat, g2).doc
+    for (const id of ['feat', 'rec', 'eval']) {
+      assert.equal(params(d, id).basis, undefined, id)
+      assert.equal(params(d, id).library_version, undefined, id)
+    }
+  }
 })
 
 test('OFDM 族（Q-2，D-088）：回归夹具 chain-ofdm 解得开、频率计划全过；站点降到 10 MS/s 时「采样率在重采样档位里」一条报出可取值', () => {

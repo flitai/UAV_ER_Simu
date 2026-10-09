@@ -407,6 +407,8 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
         ? { band_lo_Hz: -0.45 * half, band_hi_Hz: 0.45 * half } : {}
       const detParams = { ...slotParams('det', emsSel[0]!, site), ...band }
       push(nid, v.type, detParams, 'det', bindOf(v.bind, emsSel[0]!, site))
+      // 识别链的口径随检测器的分子带开关（Q-4c，D-094）：只在分子带口径下写 basis / library_version，帧级口径一字不写
+      const subband = typeof detParams.subband_bins === 'number' && detParams.subband_bins > 0
       link(cursor.node, cursor.port, nid, 'in')
       markActive('det')
 
@@ -422,6 +424,7 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
         for (const k of DERIVED_PARAMS.feat ?? []) delete own[k]
         const derivedFeat: Record<string, ParamValue> = {}
         for (const k of DERIVED_PARAMS.feat ?? []) if (detParams[k] !== undefined) derivedFeat[k] = detParams[k]!
+        if (subband) derivedFeat.basis = 'subband'
         push(fid, fv.type, { ...own, ...derivedFeat }, 'feat', bindOf(fv.bind, emsSel[0]!, site))
         link(cursor.node, cursor.port, fid, 'iq')
         link(nid, 'out', fid, 'det')
@@ -429,7 +432,10 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
         if (active('rec')) {
           const rv = variantOf(chain, 'rec')
           const rid = nodeId(rv.node, { id: site, many: manySites })
-          push(rid, rv.type, slotParams('rec', emsSel[0]!, site), 'rec', bindOf(rv.bind, emsSel[0]!, site))
+          const ownRec = slotParams('rec', emsSel[0]!, site)
+          for (const k of DERIVED_PARAMS.rec ?? []) delete ownRec[k]
+          const derivedRec: Record<string, ParamValue> = subband ? { basis: 'subband', library_version: 'v2' } : {}
+          push(rid, rv.type, { ...ownRec, ...derivedRec }, 'rec', bindOf(rv.bind, emsSel[0]!, site))
           link(fid, 'out', rid, 'in')
           markActive('rec')
           recId = rid
@@ -446,6 +452,7 @@ export function compile(chain: ChainState, cat: Catalog | null, scenario: Scenar
         for (const k of DERIVED_PARAMS.eval ?? []) delete own[k]
         const derived: Record<string, ParamValue> = { truth_source: chain.mode === 'replay' ? 'manifest' : 'scenario' }
         if (detParams.nfft !== undefined) derived.nfft = detParams.nfft!
+        if (subband) derived.basis = 'subband'
         if (chain.mode === 'replay') {
           const txp = slotParams('tx', emsSel[0]!, site)
           if (typeof txp.data_id === 'string' && txp.data_id) derived.data_id = txp.data_id

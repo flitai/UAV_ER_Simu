@@ -8,7 +8,7 @@ import { CATEGORY_COLOR, findComponent } from '../api/catalog.js'
 import { formatEng, plainNum } from '../diagram/format.js'
 import type { ParamValue } from '../diagram/doc.js'
 import {
-  SLOT_BY_ID, effectiveParams, fromSceneOf, ownerEntity, proxyOf, unavailableReason, variantOf,
+  SLOT_BY_ID, effectiveParams, fromSceneOf, ownerEntity, proxyOf, recognitionMode, unavailableReason, variantOf,
   type ChainState, type SlotId, type SlotState,
 } from './model.js'
 import { LEVEL_LABEL, propView, type PropLevel } from './effects.js'
@@ -64,6 +64,9 @@ function summaryText(
   const spec = cat ? findComponent(cat, v.type) : null
   // 当前链路的有效参数（共用底值 + 该实体的单独设置，D-054）；由场景带出的从场景实体读（D-064）
   const eff = effectiveParams(chain, id, ownerEntity(id, emitterId, siteId))
+  // 随分子带开关派生的口径与库版本（Q-4c，D-094）：卡片写的是编译进框图的那个值，不是状态里可能残留的旧值
+  const mode: Record<string, ParamValue> = (id === 'feat' || id === 'rec' || id === 'eval')
+    ? (id === 'rec' ? recognitionMode(chain, siteId) : { basis: recognitionMode(chain, siteId).basis }) : {}
   const scene = new Map(fromSceneOf(id).map((f) => [f.name, f]))
   const out: Array<{ k: string; v: string }> = []
   for (const name of v.summary) {
@@ -71,7 +74,7 @@ function summaryText(
     const sf = scene.get(name)
     const fromScene = sf ? readField(entity, sf.rel) : undefined
     // 模板固定的值优先：它才是编译进框图的那个，用户状态与目录缺省都不算数（D-063 的 noise_mode 就靠这一行）
-    const raw: ParamValue | undefined = v.fixed?.[name]
+    const raw: ParamValue | undefined = v.fixed?.[name] ?? mode[name]
       ?? (typeof fromScene === 'number' ? fromScene : undefined)
       ?? eff[name] ?? (ps?.default as ParamValue | undefined)
     if (raw === undefined || raw === null) continue

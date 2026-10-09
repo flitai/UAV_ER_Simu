@@ -566,10 +566,24 @@ export const DERIVED_PARAMS: Partial<Record<SlotId, string[]>> = {
   tx: ['sample_rate_Hz', 'total_samples', 'center_frequency_Hz'],
   det: ['band_lo_Hz', 'band_hi_Hz'],
   ch: ['frequency_Hz'],
-  // 特征提取的分帧必须与检测器相同（10 §4.3）：从检测器派生，不在这里另填一份
-  feat: ['nfft', 'merge_gap_frames'],
-  // 评价器（C-5）：真值来源随信号源模式、nfft 随检测器、录音标识随信号源（回放）或背景（混合）
-  eval: ['truth_source', 'nfft', 'data_id'],
+  // 特征提取的分帧必须与检测器相同（10 §4.3）：从检测器派生，不在这里另填一份；
+  // 口径 basis 随检测器的分子带开关（Q-4c，D-094：一件事一个入口，D-057）
+  feat: ['nfft', 'merge_gap_frames', 'basis'],
+  // 识别器的口径与库版本同样随分子带开关：开 = 分子带段、库 v2；关 = 帧级突发、库 v1（recognitionMode）
+  rec: ['basis', 'library_version'],
+  // 评价器（C-5）：真值来源随信号源模式、nfft 随检测器、录音标识随信号源（回放）或背景（混合）；口径随分子带开关
+  eval: ['truth_source', 'nfft', 'data_id', 'basis'],
+}
+
+/**
+ * 识别链的口径（Q-4c，D-094）：检测器开了分子带（subband_bins > 0），特征、识别与评价就按分子带段走、识别库取 v2；
+ * 关着就是帧级突发、库 v1。用户 2026-10-09 定的「跟着分子带开关走」——不另设开关，一件事一个入口（D-057）。
+ * 按站取检测器的有效参数（检测器归站，逐站可以不同）。编译只在分子带口径下写这几个键，帧级口径下一个字也不写，
+ * 既有框图因此逐字节不变。
+ */
+export function recognitionMode(chain: ChainState, siteId: string): { basis: 'frame' | 'subband'; library_version: string } {
+  const k0 = effectiveParams(chain, 'det', siteId).subband_bins
+  return typeof k0 === 'number' && k0 > 0 ? { basis: 'subband', library_version: 'v2' } : { basis: 'frame', library_version: 'v1' }
 }
 
 /**
