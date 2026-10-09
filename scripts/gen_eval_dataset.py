@@ -300,7 +300,7 @@ def run_cell(doc: dict, cell: dict, base: str, keep_runs: bool) -> dict:
            "seeds": {"run": S.seeds.derive(doc["set_seed"], cell["id"], "run"),
                      "scenario": S.seeds.derive(doc["set_seed"], cell["id"], "scenario")},
            "platforms": summ["platforms"], "ops": out_ops,
-           "wall_s": round(wall, 1), "realtime_factor": round(doc["duration_s"] / wall, 4)}
+           "wall_s": round(wall, 1), "realtime_factor": round(C.duration_s(doc, cell) / wall, 4)}
     return {"record": rec, "fails": fails, "files": files}
 
 

@@ -18,7 +18,7 @@ import math
 import os
 import sys
 
-from . import seeds
+from . import cells, seeds
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(_HERE))
@@ -141,7 +141,7 @@ def build(doc: dict, cell: dict, positions: dict[str, tuple[float, float, float]
                 if "frame_offset_s" in e:
                     wf["frame_offset_s"] = e["frame_offset_s"]
                 center = float(e.get("center_Hz", 0.0))
-                hop = _hop_activity(e, sseed, doc["duration_s"])
+                hop = _hop_activity(e, sseed, cells.duration_s(doc, cell))
                 if hop is not None:
                     acts.append(hop[0])
                     center = hop[1]
@@ -167,7 +167,7 @@ def build(doc: dict, cell: dict, positions: dict[str, tuple[float, float, float]
         "synthetic": True,
         "aoi": {"id": doc["aoi_id"], "manifest_sha256": manifest_sha256(doc["aoi_id"])},
         "coordinate": {"crs": "EPSG:4326", "alt_ref": "AGL", "terrainHeight_m": 0, "coord_version": "wgs84-2026-09"},
-        "time": {"basis": "LogicalSim", "duration_s": doc["duration_s"]},
+        "time": {"basis": "LogicalSim", "duration_s": cells.duration_s(doc, cell)},
         "seed": sseed,
         "sites": [{"id": site["id"], "name": site["name"],
                    "position": {"lon": site["lon"], "lat": site["lat"], "alt_m": site["alt_m"]},
@@ -207,7 +207,7 @@ def chain_spec(doc: dict, cell: dict, scenario_rel: str) -> dict:
         "diagram_id": f"eval-{doc['set_id']}-{cell['id']}",
         "name": f"{doc['name']} · {cell['id']} {cell['title']}",
         "scenario": scenario_rel,
-        "run": {"duration_s": doc["duration_s"], "seed": seeds.derive(doc["set_seed"], cell["id"], "run")},
+        "run": {"duration_s": cells.duration_s(doc, cell), "seed": seeds.derive(doc["set_seed"], cell["id"], "run")},
         "slots": {
             "rx_fe": frontend_params(doc, cell),
             "adc": dict(doc["chain"]["adc"]),

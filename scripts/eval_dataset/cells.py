@@ -16,7 +16,7 @@ CELLS_DIR = os.path.join(ROOT, "tests", "regression", "eval-dataset")
 
 TOP_KEYS = {"schema_version", "set_id", "name", "stem_prefix", "set_seed", "duration_s", "created_at", "aoi_id",
             "notes", "site", "receivers", "chain", "propagation", "cfo", "frontend_measured", "cells"}
-CELL_KEYS = {"id", "title", "receiver", "propagation", "s4", "plan_allow", "platforms"}
+CELL_KEYS = {"id", "title", "receiver", "propagation", "s4", "plan_allow", "platforms", "duration_s"}
 PLATFORM_KEYS = {"id", "name", "platform_type", "alt_m", "azimuth_deg", "snr_dB", "primary", "emitters", "search",
                  "range_m", "off", "resolved"}
 EMITTER_KEYS = {"id", "name", "equipment_model", "preset", "waveform", "center_Hz", "bw_Hz", "tx_power_dBm",
@@ -65,6 +65,8 @@ def validate(doc: dict) -> None:
             raise CellError(f"格子 {c['id']} 的接收配置 {c['receiver']} 不在 receivers 里")
         if c["propagation"] not in doc["propagation"]:
             raise CellError(f"格子 {c['id']} 的传播 {c['propagation']} 不在 propagation 里")
+        if "duration_s" in c and not (isinstance(c["duration_s"], (int, float)) and c["duration_s"] > 0):
+            raise CellError(f"格子 {c['id']} 的 duration_s 应为正数")
         ems = set()
         for p in c["platforms"]:
             _keys(p, PLATFORM_KEYS, f"格子 {c['id']} 平台 {p.get('id')}")
@@ -81,3 +83,8 @@ def validate(doc: dict) -> None:
                 raise CellError(f"格子 {c['id']} 平台 {p['id']} 的 primary 不是它的辐射源")
             if "snr_dB" not in p:
                 raise CellError(f"格子 {c['id']} 平台 {p['id']} 缺 snr_dB")
+
+
+def duration_s(doc: dict, cell: dict) -> float:
+    """这一格的时长：格子自己的 duration_s（可选，校准集里 DroneID 那几格要跨几个 640 ms 周期）缺省取集合的。"""
+    return cell.get("duration_s", doc["duration_s"])
