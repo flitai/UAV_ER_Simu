@@ -1,0 +1,359 @@
+{
+  "schema": "cuav-recognition-library/2",
+  "library_version": "v2",
+  "label_layer": "signal_role",
+  "source": "calibrated",
+  "feature_basis": "subband",
+  "calibration": {
+    "ref": "models/recognition/v2-calibration.json",
+    "sha256": "83fee6af61599f01d510343c2168e77dce4ee02da2ed3fcb2d55c6346a01e4ee"
+  },
+  "notes": [
+    "由 scripts/gen_recognition_library.py 机械生成，不手改（Q-4c，D-094；规则见 14 号报告 §8.6）。",
+    "按分子带段的特征标定（feature_basis = subband）：带宽、时长、平坦度在这一段自己的频段上量，上一段只取占用带宽相差不到 2 倍的段；占空比与峰均比无定义，不进库。",
+    "区间 = 校准集合成特征的 [p2.5, p97.5] 与 Q-0b 实测各组的 [p10, p90] 取并，再往外放：对数特征 ×/÷ e^0.3、线性 ±0.05；只取校准集（tests/regression/eval-dataset/calib-v1.json）与 golden 场景，不含试样集。",
+    "实测只取预设出处点名的组、可比的三项（99% 带宽、时长、末到始间隔）：DroneRFb A/C/D/E/F/G 与 DroneRFa Mavic 3 5.8 GHz 的图传与 DJI 上行、DroneRFa FrSky X20；不取 Phantom 4 Pro / Matrice 200（老一代图传）、AVATA、Futaba T14SG（不是 S-FHSS）。",
+    "DroneID 没有实测；旧合成波形（单音、定频 / 跳频突发、带限噪声图传）的模板取自 golden 场景，那些波形本来就是编的，自洽而已；其中连续发射的两种（单音、带限噪声图传）一个真值行只配上一段，只有 2–4 行，区间很薄。",
+    "可信度：区间来自本方合成波形与公开实测（原型阶段验证值，D-028）；甲方数据到货后按同一规则重标、升版本号。"
+  ],
+  "distance": {
+    "log_scale": 0.3,
+    "log_floor": {
+      "bandwidth_Hz": 1.0,
+      "duration_s": 1e-06,
+      "hop_from_prev_Hz": 1.0,
+      "interval_from_prev_s": 1e-06
+    }
+  },
+  "feature_order": [
+    "bandwidth_Hz",
+    "duration_s",
+    "spectral_flatness",
+    "hop_from_prev_Hz",
+    "interval_from_prev_s"
+  ],
+  "features": {
+    "bandwidth_Hz": {
+      "domain": "log"
+    },
+    "duration_s": {
+      "domain": "log"
+    },
+    "spectral_flatness": {
+      "domain": "linear"
+    },
+    "hop_from_prev_Hz": {
+      "domain": "log",
+      "abs": true
+    },
+    "interval_from_prev_s": {
+      "domain": "log"
+    }
+  },
+  "templates": [
+    {
+      "id": "ofdm_video",
+      "label": "video_link",
+      "description": "DJI 图传下行：OFDM、9–36 MHz、毫秒级突发（Q-2 预设）",
+      "intervals": {
+        "bandwidth_Hz": [
+          6612000.0,
+          48300000.0
+        ],
+        "duration_s": [
+          0.0004021,
+          0.002904
+        ],
+        "spectral_flatness": [
+          0.929484,
+          1.0
+        ],
+        "hop_from_prev_Hz": [
+          1143.0,
+          285000.0
+        ],
+        "interval_from_prev_s": [
+          0.0006448,
+          0.009348
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0,
+        "hop_from_prev_Hz": 1.0,
+        "interval_from_prev_s": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S+M",
+        "duration_s": "S+M",
+        "spectral_flatness": "S",
+        "hop_from_prev_Hz": "S",
+        "interval_from_prev_s": "S+M"
+      }
+    },
+    {
+      "id": "noise_video",
+      "label": "video_link",
+      "description": "带限噪声图传：连续发射（golden-02 的旧合成波形）",
+      "intervals": {
+        "bandwidth_Hz": [
+          2040000.0,
+          4771000.0
+        ],
+        "duration_s": [
+          0.7592,
+          2.667
+        ],
+        "spectral_flatness": [
+          0.345092,
+          0.84675
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S",
+        "duration_s": "S",
+        "spectral_flatness": "S"
+      }
+    },
+    {
+      "id": "burst_fixed",
+      "label": "telemetry_burst",
+      "description": "定频突发（golden-03 的旧合成波形）",
+      "intervals": {
+        "bandwidth_Hz": [
+          1085.0,
+          1978.0
+        ],
+        "duration_s": [
+          0.07312,
+          0.1383
+        ],
+        "spectral_flatness": [
+          0.68276,
+          0.846673
+        ],
+        "hop_from_prev_Hz": [
+          0.0,
+          31770.0
+        ],
+        "interval_from_prev_s": [
+          0.2943,
+          4.472
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0,
+        "hop_from_prev_Hz": 1.0,
+        "interval_from_prev_s": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S",
+        "duration_s": "S",
+        "spectral_flatness": "S",
+        "hop_from_prev_Hz": "S",
+        "interval_from_prev_s": "S"
+      }
+    },
+    {
+      "id": "ofdm_uplink",
+      "label": "rc_hopping",
+      "description": "DJI 遥控上行：OFDM、1–4.4 MHz、0.5 ms、跳频（Q-2 预设）",
+      "intervals": {
+        "bandwidth_Hz": [
+          752300.0,
+          6117000.0
+        ],
+        "duration_s": [
+          0.0002771,
+          0.0007603
+        ],
+        "spectral_flatness": [
+          0.795777,
+          1.0
+        ],
+        "hop_from_prev_Hz": [
+          2544.0,
+          76960000.0
+        ],
+        "interval_from_prev_s": [
+          0.00255,
+          0.05861
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0,
+        "hop_from_prev_Hz": 1.0,
+        "interval_from_prev_s": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S+M",
+        "duration_s": "S+M",
+        "spectral_flatness": "S",
+        "hop_from_prev_Hz": "S",
+        "interval_from_prev_s": "S+M"
+      }
+    },
+    {
+      "id": "gfsk_fhss",
+      "label": "rc_hopping",
+      "description": "第三方遥控：GFSK / 2-FSK 跳频、约 0.2 MHz、1.4–2.9 ms（Q-3 预设）",
+      "intervals": {
+        "bandwidth_Hz": [
+          130200.0,
+          527300.0
+        ],
+        "duration_s": [
+          2.844e-05,
+          0.003871
+        ],
+        "spectral_flatness": [
+          0.35578,
+          0.951155
+        ],
+        "hop_from_prev_Hz": [
+          234.5,
+          48580000.0
+        ],
+        "interval_from_prev_s": [
+          0.0001137,
+          0.03256
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0,
+        "hop_from_prev_Hz": 1.0,
+        "interval_from_prev_s": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S+M",
+        "duration_s": "S+M",
+        "spectral_flatness": "S",
+        "hop_from_prev_Hz": "S",
+        "interval_from_prev_s": "S+M"
+      }
+    },
+    {
+      "id": "burst_hopping",
+      "label": "rc_hopping",
+      "description": "跳频突发（golden-02 的旧合成波形）",
+      "intervals": {
+        "bandwidth_Hz": [
+          21700.0,
+          39550.0
+        ],
+        "duration_s": [
+          0.002275,
+          0.004285
+        ],
+        "spectral_flatness": [
+          0.743442,
+          0.852824
+        ],
+        "hop_from_prev_Hz": [
+          463000.0,
+          3797000.0
+        ],
+        "interval_from_prev_s": [
+          0.005082,
+          0.02287
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0,
+        "hop_from_prev_Hz": 1.0,
+        "interval_from_prev_s": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S",
+        "duration_s": "S",
+        "spectral_flatness": "S",
+        "hop_from_prev_Hz": "S",
+        "interval_from_prev_s": "S"
+      }
+    },
+    {
+      "id": "tone",
+      "label": "cw_beacon",
+      "description": "单音（golden-01 / 03 的旧合成波形）",
+      "intervals": {
+        "bandwidth_Hz": [
+          1085.0,
+          6855.0
+        ],
+        "duration_s": [
+          0.004665,
+          0.1262
+        ],
+        "spectral_flatness": [
+          0.667249,
+          0.908569
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S",
+        "duration_s": "S",
+        "spectral_flatness": "S"
+      }
+    },
+    {
+      "id": "droneid",
+      "label": "droneid",
+      "description": "DJI DroneID：9 MHz、0.643 ms、每 640 ms 一次（Q-2 预设）",
+      "intervals": {
+        "bandwidth_Hz": [
+          2447000.0,
+          12240000.0
+        ],
+        "duration_s": [
+          0.0004741,
+          0.0008985
+        ],
+        "spectral_flatness": [
+          0.911059,
+          1.0
+        ],
+        "hop_from_prev_Hz": [
+          1411.0,
+          1990000.0
+        ],
+        "interval_from_prev_s": [
+          0.4736,
+          0.8631
+        ]
+      },
+      "weights": {
+        "bandwidth_Hz": 2.0,
+        "duration_s": 2.0,
+        "spectral_flatness": 1.0,
+        "hop_from_prev_Hz": 1.0,
+        "interval_from_prev_s": 1.0
+      },
+      "provenance": {
+        "bandwidth_Hz": "S",
+        "duration_s": "S",
+        "spectral_flatness": "S",
+        "hop_from_prev_Hz": "S",
+        "interval_from_prev_s": "S"
+      }
+    }
+  ]
+}

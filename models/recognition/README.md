@@ -1,4 +1,4 @@
-# 识别模型卡：`TemplateClassifier` 与模板库 v1（C-4，2026-09-13）
+# 识别模型卡：`TemplateClassifier` 与模板库 v1 / v2（C-4，2026-09-13；Q-4c，2026-10-09）
 
 **定位**：EM-S-04 信号识别的 **E2 工程模板加权匹配**基线（04 §7.9 「传统或轻量学习识别基线」取传统），M2 裁决件，
 只吃 `FeatureExtractor` 出的突发特征（观测量），不碰原始 IQ（02 §8.5）。标签只到 EM-S-04 §10.2 三层里的
@@ -77,3 +77,26 @@ bin 的窄信号它随信噪比变：设信号占带内 bin 的比例 `f`、每 
 - 单测 `engine/tests/test_components.cpp`：四类中心 → 各自标签；谁都不像 → `unknown_novel`；低质量 → `unknown_low_quality`；
   非缺省参数下的 `ambiguous`；坏库（未知键、区间颠倒、缺权重、版本不符）被拒。
 - 装载器 `engine/tests/test_diagram_json.cpp`：`library_version` → `library_path` 注入；非法版本号被拒（路径穿越口）。
+
+## 6. 模板库 v2（Q-4c，2026-10-09，D-094）
+
+**用途**：分子带口径（`feature_basis = subband`）。检测器开了分子带，典型链路自动把特征、识别与评价切到分子带段、库取 v2；
+关着仍是帧级突发、库 v1（v1 一个字节没动，守既有基准）。口径表、区间规则与判据写在 14 号报告 §8.6，动手前定死。
+
+**格式 /2**：模板有唯一 `id`、标签可以重复——一个标签取它几个模板里似然最大的那个（不求和），后验与 `top_n` 按标签算，
+识别行多一个 `template`。库声明 `feature_basis`，必须等于识别器的 `basis`（装库时核对），特征行逐行核对，装载器沿
+det → feat → rec → eval 核对口径一致。
+
+**怎么来的**：`scripts/gen_recognition_library.py` 由校准统计 `v2-calibration.json`（`algos/reference/q4c_feature_survey.py`，
+只取校准集 `tests/regression/eval-dataset/calib-v1.json` 与 golden 场景，**不含试样集**）加 Q-0b 实测（预设出处点名的组、
+可比的三项）按规则机械生成，`--check` 核对逐字节；统计表两次整跑逐字节相同。不手改。
+
+| 标签 | 模板 | 来源 |
+|---|---|---|
+| `video_link` | `ofdm_video`、`noise_video` | Q-2 图传预设合成 + DroneRFb 六型与 Mavic 3 实测；golden-02 带限噪声 |
+| `telemetry_burst` | `burst_fixed` | golden-03 定频突发 |
+| `rc_hopping` | `ofdm_uplink`、`gfsk_fhss`、`burst_hopping` | Q-2 上行预设 + 实测；Q-3 FrSky / S-FHSS + FrSky X20 实测；golden-02 跳频突发 |
+| `cw_beacon` | `tone` | golden-01 / 03 单音 |
+| `droneid` | `droneid` | Q-2 DroneID 预设（无实测） |
+
+各模板的区间与逐特征出处档（`S` / `S+M`）见 `library-v2.json` 本身。试样集上的准确率与已知边界随 Q-4c 收口补在本节。
