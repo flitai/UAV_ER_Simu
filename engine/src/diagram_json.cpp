@@ -307,13 +307,17 @@ bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const
     auto t = snaps.find(tn);
     auto f = snaps.find(fn);
     if (t == snaps.end() || f == snaps.end()) return true;
-    // Q-4c（D-094）：识别器的口径必须与上游特征提取器相同（帧级突发的特征不能拿分子带口径的库去比，反之亦然）
-    if (t->second.type == "TemplateClassifier" && tp == "in" && f->second.type == "FeatureExtractor") {
+    // Q-4c（D-094）：识别器与上游特征提取器、评价器与上游识别器的口径必须相同（帧级突发的特征不能拿分子带口径的库去比，
+    // 分子带段号的识别行不能按帧级突发去接真值，反之亦然）
+    const bool rec_in = t->second.type == "TemplateClassifier" && tp == "in" && f->second.type == "FeatureExtractor";
+    const bool eval_rec = t->second.type == "Evaluator" && tp == "rec" && f->second.type == "TemplateClassifier";
+    if (rec_in || eval_rec) {
         const std::string bf = effective_text(f->second.info, f->second.txt, "basis", "frame");
         const std::string bt = effective_text(t->second.info, t->second.txt, "basis", "frame");
         if (bf != bt) {
-            err = fail("param", tn, tp, who + "：识别器 " + tn + " 的 basis = " + bt + "，上游特征提取器 " + fn +
-                       " 的 basis = " + bf + "——两者必须相同（Q-4c，D-094）");
+            err = fail("param", tn, tp, who + "：" + (rec_in ? "识别器 " : "评价器 ") + tn + " 的 basis = " + bt +
+                       "，上游" + (rec_in ? "特征提取器 " : "识别器 ") + fn + " 的 basis = " + bf +
+                       "——两者必须相同（Q-4c，D-094）");
             return false;
         }
         return true;
@@ -331,6 +335,14 @@ bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const
                             : " 不同——帧真值按检测器的分帧判，两者必须相等（10 报告 §4.5）"));
         return false;
     }
+    // Q-4c（D-094）：分子带口径的特征或评价都按检测器的分子带段走，检测器必须开分子带
+    const std::string basis = effective_text(t->second.info, t->second.txt, "basis", "frame");
+    const double k0 = effective_number(f->second.info, f->second.num, "subband_bins", 0.0);
+    if (basis == "subband" && !(k0 > 0.0)) {
+        err = fail("param", tn, tp, who + "：" + kind + tn + " 的 basis = subband，上游检测器 " + fn +
+                   " 却没开分子带（subband_bins = " + num_text(k0) + "）——分子带口径按检测器的分子带段走（Q-4c，D-094）");
+        return false;
+    }
     if (to_eval) return true;
     const double gap_det = effective_number(f->second.info, f->second.num, "merge_gap_frames", 2.0);
     const double gap_feat = effective_number(t->second.info, t->second.num, "merge_gap_frames", 2.0);
@@ -345,14 +357,6 @@ bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const
         err = fail("param", tn, tp, who + "：上游检测器 " + fn + " 的 noise_mode = " + mode +
                    "：探针收集期不产出检测行，特征提取器会把整段 IQ 帧攒在内存里等；"
                    "接特征提取的检测器必须是 sliding（D-063 典型链路的固定值）");
-        return false;
-    }
-    // Q-4c（D-094）：分子带口径的特征按检测器的分子带段成段，检测器必须开分子带
-    const std::string basis = effective_text(t->second.info, t->second.txt, "basis", "frame");
-    const double k0 = effective_number(f->second.info, f->second.num, "subband_bins", 0.0);
-    if (basis == "subband" && !(k0 > 0.0)) {
-        err = fail("param", tn, tp, who + "：特征提取器 " + tn + " 的 basis = subband，上游检测器 " + fn +
-                   " 却没开分子带（subband_bins = " + num_text(k0) + "）——分子带口径按检测器的分子带段成段（Q-4c，D-094）");
         return false;
     }
     return true;

@@ -1,0 +1,7799 @@
+{
+ "schema": "cuav-engine-golden/1",
+ "purpose": "引擎侧 evaluate() 在分子带口径下的识别评价（识别行接 segments_tf 的一对一配对）与 algos/reference/evaluate.py 的逐值对拍基准（Q-4c，D-094）",
+ "generator": "algos/reference/evaluate.py --write-golden-subband-recognition",
+ "params": {
+  "truth_source": "scenario",
+  "match_overlap": 0.5,
+  "roc_points": 32,
+  "frame_dt_s": 0.000256,
+  "threshold": 1.1,
+  "has_rec": true,
+  "basis": "subband"
+ },
+ "tolerance": {
+  "rel": 1e-09,
+  "abs": 1e-12,
+  "note": "同 metrics.json"
+ },
+ "inputs": {
+  "detections": [
+   {
+    "frame_index": 0,
+    "start_sample": 0,
+    "t_s": 0.0,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 1,
+    "start_sample": 256,
+    "t_s": 0.000256,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 2,
+    "start_sample": 512,
+    "t_s": 0.000512,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 3,
+    "start_sample": 768,
+    "t_s": 0.000768,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 4,
+    "start_sample": 1024,
+    "t_s": 0.001024,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 5,
+    "start_sample": 1280,
+    "t_s": 0.0012799999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 6,
+    "start_sample": 1536,
+    "t_s": 0.001536,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 7,
+    "start_sample": 1792,
+    "t_s": 0.001792,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 8,
+    "start_sample": 2048,
+    "t_s": 0.002048,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 9,
+    "start_sample": 2304,
+    "t_s": 0.002304,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 10,
+    "start_sample": 2560,
+    "t_s": 0.0025599999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 11,
+    "start_sample": 2816,
+    "t_s": 0.002816,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 12,
+    "start_sample": 3072,
+    "t_s": 0.003072,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 13,
+    "start_sample": 3328,
+    "t_s": 0.003328,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 14,
+    "start_sample": 3584,
+    "t_s": 0.003584,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 15,
+    "start_sample": 3840,
+    "t_s": 0.0038399999999999997,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 16,
+    "start_sample": 4096,
+    "t_s": 0.004096,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 17,
+    "start_sample": 4352,
+    "t_s": 0.004352,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 18,
+    "start_sample": 4608,
+    "t_s": 0.004608,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 19,
+    "start_sample": 4864,
+    "t_s": 0.004863999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 20,
+    "start_sample": 5120,
+    "t_s": 0.0051199999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 21,
+    "start_sample": 5376,
+    "t_s": 0.005376,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 22,
+    "start_sample": 5632,
+    "t_s": 0.005632,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 23,
+    "start_sample": 5888,
+    "t_s": 0.005888,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 24,
+    "start_sample": 6144,
+    "t_s": 0.006144,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 25,
+    "start_sample": 6400,
+    "t_s": 0.0063999999999999994,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 26,
+    "start_sample": 6656,
+    "t_s": 0.006656,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 27,
+    "start_sample": 6912,
+    "t_s": 0.006912,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 28,
+    "start_sample": 7168,
+    "t_s": 0.007168,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 29,
+    "start_sample": 7424,
+    "t_s": 0.007424,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 30,
+    "start_sample": 7680,
+    "t_s": 0.007679999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 31,
+    "start_sample": 7936,
+    "t_s": 0.007936,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 32,
+    "start_sample": 8192,
+    "t_s": 0.008192,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 33,
+    "start_sample": 8448,
+    "t_s": 0.008447999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 34,
+    "start_sample": 8704,
+    "t_s": 0.008704,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 35,
+    "start_sample": 8960,
+    "t_s": 0.00896,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 36,
+    "start_sample": 9216,
+    "t_s": 0.009216,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 37,
+    "start_sample": 9472,
+    "t_s": 0.009472,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 38,
+    "start_sample": 9728,
+    "t_s": 0.009727999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 39,
+    "start_sample": 9984,
+    "t_s": 0.009984,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 40,
+    "start_sample": 10240,
+    "t_s": 0.010239999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 41,
+    "start_sample": 10496,
+    "t_s": 0.010496,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 42,
+    "start_sample": 10752,
+    "t_s": 0.010752,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 43,
+    "start_sample": 11008,
+    "t_s": 0.011007999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 44,
+    "start_sample": 11264,
+    "t_s": 0.011264,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 45,
+    "start_sample": 11520,
+    "t_s": 0.011519999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 46,
+    "start_sample": 11776,
+    "t_s": 0.011776,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 47,
+    "start_sample": 12032,
+    "t_s": 0.012032,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 48,
+    "start_sample": 12288,
+    "t_s": 0.012288,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 49,
+    "start_sample": 12544,
+    "t_s": 0.012544,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 50,
+    "start_sample": 12800,
+    "t_s": 0.012799999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 51,
+    "start_sample": 13056,
+    "t_s": 0.013056,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 52,
+    "start_sample": 13312,
+    "t_s": 0.013312,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 53,
+    "start_sample": 13568,
+    "t_s": 0.013568,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 54,
+    "start_sample": 13824,
+    "t_s": 0.013824,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 55,
+    "start_sample": 14080,
+    "t_s": 0.014079999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 56,
+    "start_sample": 14336,
+    "t_s": 0.014336,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 57,
+    "start_sample": 14592,
+    "t_s": 0.014591999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 58,
+    "start_sample": 14848,
+    "t_s": 0.014848,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 59,
+    "start_sample": 15104,
+    "t_s": 0.015104,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 60,
+    "start_sample": 15360,
+    "t_s": 0.015359999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 61,
+    "start_sample": 15616,
+    "t_s": 0.015616,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 62,
+    "start_sample": 15872,
+    "t_s": 0.015872,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 63,
+    "start_sample": 16128,
+    "t_s": 0.016128,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 64,
+    "start_sample": 16384,
+    "t_s": 0.016384,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 65,
+    "start_sample": 16640,
+    "t_s": 0.01664,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 66,
+    "start_sample": 16896,
+    "t_s": 0.016895999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 67,
+    "start_sample": 17152,
+    "t_s": 0.017152,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 68,
+    "start_sample": 17408,
+    "t_s": 0.017408,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 69,
+    "start_sample": 17664,
+    "t_s": 0.017664,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 70,
+    "start_sample": 17920,
+    "t_s": 0.01792,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440178906.25,
+      "f_hi_Hz": 2440202343.75,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     },
+     {
+      "f_lo_Hz": 2440331250.0,
+      "f_hi_Hz": 2440354687.5,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 1
+     }
+    ]
+   },
+   {
+    "frame_index": 71,
+    "start_sample": 18176,
+    "t_s": 0.018175999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 72,
+    "start_sample": 18432,
+    "t_s": 0.018432,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 73,
+    "start_sample": 18688,
+    "t_s": 0.018688,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 74,
+    "start_sample": 18944,
+    "t_s": 0.018944,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 75,
+    "start_sample": 19200,
+    "t_s": 0.0192,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 76,
+    "start_sample": 19456,
+    "t_s": 0.019455999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 77,
+    "start_sample": 19712,
+    "t_s": 0.019712,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 78,
+    "start_sample": 19968,
+    "t_s": 0.019968,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 79,
+    "start_sample": 20224,
+    "t_s": 0.020224,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 80,
+    "start_sample": 20480,
+    "t_s": 0.020479999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 81,
+    "start_sample": 20736,
+    "t_s": 0.020735999999999997,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 82,
+    "start_sample": 20992,
+    "t_s": 0.020992,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 83,
+    "start_sample": 21248,
+    "t_s": 0.021248,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 84,
+    "start_sample": 21504,
+    "t_s": 0.021504,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 85,
+    "start_sample": 21760,
+    "t_s": 0.021759999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 86,
+    "start_sample": 22016,
+    "t_s": 0.022015999999999997,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 87,
+    "start_sample": 22272,
+    "t_s": 0.022272,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 88,
+    "start_sample": 22528,
+    "t_s": 0.022528,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 89,
+    "start_sample": 22784,
+    "t_s": 0.022784,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 90,
+    "start_sample": 23040,
+    "t_s": 0.023039999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439667187.5,
+      "f_hi_Hz": 2439690625.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 2
+     },
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 91,
+    "start_sample": 23296,
+    "t_s": 0.023295999999999997,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 92,
+    "start_sample": 23552,
+    "t_s": 0.023552,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 93,
+    "start_sample": 23808,
+    "t_s": 0.023808,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 94,
+    "start_sample": 24064,
+    "t_s": 0.024064,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 95,
+    "start_sample": 24320,
+    "t_s": 0.024319999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 96,
+    "start_sample": 24576,
+    "t_s": 0.024576,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 97,
+    "start_sample": 24832,
+    "t_s": 0.024832,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 98,
+    "start_sample": 25088,
+    "t_s": 0.025088,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 99,
+    "start_sample": 25344,
+    "t_s": 0.025344,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 100,
+    "start_sample": 25600,
+    "t_s": 0.025599999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 101,
+    "start_sample": 25856,
+    "t_s": 0.025856,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 102,
+    "start_sample": 26112,
+    "t_s": 0.026112,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 103,
+    "start_sample": 26368,
+    "t_s": 0.026368,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 104,
+    "start_sample": 26624,
+    "t_s": 0.026624,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 105,
+    "start_sample": 26880,
+    "t_s": 0.026879999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 106,
+    "start_sample": 27136,
+    "t_s": 0.027136,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 107,
+    "start_sample": 27392,
+    "t_s": 0.027392,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 108,
+    "start_sample": 27648,
+    "t_s": 0.027648,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 109,
+    "start_sample": 27904,
+    "t_s": 0.027903999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 110,
+    "start_sample": 28160,
+    "t_s": 0.028159999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 111,
+    "start_sample": 28416,
+    "t_s": 0.028416,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 112,
+    "start_sample": 28672,
+    "t_s": 0.028672,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 113,
+    "start_sample": 28928,
+    "t_s": 0.028928,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 114,
+    "start_sample": 29184,
+    "t_s": 0.029183999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 115,
+    "start_sample": 29440,
+    "t_s": 0.029439999999999997,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 116,
+    "start_sample": 29696,
+    "t_s": 0.029696,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 117,
+    "start_sample": 29952,
+    "t_s": 0.029952,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 118,
+    "start_sample": 30208,
+    "t_s": 0.030208,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 119,
+    "start_sample": 30464,
+    "t_s": 0.030463999999999998,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 120,
+    "start_sample": 30720,
+    "t_s": 0.030719999999999997,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 121,
+    "start_sample": 30976,
+    "t_s": 0.030976,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 122,
+    "start_sample": 31232,
+    "t_s": 0.031232,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 123,
+    "start_sample": 31488,
+    "t_s": 0.031487999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 124,
+    "start_sample": 31744,
+    "t_s": 0.031744,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 125,
+    "start_sample": 32000,
+    "t_s": 0.032,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 126,
+    "start_sample": 32256,
+    "t_s": 0.032256,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 127,
+    "start_sample": 32512,
+    "t_s": 0.032512,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 128,
+    "start_sample": 32768,
+    "t_s": 0.032768,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 129,
+    "start_sample": 33024,
+    "t_s": 0.033024,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 130,
+    "start_sample": 33280,
+    "t_s": 0.03328,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 131,
+    "start_sample": 33536,
+    "t_s": 0.033535999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 132,
+    "start_sample": 33792,
+    "t_s": 0.033791999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 133,
+    "start_sample": 34048,
+    "t_s": 0.034048,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 134,
+    "start_sample": 34304,
+    "t_s": 0.034304,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 135,
+    "start_sample": 34560,
+    "t_s": 0.03456,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 136,
+    "start_sample": 34816,
+    "t_s": 0.034816,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 137,
+    "start_sample": 35072,
+    "t_s": 0.035072,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 138,
+    "start_sample": 35328,
+    "t_s": 0.035328,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 139,
+    "start_sample": 35584,
+    "t_s": 0.035584,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 140,
+    "start_sample": 35840,
+    "t_s": 0.03584,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 141,
+    "start_sample": 36096,
+    "t_s": 0.036095999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 142,
+    "start_sample": 36352,
+    "t_s": 0.036351999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 143,
+    "start_sample": 36608,
+    "t_s": 0.036608,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 144,
+    "start_sample": 36864,
+    "t_s": 0.036864,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 145,
+    "start_sample": 37120,
+    "t_s": 0.03712,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 146,
+    "start_sample": 37376,
+    "t_s": 0.037376,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 147,
+    "start_sample": 37632,
+    "t_s": 0.037632,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 148,
+    "start_sample": 37888,
+    "t_s": 0.037888,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 149,
+    "start_sample": 38144,
+    "t_s": 0.038144,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 150,
+    "start_sample": 38400,
+    "t_s": 0.0384,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439940625.0,
+      "f_hi_Hz": 2440178906.25,
+      "bins": 61,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 0
+     }
+    ]
+   },
+   {
+    "frame_index": 151,
+    "start_sample": 38656,
+    "t_s": 0.038655999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 152,
+    "start_sample": 38912,
+    "t_s": 0.038911999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 153,
+    "start_sample": 39168,
+    "t_s": 0.039168,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 154,
+    "start_sample": 39424,
+    "t_s": 0.039424,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 155,
+    "start_sample": 39680,
+    "t_s": 0.03968,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 156,
+    "start_sample": 39936,
+    "t_s": 0.039936,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 157,
+    "start_sample": 40192,
+    "t_s": 0.040192,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 158,
+    "start_sample": 40448,
+    "t_s": 0.040448,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 159,
+    "start_sample": 40704,
+    "t_s": 0.040704,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 160,
+    "start_sample": 40960,
+    "t_s": 0.040959999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 161,
+    "start_sample": 41216,
+    "t_s": 0.041215999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 162,
+    "start_sample": 41472,
+    "t_s": 0.041471999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 163,
+    "start_sample": 41728,
+    "t_s": 0.041728,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 164,
+    "start_sample": 41984,
+    "t_s": 0.041984,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 165,
+    "start_sample": 42240,
+    "t_s": 0.04224,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 166,
+    "start_sample": 42496,
+    "t_s": 0.042496,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 167,
+    "start_sample": 42752,
+    "t_s": 0.042752,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 168,
+    "start_sample": 43008,
+    "t_s": 0.043008,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 169,
+    "start_sample": 43264,
+    "t_s": 0.043264,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 170,
+    "start_sample": 43520,
+    "t_s": 0.043519999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 171,
+    "start_sample": 43776,
+    "t_s": 0.043775999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 172,
+    "start_sample": 44032,
+    "t_s": 0.044031999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 173,
+    "start_sample": 44288,
+    "t_s": 0.044288,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 174,
+    "start_sample": 44544,
+    "t_s": 0.044544,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 175,
+    "start_sample": 44800,
+    "t_s": 0.0448,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 176,
+    "start_sample": 45056,
+    "t_s": 0.045056,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 177,
+    "start_sample": 45312,
+    "t_s": 0.045312,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 178,
+    "start_sample": 45568,
+    "t_s": 0.045568,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 179,
+    "start_sample": 45824,
+    "t_s": 0.045824,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 180,
+    "start_sample": 46080,
+    "t_s": 0.046079999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 181,
+    "start_sample": 46336,
+    "t_s": 0.046335999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 182,
+    "start_sample": 46592,
+    "t_s": 0.046591999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 183,
+    "start_sample": 46848,
+    "t_s": 0.046848,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 184,
+    "start_sample": 47104,
+    "t_s": 0.047104,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 185,
+    "start_sample": 47360,
+    "t_s": 0.04736,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 186,
+    "start_sample": 47616,
+    "t_s": 0.047616,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 187,
+    "start_sample": 47872,
+    "t_s": 0.047872,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 188,
+    "start_sample": 48128,
+    "t_s": 0.048128,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 189,
+    "start_sample": 48384,
+    "t_s": 0.048383999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 190,
+    "start_sample": 48640,
+    "t_s": 0.048639999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 191,
+    "start_sample": 48896,
+    "t_s": 0.048895999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 192,
+    "start_sample": 49152,
+    "t_s": 0.049152,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 193,
+    "start_sample": 49408,
+    "t_s": 0.049408,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 194,
+    "start_sample": 49664,
+    "t_s": 0.049664,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 195,
+    "start_sample": 49920,
+    "t_s": 0.04992,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 196,
+    "start_sample": 50176,
+    "t_s": 0.050176,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 197,
+    "start_sample": 50432,
+    "t_s": 0.050432,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 198,
+    "start_sample": 50688,
+    "t_s": 0.050688,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 199,
+    "start_sample": 50944,
+    "t_s": 0.050943999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 200,
+    "start_sample": 51200,
+    "t_s": 0.051199999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 201,
+    "start_sample": 51456,
+    "t_s": 0.051455999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 202,
+    "start_sample": 51712,
+    "t_s": 0.051712,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 203,
+    "start_sample": 51968,
+    "t_s": 0.051968,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 204,
+    "start_sample": 52224,
+    "t_s": 0.052224,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 205,
+    "start_sample": 52480,
+    "t_s": 0.05248,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 206,
+    "start_sample": 52736,
+    "t_s": 0.052736,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 207,
+    "start_sample": 52992,
+    "t_s": 0.052992,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 208,
+    "start_sample": 53248,
+    "t_s": 0.053248,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 209,
+    "start_sample": 53504,
+    "t_s": 0.053503999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 210,
+    "start_sample": 53760,
+    "t_s": 0.053759999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 211,
+    "start_sample": 54016,
+    "t_s": 0.054015999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 212,
+    "start_sample": 54272,
+    "t_s": 0.054272,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 213,
+    "start_sample": 54528,
+    "t_s": 0.054528,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 214,
+    "start_sample": 54784,
+    "t_s": 0.054784,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 215,
+    "start_sample": 55040,
+    "t_s": 0.05504,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 216,
+    "start_sample": 55296,
+    "t_s": 0.055296,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 217,
+    "start_sample": 55552,
+    "t_s": 0.055552,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 218,
+    "start_sample": 55808,
+    "t_s": 0.055807999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 219,
+    "start_sample": 56064,
+    "t_s": 0.056063999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 220,
+    "start_sample": 56320,
+    "t_s": 0.056319999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 3
+     }
+    ]
+   },
+   {
+    "frame_index": 221,
+    "start_sample": 56576,
+    "t_s": 0.056575999999999994,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 222,
+    "start_sample": 56832,
+    "t_s": 0.056832,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 223,
+    "start_sample": 57088,
+    "t_s": 0.057088,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 224,
+    "start_sample": 57344,
+    "t_s": 0.057344,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 225,
+    "start_sample": 57600,
+    "t_s": 0.0576,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 226,
+    "start_sample": 57856,
+    "t_s": 0.057856,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 227,
+    "start_sample": 58112,
+    "t_s": 0.058112,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 228,
+    "start_sample": 58368,
+    "t_s": 0.058367999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 229,
+    "start_sample": 58624,
+    "t_s": 0.058623999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 230,
+    "start_sample": 58880,
+    "t_s": 0.058879999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 231,
+    "start_sample": 59136,
+    "t_s": 0.059135999999999994,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 232,
+    "start_sample": 59392,
+    "t_s": 0.059392,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 233,
+    "start_sample": 59648,
+    "t_s": 0.059648,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 234,
+    "start_sample": 59904,
+    "t_s": 0.059904,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 235,
+    "start_sample": 60160,
+    "t_s": 0.06016,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 236,
+    "start_sample": 60416,
+    "t_s": 0.060416,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 237,
+    "start_sample": 60672,
+    "t_s": 0.060672,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 238,
+    "start_sample": 60928,
+    "t_s": 0.060927999999999996,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 239,
+    "start_sample": 61184,
+    "t_s": 0.061183999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 240,
+    "start_sample": 61440,
+    "t_s": 0.061439999999999995,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 241,
+    "start_sample": 61696,
+    "t_s": 0.061695999999999994,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 242,
+    "start_sample": 61952,
+    "t_s": 0.061952,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 243,
+    "start_sample": 62208,
+    "t_s": 0.062208,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 244,
+    "start_sample": 62464,
+    "t_s": 0.062464,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 245,
+    "start_sample": 62720,
+    "t_s": 0.06272,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 246,
+    "start_sample": 62976,
+    "t_s": 0.06297599999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 247,
+    "start_sample": 63232,
+    "t_s": 0.063232,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 248,
+    "start_sample": 63488,
+    "t_s": 0.063488,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 249,
+    "start_sample": 63744,
+    "t_s": 0.063744,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 250,
+    "start_sample": 64000,
+    "t_s": 0.064,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 251,
+    "start_sample": 64256,
+    "t_s": 0.064256,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 252,
+    "start_sample": 64512,
+    "t_s": 0.064512,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 253,
+    "start_sample": 64768,
+    "t_s": 0.06476799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 254,
+    "start_sample": 65024,
+    "t_s": 0.065024,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 255,
+    "start_sample": 65280,
+    "t_s": 0.06527999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 256,
+    "start_sample": 65536,
+    "t_s": 0.065536,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 257,
+    "start_sample": 65792,
+    "t_s": 0.065792,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 258,
+    "start_sample": 66048,
+    "t_s": 0.066048,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 259,
+    "start_sample": 66304,
+    "t_s": 0.066304,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 260,
+    "start_sample": 66560,
+    "t_s": 0.06656,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439745312.5,
+      "f_hi_Hz": 2439768750.0,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 4
+     }
+    ]
+   },
+   {
+    "frame_index": 261,
+    "start_sample": 66816,
+    "t_s": 0.066816,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 262,
+    "start_sample": 67072,
+    "t_s": 0.06707199999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 263,
+    "start_sample": 67328,
+    "t_s": 0.067328,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 264,
+    "start_sample": 67584,
+    "t_s": 0.06758399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 265,
+    "start_sample": 67840,
+    "t_s": 0.06784,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 266,
+    "start_sample": 68096,
+    "t_s": 0.068096,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 267,
+    "start_sample": 68352,
+    "t_s": 0.068352,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 268,
+    "start_sample": 68608,
+    "t_s": 0.068608,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 269,
+    "start_sample": 68864,
+    "t_s": 0.068864,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 270,
+    "start_sample": 69120,
+    "t_s": 0.06912,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 271,
+    "start_sample": 69376,
+    "t_s": 0.069376,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 272,
+    "start_sample": 69632,
+    "t_s": 0.069632,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 273,
+    "start_sample": 69888,
+    "t_s": 0.06988799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 274,
+    "start_sample": 70144,
+    "t_s": 0.070144,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 275,
+    "start_sample": 70400,
+    "t_s": 0.07039999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 276,
+    "start_sample": 70656,
+    "t_s": 0.070656,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 277,
+    "start_sample": 70912,
+    "t_s": 0.070912,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 278,
+    "start_sample": 71168,
+    "t_s": 0.071168,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 279,
+    "start_sample": 71424,
+    "t_s": 0.071424,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 280,
+    "start_sample": 71680,
+    "t_s": 0.07168,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 281,
+    "start_sample": 71936,
+    "t_s": 0.071936,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 282,
+    "start_sample": 72192,
+    "t_s": 0.07219199999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 283,
+    "start_sample": 72448,
+    "t_s": 0.072448,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 284,
+    "start_sample": 72704,
+    "t_s": 0.07270399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 285,
+    "start_sample": 72960,
+    "t_s": 0.07296,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 286,
+    "start_sample": 73216,
+    "t_s": 0.073216,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 287,
+    "start_sample": 73472,
+    "t_s": 0.073472,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 288,
+    "start_sample": 73728,
+    "t_s": 0.073728,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 289,
+    "start_sample": 73984,
+    "t_s": 0.073984,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 290,
+    "start_sample": 74240,
+    "t_s": 0.07424,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 291,
+    "start_sample": 74496,
+    "t_s": 0.07449599999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 292,
+    "start_sample": 74752,
+    "t_s": 0.074752,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 293,
+    "start_sample": 75008,
+    "t_s": 0.07500799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 294,
+    "start_sample": 75264,
+    "t_s": 0.075264,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 295,
+    "start_sample": 75520,
+    "t_s": 0.07551999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 296,
+    "start_sample": 75776,
+    "t_s": 0.075776,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 297,
+    "start_sample": 76032,
+    "t_s": 0.076032,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 298,
+    "start_sample": 76288,
+    "t_s": 0.076288,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 299,
+    "start_sample": 76544,
+    "t_s": 0.076544,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 300,
+    "start_sample": 76800,
+    "t_s": 0.0768,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439589062.5,
+      "f_hi_Hz": 2439600781.25,
+      "bins": 3,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 5
+     }
+    ]
+   },
+   {
+    "frame_index": 301,
+    "start_sample": 77056,
+    "t_s": 0.077056,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439589062.5,
+      "f_hi_Hz": 2439600781.25,
+      "bins": 3,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 5
+     }
+    ]
+   },
+   {
+    "frame_index": 302,
+    "start_sample": 77312,
+    "t_s": 0.07731199999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2439589062.5,
+      "f_hi_Hz": 2439600781.25,
+      "bins": 3,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 5
+     }
+    ]
+   },
+   {
+    "frame_index": 303,
+    "start_sample": 77568,
+    "t_s": 0.077568,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 304,
+    "start_sample": 77824,
+    "t_s": 0.07782399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 305,
+    "start_sample": 78080,
+    "t_s": 0.07808,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 306,
+    "start_sample": 78336,
+    "t_s": 0.078336,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 307,
+    "start_sample": 78592,
+    "t_s": 0.078592,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 308,
+    "start_sample": 78848,
+    "t_s": 0.078848,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 309,
+    "start_sample": 79104,
+    "t_s": 0.079104,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 310,
+    "start_sample": 79360,
+    "t_s": 0.07936,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 311,
+    "start_sample": 79616,
+    "t_s": 0.07961599999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 312,
+    "start_sample": 79872,
+    "t_s": 0.079872,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 313,
+    "start_sample": 80128,
+    "t_s": 0.08012799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 314,
+    "start_sample": 80384,
+    "t_s": 0.080384,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 315,
+    "start_sample": 80640,
+    "t_s": 0.08063999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 316,
+    "start_sample": 80896,
+    "t_s": 0.080896,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 317,
+    "start_sample": 81152,
+    "t_s": 0.081152,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 318,
+    "start_sample": 81408,
+    "t_s": 0.081408,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 319,
+    "start_sample": 81664,
+    "t_s": 0.081664,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 320,
+    "start_sample": 81920,
+    "t_s": 0.08191999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 321,
+    "start_sample": 82176,
+    "t_s": 0.082176,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 322,
+    "start_sample": 82432,
+    "t_s": 0.08243199999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 323,
+    "start_sample": 82688,
+    "t_s": 0.082688,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 324,
+    "start_sample": 82944,
+    "t_s": 0.08294399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 325,
+    "start_sample": 83200,
+    "t_s": 0.0832,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 326,
+    "start_sample": 83456,
+    "t_s": 0.083456,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 327,
+    "start_sample": 83712,
+    "t_s": 0.083712,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 328,
+    "start_sample": 83968,
+    "t_s": 0.083968,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 329,
+    "start_sample": 84224,
+    "t_s": 0.084224,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 330,
+    "start_sample": 84480,
+    "t_s": 0.08448,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440389843.75,
+      "f_hi_Hz": 2440413281.25,
+      "bins": 6,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 6
+     }
+    ]
+   },
+   {
+    "frame_index": 331,
+    "start_sample": 84736,
+    "t_s": 0.08473599999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 332,
+    "start_sample": 84992,
+    "t_s": 0.084992,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 333,
+    "start_sample": 85248,
+    "t_s": 0.08524799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 334,
+    "start_sample": 85504,
+    "t_s": 0.085504,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 335,
+    "start_sample": 85760,
+    "t_s": 0.08576,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 336,
+    "start_sample": 86016,
+    "t_s": 0.086016,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 337,
+    "start_sample": 86272,
+    "t_s": 0.086272,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 338,
+    "start_sample": 86528,
+    "t_s": 0.086528,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 339,
+    "start_sample": 86784,
+    "t_s": 0.086784,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 340,
+    "start_sample": 87040,
+    "t_s": 0.08703999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 341,
+    "start_sample": 87296,
+    "t_s": 0.087296,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 342,
+    "start_sample": 87552,
+    "t_s": 0.08755199999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 343,
+    "start_sample": 87808,
+    "t_s": 0.087808,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 344,
+    "start_sample": 88064,
+    "t_s": 0.08806399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 345,
+    "start_sample": 88320,
+    "t_s": 0.08832,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 346,
+    "start_sample": 88576,
+    "t_s": 0.088576,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 347,
+    "start_sample": 88832,
+    "t_s": 0.088832,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 348,
+    "start_sample": 89088,
+    "t_s": 0.089088,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 349,
+    "start_sample": 89344,
+    "t_s": 0.08934399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 350,
+    "start_sample": 89600,
+    "t_s": 0.0896,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": true,
+    "subbands": [
+     {
+      "f_lo_Hz": 2440432812.5,
+      "f_hi_Hz": 2440448437.5,
+      "bins": 4,
+      "statistic": 9.0,
+      "snr_dB": 9.542425094393248,
+      "segment_id": 7
+     }
+    ]
+   },
+   {
+    "frame_index": 351,
+    "start_sample": 89856,
+    "t_s": 0.08985599999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 352,
+    "start_sample": 90112,
+    "t_s": 0.090112,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 353,
+    "start_sample": 90368,
+    "t_s": 0.09036799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 354,
+    "start_sample": 90624,
+    "t_s": 0.090624,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 355,
+    "start_sample": 90880,
+    "t_s": 0.09088,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 356,
+    "start_sample": 91136,
+    "t_s": 0.091136,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 357,
+    "start_sample": 91392,
+    "t_s": 0.091392,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 358,
+    "start_sample": 91648,
+    "t_s": 0.091648,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 359,
+    "start_sample": 91904,
+    "t_s": 0.091904,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 360,
+    "start_sample": 92160,
+    "t_s": 0.09215999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 361,
+    "start_sample": 92416,
+    "t_s": 0.092416,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 362,
+    "start_sample": 92672,
+    "t_s": 0.09267199999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 363,
+    "start_sample": 92928,
+    "t_s": 0.092928,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 364,
+    "start_sample": 93184,
+    "t_s": 0.09318399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 365,
+    "start_sample": 93440,
+    "t_s": 0.09344,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 366,
+    "start_sample": 93696,
+    "t_s": 0.093696,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 367,
+    "start_sample": 93952,
+    "t_s": 0.093952,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 368,
+    "start_sample": 94208,
+    "t_s": 0.094208,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 369,
+    "start_sample": 94464,
+    "t_s": 0.09446399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 370,
+    "start_sample": 94720,
+    "t_s": 0.09472,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 371,
+    "start_sample": 94976,
+    "t_s": 0.09497599999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 372,
+    "start_sample": 95232,
+    "t_s": 0.095232,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 373,
+    "start_sample": 95488,
+    "t_s": 0.09548799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 374,
+    "start_sample": 95744,
+    "t_s": 0.095744,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 375,
+    "start_sample": 96000,
+    "t_s": 0.096,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 376,
+    "start_sample": 96256,
+    "t_s": 0.096256,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 377,
+    "start_sample": 96512,
+    "t_s": 0.096512,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 378,
+    "start_sample": 96768,
+    "t_s": 0.09676799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 379,
+    "start_sample": 97024,
+    "t_s": 0.097024,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 380,
+    "start_sample": 97280,
+    "t_s": 0.09727999999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 381,
+    "start_sample": 97536,
+    "t_s": 0.097536,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 382,
+    "start_sample": 97792,
+    "t_s": 0.09779199999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 383,
+    "start_sample": 98048,
+    "t_s": 0.098048,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 384,
+    "start_sample": 98304,
+    "t_s": 0.098304,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 385,
+    "start_sample": 98560,
+    "t_s": 0.09856,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 386,
+    "start_sample": 98816,
+    "t_s": 0.098816,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 387,
+    "start_sample": 99072,
+    "t_s": 0.099072,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 388,
+    "start_sample": 99328,
+    "t_s": 0.099328,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 389,
+    "start_sample": 99584,
+    "t_s": 0.09958399999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 390,
+    "start_sample": 99840,
+    "t_s": 0.09984,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 391,
+    "start_sample": 100096,
+    "t_s": 0.10009599999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 392,
+    "start_sample": 100352,
+    "t_s": 0.100352,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 393,
+    "start_sample": 100608,
+    "t_s": 0.10060799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 394,
+    "start_sample": 100864,
+    "t_s": 0.100864,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 395,
+    "start_sample": 101120,
+    "t_s": 0.10112,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 396,
+    "start_sample": 101376,
+    "t_s": 0.101376,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 397,
+    "start_sample": 101632,
+    "t_s": 0.101632,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 398,
+    "start_sample": 101888,
+    "t_s": 0.10188799999999999,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   },
+   {
+    "frame_index": 399,
+    "start_sample": 102144,
+    "t_s": 0.102144,
+    "f_lo_Hz": 2439550000.0,
+    "f_hi_Hz": 2440450000.0,
+    "statistic": 1.0,
+    "threshold": 1.1,
+    "hit": false,
+    "segment_id": null,
+    "overload": false,
+    "subband_hit": false,
+    "subbands": []
+   }
+  ],
+  "truth": [
+   {
+    "t_s": 0.012799999999999999,
+    "t_end_s": 0.038655999999999996,
+    "emitter_id": "e-video",
+    "label": "video_link",
+    "waveform": "ofdm",
+    "center_Hz": 2440059765.625,
+    "bw_Hz": 238281.25,
+    "in_band": true
+   },
+   {
+    "t_s": 0.015104,
+    "t_end_s": 0.018175999999999998,
+    "emitter_id": "e-hopA",
+    "label": "rc_hopping",
+    "waveform": "ofdm",
+    "center_Hz": 2440342968.75,
+    "bw_Hz": 23437.5,
+    "in_band": true
+   },
+   {
+    "t_s": 0.020479999999999998,
+    "t_end_s": 0.023295999999999997,
+    "emitter_id": "e-hopB",
+    "label": "rc_hopping",
+    "waveform": "ofdm",
+    "center_Hz": 2439678906.25,
+    "bw_Hz": 23437.5,
+    "in_band": true
+   },
+   {
+    "t_s": 0.025599999999999998,
+    "t_end_s": 0.028416,
+    "emitter_id": "e-cochan",
+    "label": "rc_hopping",
+    "waveform": "ofdm",
+    "center_Hz": 2440030468.75,
+    "bw_Hz": 23437.5,
+    "in_band": true
+   },
+   {
+    "t_s": 0.051199999999999996,
+    "t_end_s": 0.066816,
+    "emitter_id": "e-frag",
+    "label": "rc_hopping",
+    "waveform": "ofdm",
+    "center_Hz": 2439757031.25,
+    "bw_Hz": 23437.5,
+    "in_band": true
+   },
+   {
+    "t_s": 0.0025599999999999998,
+    "t_end_s": 0.005376,
+    "emitter_id": "e-oob",
+    "label": "video_link",
+    "waveform": "ofdm",
+    "center_Hz": 2439561718.75,
+    "bw_Hz": 23437.5,
+    "in_band": false
+   },
+   {
+    "t_s": 0.08191999999999999,
+    "t_end_s": 0.08473599999999999,
+    "emitter_id": "e-cfo",
+    "label": "rc_hopping",
+    "waveform": "ofdm",
+    "center_Hz": 2440362500.0,
+    "bw_Hz": 23437.5,
+    "in_band": true,
+    "cfo_Hz": 39062.5
+   },
+   {
+    "t_s": 0.08703999999999999,
+    "t_end_s": 0.08985599999999999,
+    "emitter_id": "e-edge",
+    "label": "rc_hopping",
+    "waveform": "ofdm",
+    "center_Hz": 2440452343.75,
+    "bw_Hz": 39062.5,
+    "in_band": true
+   }
+  ],
+  "recognitions": [
+   {
+    "segment_id": 0,
+    "t_s": 0.012799999999999999,
+    "t_end_s": 0.038655999999999996,
+    "label": "video_link",
+    "result": "known",
+    "basis": "subband"
+   },
+   {
+    "segment_id": 1,
+    "t_s": 0.015359999999999999,
+    "t_end_s": 0.018175999999999998,
+    "label": "rc_hopping",
+    "result": "known",
+    "basis": "subband"
+   },
+   {
+    "segment_id": 2,
+    "t_s": 0.020479999999999998,
+    "t_end_s": 0.023295999999999997,
+    "label": "unknown",
+    "result": "unknown",
+    "basis": "subband"
+   },
+   {
+    "segment_id": 3,
+    "t_s": 0.051199999999999996,
+    "t_end_s": 0.056575999999999994,
+    "label": "telemetry_burst",
+    "result": "ambiguous",
+    "basis": "subband"
+   },
+   {
+    "segment_id": 4,
+    "t_s": 0.058879999999999995,
+    "t_end_s": 0.066816,
+    "label": "rc_hopping",
+    "result": "known",
+    "basis": "subband"
+   },
+   {
+    "segment_id": 5,
+    "t_s": 0.0768,
+    "t_end_s": 0.077568,
+    "label": "rc_hopping",
+    "result": "known",
+    "basis": "subband"
+   },
+   {
+    "segment_id": 6,
+    "t_s": 0.08191999999999999,
+    "t_end_s": 0.08473599999999999,
+    "label": "droneid",
+    "result": "known",
+    "basis": "subband"
+   },
+   {
+    "segment_id": 7,
+    "t_s": 0.08703999999999999,
+    "t_end_s": 0.08985599999999999,
+    "label": "rc_hopping",
+    "result": "known",
+    "basis": "subband"
+   }
+  ]
+ },
+ "expected": {
+  "recognition": {
+   "state": "valid",
+   "labels": [
+    "video_link",
+    "telemetry_burst",
+    "rc_hopping",
+    "cw_beacon",
+    "droneid",
+    "unknown"
+   ],
+   "confusion": [
+    [
+     1,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     1,
+     1,
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "evaluated": 5,
+   "unmatched": 3,
+   "accuracy": 0.4,
+   "per_class": [
+    {
+     "label": "video_link",
+     "support": 1,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    {
+     "label": "telemetry_burst",
+     "support": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null
+    },
+    {
+     "label": "rc_hopping",
+     "support": 4,
+     "precision": 1.0,
+     "recall": 0.25,
+     "f1": 0.4
+    },
+    {
+     "label": "cw_beacon",
+     "support": 0,
+     "precision": null,
+     "recall": null,
+     "f1": null
+    },
+    {
+     "label": "droneid",
+     "support": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null
+    }
+   ],
+   "unknown_rate": 0.2,
+   "ambiguous_rate": 0.2,
+   "basis": "subband"
+  },
+  "segments_tf": {
+   "truth": 6,
+   "truth_out_of_band": 1,
+   "truth_partial": 1,
+   "segments": 8,
+   "matched": 5,
+   "false_segments": 2,
+   "fragments": 1,
+   "merged_truth": 1,
+   "pd_burst": 0.8333333333333334,
+   "per_emitter": {
+    "e-cfo": {
+     "truth": 1,
+     "matched": 1,
+     "merged": 0,
+     "pd_burst": 1.0,
+     "detect_delay_mean_s": 0.0
+    },
+    "e-cochan": {
+     "truth": 1,
+     "matched": 0,
+     "merged": 1,
+     "pd_burst": 0.0,
+     "detect_delay_mean_s": null
+    },
+    "e-frag": {
+     "truth": 1,
+     "matched": 1,
+     "merged": 0,
+     "pd_burst": 1.0,
+     "detect_delay_mean_s": 0.0
+    },
+    "e-hopA": {
+     "truth": 1,
+     "matched": 1,
+     "merged": 0,
+     "pd_burst": 1.0,
+     "detect_delay_mean_s": 0.0002559999999999993
+    },
+    "e-hopB": {
+     "truth": 1,
+     "matched": 1,
+     "merged": 0,
+     "pd_burst": 1.0,
+     "detect_delay_mean_s": 0.0
+    },
+    "e-video": {
+     "truth": 1,
+     "matched": 1,
+     "merged": 0,
+     "pd_burst": 1.0,
+     "detect_delay_mean_s": 0.0
+    }
+   }
+  }
+ }
+}

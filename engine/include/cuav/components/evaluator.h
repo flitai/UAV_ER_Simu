@@ -93,6 +93,7 @@ private:
     };
 
     std::string truth_source_ = "scenario";
+    std::string basis_ = "frame";           // 识别行的口径（Q-4c，D-094）
     std::string data_id_, manifest_path_, scenario_path_, scenario_id_, site_id_, node_name_;
     double match_overlap_ = 0.5;
     std::size_t roc_points_ = 32;

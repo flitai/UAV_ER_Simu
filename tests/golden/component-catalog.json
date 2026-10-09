@@ -913,6 +913,18 @@
           "unit": ""
         },
         {
+          "default": "frame",
+          "description": "识别行的口径，必须与上游识别器相同（装载器核对）：frame = 识别行挂在帧级突发上、按突发匹配接真值；subband = 挂在分子带段上、接分子带的时间 × 频率一对一配对（要求检测器 subband_bins > 0；Q-4c，D-094）",
+          "enum": [
+            "frame",
+            "subband"
+          ],
+          "name": "basis",
+          "required": false,
+          "type": "enum",
+          "unit": ""
+        },
+        {
           "description": "回放清单路径，由装载器按 data_id 解析注入（D-037）",
           "internal": true,
           "name": "manifest_path",

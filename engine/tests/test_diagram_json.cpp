@@ -861,6 +861,28 @@ TEST_CASE("装载器：library_version 换成内部参数 library_path 注入（
         CHECK(e.port == "in");
         CHECK(e.message.find("basis") != std::string::npos);
     }
+    {   // 评价器：口径与上游识别器不同即拒；basis = subband 而检测器没开分子带也拒
+        json bad = base;
+        bad["nodes"].push_back(node("eval", "Evaluator", json{{"nfft", 256}, {"truth_source", "none"}, {"basis", "subband"}}));
+        bad["edges"].push_back(json{{"id", "e8"}, {"from", {{"node", "det"}, {"port", "out"}}}, {"to", {{"node", "eval"}, {"port", "det"}}}});
+        {
+            LoadedDiagram d;
+            DiagramError e;
+            CHECK_FALSE(load_diagram(bad, r, nullptr, o, d, e));
+            CHECK(e.node_id == "eval");
+            CHECK(e.message.find("subband_bins") != std::string::npos);
+        }
+        bad["nodes"][3]["params"]["subband_bins"] = 8;
+        bad["edges"].push_back(json{{"id", "e9"}, {"from", {{"node", "rec"}, {"port", "out"}}}, {"to", {{"node", "eval"}, {"port", "rec"}}}});
+        {
+            LoadedDiagram d;
+            DiagramError e;
+            CHECK_FALSE(load_diagram(bad, r, nullptr, o, d, e));
+            CHECK(e.node_id == "eval");
+            CHECK(e.port == "rec");
+            CHECK(e.message.find("basis") != std::string::npos);
+        }
+    }
 }
 
 

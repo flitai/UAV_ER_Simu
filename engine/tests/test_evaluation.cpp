@@ -288,6 +288,90 @@ TEST_CASE("黄金基准：分子带的时间 × 频率一对一配对逐值复�
     CHECK(sec["segments_tf"]["per_emitter"].size() == g["expected"]["segments_tf"]["per_emitter"].size());
 }
 
+// 分子带口径的识别评价（Q-4c，D-094）：黄金基准 tests/golden/metrics_subband_recognition.json 由
+// algos/reference/evaluate.py --write-golden-subband-recognition 生成：沿用上一条的检测行与真值，每个分子带段一行识别，
+// 配上真值的段进混淆矩阵（对、错、判未知、库外标签），碎片与虚警段的识别行计 unmatched
+TEST_CASE("黄金基准：分子带口径下识别行接 segments_tf 的一对一配对，混淆矩阵逐值复现 Python 参考实现（Q-4c）") {
+    std::ifstream f((std::string(CUAV_SOURCE_DIR) + "/tests/golden/metrics_subband_recognition.json").c_str());
+    REQUIRE_MESSAGE(f.good(), "黄金基准缺失：uv run --quiet python algos/reference/evaluate.py --write-golden-subband-recognition "
+                              "engine/tests/golden/metrics_subband_recognition.json");
+    json g;
+    f >> g;
+    std::vector<Detection> det;
+    for (const auto& r : g["inputs"]["detections"]) {
+        Detection d = det_row(r["frame_index"].get<std::uint64_t>(), r["t_s"].get<double>(), r["statistic"].get<double>(),
+                              r["threshold"].get<double>(), r["hit"].get<bool>(), -1, r["overload"].get<bool>());
+        d.f_lo_Hz = r["f_lo_Hz"].get<double>();
+        d.f_hi_Hz = r["f_hi_Hz"].get<double>();
+        d.subband_mode = true;
+        d.subband_hit = r["subband_hit"].get<bool>();
+        for (const auto& h : r["subbands"]) {
+            SubbandHit s;
+            s.f_lo_Hz = h["f_lo_Hz"].get<double>();
+            s.f_hi_Hz = h["f_hi_Hz"].get<double>();
+            s.bins = h["bins"].get<std::uint32_t>();
+            s.statistic = h["statistic"].get<double>();
+            s.snr_dB = h["snr_dB"].get<double>();
+            s.segment_id = h["segment_id"].get<std::int64_t>();
+            d.subbands.push_back(s);
+        }
+        det.push_back(d);
+    }
+    std::vector<TruthRow> truth;
+    for (const auto& r : g["inputs"]["truth"]) {
+        TruthRow t = truth_row(r["t_s"].get<double>(), r["t_end_s"].get<double>(), r["emitter_id"].get<std::string>(),
+                               r["label"].get<std::string>(), r["in_band"].get<bool>());
+        t.waveform = r["waveform"].get<std::string>();
+        t.center_Hz = r["center_Hz"].get<double>();
+        t.bw_Hz = r["bw_Hz"].get<double>();
+        if (r.contains("cfo_Hz")) t.cfo_Hz = r["cfo_Hz"].get<double>();
+        truth.push_back(t);
+    }
+    std::vector<RecognitionRow> rec;
+    for (const auto& r : g["inputs"]["recognitions"]) {
+        RecognitionRow x;
+        x.segment_id = r["segment_id"].get<std::int64_t>();
+        x.t_s = r["t_s"].get<double>();
+        x.t_end_s = r["t_end_s"].get<double>();
+        x.label = r["label"].get<std::string>();
+        x.result = r["result"].get<std::string>();
+        x.subband = true;
+        rec.push_back(x);
+    }
+    EvalParams p;
+    p.truth_source = g["params"]["truth_source"].get<std::string>();
+    p.match_overlap = g["params"]["match_overlap"].get<double>();
+    p.roc_points = g["params"]["roc_points"].get<std::size_t>();
+    p.frame_dt_s = g["params"]["frame_dt_s"].get<double>();
+    p.threshold = g["params"]["threshold"].get<double>();
+    p.has_rec = g["params"]["has_rec"].get<bool>();
+    p.basis = g["params"]["basis"].get<std::string>();
+    const EvaluationMetrics m = evaluate(det, rec, truth, p);
+    DetectorInfo di;
+    di.nfft = 256; di.sample_rate_Hz = 1e6; di.f_lo_Hz = 2.44e9 - 450e3; di.f_hi_Hz = 2.44e9 + 450e3;
+    ModelTrace tr;
+    const json sec = metrics_section_json(m, p, di, "eval", "site-1", tr);
+    int mismatches = 0;
+    compare_json(g["expected"]["recognition"], sec["recognition"], "recognition", mismatches);
+    compare_json(g["expected"]["segments_tf"], sec["segments_tf"], "segments_tf", mismatches);
+    CHECK(mismatches == 0);
+    CHECK(sec["recognition"].size() == g["expected"]["recognition"].size());   // 键集合一样（含 basis）
+    CHECK(sec["recognition"]["basis"] == "subband");
+    CHECK(m.recognition.evaluated == 5);
+    CHECK(m.recognition.unmatched == 3);
+}
+
+TEST_CASE("识别按帧级口径时 metrics.json 的 recognition 一节不写 basis（既有文件逐字节不变）") {
+    std::vector<Detection> det{det_row(0, 0.0, 1.0, 1.1, false, -1)};
+    EvalParams p;
+    p.frame_dt_s = 0.000256;
+    p.has_rec = true;
+    const EvaluationMetrics m = evaluate(det, {}, {}, p);
+    DetectorInfo di;
+    ModelTrace tr;
+    CHECK_FALSE(metrics_section_json(m, p, di, "eval", "site-1", tr)["recognition"].contains("basis"));
+}
+
 TEST_CASE("分子带没开时 metrics.json 不写 segments_tf（既有文件逐字节不变）") {
     std::vector<Detection> det{det_row(0, 0.0, 1.0, 1.1, false, -1)};
     EvalParams p;

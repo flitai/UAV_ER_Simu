@@ -53,7 +53,14 @@ double ratio_or_nan(std::uint64_t num, std::uint64_t den) {
 //           频点下标 floor((簇 f_lo − 参考) / df + 0.5)，参考 = 第一行的帧级 f_lo，df = 1 / dt
 //   真值    in_band 且有中心频率；频段 = 名义中心 + 载频偏差 ± 带宽 / 2
 //   候选    时间与频率重叠比（对较短 / 较窄者）都 ≥ match_overlap；按 比积 降序、真值 t_s、emitter_id、段号、真值序号 贪心一对一
-TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector<TruthRow>& truth, const EvalParams& p) {
+// tf_metrics 的配对结果（Q-4c）：分子带段号 → 配上的真值行（truth 的下标），以及进了配对的真值行下标
+struct TfMatch {
+    std::map<std::int64_t, std::size_t> truth_of_seg;
+    std::vector<std::size_t> paired_truth;
+};
+
+TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector<TruthRow>& truth, const EvalParams& p,
+                            TfMatch* match = nullptr) {
     TfSegmentMetrics m;
     bool any = false;
     for (const auto& d : det) if (d.subband_mode) { any = true; break; }
@@ -104,7 +111,7 @@ TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector
         Seg s{kv.first, a.t0, a.t1, ref + static_cast<double>(lo) * df, ref + static_cast<double>(hi + 1) * df};
         sl.push_back(s);
     }
-    struct T { const TruthRow* r; double f0, f1; };
+    struct T { const TruthRow* r; double f0, f1; std::size_t idx; };
     std::vector<T> tl;
     const double band_lo = det.front().f_lo_Hz, band_hi = det.front().f_hi_Hz;   // 帧级检测频段，每行相同
     for (const auto& r : truth) {
@@ -116,7 +123,7 @@ TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector
         const double inside = f1 > f0 ? std::max(0.0, std::min(f1, band_hi) - std::max(f0, band_lo)) / (f1 - f0)
                                       : ((c >= band_lo && c <= band_hi) ? 1.0 : 0.0);
         if (inside < p.match_overlap) { m.truth_partial++; continue; }
-        tl.push_back(T{&r, f0, f1});
+        tl.push_back(T{&r, f0, f1, static_cast<std::size_t>(&r - truth.data())});
     }
     struct Pair { double neg_score; double ta; std::string eid; std::int64_t sid; std::size_t ti, si; };
     std::vector<Pair> pairs;
@@ -152,6 +159,12 @@ TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector
         if (seg_of[q.ti] >= 0 || used_s[q.si]) continue;
         seg_of[q.ti] = static_cast<long long>(q.si);
         used_s[q.si] = 1;
+    }
+    if (match != nullptr) {
+        for (std::size_t ti = 0; ti < tl.size(); ++ti) {
+            match->paired_truth.push_back(tl[ti].idx);
+            if (seg_of[ti] >= 0) match->truth_of_seg[sl[static_cast<std::size_t>(seg_of[ti])].id] = tl[ti].idx;
+        }
     }
     struct E { std::uint64_t truth = 0, matched = 0, merged = 0, n = 0; double sum = 0.0; };
     std::map<std::string, E> per;
@@ -354,13 +367,24 @@ EvaluationMetrics evaluate(const std::vector<Detection>& det_in, const std::vect
     } else {
         std::set<std::string> extra;
         std::vector<std::pair<std::string, std::string>> pairs;   // (真值标签, 识别标签)
+        // 分子带口径（Q-4c，D-094）：识别行的段号是分子带段号，接 segments_tf 的一对一配对
+        const bool subband = p.basis == "subband";
+        TfMatch tfm;
+        if (subband) tf_metrics(det, truth, p, &tfm);
         for (const auto& r : rec) {
-            auto it = seg_index.find(r.segment_id);
-            if (it == seg_index.end() || !segs[it->second].matched || segs[it->second].best_truth < 0) {
-                m.recognition.unmatched++;
-                continue;
+            std::string t_label;
+            if (subband) {
+                auto it = tfm.truth_of_seg.find(r.segment_id);
+                if (it == tfm.truth_of_seg.end()) { m.recognition.unmatched++; continue; }
+                t_label = truth[it->second].label;
+            } else {
+                auto it = seg_index.find(r.segment_id);
+                if (it == seg_index.end() || !segs[it->second].matched || segs[it->second].best_truth < 0) {
+                    m.recognition.unmatched++;
+                    continue;
+                }
+                t_label = truth[static_cast<std::size_t>(segs[it->second].best_truth)].label;
             }
-            const std::string t_label = truth[static_cast<std::size_t>(segs[it->second].best_truth)].label;
             const std::string p_label = r.result == "unknown" ? std::string("unknown") : r.label;
             pairs.push_back(std::make_pair(t_label, p_label));
             m.recognition.evaluated++;
@@ -369,7 +393,11 @@ EvaluationMetrics evaluate(const std::vector<Detection>& det_in, const std::vect
             extra.insert(t_label);
             extra.insert(p_label);
         }
-        for (int ti : truth_idx) extra.insert(truth[static_cast<std::size_t>(ti)].label);
+        if (subband) {
+            for (std::size_t ti : tfm.paired_truth) extra.insert(truth[ti].label);
+        } else {
+            for (int ti : truth_idx) extra.insert(truth[static_cast<std::size_t>(ti)].label);
+        }
         std::vector<std::string> labels = base_labels();
         for (const auto& l : labels) extra.erase(l);
         extra.erase("unknown");
@@ -479,6 +507,7 @@ json metrics_section_json(const EvaluationMetrics& m, const EvalParams& p, const
                        {"parameter_version", t.parameter_version}, {"trace_id", t.trace_id},
                        {"truth_consumed", true}}},
     };
+    if (p.basis == "subband" && m.recognition.state != State::NotApplicable) j["recognition"]["basis"] = "subband";   // Q-4c
     if (m.segments_tf.present) {       // 分子带（Q-4b，D-093）：没开的运行逐字节不变
         const TfSegmentMetrics& t = m.segments_tf;
         json per = json::object();

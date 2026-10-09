@@ -45,6 +45,9 @@ struct EvalParams {
     double frame_dt_s = 0.0;                  // nfft / fs，帧时长
     double threshold = eval_nan();            // 检测器的工作点门限（取自检测行；NaN = 未知）
     bool has_rec = false;                     // rec 口是否接了识别器
+    // 识别行的口径（Q-4c，D-094）：frame = 段号是帧级突发号、按突发匹配接真值；subband = 段号是分子带段号、
+    // 接 segments_tf 的一对一配对（标签集合取进了配对的真值行）。由组件参数给，不从行里猜——没有识别行时也得知道。
+    std::string basis = "frame";
 };
 
 struct FrameMetrics {

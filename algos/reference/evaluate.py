@@ -206,12 +206,25 @@ def evaluate(det_rows: list[dict], rec_rows: list[dict], truth_rows: list[dict],
         pairs = []
         extra = set()
         unmatched = evaluated = unknown_count = ambiguous_count = 0
+        subband = params.get("basis", "frame") == "subband"
+        if subband:
+            # 分子带口径（Q-4c，D-094）：识别行的段号是分子带段号，接到 segments_tf 的一对一配对上
+            d: dict = {}
+            tf_segments(det, truth, params, d)
+            truth_of_seg = {d["segments"][si][0]: d["truth"][ti] for ti, si in d.get("seg_of", {}).items()}
         for r in rec:
-            s = segs.get(r["segment_id"])
-            if s is None or not s["matched"] or s["best"] < 0:
-                unmatched += 1
-                continue
-            t_label = truth[s["best"]]["label"]
+            if subband:
+                t = truth_of_seg.get(r["segment_id"])
+                if t is None:
+                    unmatched += 1
+                    continue
+                t_label = t["label"]
+            else:
+                s = segs.get(r["segment_id"])
+                if s is None or not s["matched"] or s["best"] < 0:
+                    unmatched += 1
+                    continue
+                t_label = truth[s["best"]]["label"]
             p_label = "unknown" if r["result"] == "unknown" else r["label"]
             pairs.append((t_label, p_label))
             evaluated += 1
@@ -221,8 +234,12 @@ def evaluate(det_rows: list[dict], rec_rows: list[dict], truth_rows: list[dict],
                 ambiguous_count += 1
             extra.add(t_label)
             extra.add(p_label)
-        for ti in truth_idx:
-            extra.add(truth[ti]["label"])
+        if subband:
+            for t in d.get("truth", []):
+                extra.add(t["label"])
+        else:
+            for ti in truth_idx:
+                extra.add(truth[ti]["label"])
         labels = list(BASE_LABELS)
         for l in labels:
             extra.discard(l)
@@ -254,6 +271,8 @@ def evaluate(det_rows: list[dict], rec_rows: list[dict], truth_rows: list[dict],
         rg.update(state="valid", labels=labels, confusion=conf, evaluated=evaluated, unmatched=unmatched,
                   accuracy=_ratio(diag, evaluated), per_class=per_class,
                   unknown_rate=_ratio(unknown_count, evaluated), ambiguous_rate=_ratio(ambiguous_count, evaluated))
+        if subband:
+            rg["basis"] = "subband"
 
     # ---- 状态（只复算引擎 evaluate() 自己给的那几条；组件层追加的原因不在这里）
     state = "valid"
@@ -499,6 +518,7 @@ def check_run(run_dir: str, out_json: str | None) -> int:
             "frame_dt_s": sec["detector"]["frame_dt_s"],
             "threshold": sec["detector"].get("threshold"),
             "has_rec": sec["recognition"]["state"] != "not_applicable",
+            "basis": sec["recognition"].get("basis", "frame"),
         }
         mine = evaluate(det, rec, truth, params)
         diffs: list[str] = []
@@ -722,17 +742,63 @@ def write_golden_subband(path: str) -> int:
     return 0
 
 
+def write_golden_subband_recognition(path: str) -> int:
+    """分子带口径的识别评价（Q-4c，D-094）：沿用 golden_case_subband 的检测行与真值，每个分子带段一行识别。
+    配上真值的段进混淆矩阵（对、错、判未知各一种，外加一个库外标签 droneid），碎片与虚警段的识别行计 unmatched。"""
+    det, truth, params = golden_case_subband()
+    params = dict(params, has_rec=True, basis="subband")
+    dt = params["frame_dt_s"]
+
+    def rec(sid: int, f0: int, f1: int, label: str, result: str = "known") -> dict:
+        return {"segment_id": sid, "t_s": f0 * dt, "t_end_s": (f1 + 1) * dt, "label": label if result != "unknown" else "unknown",
+                "result": result, "basis": "subband"}
+
+    recs = [
+        rec(0, 50, 150, "video_link"),                      # 图传：对
+        rec(1, 60, 70, "rc_hopping"),                       # 跳点 A：对
+        rec(2, 80, 90, "unknown", "unknown"),               # 跳点 B：判未知
+        rec(3, 200, 220, "telemetry_burst", "ambiguous"),   # 被切开那一行的前一段：错（歧义仍按 Top-1 计）
+        rec(4, 230, 260, "rc_hopping"),                     # 碎片：没有配上的真值 → unmatched
+        rec(5, 300, 302, "rc_hopping"),                     # 虚警段 → unmatched
+        rec(6, 320, 330, "droneid"),                        # 靠载频偏差对上的源：错成库外标签
+        rec(7, 340, 350, "rc_hopping"),                     # 贴着频段上沿、真值不进分母 → 虚警段 → unmatched
+    ]
+    expected = evaluate(det, recs, truth, params)
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧 evaluate() 在分子带口径下的识别评价（识别行接 segments_tf 的一对一配对）与 "
+                   "algos/reference/evaluate.py 的逐值对拍基准（Q-4c，D-094）",
+        "generator": "algos/reference/evaluate.py --write-golden-subband-recognition",
+        "params": params,
+        "tolerance": {"rel": 1e-9, "abs": 1e-12, "note": "同 metrics.json"},
+        "inputs": {"detections": det, "truth": truth, "recognitions": recs},
+        "expected": {"recognition": expected["recognition"], "segments_tf": expected["segments_tf"]},
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    rg = expected["recognition"]
+    print(f"分子带识别评价：进混淆矩阵 {rg['evaluated']}、unmatched {rg['unmatched']}、准确率 {rg['accuracy']}、"
+          f"标签 {rg['labels']}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="真值与评价参考实现：对拍 metrics.json 或生成黄金基准")
     ap.add_argument("run_dir", nargs="?", help="data/runs/<task_id>")
     ap.add_argument("--json", help="把逐节的重算结果与差异写到该文件")
     ap.add_argument("--write-golden", help="生成黄金基准到该路径")
     ap.add_argument("--write-golden-subband", help="生成分子带配对的黄金基准到该路径（Q-4b，D-093）")
+    ap.add_argument("--write-golden-subband-recognition",
+                    help="生成分子带口径识别评价的黄金基准到该路径（Q-4c，D-094）")
     args = ap.parse_args(argv)
     if args.write_golden:
         return write_golden(args.write_golden)
     if args.write_golden_subband:
         return write_golden_subband(args.write_golden_subband)
+    if args.write_golden_subband_recognition:
+        return write_golden_subband_recognition(args.write_golden_subband_recognition)
     if not args.run_dir:
         ap.print_help()
         return 1

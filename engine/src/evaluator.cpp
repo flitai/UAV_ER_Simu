@@ -81,6 +81,10 @@ ComponentInfo Evaluator::describe() const {
             .def(0.5).at_least(0.0, true).at_most(1.0),
         ParamSpec::number("roc_points", "", "ROC 门限点数：按排序统计量等分取，去重后可能少于此数")
             .def(32).at_least(2.0),
+        ParamSpec::choice("basis", {"frame", "subband"},
+                          "识别行的口径，必须与上游识别器相同（装载器核对）：frame = 识别行挂在帧级突发上、按突发匹配接真值；"
+                          "subband = 挂在分子带段上、接分子带的时间 × 频率一对一配对（要求检测器 subband_bins > 0；Q-4c，D-094）")
+            .def_text("frame"),
         ParamSpec::text("manifest_path", "回放清单路径，由装载器按 data_id 解析注入（D-037）").internal_only(),
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入；取各源的带宽与波形").internal_only(),
         ParamSpec::text("scenario_id", "场景标识，由装载器注入").internal_only(),
@@ -200,6 +204,10 @@ bool Evaluator::configure(const std::map<std::string, double>& params,
     const double nf = get_num(params, "nfft", 1024.0);
     if (!(nf >= 1.0) || nf != std::floor(nf)) { err = "Evaluator 的 nfft 必须是正整数"; return false; }
     nfft_ = static_cast<std::size_t>(nf);
+    basis_ = "frame";
+    std::string bs;
+    if (get_text(text_params, "basis", bs) && !bs.empty()) basis_ = bs;
+    if (basis_ != "frame" && basis_ != "subband") { err = "Evaluator 的 basis 必须是 frame / subband"; return false; }
 
     data_id_.clear(); manifest_path_.clear(); scenario_path_.clear(); scenario_id_.clear(); site_id_.clear();
     get_text(text_params, "data_id", data_id_);
@@ -394,7 +402,14 @@ Step Evaluator::process(PortMap& in, PortMap& out, std::string& err) {
     if (r != in.end() && r->second.has_data) {
         any = true;
         const RecognitionList& rl = r->second.recognitions;
-        for (std::size_t i = 0; i < rl.items.size(); ++i) rec_.push_back(rl.items[i]);
+        for (std::size_t i = 0; i < rl.items.size(); ++i) {
+            if (rl.items[i].subband != (basis_ == "subband")) {
+                err = "Evaluator 的 basis = " + basis_ + "，收到的识别行却是" + (rl.items[i].subband ? "分子带段" : "帧级突发") +
+                      "——上游识别器的 basis 与本节点不同（装载器本该拦住）";
+                return Step::Error;
+            }
+            rec_.push_back(rl.items[i]);
+        }
     }
     for (int k = 1; k <= 8; ++k) {
         PortMap::iterator s = in.find("scene" + numstr(k));
@@ -577,6 +592,7 @@ Step Evaluator::flush(PortMap& out, std::string& err) {
     eval_params_.frame_dt_s = fs_ > 0.0 ? static_cast<double>(nfft_) / fs_ : 0.0;
     eval_params_.threshold = have_det_meta_ ? threshold_ : eval_nan();
     eval_params_.has_rec = rec_wired_;
+    eval_params_.basis = basis_;
     metrics_ = evaluate(det_, rec_, truth_rows_, eval_params_);
 
     // 多速率下的真值边界落差（M-2，D-070）：源端按站点的宽带 fs 建活动时间线，
