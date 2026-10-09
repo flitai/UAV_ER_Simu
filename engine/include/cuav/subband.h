@@ -22,6 +22,7 @@
 #include <deque>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cuav {
@@ -32,6 +33,11 @@ struct SubbandCluster {
     double n = 0.0;                 // 簇内噪声估计之和
     std::int64_t segment_id = -1;
 };
+
+// 分子带段的核心频段（Q-4c，D-094）：count = {频点号: 命中帧数}，frames = 该段的帧数；返回在至少一半的帧里
+// 命中的频点的首末（闭区间），没有就取全部命中过的。评价器（tf_metrics）、特征提取（FeatureExtractor 的分子带口径）
+// 与网页同一条规则、按整数频点号比；Python 同名 evaluate.core_span。count 不得为空。
+std::pair<long long, long long> subband_core_span(const std::map<long long, std::uint64_t>& count, std::uint64_t frames);
 
 class SubbandStage {
 public:

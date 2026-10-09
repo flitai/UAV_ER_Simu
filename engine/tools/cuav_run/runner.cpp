@@ -186,6 +186,14 @@ json feature_json(const FeatureReport& r) {
     }
     j["interval_from_prev_s"] = f.has_prev ? json(f.interval_from_prev_s) : json(nullptr);
     j["hop_from_prev_Hz"] = f.has_prev ? json(f.hop_from_prev_Hz) : json(nullptr);
+    // 分子带口径（Q-4c，D-094）才写这三个键并把占空比、峰均比写 null；帧级口径的运行逐字节不变
+    if (f.subband) {
+        j["basis"] = "subband";
+        j["f_lo_Hz"] = f.f_lo_Hz;
+        j["f_hi_Hz"] = f.f_hi_Hz;
+        j["duty"] = nullptr;
+        j["crest_factor_dB"] = nullptr;
+    }
     return j;
 }
 

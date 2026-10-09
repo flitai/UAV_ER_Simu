@@ -1,6 +1,7 @@
 #include "cuav/numstr.h"
 #include "cuav/evaluation.h"
 #include "cuav/evaluation_json.h"
+#include "cuav/subband.h"
 
 #include <algorithm>
 #include <cmath>
@@ -98,13 +99,8 @@ TfSegmentMetrics tf_metrics(const std::vector<Detection>& det, const std::vector
     std::vector<Seg> sl;
     for (const auto& kv : segs) {
         const Acc& a = kv.second;
-        long long lo = 0, hi = 0;
-        bool have = false;
-        for (const auto& c : a.count) {
-            if (2 * c.second < a.frames) continue;
-            if (!have) { lo = hi = c.first; have = true; } else { lo = std::min(lo, c.first); hi = std::max(hi, c.first); }
-        }
-        if (!have) { lo = a.count.begin()->first; hi = a.count.rbegin()->first; }
+        const std::pair<long long, long long> core = subband_core_span(a.count, a.frames);
+        const long long lo = core.first, hi = core.second;
         Seg s{kv.first, a.t0, a.t1, ref + static_cast<double>(lo) * df, ref + static_cast<double>(hi + 1) * df};
         sl.push_back(s);
     }

@@ -336,6 +336,14 @@ bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const
                    "接特征提取的检测器必须是 sliding（D-063 典型链路的固定值）");
         return false;
     }
+    // Q-4c（D-094）：分子带口径的特征按检测器的分子带段成段，检测器必须开分子带
+    const std::string basis = effective_text(t->second.info, t->second.txt, "basis", "frame");
+    const double k0 = effective_number(f->second.info, f->second.num, "subband_bins", 0.0);
+    if (basis == "subband" && !(k0 > 0.0)) {
+        err = fail("param", tn, tp, who + "：特征提取器 " + tn + " 的 basis = subband，上游检测器 " + fn +
+                   " 却没开分子带（subband_bins = " + num_text(k0) + "）——分子带口径按检测器的分子带段成段（Q-4c，D-094）");
+        return false;
+    }
     return true;
 }
 

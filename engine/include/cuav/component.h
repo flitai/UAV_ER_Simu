@@ -34,6 +34,11 @@ struct SubbandHit {
     double band_power_dBm = 0.0;      // has_dBm 为真时有效
     double noise_dBm = 0.0;
     std::int64_t segment_id = -1;     // 分子带的段号（与帧级的 segment_id 是两套编号）
+    // 只在内存里传给下游（运行器不写进 detections.jsonl）：簇的确切位置与两项线性和，
+    // 特征提取的分子带口径（Q-4c，D-094）按整数频点号累计，不必从 Hz 反推
+    std::uint32_t bin_lo = 0, bin_hi = 0;   // 频段内频点下标（含两端），即 SubbandCluster.lo / hi
+    double e = 0.0;                   // 簇内 Hann 窗功率之和（ΣP）
+    double n = 0.0;                   // 簇内噪声估计之和（Σn，Hann 域）
 };
 
 // 一次能量判决的结果。前五个字段是切片 ① 就有的；其余自 C-3（D-063）起补上，
@@ -89,6 +94,11 @@ struct FeatureRow {
     double hop_from_prev_Hz = 0.0;       // 本段质心 − 上一段质心
     bool overload = false;            // 段内任一命中帧含削波块
     std::string quality;              // full / short / low_snr / overload（EM-S-03 §10.13）
+    // 分子带口径（Q-4c，D-094；FeatureExtractor 的 basis = subband）：段 = 分子带段，segment_id 是分子带段号；
+    // 占空比与峰均比无定义（运行器写 null），多出核心频段的首末绝对频率。帧级口径下这几项不写。
+    bool subband = false;
+    double f_lo_Hz = 0.0;             // 核心频段：首频点中心 − 半个频点
+    double f_hi_Hz = 0.0;             // 核心频段：末频点中心 + 半个频点
 };
 
 struct FeatureVector {

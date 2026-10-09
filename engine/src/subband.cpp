@@ -13,6 +13,17 @@ namespace {
 const double kLn2 = 0.69314718055994530942;
 }
 
+std::pair<long long, long long> subband_core_span(const std::map<long long, std::uint64_t>& count, std::uint64_t frames) {
+    long long lo = 0, hi = 0;
+    bool have = false;
+    for (const auto& c : count) {
+        if (2 * c.second < frames) continue;
+        if (!have) { lo = hi = c.first; have = true; } else { lo = std::min(lo, c.first); hi = std::max(hi, c.first); }
+    }
+    if (!have) { lo = count.begin()->first; hi = count.rbegin()->first; }
+    return std::make_pair(lo, hi);
+}
+
 bool SubbandStage::allowed_k0(int k0) {
     return k0 == 2 || k0 == 4 || k0 == 8 || k0 == 16 || k0 == 32 || k0 == 64;
 }

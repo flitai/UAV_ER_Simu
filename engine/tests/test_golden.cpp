@@ -438,6 +438,130 @@ TEST_CASE("黄金基准：引擎的特征提取器逐段复现 Python 参考实�
     CHECK(rep.state == State::Valid);
 }
 
+// 分子带口径的特征提取（Q-4c，D-094）：噪声 + 宽 / 中 / 窄三种宽度的门控突发（一串 ToneSource，梳状谱相位 i·π/2），
+// 检测器开分子带、特征提取 basis = subband；Python 侧 features.extract_subband 逐段算。段号、帧数、核心频段、
+// 按频点计的带宽、上一段是谁必须**完全相同**；谱类量按黄金文件里的容差。生成器已断言没有块卡在检测门限 ±1e-5 内、
+// 没有频点卡在噪声闸或累积功率边界 ±1e-4 内。
+TEST_CASE("黄金基准：引擎的特征提取器在分子带口径下逐段复现 Python 参考实现（核心频段、量测窗、上一段的关联）") {
+    const std::string path = std::string(CUAV_SOURCE_DIR) + "/tests/golden/features_subband.json";
+    std::ifstream f(path.c_str());
+    REQUIRE_MESSAGE(f.good(), "打不开黄金基准 " << path);
+    nlohmann::json g;
+    f >> g;
+    const auto& p = g.at("params");
+    const auto& e = g.at("expected");
+    const auto& tol = g.at("tolerance");
+    const auto& fp = p.at("feature");
+    const double fs = p.at("sample_rate_Hz").get<double>();
+    const std::size_t nfft = p.at("nfft").get<std::size_t>();
+    const std::uint64_t frames = p.at("frames").get<std::uint64_t>();
+    const double total = static_cast<double>(frames * nfft);
+
+    Graph gr;
+    std::string err;
+    std::unique_ptr<NoiseSource> n(new NoiseSource());
+    std::map<std::string, double> np{{"sample_rate_Hz", fs}, {"total_samples", total},
+                                     {"power", p.at("noise_power").get<double>()}, {"block_samples", 32768.0}};
+    REQUIRE(n->configure(np, {}, err));
+    NodeId prev = gr.add(std::move(n), "noise");
+    std::size_t ti = 0;
+    for (const auto& tone : p.at("tones")) {
+        std::unique_ptr<ToneSource> t(new ToneSource());
+        std::map<std::string, double> tp{{"sample_rate_Hz", fs}, {"total_samples", total},
+                                         {"offset_Hz", tone.at("offset_Hz").get<double>()},
+                                         {"amplitude", tone.at("amplitude").get<double>()},
+                                         {"phase_rad", tone.at("phase_rad").get<double>()},
+                                         {"start_sample", tone.at("start_sample").get<double>()},
+                                         {"stop_sample", tone.at("stop_sample").get<double>()},
+                                         {"block_samples", 32768.0}};
+        REQUIRE(t->configure(tp, {}, err));
+        NodeId tn = gr.add(std::move(t), "tone" + std::to_string(ti));
+        std::unique_ptr<AddMixer> m(new AddMixer());
+        REQUIRE(m->configure({}, {}, err));
+        NodeId mn = gr.add(std::move(m), "mix" + std::to_string(ti));
+        REQUIRE(gr.connect(tn, "out", mn, "a", err));
+        REQUIRE(gr.connect(prev, "out", mn, "b", err));
+        prev = mn;
+        ++ti;
+    }
+    std::unique_ptr<EnergyDetector> d(new EnergyDetector());
+    std::map<std::string, double> dp{{"nfft", static_cast<double>(nfft)},
+                                     {"band_lo_Hz", p.at("band_lo_Hz").get<double>()},
+                                     {"band_hi_Hz", p.at("band_hi_Hz").get<double>()},
+                                     {"pfa", p.at("pfa").get<double>()},
+                                     {"noise_window_frames", p.at("noise_window_frames").get<double>()},
+                                     {"merge_gap_frames", p.at("merge_gap_frames").get<double>()},
+                                     {"subband_bins", p.at("subband_bins").get<double>()}};
+    REQUIRE(d->configure(dp, {{"noise_mode", "sliding"}}, err));
+    NodeId dn = gr.add(std::move(d), "det");
+    std::unique_ptr<FeatureExtractor> fx(new FeatureExtractor());
+    FeatureExtractor* feat = fx.get();
+    std::map<std::string, double> fnum{{"nfft", static_cast<double>(nfft)},
+                                       {"min_frames", fp.at("min_frames").get<double>()},
+                                       {"merge_gap_frames", fp.at("merge_gap_frames").get<double>()},
+                                       {"noise_gate", fp.at("noise_gate").get<double>()}};
+    REQUIRE(fx->configure(fnum, {{"bandwidth_method", fp.at("bandwidth_method").get<std::string>()},
+                                 {"basis", fp.at("basis").get<std::string>()}}, err));
+    NodeId fn = gr.add(std::move(fx), "feat");
+    REQUIRE(gr.connect(prev, "out", dn, "in", err));
+    REQUIRE(gr.connect(prev, "out", fn, "iq", err));
+    REQUIRE(gr.connect(dn, "out", fn, "det", err));
+
+    CollectFeatures obs;
+    Xoshiro256pp rng(p.at("seed").get<std::uint64_t>());
+    RunReport rep = gr.run(rng, obs);
+    REQUIRE_MESSAGE(rep.ok, rep.error);
+    CHECK(feat->frames() == frames);
+
+    const auto& rows = e.at("rows");
+    REQUIRE(obs.rows.size() == rows.size());
+    const double c_abs = tol.at("center_Hz_abs").get<double>();
+    const double h_abs = tol.at("hop_Hz_abs").get<double>();
+    const double fl_abs = tol.at("flatness_abs").get<double>();
+    const double db_abs = tol.at("dB_abs").get<double>();
+    double worst_c = 0.0, worst_fl = 0.0, worst_db = 0.0;
+    std::size_t bad = 0, with_prev = 0;
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        const auto& w = rows[i];
+        const FeatureRow& r = obs.rows[i].row;
+        if (!r.subband || w.at("basis").get<std::string>() != "subband") ++bad;
+        if (r.segment_id != w.at("segment_id").get<std::int64_t>()) ++bad;
+        if (r.frames != w.at("frames").get<std::uint64_t>()) ++bad;
+        if (r.signal_bins != w.at("signal_bins").get<std::size_t>()) ++bad;
+        if (r.quality != w.at("quality").get<std::string>()) ++bad;
+        if (r.overload != w.at("overload").get<bool>()) ++bad;
+        if (r.has_dBm != w.at("has_dBm").get<bool>()) ++bad;
+        if (r.has_prev != w.at("has_prev").get<bool>()) ++bad;
+        if (r.t_s != w.at("t_s").get<double>() || r.t_end_s != w.at("t_end_s").get<double>()) ++bad;
+        if (r.duration_s != w.at("duration_s").get<double>()) ++bad;
+        if (r.bandwidth_Hz != w.at("bandwidth_Hz").get<double>()) ++bad;
+        if (r.f_lo_Hz != w.at("f_lo_Hz").get<double>() || r.f_hi_Hz != w.at("f_hi_Hz").get<double>()) ++bad;
+        if (!w.at("duty").is_null() || !w.at("crest_factor_dB").is_null()) ++bad;
+        if (r.has_prev) {
+            ++with_prev;
+            if (r.interval_from_prev_s != w.at("interval_from_prev_s").get<double>()) ++bad;
+            if (std::fabs(r.hop_from_prev_Hz - w.at("hop_from_prev_Hz").get<double>()) > h_abs) ++bad;
+        }
+        const double dc = std::fabs(r.center_Hz - w.at("center_Hz").get<double>());
+        const double dfl = std::fabs(r.spectral_flatness - w.at("spectral_flatness").get<double>());
+        double ddb = std::fabs(r.snr_dB - w.at("snr_dB").get<double>());
+        if (r.has_dBm) {
+            ddb = std::max(ddb, std::fabs(r.band_power_dBm - w.at("band_power_dBm").get<double>()));
+            ddb = std::max(ddb, std::fabs(r.peak_dBm - w.at("peak_dBm").get<double>()));
+        }
+        worst_c = std::max(worst_c, dc);
+        worst_fl = std::max(worst_fl, dfl);
+        worst_db = std::max(worst_db, ddb);
+        if (dc > c_abs || dfl > fl_abs || ddb > db_abs) ++bad;
+    }
+    MESSAGE("features_subband 逐段最大误差：质心 " << worst_c << " Hz（判据 " << c_abs << "），平坦度 " << worst_fl
+            << "（" << fl_abs << "），dB " << worst_db << "（" << db_abs << "）；" << rows.size() << " 段、"
+            << with_prev << " 段有上一段");
+    CHECK(bad == 0);
+    CHECK(with_prev > 0);
+    CHECK(rep.state == State::Valid);
+}
+
 // 模板匹配识别（C-4）：黄金文件里是手造的特征行与 Python 参考算出的识别行，两侧同为 float64 同算法，
 // 后验与距离按 1e-9，标签、判决、unknown_kind 与 top_n 的顺序逐字相同。
 TEST_CASE("黄金基准：引擎的模板匹配识别器逐行复现 Python 参考实现") {

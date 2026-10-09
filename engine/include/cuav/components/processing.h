@@ -10,6 +10,8 @@
 #define CUAV_COMPONENTS_PROCESSING_H
 
 #include <deque>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -221,6 +223,14 @@ private:
 // 加窗后噪声每 bin 功率按 Σw²/nfft 缩放，去噪与过闸都在加窗域做。
 // 去噪：段均 PSD 减去带内白噪声估计，再过一道闸 noise_gate · n_bin / √F（F 帧平均后噪声 bin 的散布
 // 按 1/√F 收窄）——不去噪的话，单音在 10 dB 带内信噪比下的占用带宽会吞进大半个噪声频段。
+//
+// 分子带口径（basis = subband，Q-4c，D-094；14 号报告 §8.6；Python 参考 features.extract_subband，黄金基准
+// engine/tests/golden/features_subband.json）：检测器必须开分子带（装载器核对 subband_bins > 0）。段 = 分子带段号相同的簇
+// （同一帧同号的几个簇这一帧只计一次），处理第 f 帧之前把 f − last − 1 > min(merge_gap, 63) 的段按段号升序收口（检测器
+// 的剪枝规则），收尾按（末帧，段号）升序收。核心频段 = subband_core_span（评价器同一条规则），只用作行里的 f_lo_Hz /
+// f_hi_Hz 与带内功率、信噪比；量测窗 = 命中过的全部频点两边各两个。全程 Hann 域：每频点噪声 = Σn / Σ簇频点数，
+// 带内功率按 nfft·Σw² 归一；带宽与平坦度只看 99% 占用的频点；占空比与峰均比无定义。上一段 = 已收的 full / overload
+// 段里末帧 + 1 ≤ 本段首帧的最晚一段、且 99% 占用频点数相差不到 2 倍（整数比较），平局取段号小的。
 class FeatureExtractor : public IComponent {
 public:
     std::string type_name() const override { return "FeatureExtractor"; }
@@ -263,8 +273,25 @@ private:
         bool overload = false, calibrated = true;
         double duty = 0.0;
     };
+    // 分子带口径的段（Q-4c）：count 按频段内频点号计命中帧数，psd_sum 按频段内频点号累计 Hann 功率
+    struct SubSeg {
+        std::int64_t id = -1;
+        std::uint64_t first = 0, last = 0, frames = 0;
+        std::map<long long, std::uint64_t> count;
+        std::vector<double> psd_sum;
+        double n_sum = 0.0;
+        std::uint64_t bins_sum = 0;
+        bool overload = false, calibrated = true;
+    };
+    struct SubHist {
+        std::uint64_t first = 0, last = 0;
+        std::size_t occ = 0;              // 99% 占用的频点数
+        double center_Hz = 0.0, t_end_s = 0.0;
+        std::int64_t id = -1;
+    };
 
     std::size_t nfft_ = 1024;
+    bool subband_ = false;            // basis = subband
     std::string bandwidth_method_ = "occupied_99";
     std::uint64_t min_frames_ = 2;
     std::size_t window_frames_ = 64;
@@ -296,6 +323,9 @@ private:
     std::vector<FeatureRow> pending_rows_;
     std::uint64_t frames_ = 0;
     std::uint64_t segments_ = 0;
+    std::map<std::int64_t, SubSeg> sub_open_;
+    std::set<std::int64_t> sub_closed_;
+    std::vector<SubHist> sub_hist_;
     ComponentStatus status_;
 
     void clear_state();
@@ -304,6 +334,9 @@ private:
     void apply(const Detection& d, const Frame& f);
     void close_segment();
     FeatureRow compute_row(const Segment& s) const;
+    bool apply_subband(const Detection& d, const Frame& f, std::string& err);
+    void close_subband(std::int64_t id);
+    FeatureRow compute_subband_row(const SubSeg& s, std::size_t& occ) const;
     void report(const FeatureRow& r);
     ModelTrace trace() const;
 };

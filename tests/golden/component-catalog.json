@@ -1006,7 +1006,7 @@
     },
     {
       "category": "algorithm",
-      "description": "按检测器并好的突发出一行特征（EM-S-03 §10.5–§10.10，10 报告 §4.3）：与检测器同律切帧（同 nfft、不加窗不重叠、按 frame_index 对齐），段内命中帧的平均功率谱减去由 Λ 反推的带内噪声估计并过闸后，给出功率质心、99% 占用带宽（或 −20 dB 边）、带内功率与峰值、信噪比、谱平坦度、峰均比、占空比、与上一段的间隔与频差、质量标记；口径与 algos/reference/features.py 一致，黄金基准逐段对拍。IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补",
+      "description": "按检测器并好的突发出一行特征（EM-S-03 §10.5–§10.10，10 报告 §4.3）：与检测器同律切帧（同 nfft、不加窗不重叠、按 frame_index 对齐），段内命中帧的平均功率谱减去由 Λ 反推的带内噪声估计并过闸后，给出功率质心、99% 占用带宽（或 −20 dB 边）、带内功率与峰值、信噪比、谱平坦度、峰均比、占空比、与上一段的间隔与频差、质量标记；口径与 algos/reference/features.py 一致，黄金基准逐段对拍。IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补。basis = subband 时按检测器的分子带段出行（Q-4c，D-094）：带宽、质心与平坦度在这一段自己的频段上量，上一段只取占用带宽相差不到 2 倍的段，占空比与峰均比无定义",
       "display_name": "特征提取",
       "implementation": "cpp",
       "model_id": "EM-S-03",
@@ -1021,6 +1021,18 @@
           "name": "nfft",
           "required": false,
           "type": "number",
+          "unit": ""
+        },
+        {
+          "default": "frame",
+          "description": "段的口径：frame = 检测器的帧级突发；subband = 检测器的分子带段（要求检测器 subband_bins > 0，装载器核对；Q-4c，D-094）",
+          "enum": [
+            "frame",
+            "subband"
+          ],
+          "name": "basis",
+          "required": false,
+          "type": "enum",
           "unit": ""
         },
         {

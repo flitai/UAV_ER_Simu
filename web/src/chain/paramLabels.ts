@@ -56,6 +56,7 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   noise_window_frames: '滑动窗长', merge_gap_frames: '突发合并空隙', band_power_dBm: '输出 dBm 读数',
   subband_bins: '分子带最小块宽',
   // C-4：特征提取与模板识别
+  basis: '成段口径',
   bandwidth_method: '带宽口径', min_frames: '最少帧数', window_frames: '占空比窗', noise_gate: '噪声闸',
   library_version: '模板库版本', accept_threshold: '接受门限', ambiguity_margin: '歧义间隔', unknown_distance: '未知距离', min_quality: '最低质量',
   // 评价（C-5）

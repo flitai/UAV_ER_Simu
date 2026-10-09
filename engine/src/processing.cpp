@@ -511,6 +511,10 @@ void EnergyDetector::subband_frame(const std::vector<Complex>& frame, Detection&
             h.noise_dBm = 10.0 * std::log10(std::max(c.n / norm, 1e-30));
         }
         h.segment_id = c.segment_id;
+        h.bin_lo = static_cast<std::uint32_t>(c.lo);
+        h.bin_hi = static_cast<std::uint32_t>(c.hi);
+        h.e = c.e;
+        h.n = c.n;
         d.subbands.push_back(h);
     }
 }
@@ -736,6 +740,12 @@ bool FeatureExtractor::configure(const std::map<std::string, double>& params,
         err = "FeatureExtractor 的 nfft 必须是 2 的幂";
         return false;
     }
+    subband_ = false;
+    auto bs = text_params.find("basis");
+    if (bs != text_params.end() && !bs->second.empty()) {
+        if (bs->second == "subband") subband_ = true;
+        else if (bs->second != "frame") { err = "FeatureExtractor 的 basis 必须是 frame / subband"; return false; }
+    }
     bandwidth_method_ = "occupied_99";
     auto bm = text_params.find("bandwidth_method");
     if (bm != text_params.end() && !bm->second.empty()) bandwidth_method_ = bm->second;
@@ -788,6 +798,9 @@ void FeatureExtractor::clear_state() {
     pending_rows_.clear();
     frames_ = 0;
     segments_ = 0;
+    sub_open_.clear();
+    sub_closed_.clear();
+    sub_hist_.clear();
     status_ = ComponentStatus();
 }
 
@@ -996,6 +1009,185 @@ void FeatureExtractor::close_segment() {
     gap_ = 0;
 }
 
+// ---- 分子带口径（Q-4c，D-094）：与 algos/reference/features.py 的 extract_subband 逐步同序 ----
+
+bool FeatureExtractor::apply_subband(const Detection& d, const Frame& f, std::string& err) {
+    if (!d.subband_mode) {
+        err = "FeatureExtractor 的 basis = subband 要求检测器开分子带（subband_bins > 0），检测行里没有分子带结果";
+        return false;
+    }
+    const std::uint64_t fi = d.frame_index;
+    // 先收口：f − last − 1 > min(merge_gap, 63) 的段检测器再也连不上了（剪枝或最近帧窗口外），按段号升序
+    const std::uint64_t close_after = std::min<std::uint64_t>(merge_gap_, SubbandStage::kLinkFrames - 1);
+    std::vector<std::int64_t> stale;
+    for (const auto& kv : sub_open_) if (fi - kv.second.last - 1 > close_after) stale.push_back(kv.first);
+    for (std::int64_t id : stale) close_subband(id);
+    const std::size_t M = band_bins_.size();
+    for (const SubbandHit& h : d.subbands) {
+        if (sub_closed_.count(h.segment_id)) {
+            err = "FeatureExtractor：第 " + numstr(fi) + " 帧里分子带段 " + numstr(h.segment_id) +
+                  " 已经收口又来了簇——与检测器的剪枝规则不符";
+            return false;
+        }
+        if (h.bin_hi >= M || h.bin_lo > h.bin_hi) {
+            err = "FeatureExtractor：分子带簇的频点号越出检测频段（" + numstr(h.bin_lo) + "–" + numstr(h.bin_hi) +
+                  "，频段 " + numstr(M) + " 个频点）：检测器与本组件的频段对不上";
+            return false;
+        }
+        auto it = sub_open_.find(h.segment_id);
+        if (it == sub_open_.end()) {
+            SubSeg s;
+            s.id = h.segment_id;
+            s.first = fi;
+            s.psd_sum.assign(M, 0.0);
+            it = sub_open_.insert(std::make_pair(h.segment_id, s)).first;
+        }
+        SubSeg& s = it->second;
+        if (s.frames == 0 || s.last != fi) {
+            s.last = fi;
+            s.frames++;
+            for (std::size_t j = 0; j < M; ++j) s.psd_sum[j] += f.power_w[band_bins_[j]];
+            s.overload = s.overload || d.overload;
+            s.calibrated = s.calibrated && f.calibrated;
+        }
+        for (std::uint32_t j = h.bin_lo; j <= h.bin_hi; ++j) s.count[static_cast<long long>(j)]++;
+        s.n_sum += h.n;
+        s.bins_sum += static_cast<std::uint64_t>(h.bin_hi - h.bin_lo + 1);
+    }
+    return true;
+}
+
+FeatureRow FeatureExtractor::compute_subband_row(const SubSeg& s, std::size_t& occ) const {
+    const std::size_t kGuard = 2;     // 量测窗两边各加的频点数（与检测器删截的 kGuardBins 同值）
+    FeatureRow r;
+    r.subband = true;
+    const double fs = sample_rate_Hz_;
+    const double F = static_cast<double>(s.frames);
+    const std::size_t M = band_bins_.size();
+    const double half = static_cast<double>(nfft_ / 2);
+    const double bin = fs / static_cast<double>(nfft_);
+    r.segment_id = s.id;
+    r.frames = s.frames;
+    r.t_s = static_cast<double>(s.first * nfft_) / fs;
+    r.t_end_s = static_cast<double>((s.last + 1) * nfft_) / fs;
+    r.duration_s = r.t_end_s - r.t_s;
+    const std::pair<long long, long long> core = subband_core_span(s.count, s.frames);
+    const std::size_t clo = static_cast<std::size_t>(core.first), chi = static_cast<std::size_t>(core.second);
+    r.f_lo_Hz = center_frequency_Hz_ + (static_cast<double>(band_bins_[clo]) - half) * bin - 0.5 * bin;
+    r.f_hi_Hz = center_frequency_Hz_ + (static_cast<double>(band_bins_[chi]) - half) * bin + 0.5 * bin;
+    const std::size_t umin = static_cast<std::size_t>(s.count.begin()->first);
+    const std::size_t umax = static_cast<std::size_t>(s.count.rbegin()->first);
+    const std::size_t wlo = umin >= kGuard ? umin - kGuard : 0;
+    const std::size_t whi = std::min(M - 1, umax + kGuard);
+    std::vector<double> mean(M, 0.0);
+    for (std::size_t j = wlo; j <= whi; ++j) mean[j] = s.psd_sum[j] / F;
+    const double n_bin = s.bins_sum > 0 ? s.n_sum / static_cast<double>(s.bins_sum) : 0.0;
+    const double gate = n_bin * noise_gate_ / std::sqrt(F);
+    std::vector<double> sig(M, 0.0);
+    double total = 0.0;
+    std::size_t nsig = 0;
+    for (std::size_t j = wlo; j <= whi; ++j) {
+        const double v = mean[j] - n_bin;
+        sig[j] = v > gate ? v : 0.0;
+        if (sig[j] > 0.0) ++nsig;
+        total += sig[j];
+    }
+    r.signal_bins = nsig;
+    std::size_t olo = wlo, ohi = whi, flo = clo, fhi = chi;
+    if (total > 0.0) {
+        double num = 0.0;
+        for (std::size_t j = wlo; j <= whi; ++j) {
+            num += (static_cast<double>(band_bins_[j]) - half) * fs / static_cast<double>(nfft_) * sig[j];
+        }
+        r.center_Hz = center_frequency_Hz_ + num / total;
+        if (bandwidth_method_ == "occupied_99") {
+            const double edge = 0.005 * total;
+            double cum = 0.0;
+            for (std::size_t j = wlo; j <= whi; ++j) { cum += sig[j]; if (cum >= edge) { olo = j; break; } }
+            cum = 0.0;
+            for (std::size_t j = whi + 1; j-- > wlo;) { cum += sig[j]; if (cum >= edge) { ohi = j; break; } }
+        } else {
+            double peak = 0.0;
+            for (std::size_t j = wlo; j <= whi; ++j) if (sig[j] > peak) peak = sig[j];
+            const double thr = peak * 0.01;
+            for (std::size_t j = wlo; j <= whi; ++j) if (sig[j] >= thr) { olo = j; break; }
+            for (std::size_t j = whi + 1; j-- > wlo;) if (sig[j] >= thr) { ohi = j; break; }
+        }
+        r.bandwidth_Hz = static_cast<double>(band_bins_[ohi] - band_bins_[olo] + 1) * bin;
+        occ = ohi - olo + 1;
+        flo = olo;
+        fhi = ohi;
+    } else {
+        r.center_Hz = center_frequency_Hz_ +
+                      (0.5 * (static_cast<double>(band_bins_[clo]) + static_cast<double>(band_bins_[chi])) - half) * bin;
+        r.bandwidth_Hz = 0.0;
+        occ = 0;
+        flo = clo;
+        fhi = chi;
+    }
+    // 平坦度：99% 占用那些频点（信号自己的频段）上原始段均 PSD 的几何均值 / 算术均值；量不出信号时取核心频段
+    bool anyzero = false;
+    double logsum = 0.0, arith = 0.0;
+    for (std::size_t j = flo; j <= fhi; ++j) {
+        const double v = mean[j];
+        if (v <= 0.0) anyzero = true; else logsum += std::log(v);
+        arith += v;
+    }
+    const double nf = static_cast<double>(fhi - flo + 1);
+    r.spectral_flatness = (anyzero || arith <= 0.0) ? 0.0 : std::exp(logsum / nf) / (arith / nf);
+    double e_core = 0.0;
+    for (std::size_t j = clo; j <= chi; ++j) e_core += mean[j];
+    const double n_core = n_bin * static_cast<double>(chi - clo + 1);
+    r.has_dBm = s.calibrated;
+    if (r.has_dBm) {
+        // Hann 域：功率按 nfft·Σw² 归一（与检测器簇的 band_power_dBm 同式）；峰值按相干增益 (Σw)²
+        r.band_power_dBm = 10.0 * std::log10(std::max(e_core / (static_cast<double>(nfft_) * wsq_), 1e-30));
+        double pk = 0.0;
+        for (std::size_t j = wlo; j <= whi; ++j) if (mean[j] > pk) pk = mean[j];
+        r.peak_dBm = 10.0 * std::log10(std::max(pk / (wsum_ * wsum_), 1e-30));
+    }
+    r.snr_dB = 10.0 * std::log10(std::max(e_core, 1e-30) / std::max(n_core, 1e-30));
+    r.overload = s.overload;
+    r.quality = s.overload ? "overload" : (s.frames < min_frames_ ? "short" : (nsig == 0 ? "low_snr" : "full"));
+    return r;
+}
+
+void FeatureExtractor::close_subband(std::int64_t id) {
+    auto it = sub_open_.find(id);
+    if (it == sub_open_.end()) return;
+    const SubSeg& s = it->second;
+    std::size_t occ = 0;
+    FeatureRow r = compute_subband_row(s, occ);
+    // 上一段：已收的 full / overload 段里末帧 + 1 ≤ 本段首帧的最晚一段，且 99% 占用频点数相差不到 2 倍；平局取段号小的
+    const SubHist* best = nullptr;
+    if (occ > 0) {
+        for (const SubHist& h : sub_hist_) {
+            if (h.last + 1 > s.first || 2 * std::min(h.occ, occ) < std::max(h.occ, occ)) continue;
+            if (best == nullptr || h.last > best->last || (h.last == best->last && h.id < best->id)) best = &h;
+        }
+    }
+    r.has_prev = best != nullptr;
+    if (best != nullptr) {
+        r.interval_from_prev_s = r.t_s - best->t_end_s;
+        r.hop_from_prev_Hz = r.center_Hz - best->center_Hz;
+    }
+    if (r.quality == "full" || r.quality == "overload") {
+        SubHist h;
+        h.first = s.first;
+        h.last = s.last;
+        h.occ = occ;
+        h.center_Hz = r.center_Hz;
+        h.t_end_s = r.t_end_s;
+        h.id = s.id;
+        sub_hist_.push_back(h);
+    }
+    sub_closed_.insert(id);
+    sub_open_.erase(it);
+    pending_rows_.push_back(r);
+    report(r);
+    segments_++;
+}
+
 void FeatureExtractor::report(const FeatureRow& r) {
     if (obs_ == nullptr) return;
     FeatureReport fr;
@@ -1061,7 +1253,11 @@ Step FeatureExtractor::process(PortMap& in, PortMap& out, std::string& err) {
             return Step::Error;
         }
         if (!band_ready_) build_band(d.f_lo_Hz, d.f_hi_Hz);
-        apply(d, f);
+        if (subband_) {
+            if (!apply_subband(d, f, err)) return Step::Error;
+        } else {
+            apply(d, f);
+        }
         pending_frames_.pop_front();
         frames_++;
     }
@@ -1081,6 +1277,13 @@ Step FeatureExtractor::process(PortMap& in, PortMap& out, std::string& err) {
 Step FeatureExtractor::flush(PortMap& out, std::string& err) {
     (void)err;
     if (open_) close_segment();
+    if (subband_) {
+        // 收尾按（末帧，段号）升序收口，与 Python 参考同序
+        std::vector<std::pair<std::uint64_t, std::int64_t> > order;
+        for (const auto& kv : sub_open_) order.push_back(std::make_pair(kv.second.last, kv.first));
+        std::sort(order.begin(), order.end());
+        for (const auto& o : order) close_subband(o.second);
+    }
     if (!carry_.empty()) {
         status_.notes.push_back("末尾 " + numstr(carry_.size()) + " 个样点不足一帧，已丢弃（与检测器同律）");
         carry_.clear();
@@ -1207,7 +1410,9 @@ ComponentInfo FeatureExtractor::describe() const {
                     "带内噪声估计并过闸后，给出功率质心、99% 占用带宽（或 −20 dB 边）、带内功率与峰值、"
                     "信噪比、谱平坦度、峰均比、占空比、与上一段的间隔与频差、质量标记；"
                     "口径与 algos/reference/features.py 一致，黄金基准逐段对拍。"
-                    "IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补";
+                    "IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补。"
+                    "basis = subband 时按检测器的分子带段出行（Q-4c，D-094）：带宽、质心与平坦度在这一段自己的频段上量，"
+                    "上一段只取占用带宽相差不到 2 倍的段，占空比与峰均比无定义";
     i.model_layer = "M3";
     i.model_level = "E2";
     i.model_id = "EM-S-03";
@@ -1220,6 +1425,10 @@ ComponentInfo FeatureExtractor::describe() const {
     i.params = {
         ParamSpec::number("nfft", "", "帧长，必须等于上游检测器的 nfft（装载器核对）")
             .def(1024.0).at_least(2.0).constrained("2 的幂；= EnergyDetector.nfft"),
+        ParamSpec::choice("basis", {"frame", "subband"},
+                          "段的口径：frame = 检测器的帧级突发；subband = 检测器的分子带段（要求检测器 subband_bins > 0，"
+                          "装载器核对；Q-4c，D-094）")
+            .def_text("frame"),
         ParamSpec::choice("bandwidth_method", {"occupied_99", "edge_minus_20dB"},
                           "带宽口径：占用带宽（去噪后累积功率 0.5%–99.5% 的跨度）或峰值以下 20 dB 的边")
             .def_text("occupied_99"),

@@ -789,6 +789,20 @@ TEST_CASE("装载器：特征提取器与上游检测器的分帧契约——nff
         CHECK(e.node_id == "feat");
         CHECK(e.message.find("sliding") != std::string::npos);
     }
+    // Q-4c（D-094）：basis = subband 要求检测器开分子带；检测器开了就通过
+    {
+        json bad = base;
+        bad["nodes"][5]["params"]["basis"] = "subband";
+        DiagramError e = expect_fail(bad, "param");
+        CHECK(e.node_id == "feat");
+        CHECK(e.port == "det");
+        CHECK(e.message.find("subband_bins") != std::string::npos);
+        json ok = bad;
+        ok["nodes"][3]["params"]["subband_bins"] = 8;
+        LoadedDiagram d;
+        DiagramError e2;
+        CHECK_MESSAGE(try_load(ok, d, e2), e2.message);
+    }
 }
 
 TEST_CASE("装载器：library_version 换成内部参数 library_path 注入（D-037 同法）；非法版本号与不存在的库都被拒（C-4）") {
