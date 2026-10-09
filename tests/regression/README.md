@@ -95,26 +95,37 @@ uv run --quiet --with numpy --with scipy python tests/regression/impairments.py 
 uv run --quiet --with numpy --with sigmf --with matplotlib python tests/regression/eval_dataset_smoke.py   # 已接进 scripts/build-all.sh
 ```
 
-### 分子带检测（Q-4b，D-093）
+### 分子带检测与识别（Q-4b，D-093；Q-4c，D-094）
 
-`subband_detection.py` 检测器开 `subband_bins = 8`，跑真引擎：
+`subband_detection.py` 检测器开 `subband_bins = 8`，跑真引擎。检测器开了分子带，典型链路就把特征、识别与评价切到分子带口径、
+识别库取 v2（Q-4c，用户 2026-10-09 定的「跟着分子带开关走」）：
 
-1. **帧级一字不动**：`diagrams/chain-golden-02.json` 与 `diagrams/chain-golden-02-subband.json`（只差检测器的 `subband_bins`）
-   各跑一次，谱与包络产品逐字节相同，检测行去掉 `subband_hit` / `subbands` 后逐行相同，`metrics.json` 除 `segments_tf` 外逐值相同；
+1. **帧级一字不动**：`diagrams/chain-golden-02.json` 与 `diagrams/chain-golden-02-subband.json`（检测器多 `subband_bins`，特征 / 识别 / 评价多随它派生的口径与库版本）
+   各跑一次，谱与包络产品逐字节相同，检测行去掉 `subband_hit` / `subbands` 后逐行相同，`metrics.json` 除 `segments_tf` 与 `recognition` 外逐值相同，
+   开分子带那一次 `recognition.basis = subband`；
 2. **golden-02**：3.0–4.5 s 只有跳频，按验收规则判（分子带突发检出率 ≥ 帧级 − 0.02、碎片 ≤ 2%）；
    5–6 s 图传与跳频同时出现，只报数：帧级 1 段盖住 100 个跳频突发，分子带配上 76 个，漏的 24 个都在 2440.375 / 2440.6875 MHz——
    图传的 4 阶巴特沃斯裙边在那里仍高出底噪约 8 dB，两者在时频面上连成一片；
 3. **试样集十格的宽带版本**（由格子文件 `eval-dataset/sample-v1.json` 现场生成，80 MS/s、DDC 旁路、0.5 s）：
    单源视距 s02–s05 按同一条验收规则判；多源 s01 / s06 / s07 与非视距 s09 / s10 只报数（用户 2026-10-04 定）；
    纯背景 s08 暖机后的子带命中帧占比对设计的 pfa（判 ≤ 2·pfa，缘由在脚本头注）；
-4. 每次运行都用 `algos/reference/evaluate.py` 逐值核对 `metrics.json`。
+4. 每次运行都用 `algos/reference/evaluate.py` 逐值核对 `metrics.json`（含分子带口径的识别）；
+5. **分子带识别（Q-4c）**：试样集十格两种链路——第 3 步的宽带版本与交付 S4 链路（格子文件的 DDC，只多开分子带，脚本断言上游节点与交付框图逐个相同）——
+   单源视距 s02–s05 的识别准确率（配上真值的段）≥ 0.9；多源、非视距、DroneID 只报数，另报各类与模板级准确率、虚警段判 unknown 的比例。
+   库 v2 是从校准集 `eval-dataset/calib-v1.json` 取的，与试样集同一批预设：**这条判据是回归护栏不是独立验证**（14 号报告 §8.6）；
+6. golden-01 / 03 开分子带只报数（旧合成波形，库 v2 里有它们的模板）；
+7. DroneRFb 训练部分的回放片段（先按验收集清单剔除，每个机型两片）只报数：没有逐突发真值，按带宽分档报识别出的标签；缺实测数据时明说跳过。
 
 ```
-uv run --quiet python tests/regression/subband_detection.py    # 已接进 scripts/build-all.sh；--cells s03,s07 只跑第 3 部分的这几格（调试用）
+uv run --quiet python tests/regression/subband_detection.py    # 已接进 scripts/build-all.sh；--cells s03,s07 只跑第 3、5 部分的这几格（调试用）
 ```
 
-约 3 分钟；运行目录 `data/runs/q4b-subband/` 与临时框图 `data/tmp/q4b-subband/` 跑完即删。宽带框图的频率计划放行表在脚本里（`WB_ALLOW`），
-五格都只放行界面那条提示性的保护带检查，缘由逐条写着。实测数字见 D-093。
+约 6 分钟；运行目录 `data/runs/q4b-subband/` 与临时框图 `data/tmp/q4b-subband/` 跑完即删。宽带框图的频率计划放行表在脚本里（`WB_ALLOW`），
+五格都只放行界面那条提示性的保护带检查，缘由逐条写着。实测数字见 D-093 与 D-094。
+
+识别库 v2 本身的两道检查不在这里：校准统计重跑逐字节 `uv run --quiet --with numpy python algos/reference/q4c_feature_survey.py --check`
+（约 11 分钟，**没接进** `build-all.sh`），库由统计表与规则逐字节生成 `uv run --quiet python scripts/gen_recognition_library.py --check`
+与单测 `tests/unit/test_recognition_library.py`。
 
 ### E3 建筑遮挡（D3-5，D-074）
 

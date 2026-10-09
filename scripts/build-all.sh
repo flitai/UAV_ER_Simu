@@ -70,6 +70,16 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 识别库 v2（Q-4c，D-094）===\n'
+# library-v2.json 由入库的校准统计与 Q-0b 按规则逐字节生成；区间盖住统计量、v1 一个字节没动。只用标准库。
+# 校准统计本身重跑逐字节（q4c_feature_survey.py --check，约 11 分钟）不在这里跑。
+if command -v uv >/dev/null 2>&1; then
+  uv run --quiet python scripts/gen_recognition_library.py --check
+  uv run --quiet python -m unittest tests/unit/test_recognition_library.py
+else
+  echo "跳过：需要 uv" >&2
+fi
+
 printf '=== 机型预设表（Q-2，D-088）===\n'
 # 生成的 C++ 与 models/radiator/presets-v1.json 一致；表里每个 M 档数能从 q0b-params.json 复算。只用标准库。
 if command -v uv >/dev/null 2>&1; then
