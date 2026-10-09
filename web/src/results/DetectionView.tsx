@@ -10,7 +10,7 @@ import { timeStore } from '../shell/timeStore.js'
 import { useAppState, useStore } from '../state/store.js'
 import { detectionStore, siteIdsOf, visibleSegments, type DetectionState } from './detectionStore.js'
 import { DetectionTimeline } from './DetectionTimeline.js'
-import { labelText } from './labels.js'
+import { labelText, templateText } from './labels.js'
 import { recKey, recognitionStore, type RecognitionState } from './recognitionStore.js'
 
 /** 结论只摆事实（D-039）：匹配上了、几个模板分不清、不属于任何模板 */
@@ -65,8 +65,12 @@ export function DetectionView() {
   const [grain, setGrain] = useState<'segment' | 'frame'>('segment')
 
   const segs = visibleSegments(st)
-  // 分子带（Q-4b，D-093）：突发表列分子带段，多一列频段；识别三列只对帧级段有意义，此时不列
+  // 分子带（Q-4b，D-093）：突发表列分子带段，多一列频段。识别三列跟着识别行的口径走：识别按分子带段出（Q-4c，D-094）
+  // 就照列并多一列「类型」（库 v2 的模板），识别仍挂在帧级突发上（Q-4c 之前的运行）就不列——段号对不上
   const tf = st.subbandMode
+  const recTf = rec.rows.some((r) => r.basis === 'subband')
+  const showRec = !tf || recTf
+  const showTpl = rec.rows.some((r) => !!r.template)
   const sites = siteIdsOf(st)
   // 表跟着站下拉走（「全部」就是全部），时间线只能画一站故跟焦点站走——差别写在 timeline3.ts 的头注里
   const frames = useFrameRows(s.task.id, st.siteFilter, s.task.runState, grain === 'frame')
@@ -130,7 +134,7 @@ export function DetectionView() {
           <table className="site-table det-table" data-det-table>
             <thead>
               <tr>
-                <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th>{tf && <th>频段</th>}<th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削波</th>{!tf && <><th>标签</th><th>后验</th><th>结论</th></>}
+                <th>#</th>{sites.length > 0 && <th>站</th>}<th>起 s</th><th>止 s</th><th>时长 s</th><th>帧</th>{tf && <th>频段</th>}<th>峰值 Λ</th><th>峰值 dBm</th><th>信噪比 dB</th><th>削波</th>{showRec && <><th>标签</th>{showTpl && <th>类型</th>}<th>后验</th><th>结论</th></>}
               </tr>
             </thead>
             <tbody>
@@ -147,11 +151,12 @@ export function DetectionView() {
                   <td className="num">{g.peak_band_power_dBm === null ? '—' : fmtDb(g.peak_band_power_dBm, '')}</td>
                   <td className="num">{g.peak_snr_dB.toFixed(1)}</td>
                   <td className="num">{g.overload ? '▲' : ''}</td>
-                  {!tf && (() => {
-                    const r = rec.byKey[recKey(g.site_id, g.segment_id)]
+                  {showRec && (() => {
+                    const r = rec.byKey[recKey(g.site_id, g.segment_id, !!g.tf)]
                     return (
                       <>
                         <td className="name" data-det-label>{r?.label ?? ''}</td>
+                        {showTpl && <td className="name" data-det-template>{templateText(r?.template)}</td>}
                         <td className="num">{r ? r.posterior.toFixed(2) : ''}</td>
                         <td className="name" data-det-result={r?.result ?? ''}>{r ? RESULT_TEXT[r.result] ?? r.result : ''}</td>
                       </>
@@ -209,7 +214,7 @@ export function DetectionView() {
         <table className="site-table det-table" data-rec-table>
           <thead>
             <tr>
-              <th>t s</th>{sites.length > 0 && <th>站</th>}<th>段</th><th>标签</th><th>后验</th><th>Top-3</th><th>证据</th><th>结论</th>
+              <th>t s</th>{sites.length > 0 && <th>站</th>}<th>段</th>{recTf && <th>频段</th>}<th>标签</th>{showTpl && <th>类型</th>}<th>后验</th><th>Top-3</th><th>证据</th><th>结论</th>
             </tr>
           </thead>
           <tbody>
@@ -219,7 +224,9 @@ export function DetectionView() {
                 <td className="num">{fmtSeconds(r.t_s)}</td>
                 {sites.length > 0 && <td className="name">{r.site_id ?? '—'}</td>}
                 <td className="num">{r.segment_id}</td>
+                {recTf && <td className="num">{typeof r.f_lo_Hz === 'number' && typeof r.f_hi_Hz === 'number' ? `${fmtHz(r.f_lo_Hz)} – ${fmtHz(r.f_hi_Hz)}` : '—'}</td>}
                 <td className="name">{labelText(r.label) || r.label}</td>
+                {showTpl && <td className="name" data-rec-template>{templateText(r.template)}</td>}
                 <td className="num">{r.posterior.toFixed(2)}</td>
                 <td className="name">{r.top_n.map((c) => `${labelText(c.label) || c.label} ${c.posterior.toFixed(2)}`).join(' · ') || '—'}</td>
                 <td className="name">{r.evidence_quality}</td>

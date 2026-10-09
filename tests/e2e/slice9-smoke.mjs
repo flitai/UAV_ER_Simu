@@ -11,6 +11,7 @@
 //   ⑥ 同种子重跑，产品文件逐字节相同（铁律 9）；
 //   ⑦ 检测器开分子带（Q-4b，D-093）：框图页右栏把 subband_bins 填 8 再跑一遍，结果页「检测识别」
 //      改列分子带段——帧级段号 181 把 5–6 s 里同时出现的图传与跳频并成一段，分子带下各成各的；
+//      识别跟着切到分子带段、库 v2（Q-4c，D-094）：突发表照列标签并多一列「类型」，评价的识别按分子带配对；
 //      时间线检测那一行画的就是这些段；评价多出 segments_tf，跳频源逐个配上真值。
 //
 // 跑序接在 slice8 之后（slice4 依赖「最近一个任务」是缺省链，本文件会换成 golden-02，故放末位）。
@@ -232,11 +233,16 @@ try {
     rows: document.querySelectorAll('[data-det-table] [data-det-row]').length,
     bands: document.querySelectorAll('[data-det-table] [data-det-band]').length,
     labels: document.querySelectorAll('[data-det-table] [data-det-label]').length,
+    labelled: [...document.querySelectorAll('[data-det-table] [data-det-label]')].filter((e) => e.textContent).length,
+    templates: [...document.querySelectorAll('[data-det-table] [data-det-template]')].map((e) => e.textContent).filter(Boolean),
     lane: document.querySelectorAll('[data-tl3-lane=detect] [data-tl3-band]').length,
   })`)
-  check('突发表改列分子带段：每行一个频段，不列识别三列（识别挂在帧级段上）',
-    ui7.mode === 'subband' && ui7.rows === det7.visibleSegments && ui7.bands === ui7.rows && ui7.labels === 0,
-    JSON.stringify(ui7))
+  check('突发表改列分子带段：每行一个频段；识别按分子带段出（Q-4c），标签与「类型」两列照列',
+    ui7.mode === 'subband' && ui7.rows === det7.visibleSegments && ui7.bands === ui7.rows && ui7.labels === ui7.rows,
+    JSON.stringify({ ...ui7, templates: ui7.templates.length }))
+  check('分子带段有识别标签与模板类型（库 v2），跳频突发判成「跳频突发」',
+    ui7.labelled > 0 && ui7.templates.includes('跳频突发'),
+    `有标签 ${ui7.labelled} 行；类型 ${[...new Set(ui7.templates)].join('、')}`)
   check('页头写出分子带的块宽、级数与检验数', /8 频点起/.test(ui7.head) && /次检验/.test(ui7.head), ui7.head)
   check('时间线检测那一行画的是分子带段', ui7.lane === det7.visibleSegments, `${ui7.lane} 条 / ${det7.visibleSegments} 段`)
 
@@ -248,8 +254,11 @@ try {
     const frameSegs = new Set(rows.filter(r => r.t_s >= 5 && r.t_s < 6).map(r => r.segment_id)).size
     const sbRows = await fetch('/api/v1/results/${sbTask}/detections?subband_hit=true&t0=5&t1=6').then(r => r.json())
     const tfSegs = new Set(sbRows.filter(r => r.t_s >= 5 && r.t_s < 6).flatMap(r => r.subbands.map(h => h.segment_id))).size
-    return { tf: s.segments_tf ?? null, frameSegs, tfSegs }
+    return { tf: s.segments_tf ?? null, frameSegs, tfSegs, rec: s.recognition }
   })()`)
+  check('评价的识别按分子带段（recognition.basis = subband），混淆矩阵里有配上真值的段',
+    tf7.rec?.basis === 'subband' && tf7.rec.evaluated > 0,
+    JSON.stringify({ basis: tf7.rec?.basis, evaluated: tf7.rec?.evaluated, accuracy: tf7.rec?.accuracy, unmatched: tf7.rec?.unmatched }))
   const hop7 = tf7.tf?.per_emitter?.['uav-2']
   check('评价多出 segments_tf，跳频源一对一配上的突发 ≥ 200 个、没有一个被并掉',
     tf7.tf !== null && hop7?.matched >= 200 && hop7?.merged === 0 && tf7.tf.fragments === 0,

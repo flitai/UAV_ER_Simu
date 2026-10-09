@@ -131,14 +131,15 @@ try {
   const recDerived = await page.evaluate("Array.from(document.querySelectorAll('[data-form=slot] [data-param-derived]')).map(e => e.dataset.paramDerived).join()")
   await page.evaluate("(document.querySelector('[data-slot=det] [data-slot-sub=feat]').click(), true)")
   const featDerived = await page.evaluate("Array.from(document.querySelectorAll('[data-form=slot] [data-param-derived]')).map(e => e.dataset.paramDerived).join()")
-  check('特征提取的 nfft 与突发合并空隙从检测器派生、只读（10 §4.3），识别器没有派生项',
-    featDerived === 'nfft,merge_gap_frames' && recDerived === '', `feat ${featDerived} / rec ${recDerived}`)
+  // Q-4c（D-094）：成段口径与识别库版本随检测器的分子带开关（一件事一个入口），在特征提取、识别、评价的面板上都是只读派生行
+  check('特征提取的 nfft、突发合并空隙与成段口径从检测器派生、只读（10 §4.3、Q-4c）；识别器只有口径与库版本两项派生',
+    featDerived === 'nfft,basis,merge_gap_frames' && recDerived === 'library_version,basis', `feat ${featDerived} / rec ${recDerived}`)
   // 评价器（C-5）：真值来源随模式、nfft 随检测器、data_id 随信号源 / 背景——三项都是只读派生行（全合成模式下 data_id 空着，说明写在行上）
   await page.evaluate("(document.querySelector('[data-slot=det] [data-slot-sub=eval]').click(), true)")
   const evalDerived = await page.evaluate("Array.from(document.querySelectorAll('[data-form=slot] [data-param-derived]')).map(e => e.dataset.paramDerived).join()")
   const evalPanel = await page.evaluate("document.querySelector('[data-form=slot] .pp-title')?.textContent ?? ''")
-  check('评价器的真值来源、data_id 与 nfft 是派生只读项，面板标题写的是评价（C-5）',
-    evalDerived === 'truth_source,data_id,nfft' && /评价/.test(evalPanel), `eval ${evalDerived} / ${evalPanel}`)
+  check('评价器的真值来源、data_id、nfft 与成段口径是派生只读项，面板标题写的是评价（C-5、Q-4c）',
+    evalDerived === 'truth_source,data_id,nfft,basis' && /评价/.test(evalPanel), `eval ${evalDerived} / ${evalPanel}`)
   const note = await page.evaluate("document.querySelector('[data-slot=ddc] [data-slot-note]')?.textContent ?? ''")
   check('旁路的环节写明信号从哪里取，且不出现 MATLAB 字样', /旁路/.test(note) && !/MATLAB/.test(note), note.slice(0, 40))
   // 界面上不出现 MATLAB（D-036）：信道化是首条 Coder 链路，卡片上照样一个字不提

@@ -30,6 +30,19 @@ const KNOWN: Record<string, LabelStyle> = {
   unknown: { text: '未知', color: '#a33333' },
 }
 
+/**
+ * 识别库 v2 的模板（波形族，Q-4c，D-094）的中文短名：突发表「类型」一列。标签相同的几个模板颜色跟标签走，
+ * 这里只给名字；不认识的模板 id 原样写出。
+ */
+const TEMPLATE_TEXT: Record<string, string> = {
+  ofdm_video: 'OFDM 图传', noise_video: '噪声图传', burst_fixed: '定频突发', ofdm_uplink: 'OFDM 上行',
+  gfsk_fhss: 'GFSK 跳频', burst_hopping: '跳频突发', tone: '单音', droneid: 'DroneID',
+}
+
+export function templateText(id: string | null | undefined): string {
+  return id ? (TEMPLATE_TEXT[id] ?? id) : ''
+}
+
 /** 库外标签与没有识别行的段：灰，不编颜色 */
 export const OTHER_LABEL: LabelStyle = { text: '其它', color: '#57534e' }
 /** 没有识别行的检测段（识别器未接、或该段没出识别行）：保持 C-3 的红框 */

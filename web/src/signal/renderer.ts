@@ -72,9 +72,9 @@ const FONT = '11px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", s
  * 保持 C-3 的红框、不写字。识别行与检测段按「站 + 段号」对（两者是不同节点，recKey 的注释说了缘由）。
  */
 function segmentStyle(g: DetectionSegment) {
-  // 分子带段（Q-4b，D-093）的段号是另一套编号，识别行挂在帧级段上，对不上就不对：保持红框、不写字
-  if (g.tf) return UNRECOGNIZED
-  const r = recognitionStore.get().byKey[recKey(g.site_id, g.segment_id)]
+  // 分子带段（Q-4b）与帧级突发是两套段号：识别按分子带段出（Q-4c，D-094）时按分子带键找，
+  // 识别仍挂在帧级突发上（Q-4c 之前的运行）时找不到，保持红框、不写字
+  const r = recognitionStore.get().byKey[recKey(g.site_id, g.segment_id, !!g.tf)]
   if (!r) return UNRECOGNIZED
   return labelStyle(r.result === 'unknown' ? 'unknown' : r.label)
 }

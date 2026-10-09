@@ -391,9 +391,15 @@ export interface MetricsSection {
   roc: { working_point: { threshold: number | null; pd: number | null; pfa: number | null }; points: Array<{ threshold: number; pd: number | null; pfa: number | null }> }
   recognition: { state: string; labels: string[]; confusion: number[][]; evaluated: number; unmatched: number
     accuracy: number | null; unknown_rate: number | null; ambiguous_rate: number | null
+    /** 分子带口径才有（Q-4c）：识别行挂在分子带段上、接 segments_tf 的一对一配对 */
+    basis?: 'subband'
     per_class: Array<{ label: string; support: number; precision: number | null; recall: number | null; f1: number | null }> }
   /** `noise_stale_frames` 在 metrics.json 里恒 null（端口上拿不到），真值在 detections.index.json */
   quality: { overload_frames: number; noise_stale_frames: number | null; truth_rows: number }
+  /** 分子带检测才有（Q-4b，D-093）：时间 × 频率一对一配对 */
+  segments_tf?: { truth: number; truth_out_of_band: number; truth_partial: number; segments: number; matched: number
+    false_segments: number; fragments: number; merged_truth: number; pd_burst: number | null
+    per_emitter: Record<string, { truth: number; matched: number; merged: number; pd_burst: number | null; detect_delay_mean_s: number | null }> }
   state: string
   reasons: string[]
   trace: Record<string, unknown>
@@ -630,6 +636,12 @@ export interface RecognitionRow {
   unknown_kind: string | null
   evidence_quality: string
   library_version: string
+  /** 库格式 /2 才有：获胜标签的那个模板（波形族，Q-4c，D-094） */
+  template?: string
+  /** 分子带口径才有：segment_id 是分子带段号；f_lo_Hz / f_hi_Hz 是该段的核心频段 */
+  basis?: 'subband'
+  f_lo_Hz?: number
+  f_hi_Hz?: number
   trace: Record<string, unknown>
 }
 

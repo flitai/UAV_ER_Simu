@@ -11,7 +11,7 @@ export type RecognitionStatus = 'idle' | 'polling' | 'final' | 'none'
 export interface RecognitionState {
   taskId: string | null
   rows: RecognitionRow[]
-  /** `${site_id ?? ''}|${segment_id}` → 行：突发表按检测段的站与段号找它 */
+  /** recKey(site_id, segment_id, 分子带?) → 行：突发表与瀑布按检测段的站、口径与段号找它 */
   byKey: Record<string, RecognitionRow>
   stride: number
   status: RecognitionStatus
@@ -19,9 +19,12 @@ export interface RecognitionState {
   fetches: number
 }
 
-/** 识别行与检测段的关联键：识别器与检测器是不同节点（rec__x / det__x），只能按站与段号对 */
-export function recKey(siteId: string | null | undefined, segmentId: number): string {
-  return `${siteId ?? ''}|${segmentId}`
+/**
+ * 识别行与检测段的关联键：识别器与检测器是不同节点（rec__x / det__x），只能按站与段号对。
+ * 帧级突发号与分子带段号是两套编号、会撞号（Q-4c，D-094），键里带上口径。
+ */
+export function recKey(siteId: string | null | undefined, segmentId: number, subband = false): string {
+  return `${siteId ?? ''}|${subband ? 's' : 'f'}|${segmentId}`
 }
 
 const initial = (): RecognitionState => ({ taskId: null, rows: [], byKey: {}, stride: 1, status: 'idle', error: null, fetches: 0 })
@@ -69,7 +72,7 @@ async function fetchOnce(taskId: string, final: boolean): Promise<void> {
   if (r.status === 'not_ready') { recognitionStore.patch({ status: 'polling', fetches }); return }
   if (r.status === 'error') { recognitionStore.patch({ error: r.message, fetches }); return }
   const byKey: Record<string, RecognitionRow> = {}
-  for (const row of r.rows) byKey[recKey(row.site_id, row.segment_id)] = row
+  for (const row of r.rows) byKey[recKey(row.site_id, row.segment_id, row.basis === 'subband')] = row
   recognitionStore.patch({ rows: r.rows, byKey, stride: r.stride, status: final ? 'final' : 'polling', error: null, fetches })
 }
 
