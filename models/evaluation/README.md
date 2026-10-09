@@ -33,7 +33,7 @@
 | `burst` | 该源有 `hop` 活动（G-6） | `rc_hopping` |
 | `noise` | `bw_Hz ≥ 1 MHz` | `video_link` |
 | `noise` | `bw_Hz < 1 MHz` | `noise`（库里没有的额外标签，如实写出，混淆矩阵为它扩一行一列） |
-| `ofdm` / `droneid` | 取机型预设的 `role`（Q-2，D-088） | 图传预设 `video_link`、上行预设 `rc_hopping`、DroneID 预设 `droneid`（新标签，识别库 v1 没有，混淆矩阵扩一行一列；库 v2 随 Q-4c） |
+| `ofdm` / `droneid` | 取机型预设的 `role`（Q-2，D-088） | 图传预设 `video_link`、上行预设 `rc_hopping`、DroneID 预设 `droneid`（新标签，识别库 v1 没有，混淆矩阵扩一行一列；库 v2 有它，Q-4c，D-094） |
 | `gfsk` | 取 GFSK 族预设的 `role`（Q-3，D-089） | `rc_hopping`（FrSky 与 Futaba S-FHSS 两个预设都是） |
 
 OFDM 族**一个突发一行真值**：起止是原生样点除以原生采样率（精确、与检测器采样率无关），开关看突发起点、
@@ -63,10 +63,11 @@ S-FHSS 同一频点的两包各一行；开关看包起点、频点看包中点�
 - **突发级**：检测段 = 命中帧按 `segment_id` 归组的 `[首帧 t_s, 末帧 t_s + dt)`；与真值段匹配当 `overlap / min(len_det, len_truth) ≥ match_overlap`（缺省 0.5）；`pd_segment` = 匹配上的真值段 / 频段内真值段；`false_segments` = 没匹配上任何真值的检测段；发现时延 = 首个匹配检测段起点 − 真值段起点，钳到 ≥ 0，给均值与最大。
 - **ROC**：统计量升序，门限取 `sorted[⌊i·(n−1)/(P−1)⌋]`（`P = roc_points`，去重），判决用**严格大于**（与检测器同）；工作点取行里的门限，其 pd / pfa 与帧级逐位相同。ROC 不重跑：滑动噪声估计与命中的耦合（命中帧不入环）在扫门限时不再变化，曲线是「同一份噪声估计下换门限」。
 - **识别**：只对匹配上真值段的检测段计；真值标签取重叠最大的真值段（并列取 `t_s` 早者、再 `emitter_id` 字典序）；标签序 = `[video_link, telemetry_burst, rc_hopping, cw_beacon]` + 其它（字典序）+ `unknown` 末位，方阵；`result = unknown` 计 `unknown` 列，`ambiguous` 计其 Top-1 列；`accuracy = Σ_{l≠unknown} C[l][l] / evaluated`；未匹配真值的识别行计 `unmatched`，不进矩阵。
+- **识别（分子带口径，Q-4c，D-094；`basis = subband`）**：识别行的段号是分子带段号，按 `(段号)` 接 `segments_tf` 的**一对一**配对——配上真值的段进混淆矩阵，碎片与虚警段的识别行计 `unmatched`；标签集合取进了配对的真值行（`truth_partial` 与频段外的不算）；其余（标签序、`unknown` 与 `ambiguous` 怎么计、准确率）同上。口径不从行里猜，由组件参数给：没有识别行时也得知道标签集合按哪一套取。`recognition` 一节多写 `basis: "subband"`（只在这时写）。
 - **分母为零**的比值一律 `null`，不用 0 顶替（铁律 15）。
 - **状态**：`none` → `not_applicable`；没有检测行 → `invalid`；门限在运行中变化、命中帧无段号、参数帧里出现场景文件没有的源、混合模式背景含目标、scenario 模式一帧参数帧都没收到 → `degraded` 并记原因。
 
-参数：`truth_source`（缺省 `scenario`）、`data_id`（回放 = 真值来源；混合 = 背景片段）、`nfft`（须等于检测器，装载器核对）、`match_overlap` 0.5、`roc_points` 32。典型链路里前三项都由框图页派生（模式 → 真值来源；检测器 → nfft；信号源 / 背景 → data_id），用户只改后两项。
+参数：`truth_source`（缺省 `scenario`）、`data_id`（回放 = 真值来源；混合 = 背景片段）、`nfft`（须等于检测器，装载器核对）、`match_overlap` 0.5、`roc_points` 32、`basis`（缺省 `frame`；须等于上游识别器的，`subband` 时检测器须开分子带，装载器核对）。典型链路里 `truth_source / nfft / data_id / basis` 都由框图页派生（模式 → 真值来源；检测器 → nfft 与口径；信号源 / 背景 → data_id），用户只改后两项。
 
 ## 5. 已知边界（不是缺陷，是口径）
 

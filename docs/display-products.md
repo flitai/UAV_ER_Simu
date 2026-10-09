@@ -329,6 +329,21 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 
 两套谱的分工（`engine/src/processing.cpp` 头注）：电量（带内功率、信噪比、噪声）用与检测器同律的矩形帧，形状（质心、带宽、平坦度、峰值）用同一帧加周期 Hann 窗的 PSD——矩形帧对不在 bin 上的单音漏出 sinc² 旁瓣，99% 占用带宽会量到几十个 bin。参考实现 `algos/reference/features.py`，黄金基准 `engine/tests/golden/features.json`（`gen_engine_golden.py --mode features`）。
 
+**分子带口径**（Q-4c，D-094；`FeatureExtractor.basis = subband`，典型链路在检测器开了 `subband_bins` 时自动切过来）：每个**分子带段**一行，
+`segment_id` 是分子带段号（与帧级突发号是两套编号）。多三个键、两个键改写，帧级口径的行一字不变：
+
+| 字段 | 分子带口径下的含义 |
+|---|---|
+| `basis` | 恒为 `"subband"`（帧级口径不写这个键） |
+| `f_lo_Hz` / `f_hi_Hz` | 该段的核心频段（在至少一半帧里命中的频点，首频点中心 − 半个频点、末频点中心 + 半个频点；与评价器、网页同一条规则） |
+| `center_Hz` / `bandwidth_Hz` / `signal_bins` | 在这一段命中过的全部频点两边各加两个频点的窗里量（不是整个检测频段） |
+| `spectral_flatness` | 只在 99% 占用的那些频点上算——信号自己的频段 |
+| `band_power_dBm` / `snr_dB` | 核心频段上：Hann 域功率按 `nfft·Σw²` 归一（与检测器簇的 `band_power_dBm` 同式），噪声 = 簇噪声估计的每频点平均 |
+| `duty` / `crest_factor_dB` | **`null`**：64 帧窗随采样率变；几个源同帧时峰均比不属于某一段 |
+| `interval_from_prev_s` / `hop_from_prev_Hz` | 「上一段」= 已收的 full / overload 段里末帧 + 1 ≤ 本段首帧的最晚一段，**且 99% 占用频点数相差不到 2 倍** |
+
+参考实现 `features.extract_subband`，黄金基准 `engine/tests/golden/features_subband.json`（`gen_engine_golden.py --mode features_subband`）；口径表见 14 号报告 §8.6。
+
 ### 5.3 突发识别行（C-4）
 
 **`recognitions.jsonl`**（生产者 `TemplateClassifier`，**每行特征一行识别**，与 `features.jsonl` 同节拍、同 `(node_id 对应, segment_id)`；行自带 `trace`）
@@ -347,6 +362,12 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `trace` | 溯源七件（`model_id = TemplateClassifier`、`EM-S-04`、`M2` / `E2` / `V2`、`parameter_version = library-<version>`） |
 
 参考实现 `algos/reference/classify.py`，黄金基准 `engine/tests/golden/recognition.json`（`classify.py --write-golden`）。
+
+**库格式 /2 与分子带口径**（Q-4c，D-094）：库 v2 的模板有 id、一个标签可有几个模板（取似然最大的那个），识别行多一个
+`template`（获胜标签的那个模板，即波形族：`ofdm_video / noise_video / burst_fixed / ofdm_uplink / gfsk_fhss / burst_hopping / tone / droneid`；
+判 unknown 时没有）；标签多一个 `droneid`。特征行是分子带口径时识别行另多 `basis: "subband"` 与该段的 `f_lo_Hz / f_hi_Hz`
+（网页据此画带标签的框，不必去读被抽稀的检测行）。库 v1 + 帧级口径的识别行一字不变。黄金基准 `engine/tests/golden/recognition_v2.json`
+（测试专用库 `recognition_v2_library.json`，`classify.py --write-golden-v2`）。
 
 ### 5.4 真值行（C-5，D-067）
 
@@ -377,7 +398,7 @@ c1 = f1 缺省 ? nfft : clamp(ceil(f1 / bw + half + 0.5), 0, nfft)
 | `segments` | `{truth, truth_out_of_band, detected, matched, false_segments, pd_segment, detect_delay_s{mean, max}}`；匹配判据 `overlap / min(len_det, len_truth) ≥ match_overlap` |
 | `segments_tf?` | **分子带**（Q-4b，D-093），检测器开了 `subband_bins` 才有（没开的运行逐字节不变）：`{truth, truth_out_of_band, truth_partial, segments, matched, false_segments, fragments, merged_truth, pd_burst, per_emitter{<id>: {truth, matched, merged, pd_burst, detect_delay_mean_s}}}`。时间 × 频率**一对一**配对：段 = 分子带段号相同的簇，频段取核心（在该段至少一半的帧里命中的频点）；真值频段 = 名义中心 + `cfo_Hz` ± `bw_Hz/2`（不含场景 `offset_Hz`）；时间与频率重叠比（都对较短 / 较窄的一方）都 ≥ `match_overlap` 才是候选，按两比之积贪心配对。真值频段落在检测频段内不足 `match_overlap` 的行计 `truth_partial`、不进分母。被并掉 = 有候选没配上的真值；碎片 = 有候选没配上的段；虚警段 = 没有候选的段 |
 | `roc` | `{working_point{threshold, pd, pfa}, points[{threshold, pd, pfa}]}`；门限取排序统计量的等分位、去重，判决严格大于，不重跑 |
-| `recognition` | `{state, labels[], confusion[][], evaluated, unmatched, accuracy, per_class[{label, support, precision, recall, f1}], unknown_rate, ambiguous_rate}`；`labels` = 四个基础标签 + 其它（字典序）+ `unknown` 末位，方阵；`rec` 口未接时 `state = not_applicable` |
+| `recognition` | `{state, labels[], confusion[][], evaluated, unmatched, accuracy, per_class[{label, support, precision, recall, f1}], unknown_rate, ambiguous_rate, basis?}`；`labels` = 四个基础标签 + 其它（字典序）+ `unknown` 末位，方阵；`rec` 口未接时 `state = not_applicable`。**分子带口径**（Q-4c，D-094；评价器 `basis = subband`）多一个 `basis: "subband"`：识别行按分子带段号接 `segments_tf` 的一对一配对，配上真值的进混淆矩阵，碎片与虚警段的识别行计 `unmatched`；标签集合取进了配对的真值行（`truth_partial` 那些不算）。黄金基准 `engine/tests/golden/metrics_subband_recognition.json`（`evaluate.py --write-golden-subband-recognition`） |
 | `quality` | `{overload_frames, noise_stale_frames, truth_rows}`；`noise_stale_frames` 端口上拿不到，恒为 `null`（要看它去 `detections.index.json`） |
 | `state` / `reasons[]` | 四态：`none` → `not_applicable`；没有检测行 → `invalid`；门限变化、命中帧无段号、参数帧里有场景没有的源、混合模式背景含目标、scenario 模式一帧参数帧都没收到 → `degraded` |
 | `trace` | 溯源七件（`model_id = eval-baseline`、`M2` / `E2` / `V2`、`parameter_version = eval-baseline-0.1`）加 `truth_consumed: true` |
