@@ -48,6 +48,17 @@ uniform 取高 53 位、normal 用 Box-Muller 且缓存另一支、complex_norma
 
     uv run --quiet --with numpy python algos/reference/gen_engine_golden.py --mode features \\
         -o engine/tests/golden/features.json
+
+## 分子带特征模式（Q-4c，D-094）
+
+`--mode features_subband` 生成 `features_subband.json`：输入 = 噪声 + 宽 / 中 / 窄三种宽度的门控突发
+（`FEATURE_SB_TONES`：两个 24 频点梳状谱、一个与之同时的窄单音、四个窄跳频含一次同频重发、两个 6 频点梳状谱、
+一个一帧的弱突发），检测按 `subband.py`、特征按 `features.extract_subband`（14 号报告 §8.6 的口径）。
+生成器断言没有块卡在检测门限 ±1e-5 内、没有频点卡在噪声闸或累积功率边界 ±1e-4 内。
+
+    uv run --quiet --with numpy python algos/reference/gen_engine_golden.py --mode features_subband \\
+        --seed 20261013 --frames 2000 --pfa 1e-3 --band-lo -450000 --band-hi 450000 \\
+        -o engine/tests/golden/features_subband.json
 """
 from __future__ import annotations
 
@@ -379,6 +390,101 @@ def write_features(args, noise: np.ndarray, mask: np.ndarray, m_bins: int, eta: 
     print(f"features 黄金基准：{lam.size} 帧，命中 {doc['expected']['hits']}，段 {r['segments']}，"
           f"特征行 {len(rows)}（full {full}），闸裕度 {margins['min_gate_margin']:.2e}，"
           f"边界裕度 {margins['min_cum_margin']:.2e} → {args.out}")
+    return 0
+
+
+# 分子带特征（Q-4c，D-094）的输入：噪声 + 宽 / 中 / 窄三种宽度的门控突发。宽与中是一排相邻频点上的单音（梳状谱），
+# 窄是单个单音。写死在这里：改它就是改基准。频点号 k 是相对中心的 bin（bin 中心频率 = k·fs/nfft），帧号按 nfft 个样点一帧。
+# 梳状谱的相位取 i·π/2：单音都在 bin 中心，Hann 窗下每个单音只漏到左右各一个 bin（系数 −1/2），相邻单音的相位差为 π/2 时
+# 左右两份漏能互相抵消、每个 bin 的功率都是 (A·Σw)²，谱是平的。起初用的 Newman 相位 π·i²/N 让相邻相位差从 0 线性走到 2π，
+# 漏能在中间同相叠加、在两头相消，谱成了钟形，两头的频点几乎没有能量——测不出梳状谱的真实宽度。
+def _comb(k0: int, n: int, amp: float, f0: int, f1: int, role: str) -> list:
+    return [(k0 + i, amp, 0.5 * math.pi * i, f0, f1, role) for i in range(n)]
+
+
+FEATURE_SB_TONES = (
+    _comb(-80, 24, 0.2, 400, 600, "宽突发一：24 个相邻频点")
+    + _comb(-80, 24, 0.2, 700, 900, "宽突发二：同频段再来一次（上一段 = 宽突发一，跳频差约 0）")
+    + [(60, 0.5, 0.0, 750, 800, "与宽突发二同时出现的窄突发（自成一段，宽度差 2 倍以上不互为上一段）"),
+       (20, 0.5, 0.0, 1000, 1030, "窄跳频：第一跳（上一段 = 那个同时出现的窄突发）"),
+       (45, 0.5, 0.0, 1050, 1080, "窄跳频：第二跳"),
+       (45, 0.5, 0.0, 1100, 1130, "窄跳频：同频重发（跳频差约 0）"),
+       (75, 0.5, 0.0, 1150, 1180, "窄跳频：第四跳")]
+    + _comb(-20, 6, 0.3, 1300, 1400, "中宽突发一：6 个相邻频点")
+    + _comb(100, 6, 0.3, 1450, 1550, "中宽突发二（上一段 = 中宽突发一，不是窄跳频）")
+    + [(-40, 0.35, 0.0, 1700, 1701, "只有一帧的弱突发（short）")]
+)
+FEATURE_SB_PARAMS = {"bandwidth_method": "occupied_99", "min_frames": 2, "noise_gate": 4.0}
+
+
+def write_features_subband(args, noise: np.ndarray) -> int:
+    import subband as sb
+    n = noise.size
+    nfft = args.nfft
+    bin_hz = args.sample_rate / nfft
+    x = noise.astype(np.complex64)
+    tone_specs = []
+    for k, amp, ph, f0, f1, role in FEATURE_SB_TONES:
+        off = k * bin_hz
+        x = (tone_burst(n, args.sample_rate, off, amp, f0 * nfft, f1 * nfft, ph) + x).astype(np.complex64)
+        tone_specs.append({"offset_Hz": off, "amplitude": amp, "phase_rad": ph, "start_sample": f0 * nfft,
+                           "stop_sample": f1 * nfft, "role": role})
+    band = ft.band_bins(nfft, args.sample_rate, args.band_lo, args.band_hi)
+    M = len(band)
+    p, _ = sb.frame_power_hann(x, nfft, band)
+    det = sb.SubbandDetector(M, args.subband_bins, args.pfa, args.window_frames, args.merge_gap)
+    clusters = [det.frame([float(v) for v in p[f]], f) for f in range(p.shape[0])]
+    if det.min_margin < 1e-5:
+        raise SystemExit(f"有块卡在门限 ±1e-5 内（最小 {det.min_margin:.2e}）：换种子后重生成")
+    fp = FEATURE_SB_PARAMS
+    rows, margins = ft.extract_subband(x, args.sample_rate, 0.0, nfft, clusters, args.band_lo, args.band_hi,
+                                       bandwidth_method=fp["bandwidth_method"], min_frames=fp["min_frames"],
+                                       merge_gap_frames=args.merge_gap, noise_gate=fp["noise_gate"], calibrated=True)
+    if margins["min_gate_margin"] < 1e-4 or margins["min_cum_margin"] < 1e-4:
+        raise SystemExit(f"有频点卡在噪声闸或累积功率边界 ±1e-4 内（{margins}）：换种子后重生成")
+    doc = {
+        "schema": "cuav-engine-golden/1",
+        "purpose": "引擎侧特征提取器分子带口径（basis = subband）与 algos/reference/features.py 的逐段对拍基准（Q-4c，D-094）",
+        "generator": "algos/reference/gen_engine_golden.py --mode features_subband",
+        "params": {
+            "seed": args.seed, "nfft": nfft, "frames": args.frames, "sample_rate_Hz": args.sample_rate,
+            "band_lo_Hz": args.band_lo, "band_hi_Hz": args.band_hi, "pfa": args.pfa, "noise_power": 1.0,
+            "noise_mode": "sliding", "noise_window_frames": args.window_frames, "merge_gap_frames": args.merge_gap,
+            "subband_bins": args.subband_bins, "tones": tone_specs,
+            "feature": {"basis": "subband", "nfft": nfft, "bandwidth_method": fp["bandwidth_method"],
+                        "min_frames": fp["min_frames"], "merge_gap_frames": args.merge_gap,
+                        "noise_gate": fp["noise_gate"], "window": "hann_periodic"},
+        },
+        "tolerance": {
+            "exact": ["basis", "segment_id", "frames", "signal_bins", "quality", "overload", "has_dBm", "has_prev",
+                      "t_s", "t_end_s", "duration_s", "bandwidth_Hz", "interval_from_prev_s", "f_lo_Hz", "f_hi_Hz",
+                      "duty", "crest_factor_dB"],
+            "center_Hz_abs": 1e-3 * args.sample_rate / nfft,
+            "hop_Hz_abs": 2e-3 * args.sample_rate / nfft,
+            "flatness_abs": 1e-5,
+            "dB_abs": 1e-4,
+            "note": "计数、时间、段号、质量、按频点计的带宽与核心频段、上一段是谁逐位相同；质心按千分之一频点；"
+                    "平坦度 1e-5；dBm 与 snr 按 1e-4 dB（引擎 float32 FFT 对 numpy）；占空比与峰均比两侧都是 null。"
+                    "生成器已断言没有块卡在检测门限 ±1e-5 内、没有频点卡在噪声闸或累积功率边界 ±1e-4 内",
+        },
+        "expected": {
+            "m_bins": M,
+            "frames": int(p.shape[0]),
+            "segments": det.next_id,
+            "min_detect_margin": det.min_margin,
+            "min_gate_margin": margins["min_gate_margin"],
+            "min_cum_margin": margins["min_cum_margin"],
+            "rows": rows,
+        },
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    full = sum(1 for q in rows if q["quality"] == "full")
+    prev = sum(1 for q in rows if q["has_prev"])
+    print(f"features_subband 黄金基准：{p.shape[0]} 帧，段 {det.next_id}，特征行 {len(rows)}（full {full}，有上一段 {prev}），"
+          f"检测裕度 {det.min_margin:.2e}，闸裕度 {margins['min_gate_margin']:.2e}，边界裕度 {margins['min_cum_margin']:.2e} → {args.out}")
     return 0
 
 
@@ -1485,7 +1591,8 @@ def main(argv=None) -> int:
     ap.add_argument("--pfa", type=float, default=1e-2)
     ap.add_argument("--mode", choices=("probe", "sliding", "features", "scene_noise", "ddc",
                                       "channelizer", "rx_filter", "ofdm", "rsmp", "ofdm_frame", "scene_ofdm", "gfsk",
-                                      "gfsk_frame", "scene_gfsk", "phase_noise", "fading", "subband"),
+                                      "gfsk_frame", "scene_gfsk", "phase_noise", "fading", "subband",
+                                      "features_subband"),
                     default="probe")
     ap.add_argument("--seed2", type=int, default=20260913, help="features：门控噪声突发的种子")
     ap.add_argument("--window-frames", type=int, default=256, help="sliding：环长 W")
@@ -1602,6 +1709,8 @@ def main(argv=None) -> int:
         return write_sliding(args, x, mask, m_bins, eta)
     if args.mode == "subband":
         return write_subband(args, x)
+    if args.mode == "features_subband":
+        return write_features_subband(args, x)
     if args.mode == "features":
         return write_features(args, x, mask, m_bins, eta)
 

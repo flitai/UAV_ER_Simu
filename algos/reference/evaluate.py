@@ -280,6 +280,17 @@ def evaluate(det_rows: list[dict], rec_rows: list[dict], truth_rows: list[dict],
 
 # ---------------------------------------------------------------- 分子带的突发级指标（Q-4b，D-093）
 
+def core_span(count: dict, frames: int) -> tuple[int, int]:
+    """分子带段的核心频段（首末频点号，闭区间）：在该段至少一半的帧里命中的频点；没有就取全部命中过的。
+
+    count = {频点号: 命中帧数}，frames = 该段的帧数。评价器（tf_segments）、特征提取（features.extract_subband）
+    与网页（web/src/results/segments.ts）同一条规则，按整数频点号比，不按 Hz（Q-4c，D-094）。"""
+    core = sorted(i for i, c in count.items() if 2 * c >= frames)
+    if not core:
+        core = sorted(count)
+    return core[0], core[-1]
+
+
 def tf_segments(det: list[dict], truth: list[dict], params: dict, detail: dict | None = None):
     """检测器开了分子带时（检测行带 subbands）按「时间 × 频率」一对一配对；没开返回 None。
 
@@ -330,10 +341,8 @@ def tf_segments(det: list[dict], truth: list[dict], params: dict, detail: dict |
     seg_list = []
     for sid in sorted(segs):
         sg = segs[sid]
-        core = sorted(i for i, c in sg["count"].items() if 2 * c >= sg["frames"])
-        if not core:
-            core = sorted(sg["count"])
-        seg_list.append((sid, sg["t0"], sg["t1"], ref + core[0] * df, ref + (core[-1] + 1) * df))
+        lo, hi = core_span(sg["count"], sg["frames"])
+        seg_list.append((sid, sg["t0"], sg["t1"], ref + lo * df, ref + (hi + 1) * df))
     oob = 0
     partial = 0
     tl = []

@@ -275,3 +275,224 @@ def extract(x: np.ndarray, fs: float, center_Hz: float, nfft: int, det: dict,
     if state["open"]:
         close_segment()
     return rows, margins
+
+
+# ---------------------------------------------------------------- 分子带口径（Q-4c，D-094）
+
+MEASURE_GUARD_BINS = 2      # 量测窗 = 命中过的频点两边各加这么多个（与检测器删截的 GUARD_BINS 同值，Hann 主瓣半宽）
+LINK_FRAMES = 64            # 与 subband.LINK_FRAMES 同：超过它没续上的段检测器再也连不上
+
+
+def extract_subband(x: np.ndarray, fs: float, center_Hz: float, nfft: int, clusters: list,
+                    band_lo_Hz: float, band_hi_Hz: float, *, bandwidth_method: str = "occupied_99",
+                    min_frames: int = 2, merge_gap_frames: int = 2, noise_gate: float = 4.0,
+                    calibrated: bool = True, overload: np.ndarray | None = None) -> tuple[list[dict], dict]:
+    """按分子带段提取每个突发的特征（14 号报告 §8.6 的口径表；引擎 FeatureExtractor 的 basis = subband 同序）。
+
+    `clusters[f]` 是第 f 帧的簇列表（subband.SubbandDetector.frame 的返回：lo / hi 是频段内的频点号、闭区间，
+    e / n / statistic / segment_id），按频率升序。
+
+    - 段 = 同一分子带段号的簇；同一帧里同号的几个簇这一帧只计一次（频点取并集，簇之间本来不重叠）。
+    - 收段：处理第 f 帧之前，f − last − 1 > min(merge_gap, LINK_FRAMES − 1) 的段按段号升序收；流结束时按（末帧，段号）升序收。
+    - 核心频段 = evaluate.core_span（与评价器同一条规则、按频点号），只用作行里的 f_lo_Hz / f_hi_Hz、带内功率与信噪比；
+      量测窗 = 这一段命中过的全部频点（并集）两边各 MEASURE_GUARD_BINS 个频点、截在频段内——信号边上只被部分盖住的块
+      命中不到一半的帧、进不了核心，拿核心当量测窗会把带宽量窄（黄金算例里 24 个频点的梳状谱量成 17 个）。
+    - 噪声每频点 = Σn / Σ簇频点数（n 是检测器每个频点的噪声估计在簇上的和，Hann 域，与 PSD 同一量纲，不再按 Σw²/nfft 缩放）。
+    - 中心、带宽、平坦度、峰值用量测窗里的段均 Hann PSD；带宽与平坦度只看 99% 占用的那些频点（信号自己的频段）。
+    - 带内功率与信噪比在核心频段上算：功率按 nfft·Σw² 归一（与检测器簇的 band_power_dBm 同式）。
+    - 占空比、峰均比写 None：64 帧窗随采样率变；几个源同帧时峰均比不属于某一段。
+    - 上一段：已收的 full / overload 段里末帧 + 1 ≤ 本段首帧的最晚一段，且两段 99% 占用频点数相差不到 2 倍
+      （2·小 ≥ 大，整数比较）；平局取段号小的。本段没有信号频点（占用为 0）时没有上一段。
+    """
+    from evaluate import core_span
+
+    if bandwidth_method not in ("occupied_99", "edge_minus_20dB"):
+        raise ValueError("bandwidth_method 必须是 occupied_99 / edge_minus_20dB")
+    n_frames = len(clusters)
+    w, wsum, wsq = hann_periodic_f32(nfft)
+    xw = (x[:n_frames * nfft].reshape(n_frames, nfft) * w).astype(np.complex64).reshape(-1)
+    power_w = frame_bin_power(xw, nfft)
+    if overload is None:
+        overload = np.zeros(n_frames, dtype=bool)
+    bins = band_bins(nfft, fs, band_lo_Hz, band_hi_Hz)
+    M = len(bins)
+    half = float(nfft // 2)
+    bin_hz = fs / float(nfft)
+    close_after = min(merge_gap_frames, LINK_FRAMES - 1)
+
+    rows: list[dict] = []
+    margins = {"min_gate_margin": math.inf, "min_cum_margin": math.inf}
+    open_: dict = {}          # 段号 → 累加状态
+    closed_ids: set = set()
+    history: list = []        # 已收的 full / overload 段：(首帧, 末帧, 占用频点数, 中心, 段号, t_end)
+
+    def compute_row(sg: dict) -> dict:
+        F = float(sg["frames"])
+        r: dict = {"basis": "subband", "segment_id": int(sg["id"]), "frames": int(sg["frames"])}
+        r["t_s"] = float(sg["first"] * nfft) / fs
+        r["t_end_s"] = float((sg["last"] + 1) * nfft) / fs
+        r["duration_s"] = r["t_end_s"] - r["t_s"]
+        clo, chi = core_span(sg["count"], sg["frames"])
+        r["f_lo_Hz"] = center_Hz + (float(bins[clo]) - half) * bin_hz - 0.5 * bin_hz
+        r["f_hi_Hz"] = center_Hz + (float(bins[chi]) - half) * bin_hz + 0.5 * bin_hz
+        wlo = max(0, min(sg["count"]) - MEASURE_GUARD_BINS)       # 量测窗 = 命中过的全部频点两边各加两个
+        whi = min(M - 1, max(sg["count"]) + MEASURE_GUARD_BINS)
+        mean = [0.0] * M
+        for j in range(wlo, whi + 1):
+            mean[j] = float(sg["psd_sum"][j]) / F
+        n_bin = sg["n_sum"] / float(sg["bins_sum"]) if sg["bins_sum"] > 0 else 0.0
+        gate = n_bin * noise_gate / math.sqrt(F)
+        sig = [0.0] * M
+        total = 0.0
+        nsig = 0
+        gm = math.inf
+        for j in range(wlo, whi + 1):
+            v = mean[j] - n_bin
+            sig[j] = v if v > gate else 0.0
+            if sig[j] > 0.0:
+                nsig += 1
+            total = total + sig[j]
+            if gate > 0.0:
+                gm = min(gm, abs(v / gate - 1.0))
+        r["signal_bins"] = nsig
+        cm = math.inf
+        olo, ohi = wlo, whi
+        if total > 0.0:
+            num = 0.0
+            for j in range(wlo, whi + 1):
+                num = num + (float(bins[j]) - half) * fs / float(nfft) * sig[j]
+            r["center_Hz"] = center_Hz + num / total
+            if bandwidth_method == "occupied_99":
+                edge = 0.005 * total
+                cum = 0.0
+                for j in range(wlo, whi + 1):
+                    cum = cum + sig[j]
+                    cm = min(cm, abs(cum - edge) / total)
+                    if cum >= edge:
+                        olo = j
+                        break
+                cum = 0.0
+                for j in range(whi, wlo - 1, -1):
+                    cum = cum + sig[j]
+                    cm = min(cm, abs(cum - edge) / total)
+                    if cum >= edge:
+                        ohi = j
+                        break
+            else:
+                peak = 0.0
+                for j in range(wlo, whi + 1):
+                    if sig[j] > peak:
+                        peak = sig[j]
+                thr = peak * 0.01
+                for j in range(wlo, whi + 1):
+                    if sig[j] > 0.0:
+                        cm = min(cm, abs(sig[j] / thr - 1.0))
+                    if sig[j] >= thr:
+                        olo = j
+                        break
+                for j in range(whi, wlo - 1, -1):
+                    if sig[j] >= thr:
+                        ohi = j
+                        break
+            r["bandwidth_Hz"] = float(bins[ohi] - bins[olo] + 1) * bin_hz
+            occ = ohi - olo + 1
+            flo, fhi = olo, ohi
+        else:
+            r["center_Hz"] = center_Hz + (0.5 * (float(bins[clo]) + float(bins[chi])) - half) * bin_hz
+            r["bandwidth_Hz"] = 0.0
+            occ = 0
+            flo, fhi = clo, chi
+        anyzero = False
+        logsum = 0.0
+        arith = 0.0
+        for j in range(flo, fhi + 1):
+            v = mean[j]                     # 占用与核心都在量测窗里（窗是并集加两边，盖住核心）
+            if v <= 0.0:
+                anyzero = True
+            else:
+                logsum = logsum + math.log(v)
+            arith = arith + v
+        nf = float(fhi - flo + 1)
+        r["spectral_flatness"] = 0.0 if (anyzero or arith <= 0.0) else math.exp(logsum / nf) / (arith / nf)
+        e_core = 0.0
+        for j in range(clo, chi + 1):
+            e_core = e_core + mean[j]
+        n_core = n_bin * float(chi - clo + 1)
+        r["has_dBm"] = bool(sg["calibrated"])
+        if r["has_dBm"]:
+            r["band_power_dBm"] = 10.0 * math.log10(max(e_core / (float(nfft) * wsq), 1e-30))
+            pk = 0.0
+            for j in range(wlo, whi + 1):
+                if mean[j] > pk:
+                    pk = mean[j]
+            r["peak_dBm"] = 10.0 * math.log10(max(pk / (wsum * wsum), 1e-30))
+        r["snr_dB"] = 10.0 * math.log10(max(e_core, 1e-30) / max(n_core, 1e-30))
+        r["crest_factor_dB"] = None
+        r["duty"] = None
+        r["overload"] = bool(sg["overload"])
+        if sg["overload"]:
+            r["quality"] = "overload"
+        elif sg["frames"] < min_frames:
+            r["quality"] = "short"
+        elif nsig == 0:
+            r["quality"] = "low_snr"
+        else:
+            r["quality"] = "full"
+        r["_occ"] = occ
+        r["_gate_margin"] = gm
+        r["_cum_margin"] = cm
+        return r
+
+    def close(sid: int) -> None:
+        sg = open_.pop(sid)
+        closed_ids.add(sid)
+        r = compute_row(sg)
+        occ = r.pop("_occ")
+        best = None
+        if occ > 0:
+            for h in history:
+                if h[1] + 1 > sg["first"] or 2 * min(h[2], occ) < max(h[2], occ):
+                    continue
+                if best is None or h[1] > best[1] or (h[1] == best[1] and h[4] < best[4]):
+                    best = h
+        r["has_prev"] = best is not None
+        if best is not None:
+            r["interval_from_prev_s"] = r["t_s"] - best[5]
+            r["hop_from_prev_Hz"] = r["center_Hz"] - best[3]
+        else:
+            r["interval_from_prev_s"] = None
+            r["hop_from_prev_Hz"] = None
+        if r["quality"] in ("full", "overload"):
+            history.append((sg["first"], sg["last"], occ, r["center_Hz"], sg["id"], r["t_end_s"]))
+        margins["min_gate_margin"] = min(margins["min_gate_margin"], r.pop("_gate_margin"))
+        margins["min_cum_margin"] = min(margins["min_cum_margin"], r.pop("_cum_margin"))
+        rows.append(r)
+
+    for f in range(n_frames):
+        for sid in sorted(s for s, sg in open_.items() if f - sg["last"] - 1 > close_after):
+            close(sid)
+        cal = calibrated
+        for c in clusters[f]:
+            sid = int(c["segment_id"])
+            if sid in closed_ids:
+                raise ValueError(f"第 {f} 帧：段 {sid} 已经收了又来了簇——与检测器的剪枝规则不符")
+            sg = open_.get(sid)
+            if sg is None:
+                sg = {"id": sid, "first": f, "last": -1, "frames": 0, "count": {},
+                      "psd_sum": np.zeros(M, dtype=np.float64), "n_sum": 0.0, "bins_sum": 0,
+                      "overload": False, "calibrated": True}
+                open_[sid] = sg
+            if sg["last"] != f:
+                sg["last"] = f
+                sg["frames"] += 1
+                for j in range(M):
+                    sg["psd_sum"][j] = sg["psd_sum"][j] + float(power_w[f][bins[j]])
+                sg["overload"] = sg["overload"] or bool(overload[f])
+                sg["calibrated"] = sg["calibrated"] and cal
+            for j in range(int(c["lo"]), int(c["hi"]) + 1):
+                sg["count"][j] = sg["count"].get(j, 0) + 1
+            sg["n_sum"] = sg["n_sum"] + float(c["n"])
+            sg["bins_sum"] += int(c["hi"]) - int(c["lo"]) + 1
+    for sid in sorted(open_, key=lambda s: (open_[s]["last"], s)):
+        close(sid)
+    return rows, margins
