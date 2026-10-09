@@ -1281,6 +1281,26 @@ TEST_CASE("模板识别：库格式 /2——一个标签几个模板、取似然
     bad("v2_prov_key.json", "\"provenance\": { \"bandwidth_Hz\": \"S\", \"duration_s\": \"S\" }",
         "\"provenance\": { \"bandwidth_Hz\": \"S\", \"duty\": \"S\" }", "没有区间的特征");
     bad("v2_unknown_key.json", "\"feature_basis\"", "\"calibration\": {\"note\": \"x\"}, \"feature_basis\"", "未知键");
+    bad("v2_bad_decision.json", "\"feature_basis\"", "\"decision\": {\"accept_threshold\": 1.5}, \"feature_basis\"", "[0, 1]");
+
+    // 库自带的接受门限（decision.accept_threshold）：框图没给就用库的，给了用框图的
+    std::string t = good;
+    const std::string key = "\"feature_basis\"";
+    t.replace(t.find(key), key.size(), "\"decision\": {\"accept_threshold\": 0.3}, \"feature_basis\"");
+    const std::string withdec = write_temp("v2_decision.json", t);
+    FeatureRow amb = feat_row(9e6, 100, 0.0008, 0.0, 0.95, "full", true, 0.001, 0.0);   // 宽突发与 0.64 ms 信标之间
+    amb.subband = true;
+    TemplateClassifier lib_thr, strict, plain;
+    REQUIRE(lib_thr.configure({}, {{"library_path", withdec}, {"library_version", "v99"}, {"basis", "subband"}}, err));
+    REQUIRE(strict.configure({{"accept_threshold", 0.5}}, {{"library_path", withdec}, {"library_version", "v99"}, {"basis", "subband"}}, err));
+    REQUIRE(plain.configure({}, {{"library_path", lib2}, {"library_version", "v99"}, {"basis", "subband"}}, err));
+    const RecognitionRow r_lib = lib_thr.classify(amb), r_strict = strict.classify(amb), r_plain = plain.classify(amb);
+    REQUIRE(!r_lib.top_n.empty());
+    CHECK(r_lib.top_n[0].posterior >= 0.3);
+    CHECK(r_lib.top_n[0].posterior < 0.5);
+    CHECK(r_lib.result != "unknown");      // 库的 0.3：过门限（领先不足即 ambiguous）
+    CHECK(r_strict.result == "unknown");   // 框图写了 0.5：框图的赢
+    CHECK(r_plain.result == "unknown");    // 库里没有 decision：仍是 0.5
 }
 
 TEST_CASE("模板识别：接在特征提取器之后跑通一条链——每行特征一行识别，持续半秒的单音判为 cw_beacon，行带节点名与 trace") {

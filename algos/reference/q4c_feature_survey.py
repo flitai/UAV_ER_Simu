@@ -88,6 +88,7 @@ def sha256_file(path: str) -> str:
 
 
 LIBRARY: str | None = None    # --with-library：保留识别器、按这个库版本识别（校准集内的自检），缺省拿掉识别器
+REC_PARAMS: dict = {}         # --accept-threshold 等：自检时识别器的判决参数（14 §8.6「判决参数」只许在校准集上量）
 
 
 def patch_diagram(doc: dict) -> dict:
@@ -98,7 +99,7 @@ def patch_diagram(doc: dict) -> dict:
         if n["type"] in ("FeatureExtractor", "Evaluator"):
             n["params"]["basis"] = "subband"
         if n["type"] == "TemplateClassifier" and LIBRARY:
-            n["params"].update(basis="subband", library_version=LIBRARY)
+            n["params"].update(basis="subband", library_version=LIBRARY, **REC_PARAMS)
     rec = {n["id"] for n in doc["nodes"] if n["type"] == "TemplateClassifier" and not LIBRARY}
     doc["nodes"] = [n for n in doc["nodes"] if n["id"] not in rec]
     doc["edges"] = [e for e in doc["edges"] if e["from"]["node"] not in rec and e["to"]["node"] not in rec]
@@ -332,7 +333,10 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--check", action="store_true", help="重跑并与入库的统计表逐字节比对，不写文件")
     ap.add_argument("--with-library", help="校准集内的自检：带识别器、按这个库版本（如 v2）跑一遍，只报数、不写文件")
+    ap.add_argument("--accept-threshold", type=float, help="自检时识别器的接受门限（缺省用框图里的值）")
     args = ap.parse_args(argv)
+    if args.accept_threshold is not None:
+        REC_PARAMS["accept_threshold"] = args.accept_threshold
     if not os.path.exists(CUAV_RUN):
         print(f"没有 {rel(CUAV_RUN)}：先构建引擎", file=sys.stderr)
         return 2

@@ -60,6 +60,8 @@ def load_library(path: str) -> dict:
             labels.append(t["label"])
     return {"version": lib["library_version"], "log_scale": float(lib["distance"]["log_scale"]),
             "basis": lib["feature_basis"] if v2 else "frame", "has_ids": v2,
+            "accept_threshold": float(lib["decision"]["accept_threshold"])
+            if v2 and "accept_threshold" in lib.get("decision", {}) else None,
             "features": feats, "templates": lib["templates"], "labels": labels}
 
 
@@ -110,8 +112,11 @@ def interval_distance(fdef: dict, log_scale: float, x: float, lo: float, hi) -> 
     return 0.0
 
 
-def classify_row(row: dict, lib: dict, accept_threshold: float = 0.5, ambiguity_margin: float = 0.2,
+def classify_row(row: dict, lib: dict, accept_threshold: float | None = None, ambiguity_margin: float = 0.2,
                  unknown_distance: float = 4.0, min_quality: str = "short") -> dict:
+    # 接受门限没给就取库自己的（/2 的 decision.accept_threshold），库也没有取 0.5——与引擎 configure 同规则
+    if accept_threshold is None:
+        accept_threshold = lib.get("accept_threshold") or 0.5
     r = {"t_s": row["t_s"], "t_end_s": row["t_end_s"], "segment_id": row["segment_id"],
          "evidence_quality": row["quality"], "library_version": lib["version"]}
     if QUALITY_RANK[row["quality"]] < QUALITY_RANK[min_quality]:

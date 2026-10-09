@@ -8,6 +8,10 @@
     "ref": "models/recognition/v2-calibration.json",
     "sha256": "83fee6af61599f01d510343c2168e77dce4ee02da2ed3fcb2d55c6346a01e4ee"
   },
+  "decision": {
+    "accept_threshold": 0.3,
+    "note": "识别器没给 accept_threshold 时用它：五个标签、三类 OFDM 突发彼此相邻，正确类在自己的区间里时常有一两个邻类贴着；取至多两个同样近的邻类也接受，1 / (3 + e^−2) ≈ 0.32（14 号报告 §8.6）"
+  },
   "notes": [
     "由 scripts/gen_recognition_library.py 机械生成，不手改（Q-4c，D-094；规则见 14 号报告 §8.6）。",
     "按分子带段的特征标定（feature_basis = subband）：带宽、时长、平坦度在这一段自己的频段上量，上一段只取占用带宽相差不到 2 倍的段；占空比与峰均比无定义，不进库。",

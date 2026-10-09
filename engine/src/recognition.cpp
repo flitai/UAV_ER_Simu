@@ -63,7 +63,7 @@ bool TemplateClassifier::load_library(const std::string& path, Library& lib, std
     const bool v2 = j["schema"] == "cuav-recognition-library/2";
     std::set<std::string> kTop = {"schema", "library_version", "label_layer", "source", "notes", "distance",
                                   "feature_order", "features", "templates", "scenario_waveform_map"};
-    if (v2) { kTop.insert("feature_basis"); kTop.insert("calibration"); }
+    if (v2) { kTop.insert("feature_basis"); kTop.insert("calibration"); kTop.insert("decision"); }
     if (!check_keys(j, kTop, "模板库", err)) return false;
     for (const char* k : {"library_version", "source", "distance", "feature_order", "features", "templates"}) {
         if (!j.contains(k)) { err = std::string("模板库缺 ") + k; return false; }
@@ -79,6 +79,21 @@ bool TemplateClassifier::load_library(const std::string& path, Library& lib, std
             err = "模板库（/2）的 feature_basis 必须是 frame / subband"; return false;
         }
         out.feature_basis = j["feature_basis"].get<std::string>();
+        if (j.contains("decision")) {
+            const nlohmann::json& dn = j["decision"];
+            static const std::set<std::string> kDec = {"accept_threshold", "note"};
+            if (!dn.is_object()) { err = "模板库 decision 必须是对象"; return false; }
+            if (!check_keys(dn, kDec, "模板库 decision", err)) return false;
+            if (dn.contains("accept_threshold")) {
+                if (!dn["accept_threshold"].is_number() || !(dn["accept_threshold"].get<double>() >= 0.0) ||
+                    !(dn["accept_threshold"].get<double>() <= 1.0)) {
+                    err = "模板库 decision.accept_threshold 必须在 [0, 1]"; return false;
+                }
+                out.has_accept = true;
+                out.accept_threshold = dn["accept_threshold"].get<double>();
+            }
+            if (dn.contains("note") && !dn["note"].is_string()) { err = "模板库 decision.note 必须是字符串"; return false; }
+        }
         if (j.contains("calibration")) {
             const nlohmann::json& c = j["calibration"];
             static const std::set<std::string> kCal = {"ref", "sha256"};
@@ -231,6 +246,8 @@ bool TemplateClassifier::load_library(const std::string& path, Library& lib, std
 bool TemplateClassifier::configure(const std::map<std::string, double>& params,
                                    const std::map<std::string, std::string>& text_params,
                                    std::string& err) {
+    // 接受门限：框图给了就用框图的；没给取模板库自己的（/2 的 decision.accept_threshold），库也没有取 0.5（v1 一直如此）
+    const bool given_accept = params.count("accept_threshold") > 0;
     accept_threshold_ = get(params, "accept_threshold", 0.5);
     if (!(accept_threshold_ >= 0.0 && accept_threshold_ <= 1.0)) { err = "TemplateClassifier 的 accept_threshold 必须在 [0,1]"; return false; }
     ambiguity_margin_ = get(params, "ambiguity_margin", 0.2);
@@ -252,6 +269,7 @@ bool TemplateClassifier::configure(const std::map<std::string, double>& params,
     library_path_ = lp->second;
     std::string e;
     if (!load_library(library_path_, lib_, e)) { err = "TemplateClassifier 的模板库 " + library_path_ + "：" + e; return false; }
+    if (!given_accept && lib_.has_accept) accept_threshold_ = lib_.accept_threshold;
     if (lib_.version != library_version_) {
         err = "TemplateClassifier 的模板库文件声明 library_version = " + lib_.version + "，与参数 " + library_version_ + " 不同";
         return false;
@@ -488,9 +506,10 @@ ComponentInfo TemplateClassifier::describe() const {
                           "特征行的口径，必须与上游特征提取器相同（装载器核对）、与模板库声明的 feature_basis 相同（装库时核对）；"
                           "v1 是帧级口径（Q-4c，D-094）")
             .def_text("frame"),
-        ParamSpec::number("accept_threshold", "", "最大后验不低于它才判 known / ambiguous，否则 unknown；"
-                                                  "未知假设恒占一份似然，四模板下正确类在 D = 0 时的后验常在 0.55–0.8，故缺省 0.5（模型卡 §2）")
-            .def(0.5).at_least(0.0).at_most(1.0),
+        ParamSpec::number("accept_threshold", "", "最大后验不低于它才判 known / ambiguous，否则 unknown。不填取模板库自己的："
+                                                  "v1 是 0.5（四个标签，正确类在 D = 0 时的后验常在 0.55–0.8，模型卡 §2）；"
+                                                  "v2 是 0.3（五个标签、三类 OFDM 突发彼此相邻，模型卡 §6）")
+            .at_least(0.0).at_most(1.0),
         ParamSpec::number("ambiguity_margin", "", "最大后验领先次大不低于它才判 known，否则 ambiguous")
             .def(0.2).at_least(0.0).at_most(1.0),
         ParamSpec::number("unknown_distance", "", "未知假设的等效综合距离：似然 exp(−unknown_distance/2)")

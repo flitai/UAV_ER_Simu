@@ -70,6 +70,9 @@ public:
         std::string source;
         std::string feature_basis = "frame";   // /1 恒为 frame
         bool has_ids = false;                  // /2
+        // /2 可选：库自己的接受门限（标签数与模板重叠程度决定它该多高；本节点没给 accept_threshold 时用它，D-094）
+        bool has_accept = false;
+        double accept_threshold = 0.5;
         double log_scale = 0.3;
         std::vector<FeatureDef> features;   // 按 feature_order
         std::vector<Template> templates;

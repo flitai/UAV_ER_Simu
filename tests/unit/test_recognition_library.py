@@ -85,6 +85,9 @@ class RecognitionLibraryV2(unittest.TestCase):
         ids = [t["id"] for t in self.lib["templates"]]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertNotIn("duty", self.lib["feature_order"])
+        # 判决门限是库的一部分（14 §8.6「判决参数」：只在校准集上量过）
+        self.assertEqual(self.lib["decision"]["accept_threshold"], G.ACCEPT_THRESHOLD)
+        self.assertLess(G.ACCEPT_THRESHOLD, 1.0 / (3.0 + math.exp(-2.0)))
 
 
 if __name__ == "__main__":

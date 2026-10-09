@@ -2553,8 +2553,7 @@
           "unit": ""
         },
         {
-          "default": 0.5,
-          "description": "最大后验不低于它才判 known / ambiguous，否则 unknown；未知假设恒占一份似然，四模板下正确类在 D = 0 时的后验常在 0.55–0.8，故缺省 0.5（模型卡 §2）",
+          "description": "最大后验不低于它才判 known / ambiguous，否则 unknown。不填取模板库自己的：v1 是 0.5（四个标签，正确类在 D = 0 时的后验常在 0.55–0.8，模型卡 §2）；v2 是 0.3（五个标签、三类 OFDM 突发彼此相邻，模型卡 §6）",
           "max": 1.0,
           "min": 0.0,
           "name": "accept_threshold",

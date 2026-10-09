@@ -41,6 +41,11 @@ LOG_FEATURES = {"bandwidth_Hz", "duration_s", "hop_from_prev_Hz", "interval_from
 WEIGHTS = {"bandwidth_Hz": 2.0, "duration_s": 2.0}       # 其余 1
 AVAILABLE_MIN = 0.8
 LINEAR_PAD = 0.05
+# 判决门限（14 §8.6「判决参数」，D-094）：v2 有五个标签，图传、上行、DroneID 三类 OFDM 突发在带宽与时长上彼此相邻
+# （DroneID 与 10 MHz 图传同宽），正确类落在自己的区间里（D = 0）时常有一两个邻类贴着，后验被摊到 0.38–0.49，
+# v1 的 0.5 把它们判成 unknown_ambiguous。取「正确类在区间里、至多两个同样近的邻类也接受」：1 / (3 + e^−2) ≈ 0.32 → 0.3；
+# 并列仍由 ambiguity_margin 标成 ambiguous。只在校准集上量过（前后两组数写在 14 §8.6），没看过试样集。
+ACCEPT_THRESHOLD = 0.3
 MIN_ROWS = 100           # 预设模板：校准行少于它，p2.5 / p97.5 就由一两行决定了
 MIN_ROWS_LEGACY = 2      # 旧合成波形：连续发射一个真值行只配上一段，行数天然很少（区间因此很薄，notes 里写明）
 LEGACY_TEMPLATES = {"noise_video", "burst_fixed", "burst_hopping", "tone"}
@@ -140,6 +145,9 @@ def build() -> dict:
         "source": "calibrated",
         "feature_basis": "subband",
         "calibration": {"ref": CALIB.replace(os.sep, "/"), "sha256": sha256(CALIB)},
+        "decision": {"accept_threshold": ACCEPT_THRESHOLD,
+                     "note": "识别器没给 accept_threshold 时用它：五个标签、三类 OFDM 突发彼此相邻，正确类在自己的区间里时常有一两个邻类贴着；"
+                             "取至多两个同样近的邻类也接受，1 / (3 + e^−2) ≈ 0.32（14 号报告 §8.6）"},
         "notes": [
             "由 scripts/gen_recognition_library.py 机械生成，不手改（Q-4c，D-094；规则见 14 号报告 §8.6）。",
             "按分子带段的特征标定（feature_basis = subband）：带宽、时长、平坦度在这一段自己的频段上量，上一段只取占用带宽相差不到 2 倍的段；占空比与峰均比无定义，不进库。",
