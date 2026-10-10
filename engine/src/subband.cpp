@@ -31,7 +31,7 @@ bool SubbandStage::allowed_k0(int k0) {
 bool SubbandStage::configure(std::size_t m_bins, int k0, double pfa, std::size_t window, std::uint64_t merge_gap,
                              std::string& err) {
     if (!allowed_k0(k0)) { err = "subband_bins 必须取 2 / 4 / 8 / 16 / 32 / 64"; return false; }
-    if (m_bins == 0) { err = "检测频段内没有频点，分子带检测无从切块"; return false; }
+    if (m_bins == 0) { err = "检测频段内没有频点，子带检测无从切块"; return false; }
     m_ = m_bins;
     k0_ = k0;
     w_ = window;

@@ -280,7 +280,7 @@ bool TemplateClassifier::configure(const std::map<std::string, double>& params,
     if (basis != "frame" && basis != "subband") { err = "TemplateClassifier 的 basis 必须是 frame / subband"; return false; }
     subband_ = basis == "subband";
     if (lib_.feature_basis != basis) {
-        err = "TemplateClassifier 的模板库 " + lib_.version + " 是按" + (lib_.feature_basis == "subband" ? "分子带段" : "帧级突发") +
+        err = "TemplateClassifier 的模板库 " + lib_.version + " 是按" + (lib_.feature_basis == "subband" ? "子带段" : "帧级突发") +
               "的特征标定的（feature_basis = " + lib_.feature_basis + "），本节点的 basis = " + basis +
               "——口径不同的特征不能拿这份库去比（Q-4c，D-094）";
         return false;
@@ -458,7 +458,7 @@ Step TemplateClassifier::process(PortMap& in, PortMap& out, std::string& err) {
     for (const FeatureRow& f : fv.items) {
         if (f.subband != subband_) {
             err = std::string("TemplateClassifier 的 basis = ") + (subband_ ? "subband" : "frame") + "，收到的特征行却是" +
-                  (f.subband ? "分子带段" : "帧级突发") + "——上游特征提取器的 basis 与本节点不同（装载器本该拦住）";
+                  (f.subband ? "子带段" : "帧级突发") + "——上游特征提取器的 basis 与本节点不同（装载器本该拦住）";
             return Step::Error;
         }
         RecognitionRow r = classify(f);

@@ -1105,7 +1105,7 @@ test('信道化检查：旁路时不拦，启用后四件事一起看（C-10，D
   assert.equal(p.f_s5, p.f_s4, '零频那一路的中心与 S4 中心重合')
   const c1 = planChecks(on, p, scenario, cat).find((x) => x.id === 'channelization')!
   assert.equal(c1.ok, true, '装不下是取舍不是错')
-  assert.match(c1.detail, /可用子带 ±50\.000 kHz/, c1.detail)
+  assert.match(c1.detail, /子信道可用范围 ±50\.000 kHz/, c1.detail)
   // 中心就在本路中心上，但 400 kHz 的占用比 ±50 kHz 的子带宽得多——说明要写占用不是写中心
   assert.match(c1.detail, /目标占用落在本路的 ±200\.000 kHz，超出部分将被信道化滤除/, c1.detail)
 

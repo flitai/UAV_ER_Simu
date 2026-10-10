@@ -701,8 +701,8 @@ Step EnergyDetector::flush(PortMap& out, std::string& err) {
         }
         if (subband_bins_ > 0 && sub_.configured() && 2 * sub_.never_full_bins() > band_bins_.size()) {
             status_.state = worst(status_.state, State::Degraded);
-            status_.notes.push_back("分子带：频段内 " + numstr(sub_.never_full_bins()) + " / " + numstr(band_bins_.size()) +
-                                    " 个频点的噪声环从未填满，过半，分子带门限可信度下降");
+            status_.notes.push_back("子带检测：频段内 " + numstr(sub_.never_full_bins()) + " / " + numstr(band_bins_.size()) +
+                                    " 个频点的噪声环从未填满，过半，子带门限可信度下降");
         }
         if (noise_stale_ > 0) {
             // 信号持续占满时的正常状态：没有未命中帧可纳入，估计停留在最近一次更新。记 note 不降级（10 §4.2）
@@ -1013,7 +1013,7 @@ void FeatureExtractor::close_segment() {
 
 bool FeatureExtractor::apply_subband(const Detection& d, const Frame& f, std::string& err) {
     if (!d.subband_mode) {
-        err = "FeatureExtractor 的 basis = subband 要求检测器开分子带（subband_bins > 0），检测行里没有分子带结果";
+        err = "FeatureExtractor 的 basis = subband 要求检测器开启子带检测（subband_bins > 0），检测行里没有子带检测结果";
         return false;
     }
     const std::uint64_t fi = d.frame_index;
@@ -1025,12 +1025,12 @@ bool FeatureExtractor::apply_subband(const Detection& d, const Frame& f, std::st
     const std::size_t M = band_bins_.size();
     for (const SubbandHit& h : d.subbands) {
         if (sub_closed_.count(h.segment_id)) {
-            err = "FeatureExtractor：第 " + numstr(fi) + " 帧里分子带段 " + numstr(h.segment_id) +
+            err = "FeatureExtractor：第 " + numstr(fi) + " 帧里子带段 " + numstr(h.segment_id) +
                   " 已经收口又来了簇——与检测器的剪枝规则不符";
             return false;
         }
         if (h.bin_hi >= M || h.bin_lo > h.bin_hi) {
-            err = "FeatureExtractor：分子带簇的频点号越出检测频段（" + numstr(h.bin_lo) + "–" + numstr(h.bin_hi) +
+            err = "FeatureExtractor：子带簇的频点号越出检测频段（" + numstr(h.bin_lo) + "–" + numstr(h.bin_hi) +
                   "，频段 " + numstr(M) + " 个频点）：检测器与本组件的频段对不上";
             return false;
         }
@@ -1388,7 +1388,7 @@ ComponentInfo EnergyDetector::describe() const {
         ParamSpec::number("merge_gap_frames", "", "命中帧之间的空隙不大于此值即并入同一突发（EM-S-02 merge_time_gap）")
             .def(2.0).at_least(0.0),
         ParamSpec::boolean("band_power_dBm", "输入已标定时在检测行里附带频段功率与噪声估计的 dBm 读数").def_bool(true),
-        ParamSpec::number("subband_bins", "", "分子带检测的最小块宽（频点数）；0 = 关。开了只能配 sliding："
+        ParamSpec::number("subband_bins", "", "子带检测的最小块宽（频点数）；0 = 关。开了只能配 sliding："
                           "Hann 窗、逐频点删截、多级块（块宽 × 2 逐级）、块统计量精确门限，"
                           "宽带里同时出现的几个信号各成各的段（Q-4b，D-093）")
             .def(0.0).at_least(0.0).at_most(64.0).constrained("0 或 2 / 4 / 8 / 16 / 32 / 64"),
@@ -1411,7 +1411,7 @@ ComponentInfo FeatureExtractor::describe() const {
                     "信噪比、谱平坦度、峰均比、占空比、与上一段的间隔与频差、质量标记；"
                     "口径与 algos/reference/features.py 一致，黄金基准逐段对拍。"
                     "IQ 块不连续即报错、检测行与帧对不上即报错，不猜不补。"
-                    "basis = subband 时按检测器的分子带段出行（Q-4c，D-094）：带宽、质心与平坦度在这一段自己的频段上量，"
+                    "basis = subband 时按检测器的子带段出行（Q-4c，D-094）：带宽、质心与平坦度在这一段自己的频段上量，"
                     "上一段只取占用带宽相差不到 2 倍的段，占空比与峰均比无定义";
     i.model_layer = "M3";
     i.model_level = "E2";
@@ -1426,7 +1426,7 @@ ComponentInfo FeatureExtractor::describe() const {
         ParamSpec::number("nfft", "", "帧长，必须等于上游检测器的 nfft（装载器核对）")
             .def(1024.0).at_least(2.0).constrained("2 的幂；= EnergyDetector.nfft"),
         ParamSpec::choice("basis", {"frame", "subband"},
-                          "段的口径：frame = 检测器的帧级突发；subband = 检测器的分子带段（要求检测器 subband_bins > 0，"
+                          "段的口径：frame = 检测器的帧级突发；subband = 检测器的子带段（要求检测器 subband_bins > 0，"
                           "装载器核对；Q-4c，D-094）")
             .def_text("frame"),
         ParamSpec::choice("bandwidth_method", {"occupied_99", "edge_minus_20dB"},

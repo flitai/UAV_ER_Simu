@@ -200,7 +200,7 @@ try {
   await page.evaluate("(document.querySelector('[data-slot=det]').click(), true)")
   await sleep(400)
   const hasField = await page.evaluate("!!document.querySelector('[data-form=slot] [data-field=subband_bins]')")
-  check('检测卡片的右栏里有「分子带最小块宽」一项（参数面板按组件目录生成）', hasField === true)
+  check('检测卡片的右栏里有「子带最小块宽」一项（参数面板按组件目录生成）', hasField === true)
   await page.evaluate(setInput('[data-form=slot] [data-field=subband_bins]', '8'))
   await sleep(500)
   const fieldVal = await page.evaluate("document.querySelector('[data-form=slot] [data-field=subband_bins]')?.value ?? ''")

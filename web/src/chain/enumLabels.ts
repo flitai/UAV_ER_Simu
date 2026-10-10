@@ -55,7 +55,7 @@ export const ENUM_LABELS: Readonly<Record<string, string>> = {
   'noise_mode.probe': '起始帧定值', 'noise_mode.sliding': '滑动中值',
 
   // 特征与识别
-  'basis.frame': '帧级突发', 'basis.subband': '分子带段',
+  'basis.frame': '帧级突发', 'basis.subband': '子带段',
   'bandwidth_method.occupied_99': '99% 占用带宽', 'bandwidth_method.edge_minus_20dB': '−20 dB 带边',
   'min_quality.full': '完整', 'min_quality.overload': '过载',
   'min_quality.short': '过短', 'min_quality.low_snr': '低信噪比',

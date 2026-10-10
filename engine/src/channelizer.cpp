@@ -66,7 +66,7 @@ ComponentInfo Channelizer::describe() const {
         "输出样点 m 对应输入样点 m·channels，首样点序号自 0 起且严格连续。"
         "原型是等波纹设计的冻结系数表（通带 0.4·fs_out、阻带 0.5·fs_out ≥ 60 dB，"
         "抽头数 M·T+1 且 T 取偶数，使群时延为 M 的整数倍）。"
-        "临界抽取的固有后果：相邻子信道的过渡带折进本路外侧 20%，可用子带是 ±0.4·fs_out。";
+        "临界抽取的固有后果：相邻子信道的过渡带折进本路外侧 20%，子信道的可用范围是 ±0.4·fs_out。";
     i.model_layer = "M3";
     i.model_level = "E2";
     i.model_id = "EM-B-11";

@@ -340,7 +340,7 @@ bool check_feature_alignment(const std::map<std::string, NodeSnap>& snaps, const
     const double k0 = effective_number(f->second.info, f->second.num, "subband_bins", 0.0);
     if (basis == "subband" && !(k0 > 0.0)) {
         err = fail("param", tn, tp, who + "：" + kind + tn + " 的 basis = subband，上游检测器 " + fn +
-                   " 却没开分子带（subband_bins = " + num_text(k0) + "）——分子带口径按检测器的分子带段走（Q-4c，D-094）");
+                   " 却没有开启子带检测（subband_bins = " + num_text(k0) + "）——子带口径按检测器的子带段走（Q-4c，D-094）");
         return false;
     }
     if (to_eval) return true;

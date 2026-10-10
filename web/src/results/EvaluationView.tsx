@@ -91,7 +91,7 @@ export function EvaluationView() {
         <Card k="Pfa" v={fmtRatio(m.frames.pfa, 5)} sub={`fp ${m.frames.fp} / tn ${m.frames.tn}`} />
         <Card k="F1" v={fmtRatio(m.frames.f1)} sub={`查准 ${fmtRatio(m.frames.precision)}`} />
         <Card k="发现时延" v={fmtDuration(m.segments.detect_delay_s.mean)} sub={`最大 ${fmtDuration(m.segments.detect_delay_s.max)}`} />
-        <Card k="识别准确率" v={fmtRatio(m.recognition.accuracy)} sub={`${m.recognition.evaluated} 段${tf ? '（分子带）' : ''}`} />
+        <Card k="识别准确率" v={fmtRatio(m.recognition.accuracy)} sub={`${m.recognition.evaluated} 段${tf ? '（子带）' : ''}`} />
       </div>
 
       <div className="eval-blocks">
@@ -103,7 +103,7 @@ export function EvaluationView() {
           </div>
           {m.segments_tf && (
             <div className="muted" data-eval-tf>
-              分子带：真值 {m.segments_tf.truth} · 配上 {m.segments_tf.matched}（{fmtRatio(m.segments_tf.pd_burst)}） · 被并掉 {m.segments_tf.merged_truth}
+              子带：真值 {m.segments_tf.truth} · 配上 {m.segments_tf.matched}（{fmtRatio(m.segments_tf.pd_burst)}） · 被并掉 {m.segments_tf.merged_truth}
               {' · '}碎片 {m.segments_tf.fragments} · 虚警段 {m.segments_tf.false_segments}
               {m.segments_tf.truth_partial > 0 ? ` · 部分在频段外 ${m.segments_tf.truth_partial}` : ''}
             </div>
@@ -140,7 +140,7 @@ export function EvaluationSummary() {
           <div><b>{m.site_id ?? m.node_id}</b> <span className="muted">{TRUTH_TEXT[m.truth_source] ?? '无真值'}</span></div>
           <div className="muted">Pd {fmtRatio(m.frames.pd)} · Pfa {fmtRatio(m.frames.pfa, 4)} · F1 {fmtRatio(m.frames.f1)}</div>
           {m.recognition.basis === 'subband' && m.segments_tf
-            ? <div className="muted">分子带 {m.segments_tf.matched} / {m.segments_tf.truth} · 虚警段 {m.segments_tf.false_segments} · 识别准确率 {fmtRatio(m.recognition.accuracy)}</div>
+            ? <div className="muted">子带 {m.segments_tf.matched} / {m.segments_tf.truth} · 虚警段 {m.segments_tf.false_segments} · 识别准确率 {fmtRatio(m.recognition.accuracy)}</div>
             : <div className="muted">突发 {m.segments.matched} / {m.segments.truth} · 虚警段 {m.segments.false_segments} · 识别准确率 {fmtRatio(m.recognition.accuracy)}</div>}
           {m.state !== 'valid' && <div className="bad">{m.state}{m.reasons.length ? `：${m.reasons[0]}` : ''}</div>}
         </div>

@@ -83,7 +83,7 @@ ComponentInfo Evaluator::describe() const {
             .def(32).at_least(2.0),
         ParamSpec::choice("basis", {"frame", "subband"},
                           "识别行的口径，必须与上游识别器相同（装载器核对）：frame = 识别行挂在帧级突发上、按突发匹配接真值；"
-                          "subband = 挂在分子带段上、接分子带的时间 × 频率一对一配对（要求检测器 subband_bins > 0；Q-4c，D-094）")
+                          "subband = 挂在子带段上、接子带检测的时间 × 频率一对一配对（要求检测器 subband_bins > 0；Q-4c，D-094）")
             .def_text("frame"),
         ParamSpec::text("manifest_path", "回放清单路径，由装载器按 data_id 解析注入（D-037）").internal_only(),
         ParamSpec::text("scenario_path", "场景文件路径，由装载器按 scene_binding 注入；取各源的带宽与波形").internal_only(),
@@ -404,7 +404,7 @@ Step Evaluator::process(PortMap& in, PortMap& out, std::string& err) {
         const RecognitionList& rl = r->second.recognitions;
         for (std::size_t i = 0; i < rl.items.size(); ++i) {
             if (rl.items[i].subband != (basis_ == "subband")) {
-                err = "Evaluator 的 basis = " + basis_ + "，收到的识别行却是" + (rl.items[i].subband ? "分子带段" : "帧级突发") +
+                err = "Evaluator 的 basis = " + basis_ + "，收到的识别行却是" + (rl.items[i].subband ? "子带段" : "帧级突发") +
                       "——上游识别器的 basis 与本节点不同（装载器本该拦住）";
                 return Step::Error;
             }

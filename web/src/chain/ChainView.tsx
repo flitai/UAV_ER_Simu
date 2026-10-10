@@ -643,8 +643,8 @@ function specOf(spec: { params: unknown[] } | null, name: string): ParamSpec | u
 /** 派生参数从哪里来（只读显示的那一行说明）。评价器的三项各有来处（C-5），其余槽位由频率计划派生。 */
 function derivedNote(slot: SlotId, param: string): string {
   // 识别链的口径（Q-4c，D-094）：随检测器的分子带开关
-  if (param === 'basis') return '随检测器的分子带开关：开 = 分子带段，关 = 帧级突发'
-  if (param === 'library_version') return '随检测器的分子带开关：开 = v2，关 = v1'
+  if (param === 'basis') return '随检测器的子带检测开关：开 = 子带段，关 = 帧级突发'
+  if (param === 'library_version') return '随检测器的子带检测开关：开 = v2，关 = v1'
   if (slot === 'feat') return '与检测器相同'
   if (slot === 'eval') {
     if (param === 'nfft') return '与检测器相同'

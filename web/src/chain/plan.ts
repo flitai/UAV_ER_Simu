@@ -370,9 +370,9 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
         ? '信道化未参与计算，S5 与 S4 同采样率'
         : why.length
           ? why.join('；')
-          : `S5 = ${fmt(plan.fs_s5)} @ ${fmt(plan.f_s5)}，可用子带 ±${fmt(edgeS5 ?? 0)}`
+          : `S5 = ${fmt(plan.fs_s5)} @ ${fmt(plan.f_s5)}，子信道可用范围 ±${fmt(edgeS5 ?? 0)}`
             + `；目标占用落在本路的 ±${fmt(inbandS5)}`
-            + (fits ? '，都在子带内' : '，超出部分将被信道化滤除'),
+            + (fits ? '，都在可用范围内' : '，超出部分将被信道化滤除'),
     })
   }
 

@@ -108,7 +108,7 @@ export function DetectionView() {
         {node && <span>门限 <b>{node.threshold.toFixed(3)}</b></span>}
         {node && <span>频段 <b>{fmtHz(node.f_lo_Hz)} – {fmtHz(node.f_hi_Hz)}</b>{node.m_bins ? ` · M ${node.m_bins}` : ''}</span>}
         {node && <span>噪声窗 <b>{node.noise_window_frames}</b> 帧{node.noise_stale_frames > 0 ? `，陈旧 ${node.noise_stale_frames}` : ''}</span>}
-        {sub && <span data-det-subband>分子带 <b>{sub.bins}</b> 频点起 · {sub.levels} 级 · {sub.tests} 次检验 · 子带命中 <b>{sub.hit_frames}</b> 帧</span>}
+        {sub && <span data-det-subband>子带检测 <b>{sub.bins}</b> 频点起 · {sub.levels} 级 · {sub.tests} 次检验 · 子带命中 <b>{sub.hit_frames}</b> 帧</span>}
         {rec.rows.length > 0 && <span data-rec-count>识别 <b>{recognized}</b> / {rec.rows.length}</span>}
         {st.stride > 1 && <span className="muted">已抽稀 1/{st.stride}</span>}
         <span className="spacer" />
