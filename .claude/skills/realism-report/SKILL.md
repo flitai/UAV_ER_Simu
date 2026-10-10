@@ -5,7 +5,7 @@ description: 本项目「生成 IQ 数据真实感验证报告」（交甲方）
 
 # 生成 IQ 数据真实感验证报告
 
-通用写作方法见用户级 skill `research-report-workflow` 与 `tech-zh`；本文件只记本项目的事实。
+通用写法（章节结构、措辞、不符合项三段式、生成器、成稿检查）见用户级 skill `formal-tech-report`，句子级规则见 `tech-zh`；本文件只记本项目的事实。
 
 ## 文件
 
@@ -37,8 +37,18 @@ uv run --quiet --with numpy --with scipy --with matplotlib python algos/referenc
 
 ## 自查
 
+```bash
+python3 ~/.claude/skills/formal-tech-report/scripts/check_report.py data/eval/realism-v1/realism-report.html \
+  --ref-order any --ban-file .claude/skills/realism-report/ban-words.txt --forbid 'D-\d{3}' --forbid '\bQ-\d' --lint
+node ~/.claude/skills/formal-tech-report/scripts/check_layout.mjs data/eval/realism-v1/realism-report.html --out data/tmp/realism/shots
+```
+
+`ban-words.txt` 是本项目的禁用词（内部说法与旧称）。v1.1 报告在这套检查下错误为 0，警告 5 条，均尚未处理：
+40 个表、图未在正文中引用（逐组结果的统计表与图）；文献 [3]（NDSS 2023）列入了参考文献但未被引用；
+31 处负号用了连字符；2 处「明显」未量化。
+
 - [ ] 表、图编号从 1 起连续，与版面顺序一致；没有残留占位符（生成器会报错）。
-- [ ] 正文没有口语与内部说法（「像不像」「尺子」「照实」「同源」「角色窗」「录音」「验收集」「训练部分」）。
+- [ ] 正文没有口语与内部说法（由 `ban-words.txt` 检查）。
 - [ ] `realism.json` 在只改措辞时不变（`git diff --stat`）。
 - [ ] 截图检查桌面与手机宽度（390 像素无横向溢出）。
 - [ ] `tech-zh` 的 `ctc_lint.py` 对正文无硬错误；长句只出现在枚举与表格行。
