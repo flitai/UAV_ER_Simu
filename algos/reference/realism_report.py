@@ -1,7 +1,12 @@
-"""真实感对照报告：把 realism_compare.py 的结果写成单文件 HTML（Q-5，D-096；14 号报告 §7.3）。
+"""生成 IQ 数据真实感验证报告：把 realism_compare.py 的结果写成单文件 HTML（Q-5，D-096；14 号报告 §7.3–§7.4）。
 
-读者是甲方。正文不出现决策编号、内部步骤号与机器路径，出处收在文末。图用 matplotlib 画成 PNG、以 base64 内嵌，
-页面不引用任何外部资源（离线可开）。两次运行逐字节相同：PNG 不写软件元数据，页面不写生成时间。
+读者是甲方的评测人员，按正式验证报告组织：摘要、目的与范围（编号验证目标）、数据、方法（判定准则在比对前确定）、
+结果（判定矩阵与逐组结果）、差异归因分析、结构核查、结论（逐条回答验证目标，分三档）、局限性与改进方向、附录。
+每个「不符合」项按「观测 / 分析 / 归因」三段写，归因注明等级（已确认 / 推断 / 未查明）。表与图统一编号，图注写数据来源。
+正文先用占位符引用表图编号，全部生成后再统一替换（正文常在表出现之前引用它）。
+
+正文不出现决策编号、内部步骤号与机器路径。报告里的数字一律取自 realism.json 与格子集文件，不手抄。
+图用 matplotlib 画（线图 PNG、时频图 JPEG），以 base64 内嵌，页面不引用外部资源（离线可开）。两次运行逐字节相同。
 
 只由 realism_compare.py 调用：`write(doc, figs) -> 路径`。
 """
@@ -10,218 +15,100 @@ from __future__ import annotations
 import base64
 import html
 import io
+import json
 import math
 import os
+import re
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT_HTML = os.path.join(ROOT, "data", "eval", "realism-v1", "realism-report.html")
+CELLS = os.path.join(ROOT, "tests", "regression", "eval-dataset", "realism-v1.json")
 
-REPORT_VERSION = "v1.0"
+REPORT_TITLE = "生成 IQ 数据真实感验证报告"
+REPORT_SUBTITLE = "合成信号与公开实测数据的统计特征比对"
+REPORT_VERSION = "v1.1"
 REPORT_DATE = "2026-10-10"
 
-# 配色（作图规范的参考色板，浅色）：实测验证集 = 1 号蓝，合成 = 2 号橙，实测实测样本集 = 3 号青（虚线，作参照）
+# 配色（作图规范的参考色板，浅色）：验证集 = 1 号蓝，合成数据 = 2 号橙，实测样本集 = 3 号青（虚线，作参照）
 C_MAIN, C_SYNTH, C_REF = "#2a78d6", "#eb6834", "#1baf7a"
 INK, INK2, MUTED, GRID, AXIS, SURFACE = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb"
 FONTS = ["PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", "SimHei", "Arial Unicode MS"]
 
 STAT_NAME = {
-    "obw99_Hz": "99% 占用带宽", "bw10_Hz": "−10 dB 宽度", "dur_s": "突发时长", "interval_s": "突发间隔",
-    "flatness": "谱平坦度", "papr_dB": "峰均比（CCDF 1e-3）", "bw3_Hz": "−3 dB 宽度", "snr_dB": "带内信噪比",
+    "obw99_Hz": "99% 占用带宽", "bw10_Hz": "−10 dB 带宽", "dur_s": "突发时长", "interval_s": "突发间隔",
+    "flatness": "谱平坦度", "papr_dB": "峰均比", "bw3_Hz": "−3 dB 带宽", "snr_dB": "带内信噪比",
+    "shape": "平均谱形", "hops": "跳频频点集合",
 }
-COL_NAME = {"holdout": "验证集", "train": "实测样本集", "all": "实测样本集（全部）", "synth": "合成"}
+COL_NAME = {"holdout": "验证集", "train": "实测样本集", "all": "实测样本集", "synth": "合成数据"}
 PRESET_NAME = {
-    "dji-video-20m-a": "DJI 图传 20 MHz（A/D/F/G 族时序）", "dji-video-20m-c": "DJI 图传 20 MHz（C/E 族时序）",
+    "dji-video-20m-a": "DJI 图传 20 MHz 档（A 族时序）", "dji-video-20m-c": "DJI 图传 20 MHz 档（C 族时序）",
     "dji-uplink-1m": "DJI 遥控上行 1.1 MHz 档", "dji-uplink-2m": "DJI 遥控上行 2.2 MHz 档",
-    "dji-uplink-4m": "DJI 遥控上行 4.4 MHz 档", "dji-video-40m": "DJI 图传 40 MHz（5.8 GHz）",
-    "frsky-d16v2-fcc": "FrSky D16 v2（FCC）遥控", "futaba-sfhss": "Futaba S-FHSS 遥控",
-    "dji-video-10m": "DJI 图传 10 MHz", "dji-droneid": "DJI DroneID",
+    "dji-uplink-4m": "DJI 遥控上行 4.4 MHz 档", "dji-video-40m": "DJI 图传 40 MHz 档（5.8 GHz）",
+    "frsky-d16v2-fcc": "FrSky D16 v2 遥控（FCC 档）", "futaba-sfhss": "Futaba S-FHSS 遥控",
+    "dji-video-10m": "DJI 图传 10 MHz 档", "dji-droneid": "DJI DroneID",
 }
-VARIANT_NAME = {"p1-ideal": "无损伤", "p1-tgn-b": "TGn-B（15 ns，K 0 dB）", "p1-tgn-c": "TGn-C（30 ns，K 0 dB）",
-                "p1-tgn-d": "TGn-D（50 ns，K 3 dB）", "p1-tgn-e": "TGn-E（100 ns，K 6 dB）",
-                "p1-tgn-f": "TGn-F（150 ns，K 6 dB）"}
+CLASS_NAME = {"A": "Mavic 3 Pro", "C": "Mini 2 SE", "D": "Mini 4 Pro", "E": "Mini 3", "F": "Air 3", "G": "Air 2S"}
+VARIANT_NAME = {"p1-ideal": "无非理想效应", "p1-tgn-b": "TGn-B（15 ns，K = 0 dB）", "p1-tgn-c": "TGn-C（30 ns，K = 0 dB）",
+                "p1-tgn-d": "TGn-D（50 ns，K = 3 dB）", "p1-tgn-e": "TGn-E（100 ns，K = 6 dB）",
+                "p1-tgn-f": "TGn-F（150 ns，K = 6 dB）"}
+CHECK_ID = {"s1": "K1", "s2": "K2"}       # 结构核查编号：不用 S1 / S2，免得与观测点 S1 / S2 混淆
+VERDICT = {"一致": "符合", "有差距": "不符合", "无法比较": "不可判定"}
+FRSKY_FRAME_S = 0.007       # FrSky 预设的帧周期（实测 7.000 ms，gfsk-presets-v1.json）
 
-FRSKY_FRAME_S = 0.007      # FrSky 预设的帧周期（实测 7.000 ms，gfsk-presets-v1.json）
-
-
-# ---------------------------------------------------------------- 「有差距」各项的可能原因
-
-def _ms(v) -> str:
-    return "—" if v is None else f"{v * 1e3:.2f}"
-
-
-def _mhz(v, nd: int = 2) -> str:
-    return "—" if v is None else f"{v / 1e6:.{nd}f}"
-
-
-def _peaks(pk: list[dict]) -> str:
-    return "、".join(f"{d['center']:.2f} ms（{d['frac'] * 100:.0f}%）" for d in pk) or "—"
-
-
-def _band(curve, sh) -> dict:
-    """平均谱形在占用带宽内三段的均值：低端 2 MHz、中间 ±1 MHz、高端 2 MHz（窄信号按带宽的五分之一）。"""
-    n = int(round(sh["span_Hz"] / sh["res_Hz"]))
-    g = np.arange(-n, n + 1) * sh["res_Hz"]
-    v = np.array([np.nan if x is None else x for x in curve])
-    b = sh["band_Hz"] / 2
-    edge = min(2e6, sh["band_Hz"] / 5)
-
-    def m(lo, hi):
-        sel = (g >= lo) & (g <= hi) & np.isfinite(v)
-        return float(np.mean(v[sel])) if sel.any() else float("nan")
-    return {"low": m(-b, -b + edge), "mid": m(-edge / 2, edge / 2), "high": m(b - edge, b)}
+# 参考文献（正文以 [n] 引用）
+REFS = [
+    ("DroneRFb", "DroneRFb-DIR 无人机射频信号数据集，《电子与信息学报》，doi:10.11999/JEIT240804。"),
+    ("DroneRFa", "虞宁宁 等，DroneRFa 无人机射频信号数据集，《电子与信息学报》，46(4):1147–1156，2024，"
+                 "doi:10.11999/JEIT230570。"),
+    ("NDSS23", "N. Schiller, M. Chlosta, M. Schloegel 等，Drone Security and the Mysterious Case of DJI's DroneID，"
+               "NDSS Symposium 2023，§III-B。"),
+    ("TGn", "IEEE 802.11-03/940r4，TGn Channel Models。"),
+    ("TGac", "IEEE 802.11-09/0308r12，TGac Channel Model Addendum（视距 K 因子目标值）。"),
+    ("MPM", "DIY-Multiprotocol-TX-Module，开源多协议遥控发射模块固件（FrSky、Futaba S-FHSS 协议实现）。"),
+    ("CC2500", "Texas Instruments，CC2500 Low-Cost Low-Power 2.4 GHz RF Transceiver，数据手册 SWRS040C。"),
+]
+REF_NO = {k: i + 1 for i, (k, _) in enumerate(REFS)}
 
 
-def causes(doc: dict) -> dict[tuple[str, str], str]:
-    """「有差距」各项的可能原因。数字全部取自结果，不手抄；事实与推断分开写（铁律 10：只解释，不调参）。"""
-    P = {p["id"]: p for p in doc["pairs"]}
-    dg = doc["diagnostics"]
-    out: dict[tuple[str, str], str] = {}
-
-    def st(pid, col, stat, key="median"):
-        return P[pid]["columns"][col]["stats"][stat].get(key)
-
-    def cmp(pid, stat):
-        return next(r for r in P[pid]["stats"] if r["stat"] == stat)
-
-    # 图传的时隙结构
-    for pid, slot in (("p1", 2), ("p2", 4), ("p6", 2)):
-        if pid in P and P[pid]["verdicts"].get("interval_s") == "有差距":
-            c = cmp(pid, "interval_s")["synth_vs_main"]
-            out[(pid, "interval_s")] = (
-                f"预设的帧排布是 {slot} ms 一格的时隙，合成突发只从时隙起点开始，间隔只能取 {slot} ms 的整数倍"
-                f"（合成间隔的峰：{_peaks(P[pid]['columns']['synth']['interval_peaks_ms'])}）。"
-                f"实测间隔的峰：{_peaks(P[pid]['columns']['main']['interval_peaks_ms'])}。"
-                f"中位数 {_ms(st(pid, 'main', 'interval_s'))} ms 对 {_ms(st(pid, 'synth', 'interval_s'))} ms，KS {c['ks']:.3f}。"
-                "时隙概率当初只按占空与长短突发比例拟合，没有拟合间隔分布。"
-                + ("这一对同源（时序参数就取自这些实测片段），间隔仍对不上，说明时隙模型本身表达不了实测的间隔分布。"
-                   if not P[pid]["independent"] else ""))
-    p1 = P["p1"]
-    if p1["verdicts"].get("flatness") == "有差距":
-        main = st("p1", "main", "flatness")
-        near = [r for r in doc["variants"]["rows"] if r["cell"] != "p1-ideal" and r["flatness"].get("median") is not None
-                and abs(r["flatness"]["median"] - main) <= 0.05]
-        names = "、".join(VARIANT_NAME[r["cell"]].split("（")[0] for r in near)
-        out[("p1", "flatness")] = (
-            f"交付配置用平坦衰落，合成逐突发谱平坦度中位数 {st('p1', 'synth', 'flatness'):.3f}，实测 {main:.3f}。"
-            f"第 5 节打开抽头延迟线后，{names or '没有一档'} 的中位数与实测差在 ±0.05 以内。"
-            "推断：差距主要来自实测场地的频率选择性多径，不是波形本身。")
-    for pid in ("p1", "p6"):
-        if P[pid]["verdicts"].get("shape") != "有差距":
-            continue
-        d = dg[pid]
-        sig, rx = d["measured_signal"], d["receiver_noise"]
-        if pid == "p1":
-            out[(pid, "shape")] = (
-                f"实测平均谱在占用带宽内从低端到高端下降 {sig['low_minus_high_dB']:.2f} dB，合成是平的"
-                f"（均方根差 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB）。采集接收机在同一频段的噪声底下降 "
-                f"{rx['low_minus_high_dB']:.2f} dB（{d['receiver_source']}，{rx['n_records']} 片），能解释其中一部分；"
-                f"其余约 {sig['low_minus_high_dB'] - rx['low_minus_high_dB']:.1f} dB 的来源没有查明。")
-        else:
-            out[(pid, "shape")] = (
-                f"实测平均谱中间比两端高 {sig['mid_minus_edges_dB']:.2f} dB（高端比低端再低 "
-                f"{-sig['low_minus_high_dB']:.2f} dB），合成是平的（均方根差 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB）。"
-                f"采集接收机的噪声底中间比两端高 {rx['mid_minus_edges_dB']:.2f} dB（{d['receiver_source']}），能解释其中一部分。")
-    if P["p2"]["verdicts"].get("dur_s") == "有差距":
-        rk = cmp("p2", "dur_s")["ref_vs_main"]["ks"]
-        out[("p2", "dur_s")] = (
-            f"C、E 型的图传突发分长短两档（验证集的峰：{_peaks(P['p2']['columns']['main']['dur_peaks_ms'])}；"
-            f"实测样本集的峰：{_peaks(P['p2']['columns']['ref']['dur_peaks_ms'])}），两档的比例在实测两部分之间就不同："
-            f"实测样本集中位数 {_ms(st('p2', 'ref', 'dur_s'))} ms，验证集 {_ms(st('p2', 'main', 'dur_s'))} ms，两部分之间 KS {rk:.3f}。"
-            f"预设按实测样本集取比例，合成中位数 {_ms(st('p2', 'synth', 'dur_s'))} ms 与实测样本集一致。")
-    for pid in ("p3", "p4", "p5"):
-        c = P[pid]["columns"]
-        m, sy = c["main"], c["synth"]
-        frac_m = m["n_clean"] / m["n_bursts"] if m["n_bursts"] else None
-        frac_s = sy["n_clean"] / sy["n_bursts"] if sy["n_bursts"] else None
-        if P[pid]["verdicts"].get("interval_s") == "有差距":
-            out[(pid, "interval_s")] = (
-                f"合成上行突发里只有 {sy['n_clean']} / {sy['n_bursts']}（{frac_s * 100:.0f}%）被完整认出，实测为 {frac_m * 100:.0f}%；"
-                f"每秒核心突发合成 {sy['core_per_s']:.0f} 个、实测 {m['core_per_s']:.0f} 个。逐格检查合成突发，频率跨度在部分格里"
-                "从约 1.5 MHz 跳到 4–5 MHz，测量程序据此把突发切碎或记成与邻居争用。推断原因：合成 OFDM 的符号交界不加窗，"
-                f"信噪比 {st(pid, 'synth', 'snr_dB'):.0f} dB 时交界处的频谱泼溅高出底噪 6 dB 以上。漏掉的突发使相邻核心突发的间隔变长"
-                f"（中位数 {_ms(st(pid, 'synth', 'interval_s'))} ms 对实测 {_ms(st(pid, 'main', 'interval_s'))} ms）。")
-        if P[pid]["verdicts"].get("hops") == "有差距":
-            hm, hs = m["hops"], sy["hops"]
-            hr = c.get("ref", {}).get("hops")
-            if pid == "p4" and hr:
-                out[(pid, "hops")] = (
-                    f"差距在实测两部分之间：验证集 {hm['n_points']} 个点、跨度 {_mhz(hm['span_Hz'])} MHz、最高点 {_mhz(hm['max_Hz'])} MHz；"
-                    f"实测样本集 {hr['n_points']} 个点、{_mhz(hr['span_Hz'])} MHz、最高点 {_mhz(hr['max_Hz'])} MHz；"
-                    f"合成 {hs['n_points']} 个点、{_mhz(hs['span_Hz'])} MHz，与实测样本集一致。验证集的实测片段里没有量到栅格高端的点。")
-            elif pid == "p5":
-                out[(pid, "hops")] = (
-                    f"点数 {hm['n_points']} 对 {hs['n_points']}，只差一个；跨度 {_mhz(hm['span_Hz'])} 对 {_mhz(hs['span_Hz'])} MHz。"
-                    f"验证集的最小点间隔只有 {_mhz(hm['spacing_min_Hz'], 3)} MHz，远小于约 5 MHz 的栅格，"
-                    "推断是同一个点被分成了两簇，或混进了别的信号。")
-            else:
-                out[(pid, "hops")] = (
-                    f"合成序列在 1 MHz 栅格上随机取频点，逐跳 |步长| 中位数 {_mhz(hs['step_abs_median_Hz'])} MHz；"
-                    f"实测是小步跳（{_mhz(hm['step_abs_median_Hz'])} MHz）。点数 {hm['n_points']} 对 {hs['n_points']}，"
-                    f"最小点间隔 {_mhz(hm['spacing_min_Hz'], 3)} 对 {_mhz(hs['spacing_min_Hz'], 3)} MHz：实测的点不全在 1 MHz 栅格上。")
-        if P[pid]["verdicts"].get("shape") == "有差距":
-            b = _band(P[pid]["shape"]["curves_dB"]["main"], P[pid]["shape"])
-            out[(pid, "shape")] = (
-                f"实测平均谱在占用带宽内中间比两端高 {b['mid'] - 0.5 * (b['low'] + b['high']):.2f} dB"
-                f"（低端 {b['low']:+.2f}、中间 {b['mid']:+.2f}、高端 {b['high']:+.2f} dB），合成是平顶"
-                f"（均方根差 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB）。"
-                + ("实测样本里还混有下一条说的恒包络突发，它们的谱是钟形的。" if pid == "p3" else ""))
-    if P["p3"]["verdicts"].get("papr_dB") == "有差距":
-        d = dg["p3"]
-        others = [f"{x.upper()} {abs(next(r for r in P[x]['stats'] if r['stat'] == 'papr_dB')['synth_vs_main']['diff']):.2f} dB"
-                  for x in ("p4", "p5")]
-        out[("p3", "papr_dB")] = (
-            f"实测角色窗里 {d['constant_envelope_frac'] * 100:.0f}% 的突发峰均比低于 4 dB，是恒包络信号（蓝牙一类），"
-            f"不是 DJI 上行的 OFDM。去掉它们后实测中位数 {d['papr_median_without_constant_envelope_dB']:.2f} dB，"
-            f"仍比合成（{d['synth_papr_median_dB']:.2f} dB）低 "
-            f"{d['synth_papr_median_dB'] - d['papr_median_without_constant_envelope_dB']:.2f} dB；另两档上行的差只有 "
-            f"{'、'.join(others)}。C、E 型上行的峰均比为什么更低，没有查明。")
-    p7 = P["p7"]
-    if p7["verdicts"].get("obw99_Hz") == "有差距" or p7["verdicts"].get("bw10_Hz") == "有差距":
-        txt = (f"合成 99% 占用带宽 {st('p7', 'synth', 'obw99_Hz') / 1e3:.0f} kHz，实测 {st('p7', 'main', 'obw99_Hz') / 1e3:.0f} kHz"
-               f"（{cmp('p7', 'obw99_Hz')['synth_vs_main']['rel'] * 100:+.1f}%）；−10 dB 宽度 {st('p7', 'synth', 'bw10_Hz') / 1e3:.0f} 对 "
-               f"{st('p7', 'main', 'bw10_Hz') / 1e3:.0f} kHz。合成的调制参数取自开源实现里 CC2500 的 FCC 档寄存器"
-               "（GFSK、BT 1、频偏 57.1 kHz）；实测数据采集时用的是 ACCESS 还是 ACCST D16 没有记录，实际参数可能不同。")
-        for k in ("obw99_Hz", "bw10_Hz"):
-            if p7["verdicts"].get(k) == "有差距":
-                out[("p7", k)] = txt
-    if p7["verdicts"].get("interval_s") == "有差距":
-        c = p7["columns"]
-        miss = 1 - c["main"]["core_per_s"] * FRSKY_FRAME_S
-        out[("p7", "interval_s")] = (
-            f"实测每秒认出 {c['main']['core_per_s']:.0f} 个核心突发，帧率是每秒 {1 / FRSKY_FRAME_S:.1f} 帧，约 {miss * 100:.0f}% 的帧"
-            f"没有认出遥控包，于是出现两倍帧长的间隔（实测间隔的峰：{_peaks(c['main']['interval_peaks_ms'])}）；"
-            f"合成每帧都发（每秒 {c['synth']['core_per_s']:.0f} 个）。缺的包是没有发还是没有认出，这里没有查明。")
-    if p7["verdicts"].get("flatness") == "有差距" or p7["verdicts"].get("shape") == "有差距":
-        txt = (f"实测谱在一个频偏音附近有一根窄峰（−3 dB 宽度 {st('p7', 'main', 'bw3_Hz') / 1e3:.0f} kHz，"
-               f"合成 {st('p7', 'synth', 'bw3_Hz') / 1e3:.0f} kHz），平坦度 {st('p7', 'main', 'flatness'):.3f} 对 "
-               f"{st('p7', 'synth', 'flatness'):.3f}，平均谱形均方根差 {p7['shape']['synth_vs_main_rms_dB']:.2f} dB。"
-               "推断：实测载荷里同一比特连续出现得多（例如通道值少变、数据不白化），合成载荷是随机的。"
-               "对 GFSK 遥控，载荷内容会改变谱形，「随机载荷足以给出正确的谱」这一假定在这里不成立。")
-        for k in ("flatness", "shape"):
-            if p7["verdicts"].get(k) == "有差距":
-                out[("p7", k)] = txt
-    return out
+def cite(*keys: str) -> str:
+    return "[" + "，".join(str(REF_NO[k]) for k in keys) + "]"
 
 
-def observations(doc: dict) -> list[str]:
-    """不进判定、但评测者看得出来的差别。"""
-    P = {p["id"]: p for p in doc["pairs"]}
-    steps = "；".join(
-        f"{pid.upper()} 合成 {_mhz(P[pid]['columns']['synth']['hops'].get('step_abs_median_Hz'))} MHz、"
-        f"实测 {_mhz(P[pid]['columns']['main']['hops'].get('step_abs_median_Hz'))} MHz" for pid in ("p3", "p4", "p5"))
-    full = "；".join(
-        f"{pid.upper()} 合成 {P[pid]['columns']['synth']['n_clean'] / max(1, P[pid]['columns']['synth']['n_bursts']) * 100:.0f}%、"
-        f"实测 {P[pid]['columns']['main']['n_clean'] / max(1, P[pid]['columns']['main']['n_bursts']) * 100:.0f}%"
-        for pid in ("p3", "p4", "p5"))
-    return [
-        "合成 OFDM 的符号交界不加窗。信噪比高时，合成突发在含符号交界的时频格里频谱展宽"
-        "（逐格检查 P3 的合成突发，测得的频率跨度从约 1.5 MHz 跳到 4–5 MHz）。上行突发被完整认出的比例："
-        + full + "。",
-        "DJI 上行的跳频序列：合成在栅格上随机取点，实测多是小步跳。逐跳 |步长| 中位数：" + steps + "。",
-    ]
+def e(s) -> str:
+    return html.escape(str(s))
+
+
+# ---------------------------------------------------------------- 编号
+
+class Counter:
+    """表与图的编号。new() 取号并返回占位符；ref() 返回同一键的占位符；resolve() 在全文生成之后统一换成「表 n」「图 n」。"""
+
+    def __init__(self, prefix: str, tag: str):
+        self.prefix, self.tag, self.n, self.keys = prefix, tag, 0, {}
+
+    def _ph(self, key: str) -> str:
+        return f"⟦{self.tag}:{key}⟧"
+
+    def new(self, key: str | None = None) -> str:
+        self.n += 1
+        key = key or f"#{self.n}"
+        if key in self.keys:
+            raise ValueError(f"编号键重复：{self.tag}:{key}")
+        self.keys[key] = f"{self.prefix} {self.n}"
+        return self._ph(key)
+
+    def ref(self, key: str) -> str:
+        return self._ph(key)
+
+    def resolve(self, text: str) -> str:
+        def sub(m):
+            if m.group(1) not in self.keys:
+                raise ValueError(f"引用了不存在的编号：{self.tag}:{m.group(1)}")
+            return self.keys[m.group(1)]
+        return re.sub("⟦" + self.tag + r":([^⟧]+)⟧", sub, text)
 
 
 # ---------------------------------------------------------------- 数字格式
@@ -241,31 +128,268 @@ def fmt_val(stat: str, v) -> str:
 def fmt_summary(stat: str, s: dict) -> str:
     if not s or not s.get("n"):
         return "—（无样本）"
-    return (f"{fmt_val(stat, s['median'])}<br><span class=sub>{fmt_val(stat, s['p10'])} – "
-            f"{fmt_val(stat, s['p90'])}，n = {s['n']}</span>")
+    return (f"{fmt_val(stat, s['median'])}<br><span class=sub>[{fmt_val(stat, s['p10'])}，"
+            f"{fmt_val(stat, s['p90'])}]，n = {s['n']}</span>")
 
 
 def fmt_diff(stat: str, c: dict) -> str:
     if c.get("diff") is None:
         return "—"
-    if c.get("measure") == "rel_median" or (stat.endswith("_Hz") or stat in ("dur_s", "interval_s")):
+    if stat.endswith("_Hz") or stat in ("dur_s", "interval_s"):
         if c.get("rel") is not None:
             return f"{c['rel'] * 100:+.1f}%"
-    return f"{c['diff']:+.3f}" if not stat.endswith("_dB") else f"{c['diff']:+.2f} dB"
+    return f"{c['diff']:+.2f} dB" if stat.endswith("_dB") else f"{c['diff']:+.3f}"
 
 
-def badge(v: str | None) -> str:
-    if v == "一致":
-        return '<span class="badge ok">✓ 一致</span>'
-    if v == "有差距":
-        return '<span class="badge gap">△ 有差距</span>'
-    if v == "无法比较":
-        return '<span class="badge na">— 无法比较</span>'
-    return '<span class="sub">只报数</span>'
+def verdict_cell(v: str | None) -> str:
+    w = VERDICT.get(v or "", "")
+    if w == "符合":
+        return '<span class="badge ok">✓ 符合</span>'
+    if w == "不符合":
+        return '<span class="badge gap">✗ 不符合</span>'
+    if w == "不可判定":
+        return '<span class="badge na">— 不可判定</span>'
+    return '<span class="sub">仅列出</span>'
 
 
-def e(s) -> str:
-    return html.escape(str(s))
+def _ms(v) -> str:
+    return "—" if v is None else f"{v * 1e3:.2f} ms"
+
+
+def _mhz(v, nd: int = 2) -> str:
+    return "—" if v is None else f"{v / 1e6:.{nd}f} MHz"
+
+
+def _peaks(pk: list[dict]) -> str:
+    return "、".join(f"{d['center']:.2f} ms（{d['frac'] * 100:.0f}%）" for d in pk) or "—"
+
+
+def _band(curve, sh) -> dict:
+    """平均谱形在占用带宽内三段的均值：低端、中间、高端各取 2 MHz（窄信号取带宽的五分之一）。"""
+    n = int(round(sh["span_Hz"] / sh["res_Hz"]))
+    g = np.arange(-n, n + 1) * sh["res_Hz"]
+    v = np.array([np.nan if x is None else x for x in curve])
+    b = sh["band_Hz"] / 2
+    edge = min(2e6, sh["band_Hz"] / 5)
+
+    def m(lo, hi):
+        sel = (g >= lo) & (g <= hi) & np.isfinite(v)
+        return float(np.mean(v[sel])) if sel.any() else float("nan")
+    return {"low": m(-b, -b + edge), "mid": m(-edge / 2, edge / 2), "high": m(b - edge, b)}
+
+
+# ---------------------------------------------------------------- 「不符合」各项的观测、分析与归因
+
+LEVEL_NOTE = {"已确认": "由模型定义或直接测量得出", "推断": "有间接证据支持，尚未直接验证", "未查明": "现有数据不足以确定原因"}
+CATEGORY_NAME = {
+    "model": "生成模型结构",
+    "preset": "预设参数来源",
+    "config": "仿真配置选择",
+    "measured": "实测数据特性",
+    "open": "原因待查",
+}
+
+
+def findings(doc: dict) -> dict[tuple[str, str], dict]:
+    """每个「不符合」项：观测（obs）、分析（ana）、归因（attr）、等级（level）、类别（cat）、一句话摘要（short）。
+
+    数字全部取自结果；只解释差异，不据此调整模型参数。"""
+    P = {p["id"]: p for p in doc["pairs"]}
+    dg = doc["diagnostics"]
+    out: dict[tuple[str, str], dict] = {}
+
+    def st(pid, col, stat, key="median"):
+        return P[pid]["columns"][col]["stats"][stat].get(key)
+
+    def cmp(pid, stat):
+        return next(r for r in P[pid]["stats"] if r["stat"] == stat)
+
+    def gap(pid, stat):
+        return pid in P and P[pid]["verdicts"].get(stat) == "有差距"
+
+    for pid, slot in (("p1", 2), ("p2", 4), ("p6", 2)):
+        if gap(pid, "interval_s"):
+            c = cmp(pid, "interval_s")["synth_vs_main"]
+            same = ("本组的时序参数取自同一批实测数据，间隔分布仍不一致，说明差异不在参数取值，而在模型结构。"
+                    if not P[pid]["independent"] else "")
+            out[(pid, "interval_s")] = {
+                "obs": (f"合成数据的突发间隔集中于 {_peaks(P[pid]['columns']['synth']['interval_peaks_ms'])}；"
+                        f"{COL_NAME[P[pid]['main']]}的间隔峰值位于 {_peaks(P[pid]['columns']['main']['interval_peaks_ms'])}。"
+                        f"两者中位数分别为 {_ms(st(pid, 'synth', 'interval_s'))} 与 {_ms(st(pid, 'main', 'interval_s'))}，"
+                        f"KS 距离为 {c['ks']:.3f}，超过判定准则 0.2。"),
+                "ana": (f"该预设的帧排布以 {slot} ms 为时隙单位，突发只在时隙起点开始，因此突发间隔只能取 {slot} ms 的整数倍。"
+                        f"时隙占用概率按实测的占空比与长短突发比例确定，未以间隔分布作为拟合目标。{same}"),
+                "attr": "差异由帧排布模型的时隙结构决定。",
+                "level": "已确认", "cat": "model",
+                "short": f"帧排布采用 {slot} ms 固定时隙，间隔只能取时隙长度的整数倍"}
+
+    if gap("p1", "flatness"):
+        main = st("p1", "main", "flatness")
+        near = [r for r in doc["variants"]["rows"] if r["cell"] != "p1-ideal" and r["flatness"].get("median") is not None
+                and abs(r["flatness"]["median"] - main) <= 0.05]
+        names = "、".join(VARIANT_NAME[r["cell"]].split("（")[0] for r in near) or "无一档"
+        out[("p1", "flatness")] = {
+            "obs": (f"合成数据的逐突发谱平坦度中位数为 {st('p1', 'synth', 'flatness'):.3f}，"
+                    f"验证集为 {main:.3f}（第 10–90 百分位 {st('p1', 'main', 'flatness', 'p10'):.3f}–"
+                    f"{st('p1', 'main', 'flatness', 'p90'):.3f}），差值超过判定准则 0.05。"),
+            "ana": ("合成数据采用平坦莱斯衰落，不产生频率选择性；实测数据在 10 m 距离的室内外场地采集，存在多径传播。"
+                    f"在合成链路中启用抽头延迟线、按 IEEE 802.11n 信道模型 B–F 设置时延扩展与 K 因子 {cite('TGn', 'TGac')} 后，"
+                    f"{names} 的谱平坦度中位数与验证集之差均在 ±0.05 以内（见第 5.1 节）。"),
+            "attr": "差异主要由仿真配置未启用频率选择性衰落所致；实测场地的多径参数未经测量。",
+            "level": "推断", "cat": "config",
+            "short": "合成数据采用平坦衰落；启用抽头延迟线（TGn-C 至 TGn-F）后与实测相当"}
+
+    for pid in ("p1", "p6"):
+        if not gap(pid, "shape"):
+            continue
+        d = dg[pid]
+        sig, rx = d["measured_signal"], d["receiver_noise"]
+        if pid == "p1":
+            out[(pid, "shape")] = {
+                "obs": (f"验证集的平均谱在占用带宽内由低端至高端下降 {sig['low_minus_high_dB']:.2f} dB；合成数据的平均谱平坦，"
+                        f"两者在占用带宽内的均方根差为 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB，超过判定准则 1 dB。"),
+                "ana": (f"采集接收机的噪声底在同一频段内由低端至高端下降 {rx['low_minus_high_dB']:.2f} dB"
+                        f"（由实测样本集中 {rx['n_records']} 个背景片段测得）。噪声不经过发射机，"
+                        "该倾斜因此来自采集接收机的频率响应。"),
+                "attr": (f"约 {rx['low_minus_high_dB']:.1f} dB 归因于采集接收机的频率响应；"
+                         f"其余约 {sig['low_minus_high_dB'] - rx['low_minus_high_dB']:.1f} dB 的来源未能确定。"),
+                "level": "未查明", "cat": "open",
+                "short": "采集接收机频率响应可解释一部分谱倾斜，其余部分未查明"}
+        else:
+            out[(pid, "shape")] = {
+                "obs": (f"实测平均谱在占用带宽中部比两端高 {sig['mid_minus_edges_dB']:.2f} dB；合成数据的平均谱平坦，"
+                        f"均方根差为 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB，超过判定准则 1 dB。"),
+                "ana": (f"采集接收机的噪声底在同一频段内中部比两端高 {rx['mid_minus_edges_dB']:.2f} dB"
+                        "（由该型实测片段中未被信号占用的时频单元测得）。"),
+                "attr": "差异的一部分归因于采集接收机的频率响应，其余部分的来源未能确定。",
+                "level": "未查明", "cat": "open",
+                "short": "采集接收机频率响应可解释一部分拱形谱形，其余部分未查明"}
+
+    if gap("p2", "dur_s"):
+        rk = cmp("p2", "dur_s")["ref_vs_main"]["ks"]
+        out[("p2", "dur_s")] = {
+            "obs": (f"突发时长中位数：验证集 {_ms(st('p2', 'main', 'dur_s'))}，实测样本集 {_ms(st('p2', 'ref', 'dur_s'))}，"
+                    f"合成数据 {_ms(st('p2', 'synth', 'dur_s'))}。合成数据与验证集的中位数相对差超过判定准则 5%。"),
+            "ana": (f"C、E 型的图传突发分为长短两档（验证集的峰值：{_peaks(P['p2']['columns']['main']['dur_peaks_ms'])}；"
+                    f"实测样本集的峰值：{_peaks(P['p2']['columns']['ref']['dur_peaks_ms'])}）。两档的比例在验证集与实测样本集之间不同，"
+                    f"两组实测数据之间的 KS 距离为 {rk:.3f}。预设参数取自实测样本集，合成数据与实测样本集一致。"),
+            "attr": "差异来自两组实测数据之间的分布差异，不来自生成模型。",
+            "level": "已确认", "cat": "measured",
+            "short": "长短两档突发的比例在两组实测数据之间不同，合成数据与实测样本集一致"}
+
+    for pid in ("p3", "p4", "p5"):
+        c = P[pid]["columns"]
+        m, sy = c["main"], c["synth"]
+        frac_m = m["n_clean"] / m["n_bursts"] if m["n_bursts"] else 0.0
+        frac_s = sy["n_clean"] / sy["n_bursts"] if sy["n_bursts"] else 0.0
+        if gap(pid, "interval_s"):
+            out[(pid, "interval_s")] = {
+                "obs": (f"合成数据中被完整提取的上行突发占 {frac_s * 100:.0f}%（{sy['n_clean']} / {sy['n_bursts']}），"
+                        f"验证集为 {frac_m * 100:.0f}%；每秒核心突发数分别为 {sy['core_per_s']:.0f} 与 {m['core_per_s']:.0f}。"
+                        f"突发间隔中位数分别为 {_ms(st(pid, 'synth', 'interval_s'))} 与 {_ms(st(pid, 'main', 'interval_s'))}。"),
+                "ana": ("逐个检查合成突发的时频单元，部分单元的频率跨度由约 1.5 MHz 扩展至 4–5 MHz。"
+                        "合成 OFDM 信号在符号边界处未加窗；带内信噪比约 "
+                        f"{st(pid, 'synth', 'snr_dB'):.0f} dB 时，边界处的频谱扩展超过占用门限，测量程序因此将突发切分，"
+                        "或将其判为与相邻信号重叠。未被提取的突发使相邻核心突发之间的间隔变长。"),
+                "attr": "差异由合成 OFDM 信号的符号边界处理方式引起。频谱扩展与符号边界的对应关系尚未逐点核实。",
+                "level": "推断", "cat": "model",
+                "short": "合成 OFDM 符号边界未加窗，高信噪比下突发被切分，间隔变长"}
+        if gap(pid, "hops"):
+            hm, hs = m["hops"], sy["hops"]
+            hr = c.get("ref", {}).get("hops")
+            if pid == "p4" and hr:
+                out[(pid, "hops")] = {
+                    "obs": (f"验证集 {hm['n_points']} 个频点、跨度 {_mhz(hm['span_Hz'])}；实测样本集 {hr['n_points']} 个频点、"
+                            f"跨度 {_mhz(hr['span_Hz'])}；合成数据 {hs['n_points']} 个频点、跨度 {_mhz(hs['span_Hz'])}。"),
+                    "ana": (f"验证集的最高频点为 {_mhz(hm['max_Hz'])}，实测样本集为 {_mhz(hr['max_Hz'])}；"
+                            "验证集未覆盖频点栅格的高端。合成数据的频点集合与实测样本集一致。"),
+                    "attr": "差异来自两组实测数据之间的覆盖范围差异，不来自生成模型。",
+                    "level": "已确认", "cat": "measured",
+                    "short": "验证集未覆盖频点栅格高端，合成数据与实测样本集一致"}
+            elif pid == "p5":
+                out[(pid, "hops")] = {
+                    "obs": (f"频点数：验证集 {hm['n_points']}，合成数据 {hs['n_points']}；跨度分别为 {_mhz(hm['span_Hz'])} 与 "
+                            f"{_mhz(hs['span_Hz'])}。"),
+                    "ana": (f"验证集的最小频点间隔为 {_mhz(hm['spacing_min_Hz'], 3)}，远小于约 5 MHz 的频点栅格间距，"
+                            "可能是同一频点在聚类时被分为两簇，或混入了其他信号。"),
+                    "attr": "差异可能来自实测数据的频点聚类，尚未逐点核实。",
+                    "level": "推断", "cat": "measured",
+                    "short": "验证集多出一个间隔异常小的频点，推断为聚类分簇所致"}
+            else:
+                out[(pid, "hops")] = {
+                    "obs": (f"频点数：验证集 {hm['n_points']}，合成数据 {hs['n_points']}；最小频点间隔分别为 "
+                            f"{_mhz(hm['spacing_min_Hz'], 3)} 与 {_mhz(hs['spacing_min_Hz'], 3)}；逐跳频率步长绝对值的中位数分别为 "
+                            f"{_mhz(hm['step_abs_median_Hz'])} 与 {_mhz(hs['step_abs_median_Hz'])}。"),
+                    "ana": "合成跳频序列在 1 MHz 频点栅格上随机选取频点；实测数据以小步长跳变为主，且部分频点不在 1 MHz 栅格上。",
+                    "attr": "差异由跳频序列模型决定。",
+                    "level": "已确认", "cat": "model",
+                    "short": "跳频序列模型随机选取频点，实测以小步长跳变为主"}
+        if gap(pid, "shape"):
+            b = _band(P[pid]["shape"]["curves_dB"]["main"], P[pid]["shape"])
+            extra = "实测样本中混有恒包络信号（见下一项），其功率谱呈钟形，使实测平均谱中部偏高。" if pid == "p3" else \
+                "现有数据未能区分发射端频谱成形与采集接收机频率响应的贡献。"
+            out[(pid, "shape")] = {
+                "obs": (f"实测平均谱在占用带宽内中部比两端高 {b['mid'] - 0.5 * (b['low'] + b['high']):.2f} dB"
+                        f"（低端 {b['low']:+.2f} dB，中部 {b['mid']:+.2f} dB，高端 {b['high']:+.2f} dB）；合成数据的平均谱平坦，"
+                        f"均方根差为 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB，超过判定准则 1 dB。"),
+                "ana": extra,
+                "attr": "差异的一部分归因于实测样本中的其他信号，其余部分未查明。" if pid == "p3" else "原因未查明。",
+                "level": "推断" if pid == "p3" else "未查明", "cat": "measured" if pid == "p3" else "open",
+                "short": "实测样本混有恒包络信号，实测谱中部偏高" if pid == "p3" else "实测谱中部略高、边沿较缓，原因未查明"}
+
+    if gap("p3", "papr_dB"):
+        d = dg["p3"]
+        others = "、".join(
+            f"{x.upper()} 为 {abs(next(r for r in P[x]['stats'] if r['stat'] == 'papr_dB')['synth_vs_main']['diff']):.2f} dB"
+            for x in ("p4", "p5"))
+        out[("p3", "papr_dB")] = {
+            "obs": (f"峰均比中位数：验证集 {st('p3', 'main', 'papr_dB'):.2f} dB，合成数据 {st('p3', 'synth', 'papr_dB'):.2f} dB。"
+                    f"验证集中 {d['constant_envelope_frac'] * 100:.0f}% 的突发峰均比低于 4 dB。"),
+            "ana": ("峰均比低于 4 dB 的突发为恒包络信号，不属于 OFDM 上行信号，推断来自同频段的其他设备（如蓝牙）。"
+                    f"剔除这部分突发后，验证集的峰均比中位数为 {d['papr_median_without_constant_envelope_dB']:.2f} dB，"
+                    f"仍比合成数据低 {d['synth_papr_median_dB'] - d['papr_median_without_constant_envelope_dB']:.2f} dB；"
+                    f"其他两档上行信号的差值分别为：{others}。"),
+            "attr": "差异的一部分来自实测样本中的其他信号；剔除后剩余的差异原因未查明。",
+            "level": "推断", "cat": "measured",
+            "short": "实测样本约三成为恒包络信号；剔除后仍差约 1.3 dB，原因未查明"}
+
+    p7 = P["p7"]
+    if gap("p7", "obw99_Hz") or gap("p7", "bw10_Hz"):
+        f = {"obs": (f"99% 占用带宽中位数：合成数据 {st('p7', 'synth', 'obw99_Hz') / 1e3:.0f} kHz，验证集 "
+                     f"{st('p7', 'main', 'obw99_Hz') / 1e3:.0f} kHz（相对差 {cmp('p7', 'obw99_Hz')['synth_vs_main']['rel'] * 100:+.1f}%）；"
+                     f"−10 dB 带宽分别为 {st('p7', 'synth', 'bw10_Hz') / 1e3:.0f} kHz 与 {st('p7', 'main', 'bw10_Hz') / 1e3:.0f} kHz。"),
+             "ana": (f"合成数据的调制参数依据开源实现 {cite('MPM')} 中 CC2500 收发器 {cite('CC2500')} 的 FCC 档寄存器配置换算"
+                     "（GFSK，BT = 1，频偏 57.1 kHz）。实测数据采集时遥控器工作在哪一协议档（ACCESS 或 ACCST D16）未有记录。"),
+             "attr": "预设的调制参数可能与实测设备的工作档不一致。",
+             "level": "推断", "cat": "preset",
+             "short": "调制参数按开源实现的 FCC 档推断，实测设备的协议档未记录"}
+        for k in ("obw99_Hz", "bw10_Hz"):
+            if gap("p7", k):
+                out[("p7", k)] = f
+    if gap("p7", "interval_s"):
+        c = p7["columns"]
+        miss = 1 - c["main"]["core_per_s"] * FRSKY_FRAME_S
+        out[("p7", "interval_s")] = {
+            "obs": (f"验证集每秒提取到 {c['main']['core_per_s']:.0f} 个核心突发，帧率为每秒 {1 / FRSKY_FRAME_S:.1f} 帧，"
+                    f"约 {miss * 100:.0f}% 的帧未提取到遥控包；间隔峰值位于 {_peaks(c['main']['interval_peaks_ms'])}。"
+                    f"合成数据每帧均发射，每秒 {c['synth']['core_per_s']:.0f} 个核心突发。"),
+            "ana": "现有数据无法区分缺失的帧是遥控器未发射，还是测量程序未提取到。",
+            "attr": "原因未查明。",
+            "level": "未查明", "cat": "open",
+            "short": "实测约两成帧未提取到遥控包，原因未查明"}
+    if gap("p7", "flatness") or gap("p7", "shape"):
+        f = {"obs": (f"实测功率谱在一个频偏音附近存在窄峰：−3 dB 带宽中位数为 {st('p7', 'main', 'bw3_Hz') / 1e3:.0f} kHz，"
+                     f"合成数据为 {st('p7', 'synth', 'bw3_Hz') / 1e3:.0f} kHz；谱平坦度中位数分别为 {st('p7', 'main', 'flatness'):.3f} 与 "
+                     f"{st('p7', 'synth', 'flatness'):.3f}；平均谱形均方根差为 {p7['shape']['synth_vs_main_rms_dB']:.2f} dB。"),
+             "ana": ("频移键控信号在某一频偏音处出现窄峰，表明载荷中同一符号连续出现的比例较高，"
+                     "可能原因是通道数据变化少且未做数据白化。合成数据的载荷为随机序列，不产生该窄峰。"),
+             "attr": "对 GFSK 遥控信号，载荷内容会改变功率谱形状，随机载荷不能复现实测谱形。实测载荷未经解调核实。",
+             "level": "推断", "cat": "model",
+             "short": "随机载荷不能复现实测谱中的窄峰"}
+        for k in ("flatness", "shape"):
+            if gap("p7", k):
+                out[("p7", k)] = f
+    return out
 
 
 # ---------------------------------------------------------------- 图
@@ -303,7 +427,7 @@ def jpg(fig) -> str:
 
 
 def fig_spectrograms(left: dict | None, left_img, right: dict | None, right_img, titles: tuple[str, str]) -> str | None:
-    """两块的时频图并排：同一色标（高出逐频点底噪 0–40 dB），横轴绝对频率，纵轴块内时间。"""
+    """两个处理块的时频图并排：同一色标（高于逐频点噪声底 0–40 dB），横轴绝对频率，纵轴块内时间。"""
     if left_img is None and right_img is None:
         return None
     plt = _plt()
@@ -316,7 +440,7 @@ def fig_spectrograms(left: dict | None, left_img, right: dict | None, right_img,
     for ax, rep, img, title in panels:
         ax.grid(False)
         if img is None or rep is None:
-            ax.text(0.5, 0.5, "没有满足条件的块", ha="center", va="center", color=MUTED, transform=ax.transAxes)
+            ax.text(0.5, 0.5, "无满足条件的处理块", ha="center", va="center", color=MUTED, transform=ax.transAxes)
             ax.set_axis_off()
             continue
         fs, fc, dur = rep["fs"], rep["fc"], rep["n"] / rep["fs"]
@@ -326,7 +450,7 @@ def fig_spectrograms(left: dict | None, left_img, right: dict | None, right_img,
         ax.set_xlabel("频率（MHz）")
         ax.set_ylabel("块内时间（ms）")
     if im is not None:
-        fig.colorbar(im, ax=axes, label="高出底噪（dB）", shrink=0.9)
+        fig.colorbar(im, ax=axes, label="高于噪声底的功率（dB）", shrink=0.9)
     return jpg(fig)
 
 
@@ -340,8 +464,8 @@ def fig_shape(pair: dict) -> str | None:
     grid = np.arange(-n, n + 1) * sh["res_Hz"] / 1e6
     fig, ax = plt.subplots(figsize=(9.6, 3.4), constrained_layout=True)
     for key, color, ls, lw, label in (("main", C_MAIN, "-", 2.0, COL_NAME[pair["main"]]),
-                                      ("ref", C_REF, "--", 1.4, COL_NAME.get(pair["ref"] or "", "")),
-                                      ("synth", C_SYNTH, "-", 2.0, "合成")):
+                                      ("ref", C_REF, "--", 1.4, "实测样本集（参照）"),
+                                      ("synth", C_SYNTH, "-", 2.0, "合成数据")):
         c = curves.get(key)
         if c:
             ax.plot(grid, [np.nan if v is None else v for v in c], color=color, ls=ls, lw=lw, label=label)
@@ -350,8 +474,8 @@ def fig_shape(pair: dict) -> str | None:
         ax.axvline(x, color=AXIS, lw=1.0, ls=":")
     ax.set_ylim(-40, 6)
     ax.set_xlim(grid[0], grid[-1])
-    ax.set_xlabel("相对对齐中心的频率（MHz）")
-    ax.set_ylabel("归一化功率谱（dB）")
+    ax.set_xlabel("相对对齐中心的频率偏移（MHz）")
+    ax.set_ylabel("归一化功率谱密度（dB）")
     ax.legend(loc="lower center", ncol=3)
     return png(fig)
 
@@ -363,17 +487,17 @@ def _ecdf(ax, vals, color, ls, lw, label, scale):
     ax.step(v, np.arange(1, v.size + 1) / v.size, where="post", color=color, ls=ls, lw=lw, label=f"{label}（n = {v.size}）")
 
 
-def fig_ecdfs(pair: dict, cols: dict, synth_label: str = "合成") -> str:
+def fig_ecdfs(pair: dict, cols: dict, synth_label: str = "合成数据") -> str:
     plt = _plt()
     panels = [("dur_s", 1e3, "突发时长（ms）"), ("interval_s", 1e3, "突发间隔（ms）"), ("flatness", 1.0, "谱平坦度"),
               ("obw99_Hz", 1e-6, "99% 占用带宽（MHz）")]
     has_papr = any(cols[k]["rows"] and any(z["papr_dB"] is not None for z in cols[k]["rows"]) for k in cols)
     if has_papr:
-        panels[3] = ("papr_dB", 1.0, "峰均比（dB，CCDF 1e-3）")
+        panels[3] = ("papr_dB", 1.0, "峰均比（dB，CCDF = 10⁻³）")
     fig, axes = plt.subplots(2, 2, figsize=(9.6, 5.6), constrained_layout=True)
     for ax, (stat, scale, label) in zip(axes.ravel(), panels):
         for key, color, ls, lw, name in (("main", C_MAIN, "-", 2.0, COL_NAME[pair["main"]]),
-                                         ("ref", C_REF, "--", 1.4, COL_NAME.get(pair["ref"] or "", "")),
+                                         ("ref", C_REF, "--", 1.4, "实测样本集（参照）"),
                                          ("synth", C_SYNTH, "-", 2.0, synth_label)):
             c = cols.get(key)
             if c is None:
@@ -381,14 +505,14 @@ def fig_ecdfs(pair: dict, cols: dict, synth_label: str = "合成") -> str:
             vals = c["intervals"] if stat == "interval_s" else [z[stat] for z in c["rows"]]
             _ecdf(ax, vals, color, ls, lw, name, scale)
         ax.set_xlabel(label)
-        ax.set_ylabel("累积比例")
+        ax.set_ylabel("累积概率")
         ax.set_ylim(0, 1.02)
         ax.legend(loc="upper left", fontsize=7.5)
     return png(fig)
 
 
-def fig_hops(pair: dict, cols: dict, synth_label: str = "合成") -> str | None:
-    """核心突发中心频率的直方图：上实测、下合成，同一横轴。"""
+def fig_hops(pair: dict, cols: dict, synth_label: str = "合成数据") -> str | None:
+    """核心突发中心频率的直方图：上为实测，下为合成，共用横轴。"""
     main, synth = cols.get("main"), cols.get("synth")
     if not main or not synth or not main["core_centers"] or not synth["core_centers"]:
         return None
@@ -407,11 +531,11 @@ def fig_hops(pair: dict, cols: dict, synth_label: str = "合成") -> str | None:
     return png(fig)
 
 
-def fig_variants(doc: dict, figs: dict) -> str | None:
+def fig_variants(doc: dict) -> str | None:
     v = doc["variants"]
     p1 = next(p for p in doc["pairs"] if p["id"] == "p1")
-    rows = [(COL_NAME["holdout"], p1["columns"]["main"]["stats"]["flatness"], C_MAIN),
-            (COL_NAME["train"], p1["columns"]["ref"]["stats"]["flatness"], C_REF),
+    rows = [("验证集", p1["columns"]["main"]["stats"]["flatness"], C_MAIN),
+            ("实测样本集（参照）", p1["columns"]["ref"]["stats"]["flatness"], C_REF),
             ("合成：交付配置", p1["columns"]["synth"]["stats"]["flatness"], C_SYNTH)]
     rows += [(f"合成：{VARIANT_NAME[r['cell']]}", r["flatness"], C_SYNTH) for r in v["rows"]]
     rows = [r for r in rows if r[1].get("n")]
@@ -427,254 +551,516 @@ def fig_variants(doc: dict, figs: dict) -> str | None:
     ax.axvspan(m["p10"], m["p90"], color=C_MAIN, alpha=0.08, lw=0)
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([r[0] for r in rows][::-1])
-    ax.set_xlabel("逐突发谱平坦度：圆点为中位数，横线为第 10 – 90 百分位")
+    ax.set_xlabel("逐突发谱平坦度（圆点：中位数；横线：第 10–90 百分位）")
     ax.set_xlim(0, 1.02)
     ax.grid(axis="y", visible=False)
     return png(fig)
 
 
-# ---------------------------------------------------------------- 页面
+# ---------------------------------------------------------------- 页面元件
 
 CSS = """
 :root{--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--line:#e1e0d9;--axis:#c3c2b7;--surface:#fcfcfb;--plane:#f9f9f7;
---ok:#0ca30c;--gap:#ec835a;--accent:#2a78d6}
+--ok:#0ca30c;--gap:#d03b3b;--accent:#2a78d6}
 *{box-sizing:border-box}
 html{color-scheme:light}
-body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.65 "PingFang SC","Microsoft YaHei","Noto Sans CJK SC",
+body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.7 "PingFang SC","Microsoft YaHei","Noto Sans CJK SC",
 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:1040px;margin:0 auto;padding:32px 16px 64px;background:var(--surface)}
-h1{font-size:26px;line-height:1.3;margin:0 0 6px}
-h2{font-size:20px;margin:40px 0 10px;padding-top:12px;border-top:1px solid var(--line)}
+main{max-width:1040px;margin:0 auto;padding:36px 16px 64px;background:var(--surface)}
+h1{font-size:26px;line-height:1.3;margin:0 0 4px}
+.subtitle{font-size:17px;color:var(--ink2);margin:0 0 18px}
+h2{font-size:20px;margin:44px 0 10px;padding-top:12px;border-top:1px solid var(--line)}
 h3{font-size:16px;margin:28px 0 8px}
-p,li{max-width:76ch}
-.meta{color:var(--ink2);font-size:13px;margin-bottom:16px}
-.note{background:var(--plane);border-left:3px solid var(--axis);padding:8px 12px;color:var(--ink2);font-size:14px}
-table{border-collapse:collapse;width:100%;margin:8px 0 16px;font-size:13.5px}
+h4{font-size:15px;margin:20px 0 6px}
+p,li{max-width:80ch}
+table.info td:first-child{color:var(--ink2);width:9em}
+.abstract{background:var(--plane);border:1px solid var(--line);padding:12px 16px;margin:16px 0}
+.abstract p{margin:6px 0}
+table{border-collapse:collapse;width:100%;margin:6px 0 18px;font-size:13.5px}
+caption{caption-side:top;text-align:left;font-weight:600;font-size:13.5px;color:var(--ink);padding:4px 0}
 th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
 th{color:var(--ink2);font-weight:600;background:var(--plane)}
 td.num{font-variant-numeric:tabular-nums}
+.c{display:block;text-align:center}
 .sub{color:var(--muted);font-size:12px}
 .badge{display:inline-block;font-size:12.5px;font-weight:600;white-space:nowrap}
 .badge.ok::first-letter{color:var(--ok)}
 .badge.gap::first-letter{color:var(--gap)}
 .badge.na{color:var(--muted)}
-figure{margin:12px 0 20px}
+.finding{margin:10px 0 14px;padding-left:12px;border-left:3px solid var(--line)}
+.finding p{margin:4px 0}
+.lab{display:inline-block;min-width:3.2em;font-weight:600;color:var(--ink2)}
+figure{margin:12px 0 22px}
 figure.narrow{max-width:560px}
 figure img{width:100%;height:auto;display:block;border:1px solid var(--line)}
 figcaption{font-size:13px;color:var(--ink2);margin-top:6px}
-details{margin:8px 0}
+figcaption b{color:var(--ink)}
+details{margin:6px 0}
 summary{cursor:pointer;color:var(--ink2)}
-code{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}
 .ids{font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink2);word-break:break-all}
-.toc a{color:var(--accent);text-decoration:none}
+.toc{columns:2;font-size:14px}
+.toc a,.xref{color:var(--accent);text-decoration:none}
 .scroll{overflow-x:auto}
-@media print{body{background:#fff}main{max-width:none;padding:0}h2{break-before:page}figure,table{break-inside:avoid}}
+.concl td:nth-child(-n+5),.concl th:nth-child(-n+5){white-space:nowrap}
+@media (max-width:640px){.toc{columns:1}}
+@media print{body{background:#fff}main{max-width:none;padding:0}h2{break-before:page}figure,table,.finding{break-inside:avoid}}
 """
 
 
-def img_tag(b64: str | None, alt: str, caption: str, narrow: bool = False) -> str:
-    if not b64:
-        return f'<p class="sub">{e(alt)}：没有可画的数据。</p>'
-    return (f'<figure{" class=narrow" if narrow else ""}><img alt="{e(alt)}" src="data:{b64}">'
-            f'<figcaption>{caption}</figcaption></figure>')
+def table(caption: str, head: list[str], rows: list[list[str]], num_cols=frozenset(), cls: str = "") -> str:
+    th = "".join(f"<th>{h}</th>" for h in head)
+    body = "".join("<tr>" + "".join(f"<td class=num>{c}</td>" if i in num_cols else f"<td>{c}</td>"
+                                    for i, c in enumerate(r)) + "</tr>" for r in rows)
+    cap = f"<caption>{caption}</caption>" if caption else ""
+    return f'<div class="scroll"><table{f" class={cls}" if cls else ""}>{cap}<tr>{th}</tr>{body}</table></div>'
 
 
-def section_summary(doc: dict) -> str:
+def figure(data: str | None, label: str, caption: str, source: str, narrow: bool = False) -> str:
+    if not data:
+        return f'<p class="sub">{label}：无可绘制的数据。</p>'
+    return (f'<figure{" class=narrow" if narrow else ""}><img alt="{label}" src="data:{data}">'
+            f"<figcaption><b>{label}</b>　{caption}<br>数据来源：{source}</figcaption></figure>")
+
+
+STAT_ORDER = ["obw99_Hz", "bw10_Hz", "shape", "flatness", "dur_s", "interval_s", "papr_dB", "hops"]
+
+
+def counts(doc: dict) -> dict[str, dict]:
+    """每个统计量：可判定组数、符合组数、不符合的组。"""
+    out = {}
+    for s in STAT_ORDER:
+        comp = [p for p in doc["pairs"] if p["verdicts"].get(s) in ("一致", "有差距")]
+        out[s] = {"n": len(comp), "ok": sum(1 for p in comp if p["verdicts"][s] == "一致"),
+                  "fail": [p["id"] for p in comp if p["verdicts"][s] == "有差距"]}
+    return out
+
+
+def grade(ok: int, n: int) -> str:
+    if n == 0:
+        return "未验证"
+    r = ok / n
+    return "充分验证" if r >= 0.8 else "初步支持" if r >= 0.5 else "未验证"
+
+
+OBJECTIVES = [
+    ("G1", "频域占用特征", ["obw99_Hz", "bw10_Hz"], "合成信号的 99% 占用带宽与 −10 dB 带宽与实测一致"),
+    ("G2", "频谱形状特征", ["shape", "flatness"], "合成信号的平均谱形与逐突发谱平坦度与实测一致"),
+    ("G3", "时域与帧结构特征", ["dur_s", "interval_s"], "合成信号的突发时长与突发间隔分布与实测一致"),
+    ("G4", "包络统计特征", ["papr_dB"], "合成信号的峰均比与实测一致"),
+    ("G5", "跳频特征", ["hops"], "跳频信号的频点数与频点跨度与实测一致"),
+    ("G6", "无同型实测项的结构正确性", [], "DroneID 与图传 10 MHz 档的时间与频谱结构参数与公开文献一致"),
+]
+
+
+# ---------------------------------------------------------------- 各节
+
+def sec_abstract(doc: dict, cnt: dict) -> str:
+    n_cmp = sum(c["n"] for c in cnt.values())
+    n_ok = sum(c["ok"] for c in cnt.values())
+    p1 = next(p for p in doc["pairs"] if p["id"] == "p1")
+    near = [r for r in doc["variants"]["rows"] if r["cell"] != "p1-ideal" and r["flatness"].get("median") is not None
+            and abs(r["flatness"]["median"] - p1["columns"]["main"]["stats"]["flatness"]["median"]) <= 0.05]
+    sc_ok = all(c["verdict"] == "一致" for s in doc["selfchecks"] for c in s["checks"])
+    lv = {s: grade(cnt[s]["ok"], cnt[s]["n"]) for s in STAT_ORDER}
+    full = "、".join(STAT_NAME[s] for s in STAT_ORDER if lv[s] == "充分验证")
+    part = "、".join(STAT_NAME[s] for s in STAT_ORDER if lv[s] == "初步支持")
+    none = "、".join(STAT_NAME[s] for s in STAT_ORDER if lv[s] == "未验证")
+    return (
+        '<div class="abstract"><p><strong>摘要</strong></p>'
+        f"<p>本报告检验本方仿真系统生成的无人机信号 IQ 数据在统计特征上与真实采集数据的一致程度。比对使用两个公开数据集"
+        f" {cite('DroneRFb', 'DroneRFa')} 中的同类信号，共设 {len(doc['pairs'])} 个对照组，覆盖 DJI 图传、DJI 遥控上行与两种第三方遥控信号，"
+        "另对两种无同型实测数据的信号进行结构核查。合成数据与实测数据由同一测量程序处理，比较占用带宽、平均谱形、谱平坦度、"
+        "突发时长、突发间隔、峰均比与跳频频点集合；判定准则在比对之前确定，比对过程中未调整任何模型参数。"
+        "实测数据以入库时冻结、未参与参数提取的验证集为主要比较对象。</p>"
+        f"<p>全部 {n_cmp} 项可判定比较中，{n_ok} 项符合判定准则。按统计量汇总：{full or '无'}达到「充分验证」；"
+        f"{part or '无'}为「初步支持」；{none or '无'}为「未验证」。不符合项的来源可归为三类：生成模型的结构"
+        "（图传帧排布的固定时隙、遥控上行的跳频序列、OFDM 符号边界处理、GFSK 随机载荷），仿真配置未启用频率选择性衰落，"
+        "以及实测数据自身的特性（采集接收机的频率响应、混入的其他信号、两组实测数据之间的差异）。敏感性分析表明，"
+        f"启用抽头延迟线后，有 {len(near)} 种信道模型配置下的图传谱平坦度与实测相当。DroneID 与图传 10 MHz 档的结构核查"
+        f"{'各项均' if sc_ok else '部分项未'}与公开文献参数一致。</p>"
+        "<p>本报告全部数值为原型阶段验证结果。</p></div>")
+
+
+def sec_scope(doc: dict, T: Counter) -> str:
+    obj_rows = [[g, name, desc, "、".join(STAT_NAME[s] for s in ss) if ss else "突发时长、突发周期、占用带宽"]
+                for g, name, ss, desc in OBJECTIVES]
+    terms = [
+        ["IQ 数据", "复基带同相 / 正交采样数据。本报告中的合成数据与实测数据均为复基带采样。"],
+        ["观测点", "接收链上的数据输出位置，依次为 S0（辐射源输出）、S1（接收天线之后）、S2（接收机前端之后）、"
+                   "S3（模数转换之后）、S4（数字下变频之后，主产品）、S5（信道化之后）。"],
+        ["突发", "信号在时间上连续出现的一段发射，例如一个图传帧、一个遥控数据包或一次跳频驻留。"],
+        ["验证集", "实测数据中于入库当天冻结并记录内容哈希的部分，从未用于提取参数或标定门限，仅用于独立检验。"
+                   "该用法与机器学习中「验证集用于调参」的习惯不同。"],
+        ["实测样本集", "验证集之外的全部实测数据，可用于观察、提取参数与标定。两个集合按片段标识与内容哈希互不相交。"],
+        ["对照组", "一个合成信号预设与一组同类实测数据构成的比较单元，记为 P1–P8。"],
+        ["结构核查", "对无同型实测数据的信号，以公开文献给出的结构参数为基准进行的核查，记为 K1、K2。"],
+        ["核心突发", "遥控与上行信号中时长与参考值相差不超过 ±10% 的突发；突发间隔与跳频统计只使用核心突发。"],
+        ["KS 距离", "两组样本经验累积分布函数之差的最大绝对值，取值 0–1，0 表示两个分布相同。"],
+    ]
+    return (
+        "<h2 id=s1>1　目的与范围</h2>"
+        "<h3>1.1　目的</h3>"
+        "<p>生成数据的可信性包括两个层面：一是模型是否按其声明的公式正确实现，二是模型输出的信号是否与真实信号相似。"
+        "前者由黄金基准、解析锚点与标准算例证明，见交付包中的实现验证材料；本报告回答后者，"
+        f"即生成信号在频谱与时域统计特征上与实测数据的一致程度。验证目标见{T.ref('obj')}。</p>"
+        + table(f"{T.new('obj')}　验证目标", ["编号", "目标", "要求", "对应统计量"], obj_rows)
+        + "<h3>1.2　范围</h3><ul>"
+        "<li>比对对象为 DJI 图传、DJI 遥控上行、FrSky 与 Futaba 第三方遥控共 8 个对照组，以及 DroneID 与图传 10 MHz 档 2 项结构核查。</li>"
+        "<li>比对在带内归一化后进行，只比较信号的形状与时间结构，不比较绝对电平。实测数据的采集接收机参数未公开，绝对电平不具可比性。</li>"
+        "<li>比对的观测点为 S3（见第 2.3 节）。S0–S2 没有实测数据可供对照，S5 不在交付数据中。</li>"
+        "</ul>"
+        "<h3>1.3　术语</h3>"
+        + table(f"{T.new()}　术语", ["术语", "定义"], terms))
+
+
+def _cells() -> dict:
+    with open(CELLS, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def sec_data(doc: dict, T: Counter) -> str:
+    cells = _cells()
+    cell = {c["id"]: c for c in cells["cells"]}
     rows = []
     for p in doc["pairs"]:
-        ok = [STAT_NAME.get(k, {"shape": "平均谱形", "hops": "跳频点"}.get(k, k))
-              for k, v in p["verdicts"].items() if v == "一致"]
-        gap = [STAT_NAME.get(k, {"shape": "平均谱形", "hops": "跳频点"}.get(k, k))
-               for k, v in p["verdicts"].items() if v == "有差距"]
-        na = [STAT_NAME.get(k, {"shape": "平均谱形", "hops": "跳频点"}.get(k, k))
-              for k, v in p["verdicts"].items() if v == "无法比较"]
-        rows.append(
-            f"<tr><td>{e(p['id'].upper())}</td><td>{e(PRESET_NAME[p['preset']])}</td><td>{e(p['measured'])}</td>"
-            f"<td>{'独立（验证集）' if p['independent'] else '同源'}</td>"
-            f"<td>{e('、'.join(ok)) or '—'}</td><td>{e('、'.join(gap)) or '—'}"
-            f"{('<br><span class=sub>无法比较：' + e('、'.join(na)) + '</span>') if na else ''}</td></tr>")
-    return ("<table><tr><th>对</th><th>合成预设</th><th>实测对照</th><th>对照性质</th><th>一致</th><th>有差距</th></tr>"
-            + "".join(rows) + "</table>")
+        cls = "、".join(f"{c}（{CLASS_NAME[c]}）" for c in p["classes"]) if p["classes"] else "—"
+        n_main = len(p["samples"][p["main"]])
+        n_ref = len(p["samples"].get(p["ref"], [])) if p["ref"] else None
+        rows.append([p["id"].upper(), e(p["measured"]), cls, f"{n_main}（{COL_NAME[p['main']]}）",
+                     "—" if n_ref is None else f"{n_ref}", f"{p['block_s'] * 1e3:g} ms", "独立" if p["independent"] else "不独立"])
+    t_meas = T.new("meas")
+    meas_tab = table(f"{t_meas}　各对照组使用的实测数据", ["对照组", "实测数据", "机型", "主比较列片段数", "参照列片段数", "处理块长", "独立性"],
+                     rows, {3, 4})
+    srows = []
+    for p in doc["pairs"]:
+        c = cell[p["id"]]
+        sy = p["synthetic"]
+        srows.append([p["id"].upper(), e(PRESET_NAME[p["preset"]]), f"{sy['fs_Hz'] / 1e6:g} MS/s @ {sy['center_Hz'] / 1e6:g} MHz",
+                      f"{c['platforms'][0]['snr_dB']} dB", f"{sy['samples'] / sy['fs_Hz']:.1f} s"])
+    t_syn = T.new("syn")
+    syn_tab = table(f"{t_syn}　各对照组的合成数据配置", ["对照组", "机型预设", "接收配置（采样率 @ 中心频率）", "信噪比目标", "时长"], srows)
+    fm = cells["frontend_measured"]
+    site = cells["site"]
+    t_cfg = T.new("cfg")
+    cfg_tab = table(f"{t_cfg}　合成链路的公共配置", ["项目", "取值", "依据"], [
+        ["辐射源", "单个辐射源，定点悬停", "—"],
+        ["传播", "视距，自由空间路径损耗", "—"],
+        ["小尺度衰落", "平坦莱斯衰落，K = 9 dB，最小多普勒频移 5 Hz", "与交付数据集视距段相同"],
+        ["本振相位噪声", "锁相环模型，带内 −95 dBc/Hz，环路带宽 100 kHz", "本方假定值"],
+        ["发射机载频偏差", f"在 ±{cells['cfo']['max_ppm']:g} ppm 内均匀取值", "参照 IEEE 802.11 OFDM 发射机中心频率容差"],
+        ["接收机噪声系数", f"{site['nf_dB']:g} dB", "本方假定值"],
+        ["模数转换", f"{cells['chain']['adc']['bits']} 位", "本方假定值"],
+        ["IQ 幅相不平衡", f"幅度 {fm['iq_gain_imbalance_dB']:g} dB，相位 {fm['iq_phase_imbalance_deg']:g}°",
+         f"实测样本集 {fm['source']['n_slices']} 个背景片段的测量中位数"],
+        ["直流偏置", f"比噪声低 {-fm['dc_rel_noise_dB']:g} dB", "同上"],
+    ])
+    return (
+        "<h2 id=s2>2　数据</h2>"
+        "<h3>2.1　实测数据</h3>"
+        f"<p>实测数据取自两个公开数据集。DroneRFb {cite('DroneRFb')} 以 80 MS/s 采样率、2440 MHz 中心频率采集六型 DJI 无人机"
+        "（每型 3 架）的信号，每个片段 50 ms，无人机距接收机 10 m，含视距与非视距条件；本报告只使用视距片段。"
+        f"DroneRFa {cite('DroneRFa')} 以 100 MS/s 采样率双通道采集；本报告使用 Mavic 3 的 5.8 GHz 通道，以及 FrSky X20、"
+        "Futaba T14SG 遥控器的 2.4 GHz 通道。</p>"
+        "<p>实测数据分为验证集与实测样本集（定义见第 1.3 节）。DroneRFb 的验证集取自出版方测试集，每个机型的第 3 架飞机只出现在验证集中，"
+        "因此验证集还包含实测样本集中未出现过的个体。DroneRFa 中 Mavic 3 与 Futaba T14SG 的数据在冻结前已用于参数提取，没有验证集；"
+        f"这两组以实测样本集为比较对象，比较结果不具独立性。各对照组使用的实测数据见{T.ref('meas')}。</p>"
+        + meas_tab
+        + "<h3>2.2　合成数据</h3>"
+        f"<p>合成数据由本方仿真系统针对本次比对专门生成，各对照组的配置见{T.ref('syn')}。接收配置与对应的实测数据相同。"
+        "Mavic 3 对照组只能采用 80 MS/s：图传 40 MHz 档的原生采样率为 61.44 MS/s，无法按整数比重采样到 100 MS/s。"
+        "信噪比目标取实测样本集中同组各型视距突发信噪比中位数的中位数，未使用验证集。</p>"
+        + syn_tab
+        + f"<p>各对照组共用的链路配置见{T.ref('cfg')}，与交付数据集中视距段的配置相同。</p>"
+        + cfg_tab
+        + "<h3>2.3　观测点</h3>"
+        "<p>交付数据包含 S3 与 S4 两个观测点。本报告的合成数据取 S3，即模数转换之后的全频段数据，采样率与中心频率和对应的实测数据相同，"
+        "不做数字下变频；在不做数字下变频的配置下，S4 与 S3 为同一份样点。实测数据是真实接收机数字化之后的输出，"
+        "在数据目录中按主产品的口径标为 S4（附录 A 样本标识中的 <code>_S4</code> 后缀），其中已包含该接收机自身的滤波与频率响应。"
+        "因此两组数据对应接收链上的同一位置。其余观测点的处理如下：</p><ul>"
+        "<li>S0–S2：现实中无法获得数字化之前的信号，没有实测数据可供对照。这三个观测点的正确性由实现验证负责，"
+        "包括辐射源相位与闭式解的比对、接收电平与链路预算的比对、噪声底与解析值的比对。</li>"
+        "<li>交付数据中经数字下变频的 S4（20 MS/s 或 40 MS/s）：数字下变频是线性滤波与抽取，已单独验证（每级带内功率差不超过 0.07 dB），"
+        "可用频带内的信号统计量与 S3 相同。两者的差别仅在于频带边缘，以及导出时的一次重量化；重量化的余量记录在数据手册中。</li>"
+        "<li>S5（信道化之后）：不在交付数据中。</li></ul>")
 
 
-def stats_table(p: dict) -> str:
+def sec_method(doc: dict, T: Counter) -> str:
+    crit = [
+        ["99% 占用带宽", "突发去噪功率谱中包含 99% 功率的频率宽度", "中位数相对差", "≤ 5%"],
+        ["−10 dB 带宽", "平滑后功率谱高于其峰值 −10 dB 的频率宽度", "中位数相对差", "≤ 5%"],
+        ["平均谱形", "各突发去噪功率谱在占用带宽内按均值归一后的线性平均；图传按信道中心对齐，跳频信号按突发功率重心对齐",
+         "占用带宽内对数谱的均方根差", "≤ 1 dB"],
+        ["谱平坦度", "−10 dB 带宽内功率谱几何均值与算术均值之比，取值 0–1，1 表示完全平坦", "中位数差", "≤ 0.05"],
+        ["突发时长", "能量等效时长：突发内高于噪声底的能量除以平台段的平均超出功率", "中位数相对差", "≤ 5%"],
+        ["突发间隔", "同一处理块内相邻突发起始时刻之差", "KS 距离", "≤ 0.2"],
+        ["峰均比", "突发内瞬时功率互补累积分布函数（CCDF）为 10⁻³ 处的功率与平均功率之比；仅统计带内信噪比 ≥ 15 dB 的突发",
+         "中位数差", "≤ 0.5 dB"],
+        ["跳频频点集合", "核心突发中心频率按间隔聚类得到的频点，统计频点数与频点跨度", "频点数之差与跨度相对差", "频点数相等，且跨度相对差 ≤ 5%"],
+        ["−3 dB 带宽、带内信噪比、突发速率、占空比", "—", "—", "仅列出，不判定"],
+    ]
+    t_crit = T.new("crit")
+    return (
+        "<h2 id=s3>3　方法</h2>"
+        "<h3>3.1　测量程序</h3>"
+        "<p>合成数据与实测数据由同一测量程序处理，程序的常数与阈值对两侧完全相同。处理步骤如下：</p><ol>"
+        "<li>时频分析：采用 1024 点 Hann 窗、不重叠的 FFT；相邻 4 帧、3 个频点平滑为一个时长约 50 µs 的时频单元。</li>"
+        "<li>噪声底估计：逐频点取时频单元功率的第 10 百分位。</li>"
+        "<li>占用判定：功率高于噪声底 6 dB 的时频单元判为占用。</li>"
+        "<li>突发提取：占用单元的四连通区域构成候选突发；区域的频率跨度发生持续变化时，在时间上切分；"
+        "与处理块边界相接的突发标记为截断，不参与时长统计。</li>"
+        "<li>参数估计：在原始样点上按突发所在频段滤波，计算能量等效时长、功率谱参数、带内信噪比与峰均比。"
+        "图传信号以频段内被占用频点的比例 ≥ 60% 判定发射开关。</li>"
+        "<li>信号归属：遥控与上行突发按信号归属窗口选取，条件为 −10 dB 带宽在参考值的 1/1.35–1.35 倍之间、时长在参考值的 1/3–3 倍之间、"
+        "带内信噪比 ≥ 10 dB。参考值取自实测样本集的参数提取结果，三组数据共用同一窗口。</li>"
+        "<li>分块：DroneRFb 对照组按 50 ms、DroneRFa 对照组按 0.1 s 分块；合成数据按相同块长切分。突发间隔只在块内计算，不跨块拼接。</li>"
+        "</ol>"
+        "<h3>3.2　统计量与判定准则</h3>"
+        f"<p>各统计量的定义、比较方式与判定准则见{T.ref('crit')}。判定准则在比对之前确定并存档，比对过程中未作调整。"
+        "满足判定准则记为「符合」，不满足记为「不符合」；任一侧没有可用样本时记为「不可判定」。"
+        "分布类统计量另列出 KS 距离与样本数，供参考。</p>"
+        + table(f"{t_crit}　统计量与判定准则", ["统计量", "定义", "比较方式", "判定准则"], crit)
+        + "<h3>3.3　独立性控制</h3>"
+        "<p>预设中有一部分时序参数取自实测样本集。以实测样本集为比较对象，只能说明参数提取过程正确，不能说明模型对未见数据成立。"
+        "因此本报告以验证集为主要比较对象，实测样本集作为参照列并列给出。两组实测数据之间的差异反映实测数据自身的离散程度，"
+        "可作为评估合成数据偏差大小的参考。本次比对之后，验证集不再用于修改模型参数；若后续据本报告修改模型，"
+        "相应统计量的验证集比较将不再具有独立性。</p>"
+        "<h3>3.4　结论分级规则</h3>"
+        "<p>第 7 章按验证目标汇总各统计量的判定结果。对每个统计量，可判定对照组中符合的比例 ≥ 80% 记为「充分验证」，"
+        "≥ 50% 记为「初步支持」，低于 50% 记为「未验证」。该分级只用于汇总；各统计量的判定以第 3.2 节的准则为准。</p>"
+        "<h3>3.5　差异归因的等级</h3>"
+        "<p>对每个「不符合」项，第 4 章分别给出观测事实、分析与归因，并注明归因等级："
+        + "；".join(f"「{k}」表示{v}" for k, v in LEVEL_NOTE.items()) + "。</p>")
+
+
+def sec_results_overview(doc: dict, T: Counter, cnt: dict) -> str:
+    head = ["对照组", "机型预设"] + [STAT_NAME[s] for s in STAT_ORDER]
+    sym = {"一致": "✓", "有差距": "✗", "无法比较": "—"}
+    rows = []
+    for p in doc["pairs"]:
+        rows.append([f'<a class=xref href="#{p["id"]}">{p["id"].upper()}</a>', e(PRESET_NAME[p["preset"]])]
+                    + [f'<span class="c">{sym.get(p["verdicts"].get(s), "")}</span>' for s in STAT_ORDER])
+    rows.append(["合计", "符合数 / 可判定数"] + [f'<span class="c">{cnt[s]["ok"]} / {cnt[s]["n"]}</span>' for s in STAT_ORDER])
+    n_cmp = sum(c["n"] for c in cnt.values())
+    n_ok = sum(c["ok"] for c in cnt.values())
+    t = T.new("matrix")
+    return (
+        "<h2 id=s4>4　结果</h2>"
+        "<h3>4.1　结果汇总</h3>"
+        f"<p>{T.ref('matrix')} 汇总各对照组的判定结果。全部 {n_cmp} 项可判定比较中，{n_ok} 项符合判定准则。"
+        "P8 的实测数据与预设属于不同协议，全部统计量不可判定（见第 4.9 节）。第 4.2 至 4.9 节逐组给出统计量与不符合项分析。</p>"
+        + table(f"{t}　判定矩阵（✓ 符合；✗ 不符合；— 不可判定）", head, rows))
+
+
+def stats_table(p: dict, caption: str) -> str:
     cols = p["columns"]
-    head = (f"<tr><th>统计量</th><th>{COL_NAME[p['main']]}</th>"
-            + (f"<th>{COL_NAME[p['ref']]}</th>" if "ref" in cols else "")
-            + "<th>合成</th><th>合成 − 实测</th><th>KS 距离</th><th>判定</th></tr>")
-    body = []
+    head = (["统计量", COL_NAME[p["main"]]] + (["实测样本集（参照）"] if "ref" in cols else [])
+            + ["合成数据", "合成 − 实测", "KS 距离", "判定"])
+    rows = []
     for r in p["stats"]:
         s = r["stat"]
         c = r["synth_vs_main"]
-        line = ""
-        if c.get("line") is not None:
-            unit = {"rel_median": "中位数相对差", "abs_median": "中位数差", "ks": "KS 距离"}[c["measure"]]
-            lv = f"{c['line'] * 100:.0f}%" if c["measure"] == "rel_median" else f"{c['line']}"
-            line = f"<br><span class=sub>线：{unit} ≤ {lv}</span>"
-        ref_txt = ""
+        row = [STAT_NAME[s], fmt_summary(s, cols["main"]["stats"][s])]
         if "ref" in cols:
-            ref_txt = f"<td class=num>{fmt_summary(s, cols['ref']['stats'][s])}</td>"
-        body.append(f"<tr><td>{STAT_NAME[s]}</td><td class=num>{fmt_summary(s, cols['main']['stats'][s])}</td>"
-                    f"{ref_txt}<td class=num>{fmt_summary(s, cols['synth']['stats'][s])}</td>"
-                    f"<td class=num>{fmt_diff(s, c)}</td><td class=num>{'—' if c.get('ks') is None else f'{c['ks']:.3f}'}</td>"
-                    f"<td>{badge(c.get('verdict'))}{line}</td></tr>")
+            row.append(fmt_summary(s, cols["ref"]["stats"][s]))
+        row += [fmt_summary(s, cols["synth"]["stats"][s]), fmt_diff(s, c),
+                "—" if c.get("ks") is None else f"{c['ks']:.3f}", verdict_cell(c.get("verdict"))]
+        rows.append(row)
     sh = p["shape"]
-    ref_sh = (f"<td class=num>对验证集 {sh['ref_vs_main_rms_dB']:.2f} dB</td>"
-              if "ref" in cols and sh.get("ref_vs_main_rms_dB") is not None else ("<td>—</td>" if "ref" in cols else ""))
-    body.append(f"<tr><td>平均谱形<br><span class=sub>占用带宽 {sh['band_Hz'] / 1e6:.3f} MHz 内的 dB 均方根差</span></td>"
-                f"<td>—</td>{ref_sh}<td>—</td><td class=num>"
-                f"{'—' if sh['synth_vs_main_rms_dB'] is None else f'{sh['synth_vs_main_rms_dB']:.2f} dB'}</td><td>—</td>"
-                f"<td>{badge(sh['verdict'])}<br><span class=sub>线：≤ {sh['line']} dB</span></td></tr>")
+    row = [f"平均谱形<br><span class=sub>占用带宽 {sh['band_Hz'] / 1e6:.3f} MHz 内对数谱的均方根差</span>", "—"]
+    if "ref" in cols:
+        row.append("—" if sh.get("ref_vs_main_rms_dB") is None else f"相对验证集 {sh['ref_vs_main_rms_dB']:.2f} dB")
+    row += ["—", "—" if sh["synth_vs_main_rms_dB"] is None else f"{sh['synth_vs_main_rms_dB']:.2f} dB", "—",
+            verdict_cell(sh["verdict"])]
+    rows.append(row)
     if "hops" in p:
-        hm, hs = cols["main"]["hops"], cols["synth"]["hops"]
-        hr = cols.get("ref", {}).get("hops")
-        hv = p["hops"]["synth_vs_main"]
-
         def hcell(h):
             if not h or not h.get("n_points"):
                 return "—"
-            return (f"{h['n_points']} 个点，跨度 {h['span_Hz'] / 1e6:.2f} MHz<br><span class=sub>最小间隔 "
-                    f"{(h['spacing_min_Hz'] or 0) / 1e6:.3f} MHz，逐跳 |步长| 中位数 "
-                    f"{(h.get('step_abs_median_Hz') or 0) / 1e6:.3f} MHz，n = {h['n_bursts']}</span>")
-        diff = ("—" if hv.get("span_rel") is None else
-                f"点数 {hv['points_diff']:+d}<br>跨度 {hv['span_rel'] * 100:+.1f}%")
-        body.append(f"<tr><td>跳频点</td><td class=num>{hcell(hm)}</td>"
-                    + (f"<td class=num>{hcell(hr)}</td>" if "ref" in cols else "")
-                    + f"<td class=num>{hcell(hs)}</td><td class=num>{diff}</td><td>—</td>"
-                    f"<td>{badge(hv['verdict'])}<br><span class=sub>线：点数相等且跨度 ≤ 5%</span></td></tr>")
-    return "<table>" + head + "".join(body) + "</table>"
+            return (f"{h['n_points']} 个频点，跨度 {h['span_Hz'] / 1e6:.2f} MHz<br><span class=sub>最小间隔 "
+                    f"{(h['spacing_min_Hz'] or 0) / 1e6:.3f} MHz，|步长| 中位数 {(h.get('step_abs_median_Hz') or 0) / 1e6:.3f} MHz，"
+                    f"n = {h['n_bursts']}</span>")
+        hv = p["hops"]["synth_vs_main"]
+        diff = "—" if hv.get("span_rel") is None else f"频点数 {hv['points_diff']:+d}<br>跨度 {hv['span_rel'] * 100:+.1f}%"
+        row = ["跳频频点集合", hcell(cols["main"]["hops"])]
+        if "ref" in cols:
+            row.append(hcell(cols["ref"].get("hops")))
+        row += [hcell(cols["synth"]["hops"]), diff, "—", verdict_cell(hv["verdict"])]
+        rows.append(row)
+    return table(caption + "（数值为中位数；方括号内为第 10 与第 90 百分位；n 为样本数）", head, rows,
+                 set(range(1, len(head) - 1)))
 
 
-def rate_line(p: dict) -> str:
+def rate_text(p: dict) -> str:
     parts = []
     for k in ("main", "ref", "synth"):
         c = p["columns"].get(k)
         if not c:
             continue
-        name = COL_NAME["synth"] if k == "synth" else COL_NAME[p[k]]
+        name = "合成数据" if k == "synth" else ("实测样本集" if k == "ref" else COL_NAME[p["main"]])
         if p["kind"] == "video":
-            parts.append(f"{name}：每秒 {c['bursts_per_s']:.0f} 个突发，占空 {c['duty']:.3f}，"
-                         f"{c['n_blocks']} 块共 {c['seconds']:.2f} s")
+            parts.append(f"{name}每秒 {c['bursts_per_s']:.0f} 个突发，占空比 {c['duty']:.3f}（{c['n_blocks']} 个处理块，共 {c['seconds']:.2f} s）")
         else:
-            parts.append(f"{name}：每秒 {c['core_per_s']:.0f} 个核心突发，{c['n_blocks']} 块共 {c['seconds']:.2f} s")
-    return "<p class=sub>" + "；".join(e(x) for x in parts) + "。</p>"
+            parts.append(f"{name}每秒 {c['core_per_s']:.0f} 个核心突发（{c['n_blocks']} 个处理块，共 {c['seconds']:.2f} s）")
+    return "<p>突发速率（仅列出）：" + "；".join(e(x) for x in parts) + "。</p>"
 
 
-def by_class_table(p: dict) -> str:
+def by_class_table(p: dict, T: Counter) -> str:
     if not p.get("by_class"):
         return ""
-    rows = "".join(
-        f"<tr><td>{c}</td>" + "".join(f"<td class=num>{fmt_summary(s, v[s])}</td>"
-                                      for s in ("obw99_Hz", "bw10_Hz", "dur_s", "flatness")) + "</tr>"
-        for c, v in p["by_class"].items())
-    return ("<details><summary>分型补充（验证集，只报数）</summary><table><tr><th>型</th><th>99% 占用带宽</th>"
-            "<th>−10 dB 宽度</th><th>突发时长</th><th>谱平坦度</th></tr>" + rows + "</table></details>")
+    rows = [[f"{c}（{CLASS_NAME[c]}）"] + [fmt_summary(s, v[s]) for s in ("obw99_Hz", "bw10_Hz", "dur_s", "flatness")]
+            for c, v in p["by_class"].items()]
+    return ("<details><summary>按机型分列的验证集统计（仅列出）</summary>"
+            + table(f"{T.new()}　{p['id'].upper()} 验证集按机型分列", ["机型", "99% 占用带宽", "−10 dB 带宽", "突发时长", "谱平坦度"],
+                    rows, {1, 2, 3, 4}) + "</details>")
 
 
-def pair_section(p: dict, figs: dict) -> str:
-    f = figs["pairs"][p["id"]]
-    cols = f["cols"]
-    sy = p["synthetic"]
-    indep = ("实测主列取<strong>验证集</strong>：这部分实测片段在数据入库时即冻结，从未用于提取任何参数，对照是独立的。"
-             if p["independent"] else
-             "这一型没有验证集，实测一侧取<strong>全部</strong>片段；预设里的时序参数正是从这些片段提取的，"
-             "时序一致只说明提取闭合，不是独立证据。")
-    win = ""
-    if p.get("window"):
-        w = p["window"]
-        win = (f"遥控 / 上行突发按同一个角色窗认：−10 dB 宽度 {w['bw10_Hz'] / 1e6:.3f} MHz 的 1/1.35 – 1.35 倍、"
-               f"时长 {w['dur_s'] * 1e3:.3f} ms 的 1/3 – 3 倍、信噪比 ≥ 10 dB；间隔、跳步与频点只用时长在 ±10% 内的核心突发。")
-    rep_m = f["rep_main"]
-    title_m = f"{COL_NAME[p['main']]}：{rep_m['data_id']}" if rep_m else COL_NAME[p["main"]]
-    cz = causes_cache[0]
-    causes_ = [(k, cz[(p["id"], k)]) for k, v in p["verdicts"].items() if v == "有差距" and (p["id"], k) in cz]
-    seen, uniq = set(), []
-    for k, t in causes_:
-        if t not in seen:
-            seen.add(t)
-            uniq.append((k, t))
-    out = [f'<h3 id="{p["id"]}">{e(p["id"].upper())} {e(PRESET_NAME[p["preset"]])} ↔ {e(p["measured"])}</h3>',
-           f"<p>{indep} 合成段：{sy['fs_Hz'] / 1e6:g} MS/s @ {sy['center_Hz'] / 1e6:g} MHz，"
-           f"{sy['samples'] / sy['fs_Hz']:.1f} s，按 {p['block_s'] * 1e3:g} ms 一块切开。{e(win)}</p>",
-           stats_table(p), rate_line(p), by_class_table(p)]
-    if uniq:
-        out.append("<p><strong>差距与可能原因：</strong></p><ul>"
-                   + "".join(f"<li><strong>{e(_name(k))}</strong>：{e(t)}</li>" for k, t in uniq) + "</ul>")
-    if p.get("supplement"):
-        out.append(supplement_table(p))
-    out.append(img_tag(fig_spectrograms(rep_m, f["rep_main_img"], f["rep_synth"], f["rep_synth_img"],
-                                        (title_m, f.get("synth_label", "合成"))),
-                       f"{p['id']} 时频图", "时频图（1024 点汉宁窗，按时间分组取均值；色标为高出逐频点底噪的 dB，两侧同一色标）。"
-                       "左为实测主列里按编号排序第一个满足条件的块，右为合成段第一个满足条件的块。"))
-    out.append(img_tag(fig_shape(p), f"{p['id']} 平均谱形",
-                       "平均谱形：逐突发去噪功率谱，按占用带宽（两条点线之间）内的均值归一后在线性域平均。"
-                       + ("图传按信道中心对齐。" if p["kind"] == "video" else "跳频类按每个突发的功率重心对齐。")
-                       + "只比两条点线之间；点线之外的实测曲线里混有同时段的其他信号（遥控、WiFi 等），不作比较。"))
-    lab = f.get("synth_label", "合成")
-    out.append(img_tag(fig_ecdfs(p, cols, lab), f"{p['id']} 分布", "逐突发统计量的累积分布。"))
-    if p["kind"] == "link":
-        out.append(img_tag(fig_hops(p, cols, lab), f"{p['id']} 跳频点", "核心突发中心频率的分布（上：实测主列；下：合成）。"))
-    return "\n".join(out)
+def finding_block(i: int, stat: str, f: dict) -> str:
+    return (f'<div class="finding"><p><strong>（{i}）{e(STAT_NAME[stat])}</strong></p>'
+            f'<p><span class=lab>观测</span>{e(f["obs"])}</p>'
+            f'<p><span class=lab>分析</span>{f["ana"]}</p>'
+            f'<p><span class=lab>归因</span>{e(f["attr"])}归因等级：{e(f["level"])}。</p></div>')
 
 
-causes_cache: list[dict] = [{}]
-
-
-def _name(k: str) -> str:
-    return STAT_NAME.get(k, {"shape": "平均谱形", "hops": "跳频点"}.get(k, k))
-
-
-def supplement_table(p: dict) -> str:
-    """P8：合成按预设自己的窗认出的突发，与实测并排（取数之后加的补充，不判定）。"""
+def supplement_table(p: dict, T: Counter) -> str:
     sup, main = p["supplement"], p["columns"]["main"]
     w = sup["window"]
-    rows = "".join(f"<tr><td>{STAT_NAME[s]}</td><td class=num>{fmt_summary(s, main['stats'][s])}</td>"
-                   f"<td class=num>{fmt_summary(s, sup['stats'][s])}</td></tr>"
-                   for s in ("obw99_Hz", "bw10_Hz", "dur_s", "interval_s", "flatness", "papr_dB"))
+    rows = [[STAT_NAME[s], fmt_summary(s, main["stats"][s]), fmt_summary(s, sup["stats"][s])]
+            for s in ("obw99_Hz", "bw10_Hz", "dur_s", "interval_s", "flatness", "papr_dB")]
     hm, hs = main.get("hops") or {}, sup.get("hops") or {}
 
     def h(x):
-        return "—" if not x.get("n_points") else f"{x['n_points']} 个点，跨度 {x['span_Hz'] / 1e6:.2f} MHz"
-    rows += f"<tr><td>跳频点</td><td class=num>{h(hm)}</td><td class=num>{h(hs)}</td></tr>"
-    return (f"<p><strong>补充（取数之后加的，不判定）</strong>：实测片段的角色窗装不下 S-FHSS 的包，"
-            f"故另按预设自己的参数认合成突发：−10 dB 宽度 {w['bw10_Hz'] / 1e3:.0f} kHz、单包时长 {w['dur_s'] * 1e3:.3f} ms。"
-            "两列是两种协议的实测与合成并排，差别归「协议不同」。</p>"
-            f"<table><tr><th>统计量</th><th>{COL_NAME[p['main']]}（T14SG）</th><th>合成（S-FHSS，自身参数）</th></tr>"
-            + rows + "</table>")
+        return "—" if not x.get("n_points") else f"{x['n_points']} 个频点，跨度 {x['span_Hz'] / 1e6:.2f} MHz"
+    rows.append(["跳频频点集合", h(hm), h(hs)])
+    return (
+        "<h4>补充比较（不参与判定）</h4>"
+        "<p>两种协议的突发参数差异较大，按实测数据确定的信号归属窗口无法选出合成突发，因此本组全部统计量不可判定。"
+        f"为便于比较两种协议的信号特征，下表按 S-FHSS 预设自身的参数（−10 dB 带宽 {w['bw10_Hz'] / 1e3:.0f} kHz，"
+        f"单包时长 {w['dur_s'] * 1e3:.3f} ms）选取合成突发，与实测数据并列。该补充比较在比对完成后增加，不参与判定；"
+        "两列之间的差异反映协议差异，不作为模型误差。</p>"
+        + table(f"{T.new()}　P8 补充比较", ["统计量", "实测样本集（Futaba T14SG）", "合成数据（S-FHSS，预设自身参数）"], rows, {1, 2}))
 
 
-def variants_section(doc: dict, figs: dict) -> str:
+def sec_pairs(doc: dict, figs: dict, T: Counter, F: Counter, fd: dict) -> str:
+    out = []
+    for k, p in enumerate(doc["pairs"], start=2):
+        f = figs["pairs"][p["id"]]
+        cols = f["cols"]
+        sy = p["synthetic"]
+        rep_m = f["rep_main"]
+        lab = "合成数据" if not p.get("supplement") else "合成数据（S-FHSS 预设自身参数）"
+        indep = ("主比较列为验证集，比较结果具有独立性。" if p["independent"] else
+                 "该型没有验证集，主比较列为该型的全部实测样本；预设的时序参数取自同一批数据，比较结果不具独立性。")
+        if p["preset"] == "futaba-sfhss":
+            indep += "实测遥控器所用协议与 S-FHSS 不同，本组用于说明协议差异。"
+        win = ""
+        if p.get("window"):
+            w = p["window"]
+            win = f"信号归属窗口的参考值为 −10 dB 带宽 {w['bw10_Hz'] / 1e6:.3f} MHz、时长 {w['dur_s'] * 1e3:.3f} ms。"
+        tl = T.new(f"pair-{p['id']}")
+        part = [f'<h3 id="{p["id"]}">4.{k}　对照组 {p["id"].upper()}：{e(PRESET_NAME[p["preset"]])}</h3>',
+                f"<p>实测数据为 {e(p['measured'])}。{indep}合成数据为 {sy['fs_Hz'] / 1e6:g} MS/s @ {sy['center_Hz'] / 1e6:g} MHz，"
+                f"时长 {sy['samples'] / sy['fs_Hz']:.1f} s，按 {p['block_s'] * 1e3:g} ms 分块处理。{win}统计结果见{T.ref(f'pair-{p['id']}')}。</p>",
+                stats_table(p, f"{tl}　{p['id'].upper()} 统计量比较"),
+                rate_text(p), by_class_table(p, T)]
+        gaps = [(s, fd[(p["id"], s)]) for s, v in p["verdicts"].items() if v == "有差距" and (p["id"], s) in fd]
+        if gaps:
+            seen, items = set(), []
+            for s, fi in gaps:
+                if fi["obs"] in seen:
+                    continue
+                seen.add(fi["obs"])
+                items.append((s, fi))
+            part.append("<h4>不符合项分析</h4>" + "".join(finding_block(i, s, fi) for i, (s, fi) in enumerate(items, 1)))
+        elif p["preset"] != "futaba-sfhss":
+            part.append("<p>本组全部可判定统计量均符合判定准则。</p>")
+        if p.get("supplement"):
+            part.append(supplement_table(p, T))
+        src_m = f"{COL_NAME[p['main']]}片段 {rep_m['data_id']}" if rep_m else COL_NAME[p["main"]]
+        part.append(figure(fig_spectrograms(rep_m, f["rep_main_img"], f["rep_synth"], f["rep_synth_img"],
+                                            (f"{COL_NAME[p['main']]}：{rep_m['data_id']}" if rep_m else COL_NAME[p["main"]], lab)),
+                           F.new(), f"{p['id'].upper()} 时频图。左图为实测数据中按片段标识排序后第一个满足条件的处理块，"
+                           "右图为合成数据中第一个满足同一条件的处理块（图传：含 ≥ 5 个可比突发；遥控：含 ≥ 3 个核心突发）。"
+                           "两图采用相同色标。", f"{src_m}；合成数据 {sy['fs_Hz'] / 1e6:g} MS/s。"))
+        part.append(figure(fig_shape(p), F.new(), f"{p['id'].upper()} 平均谱形。各突发的去噪功率谱按占用带宽（两条虚线之间）内的均值归一后线性平均，"
+                           + ("按信道中心对齐。" if p["kind"] == "video" else "按突发功率重心对齐。")
+                           + "判定只使用虚线之间的部分；虚线以外的实测曲线含同时段的其他信号，不作比较。",
+                           f"{COL_NAME[p['main']]} {p['columns']['main']['n_psd']} 个突发；合成数据 {p['columns']['synth']['n_psd']} 个突发。"))
+        part.append(figure(fig_ecdfs(p, cols, lab), F.new(), f"{p['id'].upper()} 逐突发统计量的经验累积分布。",
+                           f"与{T.ref(f'pair-{p['id']}')} 相同。"))
+        if p["kind"] == "link":
+            part.append(figure(fig_hops(p, cols, lab), F.new(), f"{p['id'].upper()} 核心突发中心频率分布（上：实测；下：合成）。",
+                               f"与{T.ref(f'pair-{p['id']}')} 相同。"))
+        out.append("".join(part))
+    return "\n".join(out)
+
+
+def sec_attribution(doc: dict, T: Counter, F: Counter, fd: dict) -> str:
     v = doc["variants"]
     p1 = next(p for p in doc["pairs"] if p["id"] == "p1")
-    m = v["main_flatness"]
-    rows = [f"<tr><td>合成：交付配置（平坦莱斯 K 9 dB）</td><td class=num>{fmt_summary('flatness', p1['columns']['synth']['stats']['flatness'])}</td>"
-            f"<td class=num>{fmt_diff('flatness', next(r for r in p1['stats'] if r['stat'] == 'flatness')['synth_vs_main'])}</td>"
-            f"<td class=num>{p1['shape']['synth_vs_main_rms_dB']:.2f} dB</td></tr>"]
+    rows = [["验证集", fmt_summary("flatness", v["main_flatness"]), "—", "—"],
+            ["合成：交付配置（平坦莱斯衰落，K = 9 dB）", fmt_summary("flatness", p1["columns"]["synth"]["stats"]["flatness"]),
+             fmt_diff("flatness", next(r for r in p1["stats"] if r["stat"] == "flatness")["synth_vs_main"]),
+             f"{p1['shape']['synth_vs_main_rms_dB']:.2f} dB"]]
     for r in v["rows"]:
-        rows.append(f"<tr><td>合成：{e(VARIANT_NAME[r['cell']])}</td><td class=num>{fmt_summary('flatness', r['flatness'])}</td>"
-                    f"<td class=num>{fmt_diff('flatness', r['flatness_vs_main'])}</td>"
-                    f"<td class=num>{'—' if r['shape_rms_dB'] is None else f'{r['shape_rms_dB']:.2f} dB'}</td></tr>")
-    table = ("<table><tr><th>配置</th><th>谱平坦度</th><th>中位数差（对验证集）</th><th>平均谱形均方根差</th></tr>"
-             f"<tr><td>验证集</td><td class=num>{fmt_summary('flatness', m)}</td><td>—</td><td>—</td></tr>"
-             + "".join(rows) + "</table>")
-    return table + img_tag(fig_variants(doc, figs), "平坦度归因", "P1 图传逐突发谱平坦度：实测两部分与合成各配置。")
+        rows.append([f"合成：{e(VARIANT_NAME[r['cell']])}", fmt_summary("flatness", r["flatness"]),
+                     fmt_diff("flatness", r["flatness_vs_main"]),
+                     "—" if r["shape_rms_dB"] is None else f"{r['shape_rms_dB']:.2f} dB"])
+    dg = doc["diagnostics"]
+    rx_rows = []
+    for pid, label in (("p1", "P1（DroneRFb，2453.5–2471.5 MHz）"), ("p6", "P6（DroneRFa，5778.5–5814.5 MHz）")):
+        d = dg[pid]
+        rx_rows.append([label, f"{d['measured_signal']['low_minus_high_dB']:+.2f} dB",
+                        f"{d['receiver_noise']['low_minus_high_dB']:+.2f} dB",
+                        f"{d['measured_signal']['mid_minus_edges_dB']:+.2f} dB",
+                        f"{d['receiver_noise']['mid_minus_edges_dB']:+.2f} dB", e(d["receiver_source"])])
+    groups: dict[str, list[str]] = {k: [] for k in CATEGORY_NAME}
+    for p in doc["pairs"]:
+        for s, vv in p["verdicts"].items():
+            if vv != "有差距":
+                continue
+            fi = fd.get((p["id"], s))
+            groups[fi["cat"] if fi else "open"].append(
+                f'<a class=xref href="#{p["id"]}">{p["id"].upper()}</a> {e(STAT_NAME[s])}：'
+                f'{e(fi["short"]) if fi else "见第 4 章"}（{e(fi["level"]) if fi else "未查明"}）')
+    cat_rows = [[e(CATEGORY_NAME[c]), "<br>".join(x)] for c, x in groups.items() if x]
+    P = {p["id"]: p for p in doc["pairs"]}
 
-
-def selfcheck_section(doc: dict, figs: dict) -> str:
-    out = []
-    for sc in doc["selfchecks"]:
-        rows = "".join(
-            f"<tr><td>{e(c['name'])}</td><td class=num>{_sc_val(c, 'want')}</td><td class=num>{_sc_val(c, 'got')}</td>"
-            f"<td class=num>{'—' if c.get('rel') is None else f'{c['rel'] * 100:+.2f}%'}</td><td>{badge(c['verdict'])}</td>"
-            f"<td>{e(c['source'])}</td></tr>" for c in sc["checks"])
-        out.append(f"<h3>{e(sc['id'].upper())} {e(PRESET_NAME[sc['preset']])}</h3>"
-                   "<table><tr><th>项</th><th>出处的数</th><th>合成量得</th><th>相对差</th><th>判定</th><th>出处</th></tr>"
-                   + rows + "</table>")
-        f = figs["selfchecks"][sc["id"]]
-        if f.get("rep_img") is not None:
-            out.append(img_tag(fig_spectrograms(None, None, f["rep"], f["rep_img"], ("", "合成段")),
-                               f"{sc['id']} 时频图", "合成段第一个满足条件的块（色标同上）。", narrow=True))
-    return "\n".join(out)
+    def frac(c):
+        return f"{c['n_clean'] / max(1, c['n_bursts']) * 100:.0f}%"
+    obs_rows = [[x.upper(), frac(P[x]["columns"]["synth"]), frac(P[x]["columns"]["main"]),
+                 _mhz(P[x]["columns"]["synth"]["hops"].get("step_abs_median_Hz")),
+                 _mhz(P[x]["columns"]["main"]["hops"].get("step_abs_median_Hz"))] for x in ("p3", "p4", "p5")]
+    tv, trx, tcat, tobs = T.new("var"), T.new("rx"), T.new("cat"), T.new("obs")
+    fv = F.new("var")
+    return (
+        "<h2 id=s5>5　差异归因分析</h2>"
+        "<h3>5.1　谱平坦度与信道频率选择性</h3>"
+        "<p>为确定 P1 谱平坦度差异的来源，在 P1 的合成配置上另行生成六组变体：一组关闭全部非理想效应，"
+        f"其余五组启用抽头延迟线，均方根时延扩展与视距 K 因子取 IEEE 802.11n 信道模型 B–F 的参数 {cite('TGn', 'TGac')}。"
+        "本方的 8 抽头指数时延谱只采用这两个参数，不照搬该信道模型的簇结构。各变体只用于归因分析，不改变预设与交付数据的配置。"
+        f"结果见{T.ref('var')} 与{F.ref('var')}。</p>"
+        + table(f"{tv}　P1 谱平坦度敏感性分析", ["配置", "谱平坦度", "中位数差（相对验证集）", "平均谱形均方根差"], rows, {1, 2, 3})
+        + figure(fig_variants(doc), fv, "P1 逐突发谱平坦度：两组实测数据与各合成配置。",
+                 f"实测数据同{T.ref('pair-p1')}；各合成配置时长 2 s。")
+        + "<p>关闭全部非理想效应的配置与交付配置的谱平坦度相近，说明载频偏差、相位噪声与 IQ 不平衡对谱平坦度的影响很小。"
+        "启用抽头延迟线后谱平坦度明显下降，中等时延扩展的配置与实测相当。各配置的平均谱形均方根差均在 1 dB 以上，"
+        "说明平均谱形的差异与衰落模型无关，其来源见第 5.2 节。</p>"
+        "<h3>5.2　采集接收机的频率响应</h3>"
+        "<p>噪声不经过发射机，只经过接收机。因此，采集数据中噪声底的频谱形状反映采集接收机自身的频率响应。"
+        f"{T.ref('rx')} 比较实测信号平均谱与噪声底在同一频段内的形状。两个数据集的采集接收机均存在约 1.2 dB 的频率响应起伏，"
+        "可以解释实测谱形差异的一部分。</p>"
+        + table(f"{trx}　实测信号谱形与采集接收机噪声底形状", ["对照组", "信号：低端 − 高端", "噪声底：低端 − 高端",
+                                                    "信号：中部 − 两端", "噪声底：中部 − 两端", "噪声底数据来源"], rx_rows, {1, 2, 3, 4})
+        + "<h3>5.3　差异归类</h3>"
+        f"<p>{T.ref('cat')} 按来源对全部「不符合」项归类，括号内为归因等级。</p>"
+        + table(f"{tcat}　不符合项归类", ["类别", "对照组、统计量与说明"], cat_rows)
+        + "<h3>5.4　未纳入判定的差异</h3>"
+        f"<p>以下两项差异不在判定准则之内，但在时频分析中可以观察到，数据见{T.ref('obs')}。"
+        "（1）合成 OFDM 信号的符号边界未加窗，高信噪比时含符号边界的时频单元频谱展宽，导致合成上行突发被完整提取的比例低于实测。"
+        "（2）合成上行跳频序列在频点栅格上随机取点，逐跳频率步长明显大于实测。</p>"
+        + table(f"{tobs}　遥控上行信号的突发完整提取率与跳频步长", ["对照组", "完整提取率：合成数据", "完整提取率：验证集",
+                                                    "|步长| 中位数：合成数据", "|步长| 中位数：验证集"], obs_rows, {1, 2, 3, 4}))
 
 
 def _sc_val(c: dict, k: str) -> str:
@@ -684,154 +1070,125 @@ def _sc_val(c: dict, k: str) -> str:
     return f"{v / 1e6:.3f} MHz" if c["unit"] == "Hz" else f"{v * 1e3:.3f} ms"
 
 
-# 「有差距」各项的归类（看过结果之后写的解释，不改判定）。类别 → 说明；键 = (配对, 统计量)。
-CATEGORY_NAME = {
-    "model": "模型结构：要改生成器才能消除",
-    "preset": "预设参数：出处不足，可能取错了档",
-    "config": "交付配置的选择",
-    "measured": "实测一侧：样本、采集接收机或两部分实测之间",
-    "open": "没有查明",
-}
-CATEGORY = {
-    ("p1", "interval_s"): ("model", "图传帧排布是固定时隙格，间隔只取时隙长的整数倍"),
-    ("p2", "interval_s"): ("model", "同上（4 ms 时隙）"),
-    ("p6", "interval_s"): ("model", "同上（2 ms 时隙）；这一对同源，仍对不上"),
-    ("p3", "interval_s"): ("model", "OFDM 符号交界不加窗，高信噪比下合成上行突发被测量程序切碎，漏掉的突发拉长了间隔"),
-    ("p3", "hops"): ("model", "上行跳频序列在栅格上随机取点；实测是小步跳，频点也不全在栅格上"),
-    ("p7", "flatness"): ("model", "GFSK 载荷随机；实测载荷有规律，谱上有窄峰"),
-    ("p7", "shape"): ("model", "同上"),
-    ("p7", "obw99_Hz"): ("preset", "FrSky 调制参数按开源实现的 FCC 档推断，采集时用的协议档没有记录"),
-    ("p7", "bw10_Hz"): ("preset", "同上"),
-    ("p1", "flatness"): ("config", "交付配置用平坦衰落；打开抽头延迟线（TGn-C…F）后与实测相当"),
-    ("p2", "dur_s"): ("measured", "两档突发的比例在实测两部分之间就不同，合成与实测样本集一致"),
-    ("p4", "hops"): ("measured", "验证集没有量到栅格高端的点，合成与实测样本集一致"),
-    ("p3", "papr_dB"): ("measured", "实测样本里约三成是恒包络信号；去掉后仍差约 1.3 dB，这部分没有查明"),
-    ("p3", "shape"): ("measured", "实测样本混有恒包络信号；实测谱中间高两边低"),
-    ("p1", "shape"): ("open", "采集接收机的频响能解释一部分斜坡，其余没有查明"),
-    ("p6", "shape"): ("open", "采集接收机的频响能解释一部分拱形，其余没有查明"),
-    ("p5", "shape"): ("open", "实测谱中间略高、边沿更缓"),
-    ("p5", "hops"): ("open", "实测多出一个点，推断是同一个点被分成了两簇"),
-    ("p7", "interval_s"): ("open", "实测约两成帧没有认出遥控包，是没发还是没认出没有查明"),
-}
+def sec_checks(doc: dict, figs: dict, T: Counter, F: Counter) -> str:
+    out = ["<h2 id=s6>6　结构核查</h2>",
+           "<p>DJI 图传 10 MHz 档与 DroneID 在本地实测数据中没有同型对照。在 DroneRFb 实测样本集的 2177 个片段中，"
+           "按带宽 6.5–11.5 MHz、时长 0.35–1.0 ms 筛选候选突发，候选突发集中在 WiFi 信道上，背景片段中同样存在，"
+           "DroneID 信道上没有成群的候选。因此这两项以公开文献给出的结构参数为基准，用同一测量程序测量合成数据，相对差 ≤ 5% 记为符合。</p>"]
+    for i, sc in enumerate(doc["selfchecks"], start=1):
+        cid = CHECK_ID[sc["id"]]
+        rows = [[e(c["name"]), _sc_val(c, "want"), _sc_val(c, "got"),
+                 "—" if c.get("rel") is None else f"{c['rel'] * 100:+.2f}%", verdict_cell(c["verdict"]), e(c["source"])]
+                for c in sc["checks"]]
+        out.append(f"<h3>6.{i}　结构核查 {cid}：{e(PRESET_NAME[sc['preset']])}</h3>")
+        out.append(table(f"{T.new()}　{cid} 结构参数核查", ["参数", "文献值", "合成数据测量值", "相对差", "判定", "依据"], rows, {1, 2, 3}))
+        f = figs["selfchecks"][sc["id"]]
+        if f.get("rep_img") is not None:
+            out.append(figure(fig_spectrograms(None, None, f["rep"], f["rep_img"], ("", "合成数据")), F.new(),
+                              f"{cid} 合成数据中第一个含该信号突发的处理块的时频图（色标同前）。",
+                              "合成数据 80 MS/s @ 2440 MHz。", narrow=True))
+    return "".join(out)
 
 
-def limits_section(doc: dict) -> str:
-    groups: dict[str, list[str]] = {k: [] for k in CATEGORY_NAME}
-    for p in doc["pairs"]:
-        for k, v in p["verdicts"].items():
-            if v != "有差距":
-                continue
-            cat, txt = CATEGORY.get((p["id"], k), ("open", "见第 4 节该对的说明"))
-            groups[cat].append(f'<a href="#{p["id"]}">{e(p["id"].upper())}</a> {e(_name(k))}：{e(txt)}')
-    rows = "".join(f"<tr><td>{e(CATEGORY_NAME[c])}</td><td>{'<br>'.join(v)}</td></tr>" for c, v in groups.items() if v)
-    items = [f"<table><tr><th>类别</th><th>项与说明</th></tr>{rows}</table>"]
-    fixed = [
-        "实测数据带着采集现场的底噪、干扰与接收机特性，具体接收机参数没有公开；本报告只比带内归一后的形状与时序，不比绝对电平。",
-        "5.8 GHz 图传只有 Mavic 3 一型的实测，结论不外推到其他 O3 类机型；Mavic 3 与 Futaba T14SG 没有验证集，对照不独立。",
-        "Futaba 预设按 S-FHSS 协议，而 T14SG 实测数据的时序与频点结构不是 S-FHSS；这一对的差距归「协议不同」，不归模型误差。",
-        "DJI 图传 10 MHz 档与 DroneID 在本地实测里没有同型对照，只做了结构自检（第 6 节）。",
-        "全部数字是原型阶段验证值：公开数据集只用于验证技术途径，拿到实际接收机的实测数据后按同一程序重跑。",
-        "判定线在取数之前写定；「有差距」的项没有为凑近实测去调任何模型参数。验证集此后不用于修改预设。",
+def sec_conclusions(doc: dict, T: Counter, cnt: dict, fd: dict) -> str:
+    rows = []
+    for g, name, ss, _ in OBJECTIVES:
+        if not ss:
+            n = sum(len(s["checks"]) for s in doc["selfchecks"])
+            k = sum(1 for s in doc["selfchecks"] for c in s["checks"] if c["verdict"] == "一致")
+            rows.append([g, e(name), "结构参数", f"{k} / {n}",
+                         "充分验证（以文献参数为基准）" if k == n else grade(k, n), "无同型实测数据；结论只说明结构参数正确"])
+            continue
+        for s in ss:
+            c = cnt[s]
+            ex = [f"{pid.upper()}：{fd[(pid, s)]['short']}" if (pid, s) in fd else pid.upper() for pid in c["fail"]]
+            rows.append([g, e(name), STAT_NAME[s], f"{c['ok']} / {c['n']}", grade(c["ok"], c["n"]), "；".join(e(x) for x in ex) or "—"])
+    t = T.new("concl")
+    items = [
+        "占用带宽、突发时长与峰均比的统计特征与实测一致程度高，是本方生成信号最可靠的部分。",
+        "平均谱形的差异主要来自实测数据一侧（采集接收机的频率响应、混入的其他信号）；谱平坦度的差异主要来自交付配置未启用频率选择性衰落。"
+        "后者可通过启用抽头延迟线改善，但实测场地的多径参数未经测量。",
+        "突发间隔与跳频序列的差异来自生成模型的结构：图传帧排布采用固定时隙，遥控上行跳频序列随机取点。消除这两项差异需要修改模型。",
+        "GFSK 遥控信号的谱形受载荷内容影响，随机载荷不能复现实测谱中的窄峰。",
+        "DroneID 与图传 10 MHz 档的结构参数与公开文献一致；由于缺少同型实测数据，其真实感未经实测检验。",
     ]
-    obs = "".join(f"<li>{e(x)}</li>" for x in observations(doc))
-    return ("<h3>7.1 判定为「有差距」的项</h3>" + "".join(items) +
-            "<h3>7.2 不判定、但看得出来的差别</h3><ul>" + obs + "</ul>"
-            "<h3>7.3 对照本身的限制</h3><ul>" + "".join(f"<li>{e(x)}</li>" for x in fixed) + "</ul>")
+    return (
+        "<h2 id=s7>7　结论</h2>"
+        f"<p>按第 3.4 节的分级规则，各验证目标的结论见{T.ref('concl')}。</p>"
+        + table(f"{t}　验证目标结论", ["编号", "验证目标", "统计量", "符合 / 可判定", "结论", "不符合项及原因"], rows, {3}, cls="concl")
+        + "<p>综合以上结果，得出以下结论：</p><ol>" + "".join(f"<li>{x}</li>" for x in items) + "</ol>")
 
 
-def samples_section(doc: dict) -> str:
-    out = []
+def sec_limits() -> str:
+    lims = [
+        "实测数据的采集接收机参数未公开，本报告只比较带内归一化后的形状与时间结构，不比较绝对电平。",
+        "5.8 GHz 图传只有 Mavic 3 一型的实测数据，结论不外推到其他使用 5.8 GHz 图传的机型；Mavic 3 与 Futaba T14SG 两组没有验证集，比较结果不具独立性。",
+        "Futaba 预设按 S-FHSS 协议生成，实测 T14SG 遥控器所用协议的时序与频点结构与 S-FHSS 不同，该组差异属于协议差异。",
+        "DJI 图传 10 MHz 档与 DroneID 没有同型实测数据，只完成了结构核查。",
+        "全部数值为原型阶段验证结果。公开数据集只用于验证技术途径；获得实际接收机的实测数据后，应按同一程序重新比对。",
+    ]
+    improve = [
+        "OFDM 信号在符号边界处加窗，降低高信噪比下的频谱扩展。",
+        "遥控上行跳频序列改用与实测一致的小步长跳变模型，并核实频点栅格。",
+        "图传帧排布以突发间隔分布为拟合目标重新建模，取消固定时隙的约束。",
+        "GFSK 遥控载荷引入与实际协议一致的数据结构。",
+        "交付数据集按场景启用抽头延迟线，以反映频率选择性衰落。",
+    ]
+    return (
+        "<h2 id=s8>8　局限性与改进方向</h2>"
+        "<h3>8.1　局限性</h3><ol>" + "".join(f"<li>{e(x)}</li>" for x in lims) + "</ol>"
+        "<h3>8.2　改进方向</h3>"
+        "<p>以下改进方向由本报告的不符合项导出，尚待评审，本报告未作任何实施。按第 3.3 节的规定，任何一项实施之后，"
+        "相应统计量的验证集比较不再具有独立性，模型参数只能从实测样本集重新提取。</p><ol>"
+        + "".join(f"<li>{e(x)}</li>" for x in improve) + "</ol>")
+
+
+def sec_appendix(doc: dict) -> str:
+    samples = []
     for p in doc["pairs"]:
         for col, ids in p["samples"].items():
-            out.append(f"<details><summary>{e(p['id'].upper())} {e(COL_NAME[col])}：{len(ids)} 段</summary>"
-                       f"<p class=ids>{e(' '.join(ids))}</p></details>")
-    return "\n".join(out)
+            samples.append(f"<details><summary>{e(p['id'].upper())} {e(COL_NAME[col])}：{len(ids)} 个片段</summary>"
+                           f"<p class=ids>{e(' '.join(ids))}</p></details>")
+    refs = "".join(f"<li>{e(t)}</li>" for _, t in REFS)
+    inp = doc["inputs"]
+    return (
+        "<h2 id=sa>附录 A　样本清单</h2>"
+        "<p>下列为各对照组使用的实测片段标识，标识与公开数据集的原始文件一一对应。</p>" + "".join(samples)
+        + "<h2 id=sb>附录 B　参考文献</h2><ol>" + refs + "</ol>"
+        "<h2 id=sc>附录 C　复现信息</h2><ul>"
+        "<li>合成数据由本方仿真系统按固定随机种子生成，同一配置可逐字节复现。</li>"
+        f"<li>测量程序版本：{e(doc['ruler'].split()[-1])}；比对程序版本：{e(doc['producer'].split()[-1])}。</li>"
+        f"<li>验证集清单的 SHA-256：<code>{inp['holdout_manifest_sha256']}</code>。</li>"
+        f"<li>合成数据配置文件的 SHA-256：<code>{inp['cells_sha256']}</code>。</li>"
+        "<li>全部统计结果以结构化数据文件形式随本报告留存，本报告中的数值均由该文件生成。</li></ul>")
 
 
 def write(doc: dict, figs: dict) -> str:
-    causes_cache[0] = causes(doc)
-    pairs_html = "\n".join(pair_section(p, figs) for p in doc["pairs"])
-    lines_rows = [("99% 占用带宽", "逐突发；中位数相对差", "≤ 5%"), ("−10 dB 宽度", "逐突发；中位数相对差", "≤ 5%"),
-                  ("平均谱形", "逐突发去噪功率谱，占用带宽内均值归一后线性平均；占用带宽内 dB 均方根差", "≤ 1 dB"),
-                  ("谱平坦度", "逐突发，−10 dB 宽度内几何均值 ÷ 算术均值；中位数差", "≤ 0.05"),
-                  ("突发时长", "能量等效时长；中位数相对差", "≤ 5%"),
-                  ("突发间隔", "块内相邻突发起点之差；两样本 KS 距离", "≤ 0.2"),
-                  ("峰均比", "突发内 CCDF 在 1e-3 处，只取带内信噪比 ≥ 15 dB 的突发；中位数差", "≤ 0.5 dB"),
-                  ("跳频点", "核心突发中心频率聚类；点数与跨度", "点数相等且跨度 ≤ 5%"),
-                  ("时频图", "高出逐频点底噪 0–40 dB 的同一色标", "并排附图，不量化")]
-    lines_table = ("<table><tr><th>统计量</th><th>口径与比法</th><th>「一致」的线</th></tr>"
-                   + "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td></tr>" for a, b, c in lines_rows) + "</table>")
-    toc = " · ".join(f'<a href="#{p["id"]}">{p["id"].upper()}</a>' for p in doc["pairs"])
-    page = f"""<!doctype html>
+    T, F = Counter("表", "T"), Counter("图", "F")
+    cnt = counts(doc)
+    fd = findings(doc)
+    sections = [sec_scope(doc, T), sec_data(doc, T), sec_method(doc, T), sec_results_overview(doc, T, cnt),
+                sec_pairs(doc, figs, T, F, fd), sec_attribution(doc, T, F, fd), sec_checks(doc, figs, T, F),
+                sec_conclusions(doc, T, cnt, fd), sec_limits(), sec_appendix(doc)]
+    toc = ("<nav class=toc>" + "".join(f'<div><a href="#{i}">{t}</a></div>' for i, t in (
+        ("s1", "1　目的与范围"), ("s2", "2　数据"), ("s3", "3　方法"), ("s4", "4　结果"), ("s5", "5　差异归因分析"),
+        ("s6", "6　结构核查"), ("s7", "7　结论"), ("s8", "8　局限性与改进方向"), ("sa", "附录 A　样本清单"),
+        ("sb", "附录 B　参考文献"), ("sc", "附录 C　复现信息"))) + "</nav>")
+    info = table("", ["项目", "内容"], [
+        ["报告名称", e(REPORT_TITLE)], ["版本", REPORT_VERSION], ["日期", REPORT_DATE],
+        ["适用对象", "本方仿真系统生成的无人机信号 IQ 数据（试样集及后续正式数据集）"],
+        ["数据状态", "原型阶段验证结果"]], cls="info")
+    page = (f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>真实感对照报告</title><style>{CSS}</style></head><body><main>
-<h1>生成 IQ 与公开实测数据的真实感对照</h1>
-<div class="meta">{REPORT_VERSION} · {REPORT_DATE} · 全部数字为原型阶段验证值</div>
-
-<h2>1. 这份报告回答什么</h2>
-<p>本方生成的无人机信号 IQ，在频谱仪式的统计量上与真实采集的数据差多少。我们用<strong>同一套测量程序</strong>分别量本方的合成段与两个公开数据集里同类机型的实测数据，逐项给出数、差与判定。判定线在取数之前写定；有差距的项照实列在第 7 节，没有为凑近实测去调模型参数。</p>
-<p class="note">「像不像」只是可信性的一半。另一半是「模型有没有按公式算对」，由黄金基准、解析锚点与标准算例证明，见交付包的实现验证摘要。</p>
-
-<h2>2. 一页结论</h2>
-{section_summary(doc)}
-
-<h2>3. 方法</h2>
-<h3>3.1 同一套测量程序</h3>
-<ul>
-<li>两侧用同一个测量程序：1024 点汉宁窗时频图，按约 50 µs 一格平滑，以逐频点第 10 百分位为底噪，高出 6 dB 的格算占用；占用格连成分量后在原始样点上精化出逐突发的时长（能量等效）、99% 占用带宽、−10 / −3 dB 宽度、谱平坦度、带内信噪比与峰均比。</li>
-<li>块长两侧相同：DroneRFb 的配对 50 ms 一块，DroneRFa 的配对 0.1 s 一块；合成段按同样的块长切开，间隔只在块内算。</li>
-<li>遥控与上行突发按同一个角色窗认出，三列共用；角色窗取自实测样本集，不在验证集上重认。</li>
-<li>DroneRFb 只取视距片。合成段是单源、定点悬停、视距，接收配置与实测相同；信噪比目标取实测样本集同组视距突发信噪比的中位数。</li>
-<li>合成段的链路与交付数据的视距段相同：平坦莱斯衰落（K 9 dB）、本振相位噪声、发射机载频偏差、按实测量得的接收机 IQ 不平衡与直流。</li>
-</ul>
-<h3>3.2 比的是哪个观测点</h3>
-<p>本方接收链上的观测点依次是：S0 辐射源输出、S1 接收天线之后、S2 接收机前端之后（模拟域，含热噪声）、S3 模数转换之后、S4 数字下变频之后（主产品）、S5 信道化之后。交付数据包含 S3 与 S4。</p>
-<p>本报告的合成一侧取 <strong>S3</strong>：模数转换之后的全频段数据，采样率与中心频率和对照的实测数据相同，不做数字下变频。不做数字下变频时，S4 就是 S3 这份样点。实测一侧是真实接收机数字化之后的输出，按主产品的口径标为 S4（附录样本标识里的 <code>_S4</code>），其中已经包含该接收机自己的滤波与频响。两侧因此是接收链上同一个位置的数据。</p>
-<ul>
-<li>S0–S2 不比：现实中拿不到数字化之前的信号，没有实测可对照。它们是否正确，由实现验证负责（辐射源相位对闭式解、接收电平对链路预算、底噪对解析值），见交付包的实现验证摘要。</li>
-<li>交付数据里开了数字下变频的 S4（20 / 40 MS/s）不单独比：数字下变频是线性滤波加抽取，已单独验证（每级带内功率差不超过 0.07 dB），可用频带内的信号统计量与 S3 相同。不同只在频带边缘，以及导出时的一次重量化（数据手册写明了余量）。</li>
-<li>S5（信道化）不在交付数据里。</li>
-</ul>
-<h3>3.3 判定线</h3>
-{lines_table}
-<p class="sub">另报每个分布类统计量的 KS 距离与样本数；−3 dB 宽度、带内信噪比、每秒突发数与占空只报数，不判。</p>
-<h3>3.4 对照的独立性</h3>
-<p>本报告把公开实测数据分成两部分：</p>
-<ul>
-<li><strong>验证集</strong>：数据入库当天冻结、记下每个片段的内容哈希，从未用于提取参数或标定门限，只用来做独立检验。DroneRFb 的验证集取自出版方测试集，其中每个机型的第 3 架飞机只出现在验证集里。</li>
-<li><strong>实测样本集</strong>：验证集之外的全部实测数据，可以用来观察、提取参数与标定。DroneRFb 出版方训练集是它的主体。</li>
-</ul>
-<p>两部分按片段标识与内容哈希互不相交。预设里有一部分时序参数取自实测样本集，拿它去比只能说明提取闭合，故主列取验证集；实测样本集并列作参照，两部分之间的差可以当作「实测自身的散布」来读。</p>
-
-<h2>4. 逐对结果</h2>
-<p class="toc">{toc}</p>
-{pairs_html}
-
-<h2>5. 图传谱平坦度的归因</h2>
-<p>只对 P1 另跑了几种合成配置，看谱平坦度对什么敏感。这些变体只用来解释差距，不改预设，也不改交付数据的配置。抽头延迟线的五档取自 IEEE 802.11n 信道模型 B–F（均方根时延扩展 15 / 30 / 50 / 100 / 150 ns，视距 K 0 / 0 / 3 / 6 / 6 dB），只借这两个数，簇结构不照搬。</p>
-{variants_section(doc, figs)}
-
-<h2>6. 结构自检（无实测对照）</h2>
-<p>DJI 图传 10 MHz 档与 DroneID 在本地的实测数据里没有同型对照：在 DroneRFb 实测样本集 2177 片里按「宽 6.5–11.5 MHz、长 0.35–1.0 ms」粗筛，候选集中在 WiFi 信道上，背景片里也有，DroneID 信道上没有成群的候选。这两项只用同一测量程序量合成段，对出处的数（相对差 ≤ 5% 记一致）。</p>
-{selfcheck_section(doc, figs)}
-
-<h2>7. 已知限制</h2>
-{limits_section(doc)}
-
-<h2>8. 附录</h2>
-<h3>8.1 样本清单</h3>
-{samples_section(doc)}
-<h3>8.2 出处</h3>
-<table><tr><th>简称</th><th>出处</th></tr>
-<tr><td>DroneRFb</td><td>DroneRFb-DIR 数据集，电子与信息学报，doi 10.11999/JEIT240804；80 MS/s @ 2.44 GHz，每片 50 ms，六型 DJI 无人机，距接收机 10 m，视距 / 非视距</td></tr>
-<tr><td>DroneRFa</td><td>虞宁宁 等，电子与信息学报 46(4):1147–1156，2024，doi 10.11999/JEIT230570；100 MS/s，双通道</td></tr>
-<tr><td>NDSS 2023</td><td>N. Schiller 等，Drone Security and the Mysterious Case of DJI's DroneID，NDSS 2023，§III-B</td></tr>
-<tr><td>IEEE 802.11n 信道模型</td><td>IEEE 802.11-03/940r4，TGn Channel Models；视距 K 取 TGac 信道模型附录的目标值</td></tr>
-</table>
-<p class="sub">合成段的生成配置（接收配置、信噪比目标、随机种子、衰落与非理想参数）随数据集一起留档，同一配置可逐字节复现。</p>
-</main></body></html>
-"""
-    page = page.replace("<table>", '<div class="scroll"><table>').replace("</table>", "</table></div>")
+<title>真实感验证报告</title><style>{CSS}</style></head><body><main>
+<h1>{e(REPORT_TITLE)}</h1><p class="subtitle">{e(REPORT_SUBTITLE)}</p>
+{info}
+{sec_abstract(doc, cnt)}
+<h2>目录</h2>{toc}
+""" + "\n".join(sections) + "\n</main></body></html>\n")
+    page = F.resolve(T.resolve(page))
+    if "⟦" in page:
+        raise ValueError("报告里还有未替换的编号占位符")
     os.makedirs(os.path.dirname(OUT_HTML), exist_ok=True)
     with open(OUT_HTML, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(page)

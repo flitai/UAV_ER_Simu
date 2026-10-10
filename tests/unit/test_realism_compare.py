@@ -168,6 +168,30 @@ class TestSpecImage(unittest.TestCase):
         self.assertLessEqual(float(img.max()), R.SPEC_RANGE_DB)
 
 
+class TestReportNumbering(unittest.TestCase):
+    """报告的表图编号：正文可以先引用、后建表；全文生成后统一替换；引用不存在的编号即报错。"""
+
+    def test_forward_reference_and_order(self):
+        import realism_report as RR
+        T = RR.Counter("表", "T")
+        text = f"见{T.ref('b')}与{T.ref('a')}。" + T.new("a") + T.new("b") + T.new()
+        self.assertEqual(T.resolve(text), "见表 2与表 1。表 1表 2表 3")
+
+    def test_missing_key_raises(self):
+        import realism_report as RR
+        T = RR.Counter("图", "F")
+        with self.assertRaises(ValueError):
+            T.resolve("见" + T.ref("none"))
+        T.new("x")
+        with self.assertRaises(ValueError):
+            T.new("x")
+
+    def test_grade_rule(self):
+        import realism_report as RR
+        self.assertEqual([RR.grade(k, n) for k, n in ((6, 7), (5, 7), (2, 7), (0, 0))],
+                         ["充分验证", "初步支持", "未验证", "未验证"])
+
+
 class TestPairsMatchCells(unittest.TestCase):
     """配对表、变体与自检的格子都在 realism-v1 里，预设对得上。"""
 
