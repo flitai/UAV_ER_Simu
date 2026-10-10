@@ -139,6 +139,18 @@ class TestCellsFile(unittest.TestCase):
             self.assertEqual(text, json.dumps(json.loads(text), ensure_ascii=False, indent=2) + "\n", set_id)
 
 
+class TestPackageFilter(unittest.TestCase):
+    """交付包的 SHA512SUMS 与 zip 不收 macOS 元数据（用户 2026-10-10）。"""
+
+    def test_mac_metadata_is_excluded(self):
+        import gen_eval_dataset as G
+        for rel in (".DS_Store", "data/.DS_Store", "data/._sv1-s01_s3.sigmf-data", "__MACOSX/x", "previews/Icon\r",
+                    ".Spotlight-V100/a", ".fseventsd/b"):
+            self.assertTrue(G.is_mac_junk(rel), rel)
+        for rel in ("README.md", "SHA512SUMS", "index.json", "data/sv1-s01_s3.sigmf-data", "previews/sv1-s01_s3.png"):
+            self.assertFalse(G.is_mac_junk(rel), rel)
+
+
 class TestRealismCells(unittest.TestCase):
     """真实感对照的格子（14 §7.3）：`s4: null` 只出 S3，`impairments: false` 关掉前端非理想与载频偏差。"""
 

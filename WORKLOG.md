@@ -8818,3 +8818,5 @@ CI 编出 `cuav_run.exe` 但不上传；MSVC 用的是缺省的动态运行库�
 
 **核对**：生成器单测 13 项、交付包冒烟回归（`tests/regression/eval_dataset_smoke.py`）全过。真实感对照报告只改 `realism_report.py` 一行，带缓存重出后 `realism.json` 逐字节不变，用户级检查脚本错误 0、警告 0。
 
+**同日续：打包排除 macOS 元数据**（用户「重新压缩，mac 特有的系统隐含文件不要压缩进去」）。核实上一版 zip 本身是干净的：没有 `.DS_Store`、`._*`、`__MACOSX` 条目，各条目的附加字段长度为 0，文件的扩展属性（`com.apple.provenance` 等）没有写进 zip。但这只是因为当时交付包目录里碰巧没有 `.DS_Store`：生成 `SHA512SUMS` 的遍历会把它收进清单，打包也会把它收进 zip。`scripts/gen_eval_dataset.py` 新增 `is_mac_junk()`（`.DS_Store`、`._*`、`__MACOSX`、`Icon\r`、`.Spotlight-V100` 等），`SHA512SUMS`、包字节数与打包都跳过这些路径；打包后再逐条检查 zip 条目名，出现即报错。单测加 1 项（共 14 项）。随后重打 zip。
+

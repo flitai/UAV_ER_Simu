@@ -129,6 +129,16 @@ def _sha(path: str, algo: str = "sha256") -> str:
     return h.hexdigest()
 
 
+# macOS 在目录里自动生成的元数据文件与目录：不进 SHA512SUMS，也不进交付 zip（用户 2026-10-10）
+MAC_JUNK_NAMES = {".DS_Store", ".localized", "Icon\r", ".Spotlight-V100", ".Trashes", ".fseventsd",
+                  ".TemporaryItems", ".DocumentRevisions-V100", "__MACOSX"}
+
+
+def is_mac_junk(rel: str) -> bool:
+    """rel 是交付包内的相对路径（「/」分隔）；任一段是 macOS 元数据名或 AppleDouble「._」文件即为真。"""
+    return any(part in MAC_JUNK_NAMES or part.startswith("._") for part in rel.split("/"))
+
+
 def git_state() -> dict:
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     st = subprocess.run(["git", "status", "--porcelain", "--", *DIRTY_PATHS], cwd=ROOT, capture_output=True,
@@ -333,7 +343,7 @@ def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict
     for dirpath, _, fnames in os.walk(pkg):
         for f in fnames:
             rel = os.path.relpath(os.path.join(dirpath, f), pkg).replace(os.sep, "/")
-            if rel != "SHA512SUMS":
+            if rel != "SHA512SUMS" and not is_mac_junk(rel):
                 lines.append(f"{_sha(os.path.join(dirpath, f), 'sha512')}  {rel}")
     with open(os.path.join(pkg, "SHA512SUMS"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(sorted(lines, key=lambda l: l.split("  ", 1)[1])) + "\n")
@@ -344,7 +354,8 @@ def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict
                 "cells_sha256": _sha(C.path_of(doc["set_id"])), "git": state["git"],
                 "cuav_run_sha256": state["engine_sha256"], "engine_version": state["engine_version"],
                 "exporter": f"tools/iq_export_sigmf.py {X.VERSION}", "sigmf_version": X.SIGMF_VERSION,
-                "package_bytes": sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(pkg) for f in fs),
+                "package_bytes": sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(pkg) for f in fs
+                                     if not is_mac_junk(os.path.relpath(os.path.join(d, f), pkg).replace(os.sep, "/"))),
                 "cells": records,
                 "reproduce": [f"uv run --quiet --with numpy --with sigmf --with matplotlib python scripts/gen_eval_dataset.py run --set {doc['set_id']}"]}
     with open(os.path.join(base, "dataset.manifest.json"), "w", encoding="utf-8", newline="\n") as fh:
@@ -444,7 +455,11 @@ def cmd_pack(a) -> int:
         if line.strip():
             h, rel = line.split("  ", 1)
             sums[rel] = h
-    on_disk = sorted(p.relative_to(pkg).as_posix() for p in pkg.rglob("*") if p.is_file())
+    junk = sorted(p.relative_to(pkg).as_posix() for p in pkg.rglob("*") if is_mac_junk(p.relative_to(pkg).as_posix()))
+    if junk:
+        print(f"跳过 macOS 元数据（不进 zip）：{junk}")
+    on_disk = sorted(p.relative_to(pkg).as_posix() for p in pkg.rglob("*")
+                     if p.is_file() and not is_mac_junk(p.relative_to(pkg).as_posix()))
     extra = sorted(set(on_disk) - set(sums) - {"SHA512SUMS"})
     missing = sorted(set(sums) - set(on_disk))
     if extra or missing:
@@ -464,13 +479,16 @@ def cmd_pack(a) -> int:
     stage = P.Stage(pkg)
     for rel in on_disk:
         stage.files[rel] = ((pkg / rel).stat().st_size, "")
-    stage.dirs = {p.relative_to(pkg).as_posix() for p in pkg.rglob("*") if p.is_dir()}
+    stage.dirs = {p.relative_to(pkg).as_posix() for p in pkg.rglob("*")
+                  if p.is_dir() and not is_mac_junk(p.relative_to(pkg).as_posix())}
     name = f"cuav-eval-{a.set}"
     zpath = P.write_zip(stage, name, when, base)
 
     n = 0
     with zipfile.ZipFile(zpath) as zf:
         for zi in zf.infolist():
+            if is_mac_junk(zi.filename.rstrip("/")):
+                raise SystemExit(f"zip 里有 macOS 元数据条目：{zi.filename}")
             if zi.is_dir():
                 continue
             rel = zi.filename[len(name) + 1:]
