@@ -18,6 +18,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "构建类型" FORCE)
 endif()
 
+# Windows 交付（W-2，D-099）：静态链接 MSVC 运行库、源文件按 UTF-8 读。
+# 缘由见 engine/CMakeLists.txt 的同一段；geo 独立构建时也要一致，否则两边编出来的库混不到一起。
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  add_compile_options(/utf-8)
+endif()
+
 # 坐标基座 vendored GeographicLib 2.5.2（决策 D-074，步骤 D3-1）。
 # 只抽 Geocentric 与 LocalCartesian 及其最小闭包，七个文件；来源、版本、压缩包哈希与
 # 「为什么不是最新的 2.7」见 third_party/geographiclib/README.md。

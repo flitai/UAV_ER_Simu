@@ -81,6 +81,51 @@ jobs:
           diff -u tests/golden/component-catalog.json /tmp/catalog.json \
             && echo "组件目录与黄金基准逐字节相同"
 
+      # ---- 以下只在 Windows：单机包要的引擎（W-2，D-099）--------------------------------
+      # 静态链接运行库（/MT）由引擎 CMake 设；这里读导入表把它钉住——依赖了 VCRUNTIME140.dll 之类，
+      # 干净机上双击就报「找不到 DLL」，而构建机上装着 VS，什么都看不出来。
+      - name: 引擎不依赖 VC++ 运行库（导入表检查）
+        if: runner.os == 'Windows'
+        run: python deploy/pe_imports.py --forbid engine/build/Release/cuav_run.exe
+
+      # 组包脚本 deploy/pack.py 只认这个产物：它读 cuav_run.build.json，提交与组包时的 HEAD 不同即拒。
+      - name: 整理引擎产物与构建记录
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p dist/engine
+          cp engine/build/Release/cuav_run.exe dist/engine/
+          CXXVER=$(grep -h -m 1 'set(CMAKE_CXX_COMPILER_VERSION' engine/build/CMakeFiles/*/CMakeCXXCompiler.cmake \
+                   | sed 's/.*"\(.*\)".*/\1/')
+          python - "$CXXVER" <<'PY'
+          import hashlib, json, os, sys
+          exe = "dist/engine/cuav_run.exe"
+          rec = {
+              "schema": "cuav-engine-build/1",
+              "file": "cuav_run.exe",
+              "sha256": hashlib.sha256(open(exe, "rb").read()).hexdigest(),
+              "bytes": os.path.getsize(exe),
+              "commit": os.environ["GITHUB_SHA"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "compiler": "MSVC " + sys.argv[1],
+              "runtime_library": "MultiThreaded (/MT)",
+          }
+          text = json.dumps(rec, indent=2) + "\n"
+          with open("dist/engine/cuav_run.build.json", "w", newline="\n") as f:   # Windows 上也写 LF
+              f.write(text)
+          print(text, end="")
+          PY
+
+      - name: 上传引擎产物
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuav_run-win-x64
+          path: dist/engine/
+          if-no-files-found: error
+          retention-days: 30
+
   js:
     name: 前端与应用服务 (Linux x64)
     runs-on: ubuntu-latest

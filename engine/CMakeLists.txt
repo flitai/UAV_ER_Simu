@@ -26,6 +26,17 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "构建类型" FORCE)
 endif()
 
+# Windows 交付（W-2，D-099）。两条只对 MSVC，必须在建任何目标之前设：
+#   · 静态链接运行库（/MT）：cuav_run.exe 随单机包交付，干净机上不一定装了 VC++ 运行库，
+#     动态版（CMake 缺省的 /MD）缺 VCRUNTIME140.dll 就起不来。deploy/pe_imports.py 查导入表把这条钉住。
+#   · /utf-8：源文件是不带 BOM 的 UTF-8、含大量中文字面量（组件目录的描述就是）。不加时 MSVC 按系统
+#     代码页读源文件，英文构建机上碰巧逐字节透传，换到中文区域设置的机器上字节就变了。
+# 这里设的变量与选项对 add_subdirectory 挂上的 geo 一并生效；geo 独立构建时有它自己的同一段。
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  add_compile_options(/utf-8)
+endif()
+
 # 场景运行时的运动学与链路预算在 cuav_geo（决策 D-033）：引擎侧的 ScenarioSource 只作薄封装。
 # 源在树外，add_subdirectory 必须显式给二进制目录。geo 也可独立构建（scripts/build-all.sh 各建一次）。
 if(NOT TARGET cuav_geo)
