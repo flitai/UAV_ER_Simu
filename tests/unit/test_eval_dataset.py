@@ -133,9 +133,66 @@ class TestCellsFile(unittest.TestCase):
             C.validate(bad)
 
     def test_file_is_canonical(self):
-        with open(C.path_of("sample-v1"), encoding="utf-8") as fh:
-            text = fh.read()
-        self.assertEqual(text, json.dumps(json.loads(text), ensure_ascii=False, indent=2) + "\n")
+        for set_id in ("sample-v1", "realism-v1"):
+            with open(C.path_of(set_id), encoding="utf-8") as fh:
+                text = fh.read()
+            self.assertEqual(text, json.dumps(json.loads(text), ensure_ascii=False, indent=2) + "\n", set_id)
+
+
+class TestRealismCells(unittest.TestCase):
+    """真实感对照的格子（14 §7.3）：`s4: null` 只出 S3，`impairments: false` 关掉前端非理想与载频偏差。"""
+
+    def setUp(self):
+        self.doc = C.load("realism-v1")
+        self.cell = {c["id"]: c for c in self.doc["cells"]}
+
+    def test_null_s4_gives_s3_only_and_no_ddc(self):
+        spec = S.chain_spec(self.doc, self.cell["p1"], "x.scenario.json")
+        self.assertEqual(spec["taps"], ["s3"])
+        self.assertEqual(spec["iq"], ["s3"])
+        self.assertNotIn("ddc", spec["slots"])
+        # 试样集照旧：S3 与 S4 都出，DDC 照格子写
+        s02 = next(c for c in DOC["cells"] if c["id"] == "s02")
+        spec = S.chain_spec(DOC, s02, "x.scenario.json")
+        self.assertEqual(spec["taps"], ["s3", "s4"])
+        self.assertEqual(spec["slots"]["ddc"], s02["s4"])
+        self.assertEqual(list(spec["slots"]), ["rx_fe", "adc", "ddc", "ch", "det"])
+
+    def test_ideal_variant_drops_impairments_only(self):
+        ideal, base = self.cell["p1-ideal"], self.cell["p1"]
+        self.assertEqual(S.frontend_params(self.doc, ideal), {"gain_dB": self.doc["chain"]["rx_fe"]["gain_dB"]})
+        self.assertIn("phase_noise", S.frontend_params(self.doc, base))
+        self.assertNotIn("cfo_ppm", S.build(self.doc, ideal)["emitters"][0]["emission"])
+        self.assertIn("cfo_ppm", S.build(self.doc, base)["emitters"][0]["emission"])
+        self.assertNotIn("fading", self.doc["propagation"][ideal["propagation"]])
+        bad = copy.deepcopy(self.doc)
+        bad["cells"][0]["impairments"] = True
+        with self.assertRaises(C.CellError):
+            C.validate(bad)
+
+    def test_tgn_variants_carry_the_cited_pairs(self):
+        want = {"b": (15, 0), "c": (30, 0), "d": (50, 3), "e": (100, 6), "f": (150, 6)}
+        for m, (ds, k) in want.items():
+            p = self.doc["propagation"][self.cell[f"p1-tgn-{m}"]["propagation"]]
+            self.assertEqual((p["fading_delay_spread_ns"], p["fading_k_los_dB"]), (ds, k), m)
+
+    def test_snr_targets_follow_training_medians(self):
+        """§7.3 的表：训练部分同组各型中位数的中位数，四舍五入到整数 dB。"""
+        with open(os.path.join(C.ROOT, "data", "iq", "measured", "q0b-params.json"), encoding="utf-8") as fh:
+            q0b = json.load(fh)
+        groups = {g["group"]: g for g in q0b["sources"][0]["groups"]}
+
+        def med(xs):
+            xs = sorted(xs)
+            n = len(xs)
+            return xs[n // 2] if n % 2 else 0.5 * (xs[n // 2 - 1] + xs[n // 2])
+
+        video = lambda cls: med([groups[c]["video"]["snr_dB_by_visibility"]["LOS"]["median"] for c in cls])  # noqa: E731
+        link = lambda cls: med([groups[c]["links"][0]["core_snr_dB_by_visibility"]["LOS"]["median"]  # noqa: E731
+                                for c in cls])
+        want = {"p1": video("ADFG"), "p2": video("CE"), "p3": link("CE"), "p4": link("AG"), "p5": link("DF")}
+        for cid, v in want.items():
+            self.assertEqual(self.cell[cid]["platforms"][0]["snr_dB"], int(math.floor(v + 0.5)), cid)
 
 
 if __name__ == "__main__":

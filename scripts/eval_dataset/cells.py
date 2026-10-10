@@ -16,7 +16,7 @@ CELLS_DIR = os.path.join(ROOT, "tests", "regression", "eval-dataset")
 
 TOP_KEYS = {"schema_version", "set_id", "name", "stem_prefix", "set_seed", "duration_s", "created_at", "aoi_id",
             "notes", "site", "receivers", "chain", "propagation", "cfo", "frontend_measured", "cells"}
-CELL_KEYS = {"id", "title", "receiver", "propagation", "s4", "plan_allow", "platforms", "duration_s"}
+CELL_KEYS = {"id", "title", "receiver", "propagation", "s4", "plan_allow", "platforms", "duration_s", "impairments"}
 PLATFORM_KEYS = {"id", "name", "platform_type", "alt_m", "azimuth_deg", "snr_dB", "primary", "emitters", "search",
                  "range_m", "off", "resolved"}
 EMITTER_KEYS = {"id", "name", "equipment_model", "preset", "waveform", "center_Hz", "bw_Hz", "tx_power_dBm",
@@ -67,6 +67,10 @@ def validate(doc: dict) -> None:
             raise CellError(f"格子 {c['id']} 的传播 {c['propagation']} 不在 propagation 里")
         if "duration_s" in c and not (isinstance(c["duration_s"], (int, float)) and c["duration_s"] > 0):
             raise CellError(f"格子 {c['id']} 的 duration_s 应为正数")
+        if c["s4"] is not None and not isinstance(c["s4"], dict):
+            raise CellError(f"格子 {c['id']} 的 s4 应为对象，或 null（不开 DDC、只出 S3）")
+        if "impairments" in c and c["impairments"] is not False:
+            raise CellError(f"格子 {c['id']} 的 impairments 只能写 false（关掉前端非理想与载频偏差）；缺省即打开")
         ems = set()
         for p in c["platforms"]:
             _keys(p, PLATFORM_KEYS, f"格子 {c['id']} 平台 {p.get('id')}")

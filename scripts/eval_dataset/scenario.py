@@ -132,7 +132,8 @@ def build(doc: dict, cell: dict, positions: dict[str, tuple[float, float, float]
             if not r:
                 raise ValueError(f"格子 {cell['id']} 平台 {p['id']} 还没有解算位置（先跑 gen_eval_dataset.py resolve）")
             lon, lat, alt = r["lon"], r["lat"], p["alt_m"]
-        cfo = None if p.get("off") else seeds.cfo_ppm(doc["set_seed"], cell["id"], p["id"], doc["cfo"]["max_ppm"])
+        cfo = None if p.get("off") or not impaired(cell) else \
+            seeds.cfo_ppm(doc["set_seed"], cell["id"], p["id"], doc["cfo"]["max_ppm"])
         for e in p["emitters"]:
             em: dict = {}
             if "preset" in e:
@@ -188,8 +189,17 @@ def dumps(doc: dict) -> bytes:
     return (json.dumps(doc, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
 
 
+def impaired(cell: dict) -> bool:
+    """格子是否带前端非理想与载频偏差。缺省带；`impairments: false` 的格子（真实感对照的「无损伤」变体）全关。"""
+    return cell.get("impairments", True)
+
+
 def frontend_params(doc: dict, cell: dict) -> dict:
-    """前端参数：格子文件的公共项，加上实测换算的 IQ 不平衡与直流（缺席即不开，README 写明）。"""
+    """前端参数：格子文件的公共项，加上实测换算的 IQ 不平衡与直流（缺席即不开，README 写明）。
+
+    `impairments: false` 的格子只留增益：相噪、IQ 不平衡与直流都不开。"""
+    if not impaired(cell):
+        return {"gain_dB": doc["chain"]["rx_fe"]["gain_dB"]}
     out = dict(doc["chain"]["rx_fe"])
     fm = doc.get("frontend_measured")
     if fm and fm.get("use"):
@@ -202,20 +212,25 @@ def frontend_params(doc: dict, cell: dict) -> dict:
 
 
 def chain_spec(doc: dict, cell: dict, scenario_rel: str) -> dict:
+    """链路规格。`s4: null` 的格子不开 DDC、只出 S3（真实感对照只要 S3）。"""
+    slots = {
+        "rx_fe": frontend_params(doc, cell),
+        "adc": dict(doc["chain"]["adc"]),
+        "ddc": dict(cell["s4"]) if cell["s4"] is not None else None,
+        "ch": dict(doc["propagation"][cell["propagation"]]),
+        "det": dict(doc["chain"]["det"]),
+    }
+    if slots["ddc"] is None:
+        del slots["ddc"]
+    taps = ["s3", "s4"] if cell["s4"] is not None else ["s3"]
     return {
         "schema_version": "cuav-eval-chain/1",
         "diagram_id": f"eval-{doc['set_id']}-{cell['id']}",
         "name": f"{doc['name']} · {cell['id']} {cell['title']}",
         "scenario": scenario_rel,
         "run": {"duration_s": cells.duration_s(doc, cell), "seed": seeds.derive(doc["set_seed"], cell["id"], "run")},
-        "slots": {
-            "rx_fe": frontend_params(doc, cell),
-            "adc": dict(doc["chain"]["adc"]),
-            "ddc": dict(cell["s4"]),
-            "ch": dict(doc["propagation"][cell["propagation"]]),
-            "det": dict(doc["chain"]["det"]),
-        },
-        "taps": ["s3", "s4"],
-        "iq": ["s3", "s4"],
+        "slots": slots,
+        "taps": taps,
+        "iq": list(taps),
         "plan_allow": sorted(cell.get("plan_allow", {})),
     }
