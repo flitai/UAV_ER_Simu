@@ -49,3 +49,24 @@ GeographicLib 2.5.2 -- MIT
 nlohmann/json 3.11.3 -- MIT，编译进 cuav_run（框图 JSON 装载与事件序列化）
 doctest 2.4.11 -- MIT，只用于单元测试，不进交付包
 两者自 emcore 拷入，来源头与许可证文本见各自目录。
+
+单机包（deploy/，W-2，决策 D-099）
+-----------------------------------
+Node.js v22.23.3（Windows x64 便携版）-- MIT
+  Copyright Node.js contributors. All rights reserved.
+  https://nodejs.org/
+  用途：在单机包里运行应用服务。只取 node.exe，许可证全文（含 Node.js 自带的各第三方件）随包放在
+  node/LICENSE。来源压缩包 node-v22.23.3-win-x64.zip，按官方 SHASUMS256.txt 的 sha256 核对。
+Microsoft C/C++ 运行库 -- 静态链接进 bin/cuav_run.exe（MSVC 19.51，/MT），程序因此不依赖 VC++ 运行库 DLL。
+  随 Visual Studio 的可分发代码条款提供；许可终检在 W-8。
+MATLAB Coder 生成的 C 代码（models/{channelizer,receiver,radiator}/coder/）-- 编进 bin/cuav_run.exe。
+  产物随包交付，许可经确认无障碍（决策 D-084）。
+
+随包数据
+--------
+data/scene/beijing-yayuncun/buildings.geojson -- ODbL 1.0
+  由 OpenStreetMap 数据生成（与底图同一份快照）。© OpenStreetMap contributors
+  https://www.openstreetmap.org/copyright
+data/basemap/（北京区域底图与 DEM、全球概览底图）-- 署名见前端随包的 vendor/THIRD-PARTY-NOTICES.md
+  （包里在 web/dist/vendor/，仓库里在 web/public/vendor/）。
+data/iq/measured/dronerfb/ -- 公开数据集 DroneRFb-DIR 的 13 个实测片段；该数据集无使用与署名约束（决策 D-038）。
