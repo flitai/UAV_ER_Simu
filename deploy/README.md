@@ -55,7 +55,7 @@ cuav-demo-<提交日期>-<短哈希>-win-x64/
 完整包只能在开发机上组：建筑集、区域底图、全球概览与实测片段都不在 git 里。
 
 1. 提交全部改动并推送；等 CI 的 `build` 工作流跑完。包里每个文件都出自同一个提交：
-   引擎产物的构建记录写着它出自哪个提交，与当前 HEAD 不同即拒；包的来源目录（`PACKAGE_SOURCES`：deploy、server、web、models、engine、geo、third_party、data 等）里有未提交改动也拒，别处的改动不挡组包。
+   引擎产物的构建记录写着它出自哪个提交；与当前 HEAD 不同时，两者之间编进引擎的源（`ENGINE_SOURCES`：engine、geo、models、third_party、CI 配置）一个字节没变才照用，否则拒；包的来源目录（`PACKAGE_SOURCES`：deploy、server、web、models、engine、geo、third_party、data 等）里有未提交改动也拒，别处的改动不挡组包。
 2. 查 CI 运行号：`gh run list --limit 3`。
 3. 组包：
 

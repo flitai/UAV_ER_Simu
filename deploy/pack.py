@@ -61,6 +61,11 @@ SUBSET_LIST = "deploy/iq-subset.json"
 PACKAGE_SOURCES = ("deploy", "server", "web", "models", "engine", "geo", "third_party", "data",
                    "tests/regression/diagrams", "THIRD-PARTY-NOTICES")
 
+# 编进引擎二进制的源：引擎与 geo 的源码和 CMake、Coder 产物、第三方件，以及决定编译选项的 CI 配置。
+# 引擎产物出自的提交与 HEAD 不同时，只要这些路径在两个提交之间一个字节没变，产物就等同于 HEAD 编出来的。
+# 两个会话并行时这种情形经常有：另一边只提交了报告或脚本，不该为此再等一轮 CI。
+ENGINE_SOURCES = ("engine", "geo", "models", "third_party", ".github/workflows")
+
 # 包内要扫的机器路径：与 scripts/check-paths.sh 同一组（铁律 17）
 MACHINE_PATH = re.compile(r"/Users/|/home/[a-z]|[A-Za-z]:\\Users\\")
 TEXT_EXT = {".js", ".mjs", ".cjs", ".json", ".geojson", ".md", ".txt", ".html", ".css", ".bat", ".svg", ".ts"}
@@ -258,9 +263,21 @@ def engine_from_dir(d: Path, head: str) -> tuple[Path, dict]:
     if got != rec["sha256"]:
         raise PackError(f"cuav_run.exe 的 sha256 {got} 与构建记录 {rec['sha256']} 不符")
     if rec["commit"] != head:
-        raise PackError(f"引擎出自提交 {rec['commit'][:12]}，当前 HEAD 是 {head[:12]}。"
-                        "推送当前提交、等 CI 跑完，再用那次运行的产物组包")
+        changed = engine_sources_changed(rec["commit"], head)
+        if changed:
+            raise PackError(f"引擎出自提交 {rec['commit'][:12]}，当前 HEAD 是 {head[:12]}，其间编进引擎的源有改动"
+                            f"（{', '.join(changed[:5])}）。推送当前提交、等 CI 跑完，再用那次运行的产物组包")
+        say(f"  引擎出自 {rec['commit'][:12]}，与 HEAD {head[:12]} 之间编进引擎的源（{' '.join(ENGINE_SOURCES)}）没有改动，照用")
     return exe, rec
+
+
+def engine_sources_changed(commit: str, head: str) -> list[str]:
+    """两个提交之间 ENGINE_SOURCES 里改动过的文件；提交不存在（如浅克隆）即拒，不猜。"""
+    try:
+        out = git("diff", "--name-only", commit, head, "--", *ENGINE_SOURCES)
+    except subprocess.CalledProcessError as e:
+        raise PackError(f"本地 git 里找不到引擎出自的提交 {commit[:12]}（{(e.stderr or '').strip()}）；先 git fetch") from e
+    return [line for line in out.splitlines() if line]
 
 
 def engine_from_ci(run_id: str, head: str) -> tuple[Path, dict]:
@@ -523,11 +540,15 @@ def cmd_build(args: argparse.Namespace) -> int:
     st = Stage(stage_root)
 
     say(f"组包 {name}（范围 {args.scope}）")
-    info = stage_program(st, args, head)
-    if args.scope == "full":
-        info.update(stage_data(st))
-    st.put_bytes(render_readme(name, head), "README.txt")
-    check_stage(st)
+    try:
+        info = stage_program(st, args, head)
+        if args.scope == "full":
+            info.update(stage_data(st))
+        st.put_bytes(render_readme(name, head), "README.txt")
+        check_stage(st)
+    except BaseException:
+        shutil.rmtree(stage_root, ignore_errors=True)   # 不留半截的包目录
+        raise
 
     manifest = {
         "schema": "cuav-package/1",

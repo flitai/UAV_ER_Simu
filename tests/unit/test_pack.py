@@ -93,12 +93,40 @@ class EngineSourceTest(unittest.TestCase):
             self.assertEqual(exe.name, "cuav_run.exe")
             self.assertEqual(rec["commit"], "a" * 40)
 
-    def test_rejects_other_commit(self):
+    def test_other_commit_judged_by_engine_sources(self):
+        """引擎出自的提交 ≠ HEAD：其间只改了报告与脚本就照用，编进引擎的源动过就拒，提交找不到也拒。"""
+        import subprocess
         with tempfile.TemporaryDirectory() as t:
-            d = Path(t)
-            self._artifact(d, "a" * 40)
-            with self.assertRaisesRegex(pack.PackError, "当前 HEAD"):
-                pack.engine_from_dir(d, "b" * 40)
+            repo = Path(t) / "repo"
+            (repo / "engine").mkdir(parents=True)
+            (repo / "scripts").mkdir()
+
+            def commit(rel: str, text: str) -> str:
+                (repo / rel).write_text(text, encoding="utf-8")
+                for cmd in (["add", rel], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", rel]):
+                    subprocess.run(["git", *cmd], cwd=repo, check=True, capture_output=True)
+                return subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+                                      capture_output=True, text=True).stdout.strip()
+
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            c1 = commit("engine/a.cpp", "1")
+            c2 = commit("scripts/x.py", "2")      # 只动了脚本
+            c3 = commit("engine/a.cpp", "3")      # 动了引擎源
+            art = Path(t) / "art"
+            art.mkdir()
+            self._artifact(art, c1)
+            old = pack.ROOT
+            pack.ROOT = repo
+            try:
+                exe, rec = pack.engine_from_dir(art, c2)
+                self.assertEqual(rec["commit"], c1)
+                with self.assertRaisesRegex(pack.PackError, "engine/a.cpp"):
+                    pack.engine_from_dir(art, c3)
+                self._artifact(art, "f" * 40)
+                with self.assertRaisesRegex(pack.PackError, "找不到"):
+                    pack.engine_from_dir(art, c3)
+            finally:
+                pack.ROOT = old
 
     def test_rejects_hash_mismatch(self):
         with tempfile.TemporaryDirectory() as t:
