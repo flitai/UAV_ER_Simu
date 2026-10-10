@@ -198,23 +198,40 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   return sendJson(res, 404, { error: 'not_found', path })
 }
 
-export async function start(): Promise<void> {
+/**
+ * 起服务。**监听成功才兑现**，监听失败（端口被占等）即拒绝（W-2，D-099）：单机包的启动器要等它兑现
+ * 再打开浏览器，失败时要给出能照着做的说明。此前监听写在回调里、函数不等它就返回，
+ * 端口被占时是一个没人接的 `error` 事件，进程带着调用栈崩掉。
+ */
+export async function start(): Promise<{ host: string; port: number }> {
   await tasks.init()
   tasks.installShutdownHandlers(() => hub.close()) // 先关 WS 连接（1001）再退出
   const engineOk = await engine.available()
-  server.listen(PORT, HOST, () => {
-    console.log(`cuav-server 监听 http://${HOST}:${PORT}`)
-    console.log(`  仓库根目录 ${ROOT}`)
-    console.log(`  暴露的数据目录：${ROOTS.map((r) => r.prefix).join('  ')}`)
-    console.log(`  前端产物 ${WEB_DIST}`)
-    void resolveBasemap(ROOT).then((b) => console.log(b.ok
-      ? `  底图 ${b.choice.id}（${b.choice.selected_by === 'env' ? 'CUAV_BASEMAP 点名' : '自动'}）${b.choice.pmtiles_url}`
-      : `  底图不可用：${b.message}`))
-    console.log(`  引擎 ${engine.cfg.bin}${engineOk ? '' : '（不存在或不可执行：任务提交将返回 503）'}`)
-    console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.count()} 个`)
-    console.log(`  视窗抽取 GET /api/v1/results/{task}/{op}/{spectrum|envelope}?t0&t1&f0&f1&px&py&stat`)
-    console.log(`  WebSocket ws://${HOST}:${PORT}${hub.path}（订阅 {subscribe, since}；补取 GET /api/v1/tasks/{id}/events?since）`)
+  await new Promise<void>((resolveListen, rejectListen) => {
+    const onError = (e: Error) => {
+      server.off('listening', onListening)
+      rejectListen(e)
+    }
+    const onListening = () => {
+      server.off('error', onError)
+      resolveListen()
+    }
+    server.once('error', onError)
+    server.once('listening', onListening)
+    server.listen(PORT, HOST)
   })
+  console.log(`cuav-server 监听 http://${HOST}:${PORT}`)
+  console.log(`  仓库根目录 ${ROOT}`)
+  console.log(`  暴露的数据目录：${ROOTS.map((r) => r.prefix).join('  ')}`)
+  console.log(`  前端产物 ${WEB_DIST}`)
+  void resolveBasemap(ROOT).then((b) => console.log(b.ok
+    ? `  底图 ${b.choice.id}（${b.choice.selected_by === 'env' ? 'CUAV_BASEMAP 点名' : '自动'}）${b.choice.pmtiles_url}`
+    : `  底图不可用：${b.message}`))
+  console.log(`  引擎 ${engine.cfg.bin}${engineOk ? '' : '（不存在或不可执行：任务提交将返回 503）'}`)
+  console.log(`  任务目录 ${tasks.storeConfig.runsRel}，已有任务 ${tasks.count()} 个`)
+  console.log(`  视窗抽取 GET /api/v1/results/{task}/{op}/{spectrum|envelope}?t0&t1&f0&f1&px&py&stat`)
+  console.log(`  WebSocket ws://${HOST}:${PORT}${hub.path}（订阅 {subscribe, since}；补取 GET /api/v1/tasks/{id}/events?since）`)
+  return { host: HOST, port: PORT }
 }
 
 // 入口判定必须用 pathToFileURL 而不是字符串拼接：仓库根目录名里有空格，

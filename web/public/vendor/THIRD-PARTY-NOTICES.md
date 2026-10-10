@@ -9,7 +9,7 @@ Copyright (c) The Noto Project Authors (https://github.com/notofonts/latin-greek
 
 完整条款：https://openfontlicense.org/
 
-该文件自 `/Users/zhiyu/CC/Airports/vendor/glyphs.js` 逐字节拷入（本方自有工程，其
+该文件自本方 Airports 工程的 `vendor/glyphs.js` 逐字节拷入（本方自有工程，其
 `vendor/` 下第三方件的署名必须保留，CLAUDE.md 铁律 13）。中日韩字符不在图集内，
 由浏览器按 `localIdeographFontFamily` 用系统字体渲染。
 

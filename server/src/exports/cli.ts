@@ -1,11 +1,12 @@
 // 服务端 SigMF 导出的命令行入口（D-090）：只给一致性核对用（tests/regression/export_parity.py），
 // 界面走 routes.ts。参数与 tools/iq_export_sigmf.py 对齐：
 //   node server/dist/exports/cli.js <运行目录> -o <输出目录> [--op <id>]... [--stem <前缀>] [--scenario <场景文件>]
-// 组件目录取引擎 `cuav_run --catalog`（环境变量 CUAV_RUN，缺省 engine/build/cuav_run），与服务端同一份来源。
+// 组件目录取引擎 `cuav_run --catalog`（环境变量 CUAV_RUN，缺省 engine/build/cuav_run，Windows 上带 .exe），与服务端同一份来源。
 
 import { execFileSync } from 'node:child_process'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { defaultEngineBinary } from '../tasks/engine.js'
 import { ExportError, exportRun, type CatalogDoc } from './sigmf.js'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -28,7 +29,7 @@ async function main(argv: string[]): Promise<number> {
     console.error('用法：cli.js <运行目录> -o <输出目录> [--op <id>]... [--stem <前缀>] [--scenario <场景文件>]')
     return 1
   }
-  const bin = process.env.CUAV_RUN ?? join(ROOT, 'engine', 'build', 'cuav_run')
+  const bin = defaultEngineBinary(ROOT)   // 与服务同一条规则：CUAV_RUN 优先，Windows 上补 .exe
   const catalog = JSON.parse(execFileSync(bin, ['--catalog'], { cwd: ROOT, maxBuffer: 64 << 20 }).toString('utf8')) as CatalogDoc
   try {
     const res = await exportRun({

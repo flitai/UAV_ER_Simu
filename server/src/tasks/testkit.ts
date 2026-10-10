@@ -118,5 +118,8 @@ export async function waitFor<T>(fn: () => T | undefined | null | false, label: 
 }
 
 export async function rmrf(dir: string): Promise<void> {
-  await fsp.rm(dir, { recursive: true, force: true })
+  // 带重试：shutdownSync() 只是发了终止信号，假引擎退出前那几毫秒还可能往任务目录里写，
+  // 一次删不净就是 ENOTEMPTY（CI 2026-09-29 撞上过，整个 hub.test.ts 随后超时）；
+  // Windows 上文件句柄未关时同类错误是 EBUSY / EPERM。fs.rm 对这几种错误按 retryDelay 线性退避重试。
+  await fsp.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
 }

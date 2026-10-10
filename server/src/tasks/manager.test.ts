@@ -4,7 +4,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { promises as fsp } from 'node:fs'
 import { join } from 'node:path'
-import { HttpError, createTaskManager, type TaskManager } from './manager.js'
+import { HttpError, createTaskManager, shutdownSignals, type TaskManager } from './manager.js'
 import { FILE_EVENTS, FILE_RESOLVED, TASK_SCHEMA, readTask, sha256Hex, taskDirAbs, writeTask, type TaskRecord } from './store.js'
 import { FX_IDS, fakeEngine, makeDataFixture, makeRoot, replayDiagram, rmrf, slice1, waitFor } from './testkit.js'
 
@@ -388,4 +388,10 @@ test('metrics.json 的四个数进 task.json.metrics_summary（C-5，10 报告 �
   assert.equal(sb?.run_state, 'finished')
   assert.equal(sb?.metrics_summary, undefined)
   assert.ok(sb?.warnings.some((w) => /metrics\.json/.test(w)))
+})
+
+test('停止信号：Windows 上多接关窗口（SIGHUP）与 Ctrl+Break（SIGBREAK），POSIX 上不接 SIGHUP 以免改变 nohup', () => {
+  assert.deepEqual(shutdownSignals('win32'), ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'])
+  assert.deepEqual(shutdownSignals('linux'), ['SIGINT', 'SIGTERM'])
+  assert.deepEqual(shutdownSignals('darwin'), ['SIGINT', 'SIGTERM'])
 })

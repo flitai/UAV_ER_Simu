@@ -525,25 +525,42 @@ export class TaskManager {
   }
 
   /**
-   * 收到 SIGINT / SIGTERM：同步杀引擎并落盘，然后退出。给了 beforeExit（B-6 用来关 WebSocket 连接、让客户端收到
-   * 1001 而不是连接被硬断）就等它，但最多 graceMs，防止关闭挂住。
+   * 收到停止信号（见 {@link shutdownSignals}）：同步杀引擎并落盘，然后退出。给了 beforeExit（B-6 用来关 WebSocket
+   * 连接、让客户端收到 1001 而不是连接被硬断）就等它，但最多 graceMs，防止关闭挂住。
    */
   installShutdownHandlers(beforeExit?: () => Promise<void>, graceMs = 1500): void {
     const onSignal = (sig: NodeJS.Signals) => {
       this.shutdownSync()
-      const code = sig === 'SIGINT' ? 130 : 143
+      const code = SIGNAL_EXIT_CODE[sig] ?? 1
       if (!beforeExit) process.exit(code)
       const t = setTimeout(() => process.exit(code), graceMs)
       t.unref()
       beforeExit().finally(() => process.exit(code))
     }
-    process.once('SIGINT', onSignal)
-    process.once('SIGTERM', onSignal)
+    for (const sig of shutdownSignals()) process.once(sig, onSignal)
   }
 
   get isInitialized(): boolean {
     return this.initialized
   }
+}
+
+/** 128 + 信号编号，与 shell 的约定一致。 */
+const SIGNAL_EXIT_CODE: Partial<Record<NodeJS.Signals, number>> = {
+  SIGHUP: 129,
+  SIGINT: 130,
+  SIGTERM: 143,
+  SIGBREAK: 149,
+}
+
+/**
+ * 服务按停止处理的信号。Windows 上多两个（W-2，D-099）：**关掉控制台窗口发 SIGHUP、Ctrl+Break 发 SIGBREAK**——
+ * 单机包是双击 start.bat 开一个控制台窗口跑服务的，用户最常见的停法就是关窗口。不接这两个，运行中的任务
+ * 来不及落终态（下次启动时对账会补上，数据不丢，只是原因写成「服务重启时任务未结束」）。
+ * POSIX 上不接 SIGHUP：那会改变 `nohup` 的语义（它靠忽略 SIGHUP 让服务在终端关掉后继续跑）。
+ */
+export function shutdownSignals(platform: NodeJS.Platform = process.platform): NodeJS.Signals[] {
+  return platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'] : ['SIGINT', 'SIGTERM']
 }
 
 export function createTaskManager(cfg: ManagerConfig): TaskManager {
