@@ -67,6 +67,17 @@ class SubsetAndIndexTest(unittest.TestCase):
             pack.trimmed_index(["dronerfb_does_not_exist"])
 
 
+class PackageSourcesTest(unittest.TestCase):
+    def test_sources_cover_what_goes_in(self):
+        """进包的东西都要在「未提交改动即拒」的范围里：漏一个，包里就可能混进没提交的改动。"""
+        for path in ("deploy/windows/start.bat", "server/src/index.ts", "web/src", "models/recognition",
+                     "engine/CMakeLists.txt", "data/scene", pack.SUBSET_LIST, pack.IQ_INDEX, "THIRD-PARTY-NOTICES",
+                     "tests/regression/diagrams/chain-replay.json"):
+            self.assertTrue(any(path == s or path.startswith(s + "/") for s in pack.PACKAGE_SOURCES), path)
+        for path in ("scripts/gen_eval_dataset.py", "WORKLOG.md", "algos/reference/realism_report.py"):
+            self.assertFalse(any(path == s or path.startswith(s + "/") for s in pack.PACKAGE_SOURCES), path)
+
+
 class EngineSourceTest(unittest.TestCase):
     def _artifact(self, d: Path, commit: str, exe: bytes = b"MZfake", sha: str | None = None) -> None:
         (d / "cuav_run.exe").write_bytes(exe)

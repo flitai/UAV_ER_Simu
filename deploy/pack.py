@@ -56,6 +56,11 @@ IQ_INDEX = f"{IQ_BATCH}/index.manifest.json"
 HOLDOUT = "data/iq/measured/holdout.manifest.json"
 SUBSET_LIST = "deploy/iq-subset.json"
 
+# 包里的东西从这些路径来（另有引擎，它的来源提交由构建记录钉住）。组包前这些路径里有未提交的改动即拒，
+# 包就说得清每个文件出自哪个提交；别处（报告、其他脚本）的改动不挡组包。
+PACKAGE_SOURCES = ("deploy", "server", "web", "models", "engine", "geo", "third_party", "data",
+                   "tests/regression/diagrams", "THIRD-PARTY-NOTICES")
+
 # 包内要扫的机器路径：与 scripts/check-paths.sh 同一组（铁律 17）
 MACHINE_PATH = re.compile(r"/Users/|/home/[a-z]|[A-Za-z]:\\Users\\")
 TEXT_EXT = {".js", ".mjs", ".cjs", ".json", ".geojson", ".md", ".txt", ".html", ".css", ".bat", ".svg", ".ts"}
@@ -501,9 +506,9 @@ def cmd_build(args: argparse.Namespace) -> int:
     if not (args.host or args.engine or args.engine_ci):
         raise PackError("要指定引擎来源：--engine-ci <运行号>、--engine <目录> 或 --host")
     head = git("rev-parse", "HEAD")
-    dirty = git("status", "--porcelain", "--untracked-files=no")
+    dirty = git("status", "--porcelain", "--untracked-files=no", "--", *PACKAGE_SOURCES)
     if dirty and not args.allow_dirty:
-        raise PackError("工作区有未提交的改动，包就说不清出自哪个提交；先提交，或加 --allow-dirty（只用于调试）：\n" + dirty)
+        raise PackError("包的来源目录里有未提交的改动，包就说不清出自哪个提交；先提交，或加 --allow-dirty（只用于调试）：\n" + dirty)
     when = dt.datetime.fromtimestamp(int(git("show", "-s", "--format=%ct", head)), dt.timezone.utc)
     name = f"cuav-demo-{when:%Y%m%d}-{head[:7]}-" + (f"host-{sys.platform}" if args.host else "win-x64")
     if args.scope == "program":
