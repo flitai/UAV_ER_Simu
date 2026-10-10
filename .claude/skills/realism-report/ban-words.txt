@@ -1,4 +1,4 @@
-# 真实感验证报告的项目禁用词（内部说法与旧称），供 formal-tech-report 的 check_report.py --ban-file 使用
+# 「无人机射频 IQ 信号仿真方法与可信性验证报告」（真实感对照报告）的项目禁用词（内部说法与旧称），供 formal-tech-report 的 check_report.py --ban-file 使用
 像不像
 尺子
 照实
