@@ -79,3 +79,6 @@ matlab/coder/_staging/
 
 # 演示录像：179 MB，超过 GitHub 单文件 100 MB 上限，只留本地（2026-09-23）
 /*.mp4
+
+# 组包缓存（W-2，D-099）：下载的便携 Node 与 CI 引擎产物，按 sha256 核对后复用
+deploy/.cache/

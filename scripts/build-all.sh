@@ -198,6 +198,15 @@ if [ -n "$bad_render" ]; then
 fi
 echo "同源守卫通过：遮挡侧没有引用地图渲染。"
 
+printf '=== 单机包组包脚本（W-2，D-099）===\n'
+# 只读 git 里的文件与合成夹具：引擎须出自当前提交、DEM 逐块核对、实测子集按规则、索引裁剪自洽、
+# 出包前检查真能拦住、同一输入两次出包逐字节相同；导入表读取用内存里拼的最小 PE。
+if command -v uv >/dev/null 2>&1; then
+  uv run --quiet python -m unittest tests/unit/test_pack.py tests/unit/test_pe_imports.py
+else
+  echo "跳过：需要 uv" >&2
+fi
+
 printf '=== 路径检查 ===\n'
 sh scripts/check-paths.sh
 

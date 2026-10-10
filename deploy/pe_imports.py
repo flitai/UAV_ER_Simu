@@ -127,6 +127,11 @@ def forbidden(dlls: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):   # Windows 上接到管道时缺省不是 UTF-8，中文报文会抛异常
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description="列出 PE 文件依赖的 DLL")
     ap.add_argument("exe")
     ap.add_argument("--forbid", action="store_true",

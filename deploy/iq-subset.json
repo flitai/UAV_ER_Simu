@@ -1,0 +1,87 @@
+{
+  "schema": "cuav-iq-subset/1",
+  "batch": "data/iq/measured/dronerfb",
+  "rule": "每个类别取索引顺序里第一个不在验证集（holdout.manifest.json）的片段，再并上 tests/regression/diagrams 引用的片段",
+  "note": "每个机型的第 3 架只出现在验证集里（D-098），所以实测样本集只有 13 个类别：6 个机型各 2 架，加背景",
+  "products": [
+    {
+      "data_id": "dronerfb_A1_IN_S0_slice_10_CH0_S4",
+      "class_code": "A1",
+      "class_name": "DJI Mavic 3 Pro",
+      "reason": "类别 A1 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_A2_IN_S0_slice_12_CH0_S4",
+      "class_code": "A2",
+      "class_name": "DJI Mavic 3 Pro",
+      "reason": "类别 A2 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_1036_CH0_S4",
+      "class_code": "B",
+      "class_name": "背景（现场无无人机开机）",
+      "reason": "类别 B 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_C1_IN_S0_slice_11_CH0_S4",
+      "class_code": "C1",
+      "class_name": "DJI Mini 2 SE",
+      "reason": "类别 C1 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_C2_IN_S0_slice_10_CH0_S4",
+      "class_code": "C2",
+      "class_name": "DJI Mini 2 SE",
+      "reason": "类别 C2 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_0_CH0_S4",
+      "class_code": "D1",
+      "class_name": "DJI Mini 4 Pro",
+      "reason": "类别 D1 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_D2_IN_S0_slice_11_CH0_S4",
+      "class_code": "D2",
+      "class_name": "DJI Mini 4 Pro",
+      "reason": "类别 D2 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_E1_IN_S0_slice_10_CH0_S4",
+      "class_code": "E1",
+      "class_name": "DJI Mini 3",
+      "reason": "类别 E1 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_E2_IN_S0_slice_10_CH0_S4",
+      "class_code": "E2",
+      "class_name": "DJI Mini 3",
+      "reason": "类别 E2 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_F1_IN_S0_slice_12_CH0_S4",
+      "class_code": "F1",
+      "class_name": "DJI Air 3",
+      "reason": "类别 F1 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_F2_IN_S0_slice_100_CH0_S4",
+      "class_code": "F2",
+      "class_name": "DJI Air 3",
+      "reason": "类别 F2 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_G1_IN_S0_slice_13_CH0_S4",
+      "class_code": "G1",
+      "class_name": "DJI Air 2S",
+      "reason": "类别 G1 在实测样本集里按索引顺序的第一个片段"
+    },
+    {
+      "data_id": "dronerfb_G2_IN_S0_slice_10_CH0_S4",
+      "class_code": "G2",
+      "class_name": "DJI Air 2S",
+      "reason": "类别 G2 在实测样本集里按索引顺序的第一个片段"
+    }
+  ],
+  "in_validation_set": []
+}

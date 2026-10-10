@@ -26,7 +26,9 @@ FILES='*.py *.ts *.tsx *.js *.mjs *.sh *.json *.toml *.cmake *.c *.cpp *.h *.hpp
 
 # shellcheck disable=SC2086
 # 排除本脚本自身：它的注释与判据里必然出现被查的字样。
-hits=$(git grep -nE "$PATTERN" -- $FILES ":(exclude)scripts/check-paths.sh" 2>/dev/null \
+# 组包脚本与它的单测同理（W-2，D-099）：pack.py 对整个包再扫一遍同一组字样，单测里要造反例。
+hits=$(git grep -nE "$PATTERN" -- $FILES ":(exclude)scripts/check-paths.sh" \
+    ":(exclude)deploy/pack.py" ":(exclude)tests/unit/test_pack.py" 2>/dev/null \
   | grep -vE '^data/[^:]*\.manifest\.json:[0-9]+: *"(origin|origin_note|dev_link_target)"' \
   || true)
 
