@@ -70,6 +70,15 @@ else
   echo "跳过：需要 uv 与 engine/build/cuav_run（两者缺一）" >&2
 fi
 
+printf '=== 真实感对照的测量程序（Q-5，D-096）===\n'
+# 合成夹具：对照脚本的一块处理与 Q-0b 逐字段相同、KS 距离与判定线照 14 §7.3、平均谱形在带内是平的、
+# 配对表与格子集 realism-v1 一致。不读数据集、不跑引擎，不到一秒。整份对照（约 15 分钟，要实测数据）不在这里跑。
+if command -v uv >/dev/null 2>&1; then
+  uv run --quiet --with numpy --with scipy python -m unittest tests/unit/test_realism_compare.py
+else
+  echo "跳过：需要 uv" >&2
+fi
+
 printf '=== 识别库 v2（Q-4c，D-094）===\n'
 # library-v2.json 由入库的校准统计与 Q-0b 按规则逐字节生成；区间盖住统计量、v1 一个字节没动。只用标准库。
 # 校准统计本身重跑逐字节（q4c_feature_survey.py --check，约 11 分钟）不在这里跑。
