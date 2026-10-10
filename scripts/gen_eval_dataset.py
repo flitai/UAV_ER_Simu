@@ -9,6 +9,7 @@
   prepare   每格写场景与链路规格，经 web/src/chain/examples/_gen.ts eval 编译成框图（往返逐字节、频率计划对放行表），
             再用 cuav_run --validate 核一遍；不跑引擎。
   run       prepare 之后逐格运行 cuav_run、导出 S3 与 S4 的 SigMF、做断言、删运行目录，最后写数据集索引与交付件。
+  pack      交付包对 SHA512SUMS 全量核对后打成确定性 zip（与单机包同一个 write_zip），写在 data/eval/<集合>/，另附 .sha512。
 
 输出在 data/eval/<集合>/（不入 git，只有 *.manifest.json 与 *.md 入库，见 .gitignore）。
 
@@ -16,6 +17,7 @@
     uv run --quiet --with numpy --with scipy python scripts/gen_eval_dataset.py resolve --set sample-v1
     uv run --quiet --with numpy python scripts/gen_eval_dataset.py prepare --set sample-v1
     uv run --quiet --with numpy --with sigmf --with matplotlib python scripts/gen_eval_dataset.py run --set sample-v1
+    uv run --quiet --with numpy python scripts/gen_eval_dataset.py pack --set sample-v1
 """
 from __future__ import annotations
 
@@ -409,6 +411,86 @@ def verify(doc: dict, cell_id: str, base: str) -> int:
     return 0 if not bad else 1
 
 
+def cmd_pack(a) -> int:
+    """把交付包打成一个 zip，供转交甲方（用户 2026-10-10「先把试样集打个包」）。
+
+    1. 交付包对自己的 SHA512SUMS 全量核对：清单里的每个文件都在、哈希都对，包里也没有清单外的文件；
+    2. 文件名纯 ASCII（铁律 15），文本文件里没有本机路径（铁律 17，正则与单机包同一条）；
+    3. 用单机包同一个 `deploy/pack.py` 的 write_zip 出确定性 zip：条目按路径排序、时间戳取交付包入库文件最后一次提交的时间、
+       权限位固定，已压缩的格式（png）不再压；同一输入两次出包逐字节相同；
+    4. 重新打开 zip，逐个条目按 SHA512SUMS 再核一遍，再给 zip 本身写一个 `.sha512` 旁挂。
+
+    zip 与旁挂写在 data/eval/<集合>/ 下（不入 git）。交付包的入库文件（README、内部清单）有未提交改动即拒。"""
+    import datetime as dt
+    import hashlib
+    import zipfile
+    from pathlib import Path
+    sys.path.insert(0, os.path.join(ROOT, "deploy"))
+    import pack as P
+    base = Path(ROOT) / "data" / "eval" / a.set
+    pkg = base / "package"
+    tracked = [str(p.relative_to(ROOT)) for p in (pkg / "README.md", base / "dataset.manifest.json")]
+    st = subprocess.run(["git", "status", "--porcelain", "--", *tracked], cwd=ROOT, capture_output=True, text=True).stdout
+    if st.strip():
+        raise SystemExit(f"交付包的入库文件有未提交改动，先提交再打包：\n{st}")
+    when_s = subprocess.run(["git", "log", "-1", "--format=%ct", "--", *tracked], cwd=ROOT, capture_output=True,
+                            text=True).stdout.strip()
+    if not when_s:
+        raise SystemExit("交付包的入库文件还没有提交过")
+    when = dt.datetime.fromtimestamp(int(when_s), dt.timezone.utc)
+
+    sums = {}
+    for line in (pkg / "SHA512SUMS").read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            h, rel = line.split("  ", 1)
+            sums[rel] = h
+    on_disk = sorted(p.relative_to(pkg).as_posix() for p in pkg.rglob("*") if p.is_file())
+    extra = sorted(set(on_disk) - set(sums) - {"SHA512SUMS"})
+    missing = sorted(set(sums) - set(on_disk))
+    if extra or missing:
+        raise SystemExit(f"交付包与 SHA512SUMS 不一致：清单外 {extra}，缺 {missing}")
+    bad = [rel for rel in sorted(sums) if _sha(str(pkg / rel), "sha512") != sums[rel]]
+    if bad:
+        raise SystemExit(f"这些文件的 SHA-512 与 SHA512SUMS 不符：{bad}")
+    nonascii = [rel for rel in on_disk if not rel.isascii()]
+    if nonascii:
+        raise SystemExit(f"文件名不是纯 ASCII：{nonascii}")
+    leak = [rel for rel in on_disk if Path(rel).suffix.lower() in P.TEXT_EXT | {".jsonl", ".sigmf-meta", ".m", ".py"}
+            and P.MACHINE_PATH.search((pkg / rel).read_text(encoding="utf-8", errors="replace"))]
+    if leak:
+        raise SystemExit(f"这些文件里有本机路径：{leak}")
+    print(f"交付包核对通过：{len(on_disk)} 个文件，SHA-512 全部与 SHA512SUMS 相符，文件名纯 ASCII，没有本机路径")
+
+    stage = P.Stage(pkg)
+    for rel in on_disk:
+        stage.files[rel] = ((pkg / rel).stat().st_size, "")
+    stage.dirs = {p.relative_to(pkg).as_posix() for p in pkg.rglob("*") if p.is_dir()}
+    name = f"cuav-eval-{a.set}"
+    zpath = P.write_zip(stage, name, when, base)
+
+    n = 0
+    with zipfile.ZipFile(zpath) as zf:
+        for zi in zf.infolist():
+            if zi.is_dir():
+                continue
+            rel = zi.filename[len(name) + 1:]
+            h = hashlib.sha512()
+            with zf.open(zi) as fh:
+                for b in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(b)
+            if rel != "SHA512SUMS" and h.hexdigest() != sums.get(rel):
+                raise SystemExit(f"zip 里的 {rel} 与 SHA512SUMS 不符")
+            n += 1
+    if n != len(on_disk):
+        raise SystemExit(f"zip 里有 {n} 个文件，交付包有 {len(on_disk)} 个")
+    zsha = _sha(str(zpath), "sha512")
+    (base / f"{name}.zip.sha512").write_text(f"{zsha}  {name}.zip\n", encoding="utf-8")
+    print(f"写了 {zpath.relative_to(ROOT)}：{zpath.stat().st_size} 字节（交付包 {sum(stage.files[r][0] for r in on_disk)} 字节），"
+          f"{n} 个文件逐个按 SHA512SUMS 复核通过；时间戳 {when.strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    print(f"zip 的 SHA-512 写在 {(base / f'{name}.zip.sha512').relative_to(ROOT)}：{zsha[:16]}…")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -429,6 +511,9 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--allow-dirty", action="store_true", help="允许生成器相关目录有未提交改动")
     q.add_argument("--verify", metavar="CELL", help="重跑一格到临时目录、逐字节比对交付件")
     q.set_defaults(func=cmd_run)
+    k = sub.add_parser("pack", help="核对交付包并打成确定性 zip（供转交）")
+    k.add_argument("--set", required=True)
+    k.set_defaults(func=cmd_pack)
     a = ap.parse_args(argv)
     return a.func(a)
 

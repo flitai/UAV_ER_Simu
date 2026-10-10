@@ -279,7 +279,8 @@
   DroneRFb 背景量 IQ 不平衡与直流，写回格子文件，**审阅后提交**）；`... prepare --set sample-v1`（场景、链路规格、框图，框图经
   `cd web && npx tsx src/chain/examples/_gen.ts eval --spec <规格>` 编译、往返逐字节、频率计划对放行表，再 `--validate`）；
   `uv run --quiet --with numpy --with sigmf --with matplotlib python scripts/gen_eval_dataset.py run --set sample-v1`（约 5 分钟、约 4.5 GB；
-  生成器相关目录有未提交改动即拒，`--allow-dirty` 跳过；`--verify <格子>` 重跑一格逐字节比对）。交付件在 `data/eval/<集合>/package/`，
+  生成器相关目录有未提交改动即拒，`--allow-dirty` 跳过；`--verify <格子>` 重跑一格逐字节比对）。转交前打包 `uv run --quiet --with numpy python scripts/gen_eval_dataset.py pack --set sample-v1`
+  （约 4 分钟：交付包对 `SHA512SUMS` 全量核对、查文件名与本机路径，再用单机包同一个 `deploy/pack.py` 的 `write_zip` 出确定性 zip，解压逐个复核；写 `data/eval/<集合>/cuav-eval-<集合>.zip` 与 `.zip.sha512`，不入 git；试样集 4.49 GB 压到 2.70 GB）。交付件在 `data/eval/<集合>/package/`，
   内部清单 `data/eval/<集合>/dataset.manifest.json` 与交付包 README 入库。冒烟回归 `uv run --quiet --with numpy --with sigmf --with matplotlib
   python tests/regression/eval_dataset_smoke.py`（一格、2 MS/s、几秒，已接进 `build-all.sh`）；单测 `uv run --quiet --with numpy --with scipy
   python -m unittest tests/unit/test_eval_dataset.py`（9 项）。导出工具 0.3.0 起每个文件有 `cuav:usable_band_Hz`、每条注记有 `cuav:capture`
