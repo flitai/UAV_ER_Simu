@@ -22650,7 +22650,7 @@
     "low_minus_high_dB": 1.58909,
     "mid_minus_edges_dB": 4.06992
    },
-   "receiver_source": "Mavic 3 的 5.8 GHz 录音（未占用格）"
+   "receiver_source": "Mavic 3 的 5.8 GHz 实测片段（未占用格）"
   },
   "p3": {
    "papr_n": 8127,

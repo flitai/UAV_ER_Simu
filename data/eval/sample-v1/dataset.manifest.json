@@ -12,7 +12,7 @@
   "engine_version": "0.1.0",
   "exporter": "tools/iq_export_sigmf.py 0.3.0",
   "sigmf_version": "1.2.6",
-  "package_bytes": 4493779772,
+  "package_bytes": 4493779778,
   "cells": [
     {
       "id": "s01",

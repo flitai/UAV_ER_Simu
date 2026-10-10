@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""真实感对照：生成 IQ 与公开实测录音逐项比（Q-5，D-096；14 号报告 §7.2–§7.3；06 §9K）。
+"""真实感对照：生成 IQ 与公开实测数据逐项比（Q-5，D-096；14 号报告 §7.2–§7.3；06 §9K）。
 
 口径全部写在 14 号报告 §7.3（先写死，再取数）。本脚本只做三件事：
 
-1. **实测一侧**：按 §7.3 的配对选录音（DroneRFb 只取视距片），用 Q-0b 的提取器
+1. **实测一侧**：按 §7.3 的配对选实测片段（DroneRFb 只取视距片），用 Q-0b 的提取器
    （`q0b_param_extract.py`，常数一个不改）逐块量突发，分「验收集」「训练部分」「全部」三列。
 2. **合成一侧**：按格子集 `tests/regression/eval-dataset/realism-v1.json` 逐格跑 `cuav_run`（只出 S3），
    读 `s3/iq.cf32`，按实测的块长切块，用同一个提取器量。
@@ -353,7 +353,7 @@ def _acc_psd(res: dict, v: np.ndarray | None) -> None:
 def preset_window(item: dict) -> dict:
     """补充窗（取数之后加的，不判定）：按预设自己的占用带宽与单包时长认合成突发。
 
-    只给 P8：Futaba 录音的角色窗（1.32 MHz、1.93 ms）装不下 S-FHSS 的包（约 0.2 MHz、1.44 ms），
+    只给 P8：Futaba 实测片段的角色窗（1.32 MHz、1.93 ms）装不下 S-FHSS 的包（约 0.2 MHz、1.44 ms），
     按口径三列共用一个窗时合成一侧一个突发也认不出（协议不同，14 §7.1）。"""
     from eval_dataset import scenario as S
     _, raw = S.preset(item["preset"])
@@ -398,7 +398,7 @@ def _measured_job(args):
 
 
 def measured_plan(q0b: dict) -> tuple[list[tuple], dict]:
-    """每段录音一个作业：(清单路径, 批次, data_id, 提取器配置)；另返回每对每列的 data_id 清单。"""
+    """每个实测片段一个作业：(清单路径, 批次, data_id, 提取器配置)；另返回每对每列的 data_id 清单。"""
     ids, hashes, _ = Q.load_holdout()
     index = {b: Q.load_index(b) for b in ("dronerfb", "dronerfa")}
     jobs: dict[str, tuple] = {}
@@ -701,7 +701,7 @@ def verdicts(doc: dict) -> dict:
 # ---------------------------------------------------------------- 诊断（取数之后加的，不判定；报告里解释差距用的数都从这里来）
 
 def _noise_profile(job):
-    """一段录音的前几块：逐频点噪声均值（未占用格），按中位数归一。"""
+    """一个实测片段的前几块：逐频点噪声均值（未占用格），按中位数归一。"""
     path, batch, n_blocks = job
     from iq_format import store
     p = store.open_product(path)
@@ -727,7 +727,7 @@ def _band_profile(freq: np.ndarray, db: np.ndarray, center: float, band: float, 
 
 
 def receiver_profile(recs: list, center: float, band: float, n_blocks: int, workers: int) -> dict:
-    """录音接收机在某频段内的噪声底形状（噪声不经过发射机，只经过接收机）。"""
+    """采集接收机在某频段内的噪声底形状（噪声不经过发射机，只经过接收机）。"""
     with ProcessPoolExecutor(max_workers=workers) as pool:
         res = list(pool.map(_noise_profile, [(r.path, r.batch, n_blocks) for r in recs]))
     fs, fc = res[0][0], res[0][1]
@@ -739,7 +739,7 @@ def receiver_profile(recs: list, center: float, band: float, n_blocks: int, work
 
 def diagnose(pairs_out: list[dict], columns: dict, measured: dict, q0b: dict, workers: int) -> dict:
     """解释差距用的几个数（取数之后加的，不判定）：
-    - 录音接收机的噪声底形状 vs 实测图传平均谱形状（P1：DroneRFb 训练部分背景片；P6：Mavic 3 RF1 录音本身）；
+    - 采集接收机的噪声底形状 vs 实测图传平均谱形状（P1：DroneRFb 训练部分背景片；P6：Mavic 3 RF1 实测片段本身）；
     - P3：实测角色窗里恒包络突发（峰均比 < 4 dB）的占比，与去掉它们之后的峰均比中位数。"""
     idx = {b: Q.load_index(b) for b in ("dronerfb", "dronerfa")}
     out = {"note": "取数之后为解释差距加的诊断，不判定"}
@@ -755,7 +755,7 @@ def diagnose(pairs_out: list[dict], columns: dict, measured: dict, q0b: dict, wo
         sig = np.array([np.nan if v is None else v for v in sh["curves_dB"]["main"]])
         out[pid] = {"receiver_noise": receiver_profile(recs, center, sh["band_Hz"], n_blocks, workers),
                     "measured_signal": _band_profile(grid + center, sig, center, sh["band_Hz"]),
-                    "receiver_source": "DroneRFb 训练部分的背景片" if pid == "p1" else "Mavic 3 的 5.8 GHz 录音（未占用格）"}
+                    "receiver_source": "DroneRFb 训练部分的背景片" if pid == "p1" else "Mavic 3 的 5.8 GHz 实测片段（未占用格）"}
     p3 = next(d for d in pairs_out if d["id"] == "p3")
     rows = [z for d in columns["p3"]["holdout"] for b in measured[d] for z in b["res"].get("p3", {}).get("rows", [])]
     pa = np.array([z["papr_dB"] for z in rows if z["papr_dB"] is not None])
@@ -783,7 +783,7 @@ def analyse_measured(q0b: dict, workers: int, use_cache: bool) -> tuple[dict, di
         with open(cache, "rb") as fh:
             return pickle.load(fh)
     jobs, columns = measured_plan(q0b)
-    print(f"实测：{len(jobs)} 段录音", flush=True)
+    print(f"实测：{len(jobs)} 个实测片段", flush=True)
     with ProcessPoolExecutor(max_workers=workers) as pool:
         res = dict(pool.map(_measured_job, jobs, chunksize=4))
     out = (res, columns)

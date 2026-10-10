@@ -96,7 +96,7 @@ def causes(doc: dict) -> dict[tuple[str, str], str]:
                 f"实测间隔的峰：{_peaks(P[pid]['columns']['main']['interval_peaks_ms'])}。"
                 f"中位数 {_ms(st(pid, 'main', 'interval_s'))} ms 对 {_ms(st(pid, 'synth', 'interval_s'))} ms，KS {c['ks']:.3f}。"
                 "时隙概率当初只按占空与长短突发比例拟合，没有拟合间隔分布。"
-                + ("这一对同源（时序参数就取自这些录音），间隔仍对不上，说明时隙模型本身表达不了实测的间隔分布。"
+                + ("这一对同源（时序参数就取自这些实测片段），间隔仍对不上，说明时隙模型本身表达不了实测的间隔分布。"
                    if not P[pid]["independent"] else ""))
     p1 = P["p1"]
     if p1["verdicts"].get("flatness") == "有差距":
@@ -116,14 +116,14 @@ def causes(doc: dict) -> dict[tuple[str, str], str]:
         if pid == "p1":
             out[(pid, "shape")] = (
                 f"实测平均谱在占用带宽内从低端到高端下降 {sig['low_minus_high_dB']:.2f} dB，合成是平的"
-                f"（均方根差 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB）。录音接收机在同一频段的噪声底下降 "
+                f"（均方根差 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB）。采集接收机在同一频段的噪声底下降 "
                 f"{rx['low_minus_high_dB']:.2f} dB（{d['receiver_source']}，{rx['n_records']} 片），能解释其中一部分；"
                 f"其余约 {sig['low_minus_high_dB'] - rx['low_minus_high_dB']:.1f} dB 的来源没有查明。")
         else:
             out[(pid, "shape")] = (
                 f"实测平均谱中间比两端高 {sig['mid_minus_edges_dB']:.2f} dB（高端比低端再低 "
                 f"{-sig['low_minus_high_dB']:.2f} dB），合成是平的（均方根差 {P[pid]['shape']['synth_vs_main_rms_dB']:.2f} dB）。"
-                f"录音接收机的噪声底中间比两端高 {rx['mid_minus_edges_dB']:.2f} dB（{d['receiver_source']}），能解释其中一部分。")
+                f"采集接收机的噪声底中间比两端高 {rx['mid_minus_edges_dB']:.2f} dB（{d['receiver_source']}），能解释其中一部分。")
     if P["p2"]["verdicts"].get("dur_s") == "有差距":
         rk = cmp("p2", "dur_s")["ref_vs_main"]["ks"]
         out[("p2", "dur_s")] = (
@@ -150,7 +150,7 @@ def causes(doc: dict) -> dict[tuple[str, str], str]:
                 out[(pid, "hops")] = (
                     f"差距在实测两部分之间：验收集 {hm['n_points']} 个点、跨度 {_mhz(hm['span_Hz'])} MHz、最高点 {_mhz(hm['max_Hz'])} MHz；"
                     f"训练部分 {hr['n_points']} 个点、{_mhz(hr['span_Hz'])} MHz、最高点 {_mhz(hr['max_Hz'])} MHz；"
-                    f"合成 {hs['n_points']} 个点、{_mhz(hs['span_Hz'])} MHz，与训练部分一致。验收集的录音没有量到栅格高端的点。")
+                    f"合成 {hs['n_points']} 个点、{_mhz(hs['span_Hz'])} MHz，与训练部分一致。验收集的实测片段里没有量到栅格高端的点。")
             elif pid == "p5":
                 out[(pid, "hops")] = (
                     f"点数 {hm['n_points']} 对 {hs['n_points']}，只差一个；跨度 {_mhz(hm['span_Hz'])} 对 {_mhz(hs['span_Hz'])} MHz。"
@@ -183,7 +183,7 @@ def causes(doc: dict) -> dict[tuple[str, str], str]:
         txt = (f"合成 99% 占用带宽 {st('p7', 'synth', 'obw99_Hz') / 1e3:.0f} kHz，实测 {st('p7', 'main', 'obw99_Hz') / 1e3:.0f} kHz"
                f"（{cmp('p7', 'obw99_Hz')['synth_vs_main']['rel'] * 100:+.1f}%）；−10 dB 宽度 {st('p7', 'synth', 'bw10_Hz') / 1e3:.0f} 对 "
                f"{st('p7', 'main', 'bw10_Hz') / 1e3:.0f} kHz。合成的调制参数取自开源实现里 CC2500 的 FCC 档寄存器"
-               "（GFSK、BT 1、频偏 57.1 kHz）；录音用的是 ACCESS 还是 ACCST D16 没有记录，实际参数可能不同。")
+               "（GFSK、BT 1、频偏 57.1 kHz）；实测数据采集时用的是 ACCESS 还是 ACCST D16 没有记录，实际参数可能不同。")
         for k in ("obw99_Hz", "bw10_Hz"):
             if p7["verdicts"].get(k) == "有差距":
                 out[("p7", k)] = txt
@@ -575,9 +575,9 @@ def pair_section(p: dict, figs: dict) -> str:
     f = figs["pairs"][p["id"]]
     cols = f["cols"]
     sy = p["synthetic"]
-    indep = ("实测主列取<strong>验收集</strong>：这部分录音在数据入库时即冻结，从未用于提取任何参数，对照是独立的。"
+    indep = ("实测主列取<strong>验收集</strong>：这部分实测片段在数据入库时即冻结，从未用于提取任何参数，对照是独立的。"
              if p["independent"] else
-             "这一型没有验收集，实测取<strong>全部</strong>录音；预设里的时序参数正是从这些录音提取的，"
+             "这一型没有验收集，实测一侧取<strong>全部</strong>片段；预设里的时序参数正是从这些片段提取的，"
              "时序一致只说明提取闭合，不是独立证据。")
     win = ""
     if p.get("window"):
@@ -636,7 +636,7 @@ def supplement_table(p: dict) -> str:
     def h(x):
         return "—" if not x.get("n_points") else f"{x['n_points']} 个点，跨度 {x['span_Hz'] / 1e6:.2f} MHz"
     rows += f"<tr><td>跳频点</td><td class=num>{h(hm)}</td><td class=num>{h(hs)}</td></tr>"
-    return (f"<p><strong>补充（取数之后加的，不判定）</strong>：录音的角色窗装不下 S-FHSS 的包，"
+    return (f"<p><strong>补充（取数之后加的，不判定）</strong>：实测片段的角色窗装不下 S-FHSS 的包，"
             f"故另按预设自己的参数认合成突发：−10 dB 宽度 {w['bw10_Hz'] / 1e3:.0f} kHz、单包时长 {w['dur_s'] * 1e3:.3f} ms。"
             "两列是两种协议的实测与合成并排，差别归「协议不同」。</p>"
             f"<table><tr><th>统计量</th><th>{COL_NAME[p['main']]}（T14SG）</th><th>合成（S-FHSS，自身参数）</th></tr>"
@@ -689,7 +689,7 @@ CATEGORY_NAME = {
     "model": "模型结构：要改生成器才能消除",
     "preset": "预设参数：出处不足，可能取错了档",
     "config": "交付配置的选择",
-    "measured": "实测一侧：样本、录音接收机或两部分实测之间",
+    "measured": "实测一侧：样本、采集接收机或两部分实测之间",
     "open": "没有查明",
 }
 CATEGORY = {
@@ -700,15 +700,15 @@ CATEGORY = {
     ("p3", "hops"): ("model", "上行跳频序列在栅格上随机取点；实测是小步跳，频点也不全在栅格上"),
     ("p7", "flatness"): ("model", "GFSK 载荷随机；实测载荷有规律，谱上有窄峰"),
     ("p7", "shape"): ("model", "同上"),
-    ("p7", "obw99_Hz"): ("preset", "FrSky 调制参数按开源实现的 FCC 档推断，录音用的协议档没有记录"),
+    ("p7", "obw99_Hz"): ("preset", "FrSky 调制参数按开源实现的 FCC 档推断，采集时用的协议档没有记录"),
     ("p7", "bw10_Hz"): ("preset", "同上"),
     ("p1", "flatness"): ("config", "交付配置用平坦衰落；打开抽头延迟线（TGn-C…F）后与实测相当"),
     ("p2", "dur_s"): ("measured", "两档突发的比例在实测两部分之间就不同，合成与训练部分一致"),
     ("p4", "hops"): ("measured", "验收集没有量到栅格高端的点，合成与训练部分一致"),
     ("p3", "papr_dB"): ("measured", "实测样本里约三成是恒包络信号；去掉后仍差约 1.3 dB，这部分没有查明"),
     ("p3", "shape"): ("measured", "实测样本混有恒包络信号；实测谱中间高两边低"),
-    ("p1", "shape"): ("open", "录音接收机的频响能解释一部分斜坡，其余没有查明"),
-    ("p6", "shape"): ("open", "录音接收机的频响能解释一部分拱形，其余没有查明"),
+    ("p1", "shape"): ("open", "采集接收机的频响能解释一部分斜坡，其余没有查明"),
+    ("p6", "shape"): ("open", "采集接收机的频响能解释一部分拱形，其余没有查明"),
     ("p5", "shape"): ("open", "实测谱中间略高、边沿更缓"),
     ("p5", "hops"): ("open", "实测多出一个点，推断是同一个点被分成了两簇"),
     ("p7", "interval_s"): ("open", "实测约两成帧没有认出遥控包，是没发还是没认出没有查明"),
@@ -726,9 +726,9 @@ def limits_section(doc: dict) -> str:
     rows = "".join(f"<tr><td>{e(CATEGORY_NAME[c])}</td><td>{'<br>'.join(v)}</td></tr>" for c, v in groups.items() if v)
     items = [f"<table><tr><th>类别</th><th>项与说明</th></tr>{rows}</table>"]
     fixed = [
-        "实测录音带着录制现场的底噪、干扰与接收机特性，具体接收机参数没有公开；本报告只比带内归一后的形状与时序，不比绝对电平。",
+        "实测数据带着采集现场的底噪、干扰与接收机特性，具体接收机参数没有公开；本报告只比带内归一后的形状与时序，不比绝对电平。",
         "5.8 GHz 图传只有 Mavic 3 一型的实测，结论不外推到其他 O3 类机型；Mavic 3 与 Futaba T14SG 没有验收集，对照不独立。",
-        "Futaba 预设按 S-FHSS 协议，而 T14SG 录音的时序与频点结构不是 S-FHSS；这一对的差距归「协议不同」，不归模型误差。",
+        "Futaba 预设按 S-FHSS 协议，而 T14SG 实测数据的时序与频点结构不是 S-FHSS；这一对的差距归「协议不同」，不归模型误差。",
         "DJI 图传 10 MHz 档与 DroneID 在本地实测里没有同型对照，只做了结构自检（第 6 节）。",
         "全部数字是原型阶段验证值：公开数据集只用于验证技术途径，拿到实际接收机的实测数据后按同一程序重跑。",
         "判定线在取数之前写定；「有差距」的项没有为凑近实测去调任何模型参数。验收集此后不用于修改预设。",
@@ -765,11 +765,11 @@ def write(doc: dict, figs: dict) -> str:
     page = f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>真实感对照报告</title><style>{CSS}</style></head><body><main>
-<h1>生成 IQ 与公开实测录音的真实感对照</h1>
+<h1>生成 IQ 与公开实测数据的真实感对照</h1>
 <div class="meta">{REPORT_VERSION} · {REPORT_DATE} · 全部数字为原型阶段验证值</div>
 
 <h2>1. 这份报告回答什么</h2>
-<p>本方生成的无人机信号 IQ，在频谱仪式的统计量上与真实录音差多少。我们用<strong>同一套测量程序</strong>分别量本方的合成段与两个公开数据集里同类机型的录音，逐项给出数、差与判定。判定线在取数之前写定；有差距的项照实列在第 7 节，没有为凑近实测去调模型参数。</p>
+<p>本方生成的无人机信号 IQ，在频谱仪式的统计量上与真实采集的数据差多少。我们用<strong>同一套测量程序</strong>分别量本方的合成段与两个公开数据集里同类机型的实测数据，逐项给出数、差与判定。判定线在取数之前写定；有差距的项照实列在第 7 节，没有为凑近实测去调模型参数。</p>
 <p class="note">「像不像」只是可信性的一半。另一半是「模型有没有按公式算对」，由黄金基准、解析锚点与标准算例证明，见交付包的实现验证摘要。</p>
 
 <h2>2. 一页结论</h2>
@@ -788,7 +788,7 @@ def write(doc: dict, figs: dict) -> str:
 {lines_table}
 <p class="sub">另报每个分布类统计量的 KS 距离与样本数；−3 dB 宽度、带内信噪比、每秒突发数与占空只报数，不判。</p>
 <h3>3.3 对照的独立性</h3>
-<p>预设里有一部分时序参数是从同一批公开数据的<strong>训练部分</strong>提取的。拿训练部分去比，只能说明提取闭合。故主列取<strong>验收集</strong>：数据入库时即冻结、从未用于提取参数或调门限的那部分录音。训练部分并列作参照，两部分实测之间的差可以当作「实测自身的散布」来读。</p>
+<p>预设里有一部分时序参数是从同一批公开数据的<strong>训练部分</strong>提取的。拿训练部分去比，只能说明提取闭合。故主列取<strong>验收集</strong>：数据入库时即冻结、从未用于提取参数或调门限的那部分实测片段。训练部分并列作参照，两部分实测之间的差可以当作「实测自身的散布」来读。</p>
 
 <h2>4. 逐对结果</h2>
 <p class="toc">{toc}</p>
@@ -799,7 +799,7 @@ def write(doc: dict, figs: dict) -> str:
 {variants_section(doc, figs)}
 
 <h2>6. 结构自检（无实测对照）</h2>
-<p>DJI 图传 10 MHz 档与 DroneID 在本地实测里没有同型录音：在 DroneRFb 训练部分 2177 片里按「宽 6.5–11.5 MHz、长 0.35–1.0 ms」粗筛，候选集中在 WiFi 信道上，背景片里也有，DroneID 信道上没有成群的候选。这两项只用同一测量程序量合成段，对出处的数（相对差 ≤ 5% 记一致）。</p>
+<p>DJI 图传 10 MHz 档与 DroneID 在本地的实测数据里没有同型对照：在 DroneRFb 训练部分 2177 片里按「宽 6.5–11.5 MHz、长 0.35–1.0 ms」粗筛，候选集中在 WiFi 信道上，背景片里也有，DroneID 信道上没有成群的候选。这两项只用同一测量程序量合成段，对出处的数（相对差 ≤ 5% 记一致）。</p>
 {selfcheck_section(doc, figs)}
 
 <h2>7. 已知限制</h2>
