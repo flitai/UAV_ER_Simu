@@ -1,7 +1,7 @@
 {
   "schema_version": "cuav-eval-cells/1",
   "set_id": "sample-v1",
-  "name": "试样集 v1",
+  "name": "仿真合成数据样本集 v1",
   "stem_prefix": "sv1",
   "set_seed": 20261004,
   "duration_s": 1.0,
@@ -493,7 +493,7 @@
     },
     {
       "id": "s08",
-      "title": "纯背景：只有接收机噪声与非理想",
+      "title": "纯背景：仅含接收机噪声与接收机非理想效应",
       "receiver": "R1",
       "propagation": "los",
       "s4": {

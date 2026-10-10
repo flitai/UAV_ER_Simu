@@ -2,7 +2,7 @@
   "schema_version": "cuav-eval-dataset-manifest/1",
   "set_id": "sample-v1",
   "cells_file": "tests/regression/eval-dataset/sample-v1.json",
-  "cells_sha256": "432ed12a8f7a5cc6f2592988599b1df1436858e5af69132d5dd42b688e327d96",
+  "cells_sha256": "a2a6084400b69382083b4bde1126fdab61a8322a5fc51a302a9cee4998d115b3",
   "git": {
     "commit": "cab934ea39618765075010c4fa9a7eda9a45adcd",
     "dirty": false,
@@ -12,7 +12,7 @@
   "engine_version": "0.1.0",
   "exporter": "tools/iq_export_sigmf.py 0.3.0",
   "sigmf_version": "1.2.6",
-  "package_bytes": 4493779784,
+  "package_bytes": 4493785608,
   "cells": [
     {
       "id": "s01",
@@ -989,7 +989,7 @@
     },
     {
       "id": "s08",
-      "title": "纯背景：只有接收机噪声与非理想",
+      "title": "纯背景：仅含接收机噪声与接收机非理想效应",
       "receiver": "R1",
       "propagation": "los",
       "s4": {

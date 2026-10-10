@@ -1462,7 +1462,7 @@ def write(doc: dict, figs: dict) -> str:
     toc = "<nav class=toc>" + "".join(f'<div><a href="#{i}">{t}</a></div>' for i, t in toc_items) + "</nav>"
     info = table("", ["项目", "内容"], [
         ["报告名称", e(REPORT_TITLE)], ["版本", REPORT_VERSION], ["日期", REPORT_DATE],
-        ["适用对象", "本方无人机射频 IQ 信号仿真方法及其生成的数据（试样集及后续正式数据集）"],
+        ["适用对象", "本方无人机射频 IQ 信号仿真方法及其生成的数据（仿真合成数据样本集及后续正式数据集）"],
         ["数据状态", "原型阶段验证结果"]], cls="info")
     page = (f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

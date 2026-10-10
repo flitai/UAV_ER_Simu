@@ -318,7 +318,7 @@ def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict
             shutil.copy(os.path.join(src, "examples", f), os.path.join(ex, f))
         from eval_dataset import readme
         with open(os.path.join(pkg, "README.md"), "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(readme.render(doc, records))
+            fh.write(readme.render(doc, records, {"engine_version": state.get("engine_version")}))
     client = {"schema_version": "cuav-eval-dataset-index/1", "set_id": doc["set_id"], "name": doc["name"],
               "duration_s": doc["duration_s"],
               "segments": [{"id": r["id"], "title": r["title"], "receiver": r["receiver"],
