@@ -88,7 +88,7 @@ export function DataIdField(p: { value: string; onChange: (v: string | undefined
         value={p.value}
         onChange={(e) => p.onChange(e.target.value || undefined)}
       >
-        <option value="">（未选录音）</option>
+        <option value="">（未选实测片段）</option>
         {/* 填着的值不在清单里也照样列出来，不静默丢掉用户已经填过的东西 */}
         {!known && p.value && <option value={p.value}>{p.value}（不在清单里）</option>}
         {options.map((r) => <option key={r.data_id} value={r.data_id}>{rowText(r)}</option>)}

@@ -13,7 +13,7 @@ export const PARAM_LABELS: Readonly<Record<string, string>> = {
   offset_Hz: '频偏', amplitude: '幅度', level_dBm: '功率', phase_rad: '初相',
   start_sample: '起始样点', stop_sample: '终止样点', block_samples: '块长',
   power: '噪声功率', power_dBm: '噪声功率',
-  data_id: '录音', max_samples: '最多读取', emit_at_tx_power: '按发射功率定标',
+  data_id: '实测片段', max_samples: '最多读取', emit_at_tx_power: '按发射功率定标',
   report_entities: '上报实体', report_rate_Hz: '上报率', update_rate_Hz: '帧更新率',
   // 混合
   gain_a: 'a 路增益', gain_b: 'b 路增益', min_inputs: '最少输入路数',

@@ -421,8 +421,8 @@ export function planChecks(chain: ChainState, plan: FreqPlan, scenario: Scenario
     let detail = `${N} 个目标 × ${K} 个站，共 ${N * K} 条链路`
     if (replay && (N > 1 || K > 1)) {
       ok = false
-      detail = '实测回放的片段是已经过完整接收链的 S4 数据，它对应一个录制时的站位；'
-        + '同一段录音不能代表多个站点的接收结果；多源多站请使用全合成或混合增强模式'
+      detail = '实测回放的片段是已经过完整接收链的 S4 数据，它对应一个采集时的站位；'
+        + '同一个实测片段不能代表多个站点的接收结果；多源多站请使用全合成或混合增强模式'
     } else if (chain.mode === 'mixed' && K > 1) {
       ok = false
       detail = '混合增强的背景片段同样只对应一个站，K 必须为 1；合成目标那一支可以有多个源'
