@@ -5,6 +5,9 @@
 # **这里能证明什么**：两个目标平台上编得过、311 条 doctest 与 17 条 ctest 全过、
 # 29 份黄金基准在三种编译器下给出同样的数。D3-8 的退出条件就是这些。
 #
+# W-2 起另有两件（D-099）：Windows 引擎静态链接运行库并作为产物上传；用它组单机包的程序部分，
+# 在 Windows 上用包自己的启动器起服务、跑一条链路（package-smoke）。
+#
 # **这里证明不了什么**（都要真机，属 P2 交付阶段）：
 #   · 单机一体化包在干净 Windows 机上安装运行；
 #   · 性能数字——构建机是共享虚拟机，实时因子之类不作数（D-015 / D-016）；
@@ -125,6 +128,49 @@ jobs:
           path: dist/engine/
           if-no-files-found: error
           retention-days: 30
+
+  # 单机包冒烟（W-2，D-099）：用上一步编出的 Windows 引擎组「程序部分」的包（只取 git 里的文件；
+  # 建筑集、底图、实测片段不在 git 里，完整包在开发机上组），再用包自己的便携 Node 与启动器起服务、
+  # 跑一条全合成典型链路。应用服务的单测只在 Linux 上跑，这是服务、引擎与便携 Node 第一次在 Windows 上连起来跑。
+  # **证明不了的**：干净机上缺系统组件（构建机装着 VS）、Edge 的实际渲染、断网——留 W-4 真机。
+  package-smoke:
+    name: 单机包冒烟 (Windows x64)
+    needs: cpp
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 构建前端与应用服务
+        run: |
+          (cd web && npm ci && npm run build)
+          (cd server && npm ci && npm run build)
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cuav_run-win-x64
+          path: dist/engine
+
+      # 便携 Node 从 nodejs.org 下载、按锁定的 sha256 核对（组包可联网，运行不联网，铁律 6）
+      - name: 组程序部分的包
+        run: python deploy/pack.py build --scope program --engine dist/engine --skip-build --out dist/pkg
+
+      - name: 冒烟
+        timeout-minutes: 15
+        run: node deploy/smoke.mjs dist/pkg/cuav-demo-*-win-x64-program
 
   js:
     name: 前端与应用服务 (Linux x64)
