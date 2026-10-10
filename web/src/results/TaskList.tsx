@@ -58,7 +58,7 @@ export function TaskList() {
                   <td className="num">{row.wall}</td>
                   <td className="num">{row.metrics}</td>
                   {/* 用过验收集片段：只标事实两个字，不写解释句（D-056） */}
-                  <td className="name">{row.holdout ? '验收集' : ''}</td>
+                  <td className="name">{row.holdout ? '验证集' : ''}</td>
                   <td className="name">
                     {!isCurrent && (
                       <button type="button" data-action="adopt-task" data-task-id={row.id}

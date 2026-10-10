@@ -177,7 +177,7 @@ class TestRealismCells(unittest.TestCase):
             self.assertEqual((p["fading_delay_spread_ns"], p["fading_k_los_dB"]), (ds, k), m)
 
     def test_snr_targets_follow_training_medians(self):
-        """§7.3 的表：训练部分同组各型中位数的中位数，四舍五入到整数 dB。"""
+        """§7.3 的表：实测样本集同组各型中位数的中位数，四舍五入到整数 dB。"""
         with open(os.path.join(C.ROOT, "data", "iq", "measured", "q0b-params.json"), encoding="utf-8") as fh:
             q0b = json.load(fh)
         groups = {g["group"]: g for g in q0b["sources"][0]["groups"]}

@@ -52,7 +52,7 @@ export function TopBar() {
             <span className="task-id">{s.task.id ?? '无任务'}</span>
             <span className="badge run" data-run-state={s.task.runState ?? 'none'} title={rg.label}>{rg.glyph}</span>
             <span className={`badge result ${rb.tone}${rb.hollow ? ' hollow' : ''}`} data-result={s.task.result ?? 'none'}>{rb.glyph} {rb.text}{rb.suffix}</span>
-            {s.task.holdoutRefs > 0 && <span className="badge note" title="使用了验收集片段">验收集</span>}
+            {s.task.holdoutRefs > 0 && <span className="badge note" title="使用了验证集片段">验证集</span>}
           </span>
         </nav>
       )}

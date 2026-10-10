@@ -22,7 +22,7 @@ OUT_HTML = os.path.join(ROOT, "data", "eval", "realism-v1", "realism-report.html
 REPORT_VERSION = "v1.0"
 REPORT_DATE = "2026-10-10"
 
-# 配色（作图规范的参考色板，浅色）：实测验收集 = 1 号蓝，合成 = 2 号橙，实测训练部分 = 3 号青（虚线，作参照）
+# 配色（作图规范的参考色板，浅色）：实测验证集 = 1 号蓝，合成 = 2 号橙，实测实测样本集 = 3 号青（虚线，作参照）
 C_MAIN, C_SYNTH, C_REF = "#2a78d6", "#eb6834", "#1baf7a"
 INK, INK2, MUTED, GRID, AXIS, SURFACE = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb"
 FONTS = ["PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", "SimHei", "Arial Unicode MS"]
@@ -31,7 +31,7 @@ STAT_NAME = {
     "obw99_Hz": "99% 占用带宽", "bw10_Hz": "−10 dB 宽度", "dur_s": "突发时长", "interval_s": "突发间隔",
     "flatness": "谱平坦度", "papr_dB": "峰均比（CCDF 1e-3）", "bw3_Hz": "−3 dB 宽度", "snr_dB": "带内信噪比",
 }
-COL_NAME = {"holdout": "实测（验收集）", "train": "实测（训练部分）", "all": "实测（全部）", "synth": "合成"}
+COL_NAME = {"holdout": "验证集", "train": "实测样本集", "all": "实测样本集（全部）", "synth": "合成"}
 PRESET_NAME = {
     "dji-video-20m-a": "DJI 图传 20 MHz（A/D/F/G 族时序）", "dji-video-20m-c": "DJI 图传 20 MHz（C/E 族时序）",
     "dji-uplink-1m": "DJI 遥控上行 1.1 MHz 档", "dji-uplink-2m": "DJI 遥控上行 2.2 MHz 档",
@@ -127,10 +127,10 @@ def causes(doc: dict) -> dict[tuple[str, str], str]:
     if P["p2"]["verdicts"].get("dur_s") == "有差距":
         rk = cmp("p2", "dur_s")["ref_vs_main"]["ks"]
         out[("p2", "dur_s")] = (
-            f"C、E 型的图传突发分长短两档（验收集的峰：{_peaks(P['p2']['columns']['main']['dur_peaks_ms'])}；"
-            f"训练部分的峰：{_peaks(P['p2']['columns']['ref']['dur_peaks_ms'])}），两档的比例在实测两部分之间就不同："
-            f"训练部分中位数 {_ms(st('p2', 'ref', 'dur_s'))} ms，验收集 {_ms(st('p2', 'main', 'dur_s'))} ms，两部分之间 KS {rk:.3f}。"
-            f"预设按训练部分取比例，合成中位数 {_ms(st('p2', 'synth', 'dur_s'))} ms 与训练部分一致。")
+            f"C、E 型的图传突发分长短两档（验证集的峰：{_peaks(P['p2']['columns']['main']['dur_peaks_ms'])}；"
+            f"实测样本集的峰：{_peaks(P['p2']['columns']['ref']['dur_peaks_ms'])}），两档的比例在实测两部分之间就不同："
+            f"实测样本集中位数 {_ms(st('p2', 'ref', 'dur_s'))} ms，验证集 {_ms(st('p2', 'main', 'dur_s'))} ms，两部分之间 KS {rk:.3f}。"
+            f"预设按实测样本集取比例，合成中位数 {_ms(st('p2', 'synth', 'dur_s'))} ms 与实测样本集一致。")
     for pid in ("p3", "p4", "p5"):
         c = P[pid]["columns"]
         m, sy = c["main"], c["synth"]
@@ -148,13 +148,13 @@ def causes(doc: dict) -> dict[tuple[str, str], str]:
             hr = c.get("ref", {}).get("hops")
             if pid == "p4" and hr:
                 out[(pid, "hops")] = (
-                    f"差距在实测两部分之间：验收集 {hm['n_points']} 个点、跨度 {_mhz(hm['span_Hz'])} MHz、最高点 {_mhz(hm['max_Hz'])} MHz；"
-                    f"训练部分 {hr['n_points']} 个点、{_mhz(hr['span_Hz'])} MHz、最高点 {_mhz(hr['max_Hz'])} MHz；"
-                    f"合成 {hs['n_points']} 个点、{_mhz(hs['span_Hz'])} MHz，与训练部分一致。验收集的实测片段里没有量到栅格高端的点。")
+                    f"差距在实测两部分之间：验证集 {hm['n_points']} 个点、跨度 {_mhz(hm['span_Hz'])} MHz、最高点 {_mhz(hm['max_Hz'])} MHz；"
+                    f"实测样本集 {hr['n_points']} 个点、{_mhz(hr['span_Hz'])} MHz、最高点 {_mhz(hr['max_Hz'])} MHz；"
+                    f"合成 {hs['n_points']} 个点、{_mhz(hs['span_Hz'])} MHz，与实测样本集一致。验证集的实测片段里没有量到栅格高端的点。")
             elif pid == "p5":
                 out[(pid, "hops")] = (
                     f"点数 {hm['n_points']} 对 {hs['n_points']}，只差一个；跨度 {_mhz(hm['span_Hz'])} 对 {_mhz(hs['span_Hz'])} MHz。"
-                    f"验收集的最小点间隔只有 {_mhz(hm['spacing_min_Hz'], 3)} MHz，远小于约 5 MHz 的栅格，"
+                    f"验证集的最小点间隔只有 {_mhz(hm['spacing_min_Hz'], 3)} MHz，远小于约 5 MHz 的栅格，"
                     "推断是同一个点被分成了两簇，或混进了别的信号。")
             else:
                 out[(pid, "hops")] = (
@@ -490,7 +490,7 @@ def section_summary(doc: dict) -> str:
               for k, v in p["verdicts"].items() if v == "无法比较"]
         rows.append(
             f"<tr><td>{e(p['id'].upper())}</td><td>{e(PRESET_NAME[p['preset']])}</td><td>{e(p['measured'])}</td>"
-            f"<td>{'独立（验收集）' if p['independent'] else '同源'}</td>"
+            f"<td>{'独立（验证集）' if p['independent'] else '同源'}</td>"
             f"<td>{e('、'.join(ok)) or '—'}</td><td>{e('、'.join(gap)) or '—'}"
             f"{('<br><span class=sub>无法比较：' + e('、'.join(na)) + '</span>') if na else ''}</td></tr>")
     return ("<table><tr><th>对</th><th>合成预设</th><th>实测对照</th><th>对照性质</th><th>一致</th><th>有差距</th></tr>"
@@ -519,7 +519,7 @@ def stats_table(p: dict) -> str:
                     f"<td class=num>{fmt_diff(s, c)}</td><td class=num>{'—' if c.get('ks') is None else f'{c['ks']:.3f}'}</td>"
                     f"<td>{badge(c.get('verdict'))}{line}</td></tr>")
     sh = p["shape"]
-    ref_sh = (f"<td class=num>对验收集 {sh['ref_vs_main_rms_dB']:.2f} dB</td>"
+    ref_sh = (f"<td class=num>对验证集 {sh['ref_vs_main_rms_dB']:.2f} dB</td>"
               if "ref" in cols and sh.get("ref_vs_main_rms_dB") is not None else ("<td>—</td>" if "ref" in cols else ""))
     body.append(f"<tr><td>平均谱形<br><span class=sub>占用带宽 {sh['band_Hz'] / 1e6:.3f} MHz 内的 dB 均方根差</span></td>"
                 f"<td>—</td>{ref_sh}<td>—</td><td class=num>"
@@ -567,7 +567,7 @@ def by_class_table(p: dict) -> str:
         f"<tr><td>{c}</td>" + "".join(f"<td class=num>{fmt_summary(s, v[s])}</td>"
                                       for s in ("obw99_Hz", "bw10_Hz", "dur_s", "flatness")) + "</tr>"
         for c, v in p["by_class"].items())
-    return ("<details><summary>分型补充（验收集，只报数）</summary><table><tr><th>型</th><th>99% 占用带宽</th>"
+    return ("<details><summary>分型补充（验证集，只报数）</summary><table><tr><th>型</th><th>99% 占用带宽</th>"
             "<th>−10 dB 宽度</th><th>突发时长</th><th>谱平坦度</th></tr>" + rows + "</table></details>")
 
 
@@ -575,9 +575,9 @@ def pair_section(p: dict, figs: dict) -> str:
     f = figs["pairs"][p["id"]]
     cols = f["cols"]
     sy = p["synthetic"]
-    indep = ("实测主列取<strong>验收集</strong>：这部分实测片段在数据入库时即冻结，从未用于提取任何参数，对照是独立的。"
+    indep = ("实测主列取<strong>验证集</strong>：这部分实测片段在数据入库时即冻结，从未用于提取任何参数，对照是独立的。"
              if p["independent"] else
-             "这一型没有验收集，实测一侧取<strong>全部</strong>片段；预设里的时序参数正是从这些片段提取的，"
+             "这一型没有验证集，实测一侧取<strong>全部</strong>片段；预设里的时序参数正是从这些片段提取的，"
              "时序一致只说明提取闭合，不是独立证据。")
     win = ""
     if p.get("window"):
@@ -654,8 +654,8 @@ def variants_section(doc: dict, figs: dict) -> str:
         rows.append(f"<tr><td>合成：{e(VARIANT_NAME[r['cell']])}</td><td class=num>{fmt_summary('flatness', r['flatness'])}</td>"
                     f"<td class=num>{fmt_diff('flatness', r['flatness_vs_main'])}</td>"
                     f"<td class=num>{'—' if r['shape_rms_dB'] is None else f'{r['shape_rms_dB']:.2f} dB'}</td></tr>")
-    table = ("<table><tr><th>配置</th><th>谱平坦度</th><th>中位数差（对验收集）</th><th>平均谱形均方根差</th></tr>"
-             f"<tr><td>实测（验收集）</td><td class=num>{fmt_summary('flatness', m)}</td><td>—</td><td>—</td></tr>"
+    table = ("<table><tr><th>配置</th><th>谱平坦度</th><th>中位数差（对验证集）</th><th>平均谱形均方根差</th></tr>"
+             f"<tr><td>验证集</td><td class=num>{fmt_summary('flatness', m)}</td><td>—</td><td>—</td></tr>"
              + "".join(rows) + "</table>")
     return table + img_tag(fig_variants(doc, figs), "平坦度归因", "P1 图传逐突发谱平坦度：实测两部分与合成各配置。")
 
@@ -703,8 +703,8 @@ CATEGORY = {
     ("p7", "obw99_Hz"): ("preset", "FrSky 调制参数按开源实现的 FCC 档推断，采集时用的协议档没有记录"),
     ("p7", "bw10_Hz"): ("preset", "同上"),
     ("p1", "flatness"): ("config", "交付配置用平坦衰落；打开抽头延迟线（TGn-C…F）后与实测相当"),
-    ("p2", "dur_s"): ("measured", "两档突发的比例在实测两部分之间就不同，合成与训练部分一致"),
-    ("p4", "hops"): ("measured", "验收集没有量到栅格高端的点，合成与训练部分一致"),
+    ("p2", "dur_s"): ("measured", "两档突发的比例在实测两部分之间就不同，合成与实测样本集一致"),
+    ("p4", "hops"): ("measured", "验证集没有量到栅格高端的点，合成与实测样本集一致"),
     ("p3", "papr_dB"): ("measured", "实测样本里约三成是恒包络信号；去掉后仍差约 1.3 dB，这部分没有查明"),
     ("p3", "shape"): ("measured", "实测样本混有恒包络信号；实测谱中间高两边低"),
     ("p1", "shape"): ("open", "采集接收机的频响能解释一部分斜坡，其余没有查明"),
@@ -727,11 +727,11 @@ def limits_section(doc: dict) -> str:
     items = [f"<table><tr><th>类别</th><th>项与说明</th></tr>{rows}</table>"]
     fixed = [
         "实测数据带着采集现场的底噪、干扰与接收机特性，具体接收机参数没有公开；本报告只比带内归一后的形状与时序，不比绝对电平。",
-        "5.8 GHz 图传只有 Mavic 3 一型的实测，结论不外推到其他 O3 类机型；Mavic 3 与 Futaba T14SG 没有验收集，对照不独立。",
+        "5.8 GHz 图传只有 Mavic 3 一型的实测，结论不外推到其他 O3 类机型；Mavic 3 与 Futaba T14SG 没有验证集，对照不独立。",
         "Futaba 预设按 S-FHSS 协议，而 T14SG 实测数据的时序与频点结构不是 S-FHSS；这一对的差距归「协议不同」，不归模型误差。",
         "DJI 图传 10 MHz 档与 DroneID 在本地实测里没有同型对照，只做了结构自检（第 6 节）。",
         "全部数字是原型阶段验证值：公开数据集只用于验证技术途径，拿到实际接收机的实测数据后按同一程序重跑。",
-        "判定线在取数之前写定；「有差距」的项没有为凑近实测去调任何模型参数。验收集此后不用于修改预设。",
+        "判定线在取数之前写定；「有差距」的项没有为凑近实测去调任何模型参数。验证集此后不用于修改预设。",
     ]
     obs = "".join(f"<li>{e(x)}</li>" for x in observations(doc))
     return ("<h3>7.1 判定为「有差距」的项</h3>" + "".join(items) +
@@ -780,15 +780,20 @@ def write(doc: dict, figs: dict) -> str:
 <ul>
 <li>两侧用同一个测量程序：1024 点汉宁窗时频图，按约 50 µs 一格平滑，以逐频点第 10 百分位为底噪，高出 6 dB 的格算占用；占用格连成分量后在原始样点上精化出逐突发的时长（能量等效）、99% 占用带宽、−10 / −3 dB 宽度、谱平坦度、带内信噪比与峰均比。</li>
 <li>块长两侧相同：DroneRFb 的配对 50 ms 一块，DroneRFa 的配对 0.1 s 一块；合成段按同样的块长切开，间隔只在块内算。</li>
-<li>遥控与上行突发按同一个角色窗认出，三列共用；角色窗取自训练部分，不在验收集上重认。</li>
-<li>DroneRFb 只取视距片。合成段是单源、定点悬停、视距，接收配置与实测相同；信噪比目标取训练部分同组视距突发信噪比的中位数。</li>
+<li>遥控与上行突发按同一个角色窗认出，三列共用；角色窗取自实测样本集，不在验证集上重认。</li>
+<li>DroneRFb 只取视距片。合成段是单源、定点悬停、视距，接收配置与实测相同；信噪比目标取实测样本集同组视距突发信噪比的中位数。</li>
 <li>合成段的链路与交付数据的视距段相同：平坦莱斯衰落（K 9 dB）、本振相位噪声、发射机载频偏差、按实测量得的接收机 IQ 不平衡与直流。</li>
 </ul>
 <h3>3.2 判定线</h3>
 {lines_table}
 <p class="sub">另报每个分布类统计量的 KS 距离与样本数；−3 dB 宽度、带内信噪比、每秒突发数与占空只报数，不判。</p>
 <h3>3.3 对照的独立性</h3>
-<p>预设里有一部分时序参数是从同一批公开数据的<strong>训练部分</strong>提取的。拿训练部分去比，只能说明提取闭合。故主列取<strong>验收集</strong>：数据入库时即冻结、从未用于提取参数或调门限的那部分实测片段。训练部分并列作参照，两部分实测之间的差可以当作「实测自身的散布」来读。</p>
+<p>本报告把公开实测数据分成两部分：</p>
+<ul>
+<li><strong>验证集</strong>：数据入库当天冻结、记下每个片段的内容哈希，从未用于提取参数或标定门限，只用来做独立检验。DroneRFb 的验证集取自出版方测试集，其中每个机型的第 3 架飞机只出现在验证集里。</li>
+<li><strong>实测样本集</strong>：验证集之外的全部实测数据，可以用来观察、提取参数与标定。DroneRFb 出版方训练集是它的主体。</li>
+</ul>
+<p>两部分按片段标识与内容哈希互不相交。预设里有一部分时序参数取自实测样本集，拿它去比只能说明提取闭合，故主列取验证集；实测样本集并列作参照，两部分之间的差可以当作「实测自身的散布」来读。</p>
 
 <h2>4. 逐对结果</h2>
 <p class="toc">{toc}</p>
@@ -799,7 +804,7 @@ def write(doc: dict, figs: dict) -> str:
 {variants_section(doc, figs)}
 
 <h2>6. 结构自检（无实测对照）</h2>
-<p>DJI 图传 10 MHz 档与 DroneID 在本地的实测数据里没有同型对照：在 DroneRFb 训练部分 2177 片里按「宽 6.5–11.5 MHz、长 0.35–1.0 ms」粗筛，候选集中在 WiFi 信道上，背景片里也有，DroneID 信道上没有成群的候选。这两项只用同一测量程序量合成段，对出处的数（相对差 ≤ 5% 记一致）。</p>
+<p>DJI 图传 10 MHz 档与 DroneID 在本地的实测数据里没有同型对照：在 DroneRFb 实测样本集 2177 片里按「宽 6.5–11.5 MHz、长 0.35–1.0 ms」粗筛，候选集中在 WiFi 信道上，背景片里也有，DroneID 信道上没有成群的候选。这两项只用同一测量程序量合成段，对出处的数（相对差 ≤ 5% 记一致）。</p>
 {selfcheck_section(doc, figs)}
 
 <h2>7. 已知限制</h2>

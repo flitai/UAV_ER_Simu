@@ -7,7 +7,7 @@
   "duration_s": 2.0,
   "created_at": "2026-10-10T00:00:00Z",
   "aoi_id": "beijing-yayuncun",
-  "notes": "14 号报告 §7.3 的合成一侧（Q-5，D-096）：每个配对一格，单源、定点悬停、视距，只出 S3、不开 DDC。接收配置与实测相同：DroneRFb 配对 R1（80 MS/s @ 2440 MHz），FrSky 与 Futaba R3（100 MS/s @ 2440 MHz），Mavic 3 的 5.8 GHz 图传 R4（80 MS/s @ 5800 MHz；OFDM 重采样到不了 100 MS/s）。信噪比目标取训练部分同组各型视距核心突发信噪比中位数的中位数，四舍五入到整数 dB，不看验收集。p1-ideal 与 p1-tgn-b…f 是 P1 的归因变体（只报数，不改预设与正式集配置）；TGn 五档的均方根时延扩展与视距 K 取 IEEE 802.11n 信道模型 B–F（K 取 TGac 信道模型附录的目标值）。s1、s2 是结构自检（无实测对照）。",
+  "notes": "14 号报告 §7.3 的合成一侧（Q-5，D-096）：每个配对一格，单源、定点悬停、视距，只出 S3、不开 DDC。接收配置与实测相同：DroneRFb 配对 R1（80 MS/s @ 2440 MHz），FrSky 与 Futaba R3（100 MS/s @ 2440 MHz），Mavic 3 的 5.8 GHz 图传 R4（80 MS/s @ 5800 MHz；OFDM 重采样到不了 100 MS/s）。信噪比目标取实测样本集同组各型视距核心突发信噪比中位数的中位数，四舍五入到整数 dB，不看验证集。p1-ideal 与 p1-tgn-b…f 是 P1 的归因变体（只报数，不改预设与正式集配置）；TGn 五档的均方根时延扩展与视距 K 取 IEEE 802.11n 信道模型 B–F（K 取 TGac 信道模型附录的目标值）。s1、s2 是结构自检（无实测对照）。",
   "site": {
     "id": "site-1",
     "name": "亚运村侦察站",
@@ -97,7 +97,7 @@
     "dc_rel_noise_dB": -40.12,
     "source": {
       "grade": "M",
-      "data": "DroneRFb 训练部分的背景片段（类码 B），逐片量、取中位数",
+      "data": "DroneRFb 实测样本集的背景片段（类码 B），逐片量、取中位数",
       "method": "scripts/eval_dataset/frontend.py：安静帧（功率最低一成）上的 I/Q 标准差比与相关系数、整片均值的模方对安静帧噪声功率之比；按前端不平衡模型精确反解",
       "n_slices": 37,
       "median": {

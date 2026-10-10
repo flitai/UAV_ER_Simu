@@ -22,7 +22,7 @@ export function rowText(r: DatasetRow): string {
   if (r.visibility) bits.push(r.visibility === 'LOS' ? '视距' : r.visibility === 'NLOS' ? '非视距' : r.visibility)
   if (r.distance_text) bits.push(r.distance_text)
   if (r.sample_count) bits.push(`${formatEng(r.sample_count)}样点`)
-  if (r.holdout) bits.push('验收集')
+  if (r.holdout) bits.push('验证集')
   return `${bits.join(' · ')}　${r.data_id}`
 }
 

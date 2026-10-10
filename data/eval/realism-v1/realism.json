@@ -7,7 +7,7 @@
  "inputs": {
   "holdout_manifest_sha256": "13fccdd815abb233405181069e8035facc719f62859dbf48de8b8f1dfbfe5109",
   "q0b_params_sha256": "55b1e47d23782dc99abd6bf47cbeb11a213c943f1bd3a9538d97306b70698a8e",
-  "cells_sha256": "f6417d7833b41d9e82a9c407a374ff05747e7a39f6765dbcf6f7cf116eb8dc8d"
+  "cells_sha256": "dee95ee0702f2584c2111672c54dcd3c959adb070a6c9ce96bde705d60919231"
  },
  "lines": {
   "obw99_Hz": {
@@ -22631,7 +22631,7 @@
     "low_minus_high_dB": 3.49863,
     "mid_minus_edges_dB": -1.20008
    },
-   "receiver_source": "DroneRFb 训练部分的背景片"
+   "receiver_source": "DroneRFb 实测样本集里的背景片"
   },
   "p6": {
    "receiver_noise": {

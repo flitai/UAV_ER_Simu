@@ -39,7 +39,7 @@ export function DatasetDetailPanel() {
         <span className="form-label">{d.data_id}</span>
         <span className="form-value pp-ro">
           <span className={`badge result ${b.tone}`}>{b.glyph} {b.text}</span>
-          {d.holdout && <span className="badge note" data-holdout>验收集</span>}
+          {d.holdout && <span className="badge note" data-holdout>验证集</span>}
         </span>
       </div>
       {rows.map((r) => (

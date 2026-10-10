@@ -79,7 +79,7 @@ test('回放框图：旁挂里是相对路径，事件与 reasons 里的清单�
   assert.equal(r.task.files.resolved, FILE_RESOLVED)
   assert.deepEqual(r.task.data_refs, [{ node_id: 'replay', data_id: FX_IDS.holdout, holdout: true }])
   assert.equal(r.task.warnings.length, 1)
-  assert.match(r.task.warnings[0], /验收集片段 fx_hold_1/)
+  assert.match(r.task.warnings[0], /验证集片段 fx_hold_1/)
   const side = JSON.parse(await fsp.readFile(join(taskDirAbs(mgr.storeConfig, r.task.task_id), FILE_RESOLVED), 'utf8'))
   assert.deepEqual(side, {
     schema_version: 'cuav-resolved/1',

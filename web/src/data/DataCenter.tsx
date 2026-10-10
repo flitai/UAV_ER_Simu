@@ -61,8 +61,8 @@ export function DataCenter() {
           <Facet title="批次" field="batch" counts={st.facets.batch} value={f.batch} onPick={(v) => setFilters({ batch: v })} />
           <Facet title="机型" field="class" counts={st.facets.class_name} value={f.className} onPick={(v) => setFilters({ className: v })} />
           <div className="group ds-facet" data-dataset-facet="holdout">
-            <div className="pp-title">验收集</div>
-            {([['true', '是'], ['false', '否']] as const).map(([k, text]) => (
+            <div className="pp-title">用途</div>
+            {([['true', '验证集'], ['false', '实测样本集']] as const).map(([k, text]) => (
               <button key={k} type="button" className={`ds-facet-row${String(f.holdout) === k ? ' on' : ''}`}
                 data-field="ds-holdout" data-value={k}
                 onClick={() => setFilters({ holdout: String(f.holdout) === k ? undefined : k === 'true' })}>
@@ -74,7 +74,7 @@ export function DataCenter() {
           <div className="group ds-facet" data-dataset-facet="other">
             <div className="pp-title">其它</div>
             <div className="muted ds-note">
-              视距 {fmtCounts(st.facets.visibility, VIS_LABEL)}；划分 {fmtCounts(st.facets.split, SPLIT_LABEL)}
+              视距 {fmtCounts(st.facets.visibility, VIS_LABEL)}；出版方划分 {fmtCounts(st.facets.split, SPLIT_LABEL)}
             </div>
           </div>
         </>}

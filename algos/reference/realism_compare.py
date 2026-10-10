@@ -4,7 +4,7 @@
 口径全部写在 14 号报告 §7.3（先写死，再取数）。本脚本只做三件事：
 
 1. **实测一侧**：按 §7.3 的配对选实测片段（DroneRFb 只取视距片），用 Q-0b 的提取器
-   （`q0b_param_extract.py`，常数一个不改）逐块量突发，分「验收集」「训练部分」「全部」三列。
+   （`q0b_param_extract.py`，常数一个不改）逐块量突发，分「验证集」「实测样本集」「全部」三列。
 2. **合成一侧**：按格子集 `tests/regression/eval-dataset/realism-v1.json` 逐格跑 `cuav_run`（只出 S3），
    读 `s3/iq.cf32`，按实测的块长切块，用同一个提取器量。
 3. **比**：每对每个统计量给三列的数、差、KS 距离与判定；平均谱形给带内 dB 均方根差；跳频点给点数与跨度；
@@ -13,14 +13,14 @@
 本脚本在 Q-0b 的提取之外只加三样东西，都写在这里：逐突发去噪功率谱的平均（`burst_psd`）、
 两样本 KS 距离（`ks_distance`）、按 §7.3 的线判定（`LINES`）。
 
-**选窗与选样本只用训练部分与写死的规则**：遥控 / 上行的角色窗取 `q0b-params.json`（训练部分认出的），
+**选窗与选样本只用实测样本集与写死的规则**：遥控 / 上行的角色窗取 `q0b-params.json`（实测样本集认出的），
 三列共用该对第一型的窗（同一对里各型的窗差不到 0.3%）；代表性时频图取「按 data_id 排序第一个满足条件的块」。
 
 输出：
 - `data/eval/realism-v1/realism.json`（入库）：全部数字、样本清单与判定；不写时间戳与 git 提交，两次运行逐字节相同；
 - 报告由 `realism_report.py` 写成单文件 HTML（`data/eval/realism-v1/realism-report.html`，不入库）。
 
-缓存（`data/tmp/realism/cache/`）：实测一侧按「本脚本 + Q-0b 脚本 + 索引 + 验收集清单」的哈希缓存，
+缓存（`data/tmp/realism/cache/`）：实测一侧按「本脚本 + Q-0b 脚本 + 索引 + 验证集清单」的哈希缓存，
 合成一侧按「本脚本 + Q-0b 脚本 + 框图 + 场景 + 引擎」的哈希逐格缓存；改了任何一样就重算。`--no-cache` 全部重算。
 
 跑法（开发机约 10 分钟；需要 data/iq/measured 与已建好的 engine/build/cuav_run）：
@@ -66,7 +66,7 @@ MHZ = 1e6
 
 # ---------------------------------------------------------------- 14 §7.3 的配对与判定线
 
-# main / ref：主列与参照列取哪部分实测（holdout = 验收集，train = 训练部分，all = 全部）
+# main / ref：主列与参照列取哪部分实测（holdout = 验证集，train = 实测样本集，all = 全部）
 PAIRS = [
     {"id": "p1", "cell": "p1", "preset": "dji-video-20m-a", "kind": "video", "source": "dronerfb_dji",
      "classes": ["A", "D", "F", "G"], "main": "holdout", "ref": "train", "independent": True,
@@ -187,7 +187,7 @@ def q0b_doc() -> dict:
 
 
 def link_window(q0b: dict, pair: dict) -> dict:
-    """该对的角色窗：q0b-params.json 训练部分认出的窗，取该对第一型（DroneRFa 只有一组）。"""
+    """该对的角色窗：q0b-params.json 实测样本集认出的窗，取该对第一型（DroneRFa 只有一组）。"""
     src = next(s for s in q0b["sources"] if s["id"] == pair["source"])
     want = pair["classes"][0] if pair["classes"] else None
     for g in src["groups"]:
@@ -418,7 +418,7 @@ def measured_plan(q0b: dict) -> tuple[list[tuple], dict]:
             train = [r for r in recs if r.data_id not in hold_ids]
         cols = {"holdout": hold, "train": train, "all": [r for r in recs if r.data_id not in hold_ids]}
         if pair["main"] == "all" and hold:
-            raise SystemExit(f"{pair['id']}：主列写的是「全部」，但有 {len(hold)} 片在验收集里——口径与数据不符")
+            raise SystemExit(f"{pair['id']}：主列写的是「全部」，但有 {len(hold)} 片在验证集里——口径与数据不符")
         columns[pair["id"]] = {}
         for col in (pair["main"], pair["ref"]):
             if col is None:
@@ -739,7 +739,7 @@ def receiver_profile(recs: list, center: float, band: float, n_blocks: int, work
 
 def diagnose(pairs_out: list[dict], columns: dict, measured: dict, q0b: dict, workers: int) -> dict:
     """解释差距用的几个数（取数之后加的，不判定）：
-    - 采集接收机的噪声底形状 vs 实测图传平均谱形状（P1：DroneRFb 训练部分背景片；P6：Mavic 3 RF1 实测片段本身）；
+    - 采集接收机的噪声底形状 vs 实测图传平均谱形状（P1：DroneRFb 实测样本集里的背景片；P6：Mavic 3 RF1 实测片段本身）；
     - P3：实测角色窗里恒包络突发（峰均比 < 4 dB）的占比，与去掉它们之后的峰均比中位数。"""
     idx = {b: Q.load_index(b) for b in ("dronerfb", "dronerfa")}
     out = {"note": "取数之后为解释差距加的诊断，不判定"}
@@ -755,7 +755,7 @@ def diagnose(pairs_out: list[dict], columns: dict, measured: dict, q0b: dict, wo
         sig = np.array([np.nan if v is None else v for v in sh["curves_dB"]["main"]])
         out[pid] = {"receiver_noise": receiver_profile(recs, center, sh["band_Hz"], n_blocks, workers),
                     "measured_signal": _band_profile(grid + center, sig, center, sh["band_Hz"]),
-                    "receiver_source": "DroneRFb 训练部分的背景片" if pid == "p1" else "Mavic 3 的 5.8 GHz 实测片段（未占用格）"}
+                    "receiver_source": "DroneRFb 实测样本集里的背景片" if pid == "p1" else "Mavic 3 的 5.8 GHz 实测片段（未占用格）"}
     p3 = next(d for d in pairs_out if d["id"] == "p3")
     rows = [z for d in columns["p3"]["holdout"] for b in measured[d] for z in b["res"].get("p3", {}).get("rows", [])]
     pa = np.array([z["papr_dB"] for z in rows if z["papr_dB"] is not None])

@@ -38,9 +38,9 @@ test('采用任务：已结束以 since = last_seq 订阅，运行中以 0', () 
 
 test('新建任务重置信号、日志与丢帧计数并给一条提示', () => {
   let s = reducer(s0(), { type: 'log/client', level: 'info', message: 'x' })
-  s = reducer(s, { type: 'task/created', record: rec({ warnings: ['使用了验收集片段'] }) })
+  s = reducer(s, { type: 'task/created', record: rec({ warnings: ['使用了验证集片段'] }) })
   assert.equal(s.log.ring.length, 0); assert.equal(s.ws.dropped, 0); assert.equal(s.context.taskId, 't1')
-  assert.match(s.ui.toasts[0]!.text, /已提交任务 t1；使用了验收集片段/)
+  assert.match(s.ui.toasts[0]!.text, /已提交任务 t1；使用了验证集片段/)
 })
 
 test('task.state 开始与结束：时长、观测点、结果态与提示', () => {

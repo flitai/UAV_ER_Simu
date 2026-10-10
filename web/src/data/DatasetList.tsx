@@ -23,7 +23,7 @@ export function DatasetList() {
       <div className="site-table-wrap det-table-wrap">
         <table className="site-table det-table" data-dataset-table>
           <thead>
-            <tr><th>标识</th><th>机型</th><th>批次</th><th>视距</th><th>距离</th><th>中心频率</th><th>样点数</th><th>质量</th><th>验收集</th></tr>
+            <tr><th>标识</th><th>机型</th><th>批次</th><th>视距</th><th>距离</th><th>中心频率</th><th>样点数</th><th>质量</th><th>验证集</th></tr>
           </thead>
           <tbody>
             {st.items.map((r) => {
@@ -40,7 +40,7 @@ export function DatasetList() {
                   <td className="num">{c.center}</td>
                   <td className="num">{c.samples}</td>
                   <td className="name"><span className={`badge result ${b.tone}`} data-quality={c.quality}>{b.glyph} {b.text}</span></td>
-                  <td className="name">{c.holdout ? '验收集' : ''}</td>
+                  <td className="name">{c.holdout ? '验证集' : ''}</td>
                 </tr>
               )
             })}

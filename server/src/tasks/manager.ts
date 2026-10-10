@@ -691,7 +691,7 @@ export async function prepareDiagram(
     }
     resolvedData = r.data
     for (const x of refs) dataRefs.push({ ...x, holdout: r.holdout.includes(x.data_id) })
-    for (const id of r.holdout) warnings.push(`验收集片段 ${id} 用于回放：只作演示，不得据此调参（D-038）`)
+    for (const id of r.holdout) warnings.push(`验证集片段 ${id} 用于回放：只作演示，不得据此调参（D-038）`)
   }
 
   // scenario_id 解析 → 旁挂的 scenarios 段（G-2）。与 data_id 同法：框图只写标识，路径不进框图（D-037）。

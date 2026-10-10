@@ -41,7 +41,7 @@ export function TaskSummary() {
       {rec.data_refs.length > 0 && (
         <div className="form-row pp-line" data-summary-row="data">
           <span className="form-label">实测数据</span>
-          <span className="form-value pp-ro">{rec.data_refs.map((d) => `${d.data_id}${d.holdout ? '（验收集）' : ''}`).join('、')}</span>
+          <span className="form-value pp-ro">{rec.data_refs.map((d) => `${d.data_id}${d.holdout ? '（验证集）' : ''}`).join('、')}</span>
         </div>
       )}
       {metrics.length > 0 && (
