@@ -12,7 +12,7 @@
   "engine_version": "0.1.0",
   "exporter": "tools/iq_export_sigmf.py 0.4.0",
   "sigmf_version": "1.2.6",
-  "package_bytes": 48403543594,
+  "package_bytes": 48403544236,
   "cells": [
     {
       "id": "v10-los-p30",
@@ -14933,7 +14933,7 @@
     }
   },
   "docs": {
-    "commit": "2ccdb4a594dedf7da9891b0ad9d3ad946f1c1247",
+    "commit": "f38822d945752cbd1b12d0a32e4bf66a3c3647ee",
     "note": "说明类交付件（README、index.json、SHA512SUMS）按这一提交重出；数据未重新生成"
   },
   "reproduce": [
