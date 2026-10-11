@@ -35,6 +35,9 @@ data/iq/measured/*/*.manifest.json
 # Q-0b 实测参数（14 报告 §7.1）：小文件，入库；由 algos/reference/q0b_param_extract.py 生成。
 # 波形预设表（Q-2 / Q-3）的 M 档参数引它作出处，不入库的话出处在别的机器上指向一个不存在的文件
 !data/iq/measured/q0b-params.json
+# 图传数值结构的盲估计（D-102，14 报告 §2.7）：小文件，入库；由 algos/reference/cp_numerology.py 生成。
+# 预设表 v2 的数值结构出处与 tests/unit/test_radiator_presets.py 引它
+!data/iq/measured/cp-numerology.json
 # Q-5 真实感对照的结果（14 报告 §7.3–§7.4）：小文件，入库；由 algos/reference/realism_compare.py 生成。
 # 报告 realism-report.html 不入库（图内嵌，约几 MB），同一脚本逐字节重生成
 !data/eval/*/realism.json
