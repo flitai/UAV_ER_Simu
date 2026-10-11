@@ -267,8 +267,9 @@ def truth_rows_match(doc: dict, run_dir: str, pkg_data: str, res: list[dict]) ->
     n = r3["samples"]
     site = doc["site"]["id"]
     want = []
-    with open(os.path.join(run_dir, "truth.jsonl"), encoding="utf-8") as fh:
-        for line in fh:
+    truth = os.path.join(run_dir, "truth.jsonl")
+    with open(truth, encoding="utf-8") if os.path.exists(truth) else open(os.devnull, encoding="utf-8") as fh:
+        for line in fh:                                  # 纯背景段没有发射，引擎不写 truth.jsonl：按零行
             t = json.loads(line)
             if t.get("site_id") not in (None, site):
                 continue
@@ -453,6 +454,34 @@ def _annotation_diff(meta_a: str, meta_b: str) -> dict:
             "length_delta_samples": [min(d), max(d)] if d else None}
 
 
+def snr_diff_distribution(doc: dict, base: str, records: list[dict]) -> dict:
+    """主辐射源逐条注记的「数据实测带内信噪比 − 链路预算带内信噪比」（S3，dB），按传播分组给分位数。
+    实测为 null 的注记（同时同频、跨越或不在可用频带）不计。14 §10.1 的 Q-6 验收项：分布写进数据说明。"""
+    cells = {c["id"]: c for c in doc["cells"]}
+    groups: dict = {"los": [], "nlos": []}
+    for r in records:
+        c = cells[r["id"]]
+        prim = {p["primary"] for p in c["platforms"] if not p.get("off")}
+        if not prim:
+            continue
+        stem = next(o["stem"] for o in r["ops"] if o["op_id"] == "s3")
+        with open(os.path.join(base, "package", "data", stem + ".sigmf-meta"), encoding="utf-8") as fh:
+            ann = json.load(fh)["annotations"]
+        for a in ann:
+            if a.get("cuav:emitter_id") in prim and a.get("cuav:snr_measured_dB") is not None:
+                groups[c["propagation"]].append(a["cuav:snr_measured_dB"] - a["cuav:snr_dB"])
+
+    def q(xs: list[float], f: float) -> float:
+        xs = sorted(xs)
+        k = f * (len(xs) - 1)
+        i = int(math.floor(k))
+        return xs[i] + (xs[min(i + 1, len(xs) - 1)] - xs[i]) * (k - i)
+
+    return {k: ({"n": len(v), "p05": round(q(v, 0.05), 2), "p25": round(q(v, 0.25), 2), "median": round(q(v, 0.5), 2),
+                 "p75": round(q(v, 0.75), 2), "p95": round(q(v, 0.95), 2)} if v else {"n": 0})
+            for k, v in groups.items()}
+
+
 def verify_random(doc: dict, base: str, share: float) -> dict:
     """随机抽 share 比例的格子（至少一格，按集合种子抽、可复现）重跑并逐字节比对（Q-6 的验收项）。"""
     import random
@@ -508,7 +537,8 @@ def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict
                 "package_bytes": sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(pkg) for f in fs
                                      if not is_mac_junk(os.path.relpath(os.path.join(d, f), pkg).replace(os.sep, "/"))),
                 "cells": records,
-                **({k: (extra or {})[k] for k in ("presets_version", "verify", "sample_relation") if (extra or {}).get(k)}),
+                **({k: (extra or {})[k] for k in ("presets_version", "verify", "sample_relation", "snr_diff", "docs")
+                    if (extra or {}).get(k)}),
                 "reproduce": [f"uv run --quiet --with numpy --with sigmf --with matplotlib python scripts/gen_eval_dataset.py run --set {doc['set_id']}"]}
     with open(os.path.join(base, "dataset.manifest.json"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
@@ -547,6 +577,7 @@ def cmd_run(a) -> int:
         if doc.get("purpose") == "formal":
             extra["presets_version"] = presets_summary(records)
             extra["sample_relation"] = sample_relation(doc, records)
+            extra["snr_diff"] = snr_diff_distribution(doc, base, records)
             print(f"随机抽 {a.verify_share:.0%} 重跑比对 …", flush=True)
             extra["verify"] = verify_random(doc, base, a.verify_share)
             for cid, b in extra["verify"]["mismatched"].items():
@@ -559,6 +590,31 @@ def cmd_run(a) -> int:
         for f in fails:
             print(f"  {f}")
         return 1
+    return 0
+
+
+def cmd_rerender(a) -> int:
+    """只重出说明类交付件（README、index.json、SHA512SUMS 与内部清单），不重跑数据（同 D-101 的做法）。
+
+    生成时的提交、引擎哈希与各段记录照抄清单；另记 `docs.commit`（重出说明时的提交）。数据文件、元数据、
+    链路文件与预览图一个字节不动，重出后整包对 SHA512SUMS 全部核对一遍。"""
+    doc = C.load(a.set)
+    base = out_dir(doc["set_id"])
+    with open(os.path.join(base, "dataset.manifest.json"), encoding="utf-8") as fh:
+        man = json.load(fh)
+    state = {"git": man["git"], "engine_sha256": man["cuav_run_sha256"], "engine_version": man["engine_version"]}
+    extra = {k: man[k] for k in ("presets_version", "verify", "sample_relation", "snr_diff") if k in man}
+    if doc.get("purpose") == "formal":
+        extra["snr_diff"] = snr_diff_distribution(doc, base, man["cells"])
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    extra["docs"] = {"commit": head, "note": "说明类交付件（README、index.json、SHA512SUMS）按这一提交重出；数据未重新生成"}
+    before = {f["name"]: f["sha512"] for r in man["cells"] for o in r["ops"] for f in o["files"]}
+    _write_package_extras(doc, base, man["cells"], state, extra)
+    pkg = os.path.join(base, "package")
+    bad = [n for n, h in before.items() if _sha(os.path.join(pkg, n), "sha512") != h]
+    if bad:
+        raise SystemExit(f"重出说明时数据文件变了：{bad[:5]}")
+    print(f"重出 {os.path.relpath(pkg, ROOT)} 的 README、index.json 与 SHA512SUMS；{len(before)} 个数据与预览文件未变")
     return 0
 
 
@@ -700,6 +756,9 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--verify-share", type=float, default=0.05,
                    help="正式集：整集生成后随机抽这一比例的格子重跑比对（缺省 0.05，按集合种子抽）")
     q.set_defaults(func=cmd_run)
+    rr = sub.add_parser("rerender", help="只重出 README、index.json 与 SHA512SUMS（不重跑数据）")
+    rr.add_argument("--set", required=True)
+    rr.set_defaults(func=cmd_rerender)
     k = sub.add_parser("pack", help="核对交付包并打成确定性 zip（供转交）")
     k.add_argument("--set", required=True)
     k.set_defaults(func=cmd_pack)
