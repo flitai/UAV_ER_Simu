@@ -15,10 +15,17 @@ ROOT = os.path.dirname(os.path.dirname(_HERE))
 CELLS_DIR = os.path.join(ROOT, "tests", "regression", "eval-dataset")
 
 TOP_KEYS = {"schema_version", "set_id", "name", "stem_prefix", "set_seed", "duration_s", "created_at", "aoi_id",
-            "notes", "site", "receivers", "chain", "propagation", "cfo", "frontend_measured", "cells"}
-CELL_KEYS = {"id", "title", "receiver", "propagation", "s4", "plan_allow", "platforms", "duration_s", "impairments"}
+            "notes", "site", "receivers", "chain", "propagation", "cfo", "frontend_measured", "cells", "purpose",
+            "omitted"}
+CELL_KEYS = {"id", "title", "receiver", "propagation", "s4", "plan_allow", "platforms", "duration_s", "impairments",
+             "seed_from", "group"}
 PLATFORM_KEYS = {"id", "name", "platform_type", "alt_m", "azimuth_deg", "snr_dB", "primary", "emitters", "search",
-                 "range_m", "off", "resolved"}
+                 "range_m", "off", "resolved", "power_reduction"}
+PURPOSES = ("sample", "formal")
+# seed_from 的格子要与来源格逐字节生成同样的数据：这些集合级的键必须两边相同（正式集 Q-6，D-102）
+GEN_KEYS = ("duration_s", "aoi_id", "site", "receivers", "chain", "propagation", "cfo", "frontend_measured")
+# 来源格与本格可以不同的键：标识、标题、分组与 seed_from 本身；其余（接收配置、S4、平台与冻结位置）都要相同
+SEED_FROM_FREE = {"id", "title", "group", "seed_from"}
 EMITTER_KEYS = {"id", "name", "equipment_model", "preset", "waveform", "center_Hz", "bw_Hz", "tx_power_dBm",
                 "antenna_gain_dBi", "frame_offset_s"}
 
@@ -31,16 +38,57 @@ def path_of(set_id: str) -> str:
     return os.path.join(CELLS_DIR, f"{set_id}.json")
 
 
-def load(set_id: str) -> dict:
+def load(set_id: str, _depth: int = 0) -> dict:
     with open(path_of(set_id), encoding="utf-8") as fh:
         doc = json.load(fh)
     validate(doc)
+    if _depth == 0:
+        check_seed_from(doc)
     return doc
+
+
+def seed_basis(doc: dict, cell: dict) -> tuple[int, str]:
+    """派生种子用的（集合种子，格子标识）。
+
+    缺省是本集合的种子与本格标识；`seed_from: {set, cell, set_seed}` 的格子沿用来源格的，
+    于是与来源格逐字节生成同样的数据（正式集包含样本集，D-102）。"""
+    sf = cell.get("seed_from")
+    if sf:
+        return int(sf["set_seed"]), str(sf["cell"])
+    return int(doc["set_seed"]), str(cell["id"])
+
+
+def check_seed_from(doc: dict) -> None:
+    """seed_from 的格子：来源集合的生成参数与来源格的内容（标识、标题、分组除外）都必须与本格相同，
+    否则同一组种子生成的就不是同一份数据。"""
+    sources: dict[str, dict] = {}
+    for c in doc["cells"]:
+        sf = c.get("seed_from")
+        if not sf:
+            continue
+        if set(sf) != {"set", "cell", "set_seed"}:
+            raise CellError(f"格子 {c['id']} 的 seed_from 应恰有 set、cell、set_seed 三个键")
+        src = sources.get(sf["set"]) or load(sf["set"], _depth=1)
+        sources[sf["set"]] = src
+        if src["set_seed"] != sf["set_seed"]:
+            raise CellError(f"格子 {c['id']}：seed_from.set_seed {sf['set_seed']} 与 {sf['set']} 的 {src['set_seed']} 不同")
+        for k in GEN_KEYS:
+            if src.get(k) != doc.get(k):
+                raise CellError(f"格子 {c['id']}：集合级的 {k} 与来源集合 {sf['set']} 不同，生成的数据不会相同")
+        sc = next((x for x in src["cells"] if x["id"] == sf["cell"]), None)
+        if sc is None:
+            raise CellError(f"格子 {c['id']}：来源集合 {sf['set']} 里没有格子 {sf['cell']}")
+        a = {k: v for k, v in c.items() if k not in SEED_FROM_FREE}
+        b = {k: v for k, v in sc.items() if k not in SEED_FROM_FREE}
+        if a != b:
+            diff = sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
+            raise CellError(f"格子 {c['id']} 与来源格 {sf['set']}/{sf['cell']} 在 {diff} 上不同")
 
 
 def save(doc: dict) -> None:
     """规范序列化：两格缩进、保留中文、末尾换行（与场景文件同一形式）。"""
     validate(doc)
+    check_seed_from(doc)
     with open(path_of(doc["set_id"]), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(doc, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
 
@@ -55,6 +103,8 @@ def validate(doc: dict) -> None:
     if doc.get("schema_version") != "cuav-eval-cells/1":
         raise CellError("schema_version 应为 cuav-eval-cells/1")
     _keys(doc, TOP_KEYS, "格子文件")
+    if doc.get("purpose", "sample") not in PURPOSES:
+        raise CellError(f"purpose 只能是 {PURPOSES}（缺省 sample）")
     seen = set()
     for c in doc["cells"]:
         _keys(c, CELL_KEYS, f"格子 {c.get('id')}")

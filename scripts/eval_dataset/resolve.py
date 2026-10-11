@@ -100,45 +100,100 @@ def resolve_los(doc: dict, cell: dict, p: dict) -> dict:
     raise RuntimeError(f"格子 {cell['id']} 平台 {p['id']}：迭代 8 次没收敛到 0.01 dB")
 
 
-def resolve_nlos(doc: dict, cell: dict, p: dict) -> dict:
+def resolve_nlos(doc: dict, cell: dict, p: dict, avoid: list[tuple[float, float]] | None = None) -> dict:
+    """在格子高度上按环搜索被楼挡住、刀口损耗不低于下限的点，取预算信噪比最接近目标的一个。
+
+    正式集（D-104）另有三项，样本集的格子不用：
+    - `altitudes_m`：依次试这些高度，取第一个能在容差内对上目标的；
+    - `max_tx_power_dBm`：所有高度在标称功率下都对不上时，选所需上调最小的高度，把发射功率上调到恰好够
+      （向上取到 0.1 dB），不超过该值；上调量记在 `power_raise_dB`；
+    - `min_separation_m`：与本格已解出的平台的水平距离不小于该值（多源格免得几个平台解到同一个点）。"""
     site = doc["site"]
     e = _primary(p)
     s = p["search"]
     r0, r1, dr = s["range_m"]
-    cand = []
-    k = 0
-    while r0 + k * dr <= r1 + 1e-9:
-        rng = r0 + k * dr
-        for a in range(0, 360, int(s.get("azimuth_step_deg", 1))):
-            lon, lat = S.lonlat_at(site, float(a), rng, p["alt_m"])
-            cand.append((rng, float(a), lon, lat))
-        k += 1
-    res = field_points(doc, cell, e["id"], doc["propagation"][cell["propagation"]]["prop_level"],
-                       [[c[2], c[3], p["alt_m"]] for c in cand])
-    best = None
-    for c, r in zip(cand, res):
-        if r["line_of_sight"] or not r["valid"] or r["diffraction_dB"] < s["min_diffraction_dB"]:
-            continue
-        d = abs(_budget_snr(doc, e, r["path_loss_dB"]) - p["snr_dB"])
-        key = (round(d, 9), c[0], c[1])
-        if best is None or key < best[0]:
-            best = (key, c, r)
-    if best is None or best[0][0] > s["tol_dB"]:
-        got = "没有满足条件的点" if best is None else f"最接近的差 {best[0][0]:.3f} dB"
-        raise RuntimeError(f"格子 {cell['id']} 平台 {p['id']}：非视距搜索失败（{got}，线 {s['tol_dB']} dB）")
+    a0, a1 = s.get("azimuth_range_deg", [0, 360])
+    alts = s.get("altitudes_m", [p["alt_m"]])
+    sep = float(s.get("min_separation_m", 0.0))
+    nominal = _budget_snr(doc, e, 0.0)
+    per_alt = []
+    for alt in alts:
+        cand = []
+        k = 0
+        while r0 + k * dr <= r1 + 1e-9:
+            rng = r0 + k * dr
+            for a in range(int(a0), int(a1), int(s.get("azimuth_step_deg", 1))):
+                lon, lat = S.lonlat_at(site, float(a), rng, alt)
+                if sep and any(_dist_m(lon, lat, q) < sep for q in (avoid or [])):
+                    continue
+                cand.append((rng, float(a), lon, lat))
+            k += 1
+        res = field_points(doc, cell, e["id"], doc["propagation"][cell["propagation"]]["prop_level"],
+                           [[c[2], c[3], alt] for c in cand])
+        ok = [(c, r, nominal - r["path_loss_dB"]) for c, r in zip(cand, res)
+              if not r["line_of_sight"] and r["valid"] and r["diffraction_dB"] >= s["min_diffraction_dB"]]
+        per_alt.append((alt, ok, len(cand)))
+
+    def pick(ok: list, raise_dB: float):
+        best = None
+        for c, r, snr in ok:
+            d = abs(snr + raise_dB - p["snr_dB"])
+            key = (round(d, 9), c[0], c[1])
+            if best is None or key < best[0]:
+                best = (key, c, r)
+        return best
+
+    for alt, ok, n in per_alt:                           # 先在标称功率下依次试各高度
+        best = pick(ok, 0.0)
+        if best is not None and best[0][0] <= s["tol_dB"]:
+            return _finish(doc, e, p, best, alt, 0.0, n * len(alts))
+    cap = s.get("max_tx_power_dBm")
+    if cap is not None:                                  # 都对不上：选所需上调最小的高度
+        tops = [(p["snr_dB"] - max(x[2] for x in ok), -alt, alt, ok, n) for alt, ok, n in per_alt if ok]
+        if tops:
+            need, _, alt, ok, n = min(tops)
+            raise_dB = math.ceil(need * 10 - 1e-9) / 10
+            if 0 < raise_dB and e["tx_power_dBm"] + raise_dB <= cap + 1e-9:
+                best = pick(ok, raise_dB)
+                if best is not None and best[0][0] <= s["tol_dB"]:
+                    return _finish(doc, e, p, best, alt, raise_dB, n * len(alts))
+    tops = [f"{alt} m 最高 {max(x[2] for x in ok):.1f} dB" for alt, ok, _ in per_alt if ok] or ["没有满足条件的点"]
+    raise RuntimeError(f"格子 {cell['id']} 平台 {p['id']}：非视距搜索失败（目标 {p['snr_dB']} dB；标称功率下 {'，'.join(tops)}；"
+                       f"线 {s['tol_dB']} dB）")
+
+
+def _dist_m(lon: float, lat: float, q: tuple[float, float]) -> float:
+    import aoa_fix
+    e, n, _ = aoa_fix.to_enu(aoa_fix.lla_to_ecef(lon, lat, 0.0), (q[0], q[1], 0.0))
+    return math.hypot(e, n)
+
+
+def _finish(doc: dict, e: dict, p: dict, best, alt: float, raise_dB: float, n_points: int) -> dict:
     _, c, r = best
     out = _record(doc, e, c[2], c[3], r, c[0], c[1])
-    out["search_points"] = len(cand)
+    if raise_dB:
+        out["snr_budget_dB"] = round(out["snr_budget_dB"] + raise_dB, 4)
+        out["power_raise_dB"] = raise_dB
+    if "altitudes_m" in p["search"]:
+        out["alt_m"] = alt
+    out["search_points"] = n_points
     return out
 
 
-def resolve_cell(doc: dict, cell: dict) -> None:
+def resolve_cell(doc: dict, cell: dict, missing_only: bool = False) -> None:
+    if cell.get("seed_from"):
+        return                                           # 位置随来源格，已在格子文件里（cells.check_seed_from 核过）
+    placed: list[tuple[float, float]] = [(p["resolved"]["lon"], p["resolved"]["lat"]) for p in cell["platforms"]
+                                          if p.get("resolved")]
     for p in cell["platforms"]:
+        if missing_only and p.get("resolved"):
+            continue
         if p.get("off"):
             lon, lat = S.lonlat_at(doc["site"], float(p["azimuth_deg"]), float(p["range_m"]), p["alt_m"])
             p["resolved"] = {"lon": lon, "lat": lat, "range_m": float(p["range_m"]),
                              "azimuth_deg": float(p["azimuth_deg"])}
         elif "search" in p:
-            p["resolved"] = resolve_nlos(doc, cell, p)
+            p["resolved"] = resolve_nlos(doc, cell, p, avoid=placed)
         else:
             p["resolved"] = resolve_los(doc, cell, p)
+        placed.append((p["resolved"]["lon"], p["resolved"]["lat"]))

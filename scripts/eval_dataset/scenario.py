@@ -110,6 +110,12 @@ def _hop_activity(e: dict, scenario_seed: int, duration_s: float) -> tuple[dict,
     return None
 
 
+def tx_power_dBm(platform: dict, emitter: dict) -> float:
+    """辐射源的发射功率：格子里写的值，加上非视距搜索冻结的上调量（正式集，D-104）。"""
+    raise_dB = (platform.get("resolved") or {}).get("power_raise_dB", 0.0)
+    return round(emitter["tx_power_dBm"] + raise_dB, 1) if raise_dB else emitter["tx_power_dBm"]
+
+
 def manifest_sha256(aoi_id: str) -> str:
     with open(os.path.join(ROOT, "data", "scene", aoi_id, "manifest.json"), "rb") as fh:
         return hashlib.sha256(fh.read()).hexdigest()
@@ -122,7 +128,8 @@ def scenario_id(doc: dict, cell: dict) -> str:
 def build(doc: dict, cell: dict, positions: dict[str, tuple[float, float, float]] | None = None) -> dict:
     """一格的场景。positions：平台 id → (经度, 纬度, 离地高)；缺省取格子文件里冻结的 resolved。"""
     site, rcv = doc["site"], doc["receivers"][cell["receiver"]]
-    sseed = seeds.derive(doc["set_seed"], cell["id"], "scenario")
+    set_seed, seed_cell = cells.seed_basis(doc, cell)
+    sseed = seeds.derive(set_seed, seed_cell, "scenario")
     emitters, acts = [], []
     for p in cell["platforms"]:
         if positions and p["id"] in positions:
@@ -131,9 +138,9 @@ def build(doc: dict, cell: dict, positions: dict[str, tuple[float, float, float]
             r = p.get("resolved")
             if not r:
                 raise ValueError(f"格子 {cell['id']} 平台 {p['id']} 还没有解算位置（先跑 gen_eval_dataset.py resolve）")
-            lon, lat, alt = r["lon"], r["lat"], p["alt_m"]
+            lon, lat, alt = r["lon"], r["lat"], r.get("alt_m", p["alt_m"])   # 正式集的非视距搜索可能改了高度
         cfo = None if p.get("off") or not impaired(cell) else \
-            seeds.cfo_ppm(doc["set_seed"], cell["id"], p["id"], doc["cfo"]["max_ppm"])
+            seeds.cfo_ppm(set_seed, seed_cell, p["id"], doc["cfo"]["max_ppm"])
         for e in p["emitters"]:
             em: dict = {}
             if "preset" in e:
@@ -150,7 +157,7 @@ def build(doc: dict, cell: dict, positions: dict[str, tuple[float, float, float]
             else:
                 wf = dict(e["waveform"])
                 em = {"center_Hz": _n(float(e["center_Hz"])), "bw_Hz": _n(float(e["bw_Hz"]))}
-            em["tx_power_dBm"] = e["tx_power_dBm"]
+            em["tx_power_dBm"] = tx_power_dBm(p, e)
             em["antenna_gain_dBi"] = e["antenna_gain_dBi"]
             if cfo:
                 em["cfo_ppm"] = cfo
@@ -228,7 +235,7 @@ def chain_spec(doc: dict, cell: dict, scenario_rel: str) -> dict:
         "diagram_id": f"eval-{doc['set_id']}-{cell['id']}",
         "name": f"{doc['name']} · {cell['id']} {cell['title']}",
         "scenario": scenario_rel,
-        "run": {"duration_s": cells.duration_s(doc, cell), "seed": seeds.derive(doc["set_seed"], cell["id"], "run")},
+        "run": {"duration_s": cells.duration_s(doc, cell), "seed": seeds.derive(*cells.seed_basis(doc, cell), "run")},
         "slots": slots,
         "taps": taps,
         "iq": list(taps),

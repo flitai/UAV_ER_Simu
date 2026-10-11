@@ -209,3 +209,76 @@ class TestRealismCells(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestFormalCells(unittest.TestCase):
+    """正式集（Q-6，D-104）：矩阵展开、样本集并入、地平线限距与非视距功率上调两条规则。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.doc = C.load("formal-v1")
+        cls.cell = {c["id"]: c for c in cls.doc["cells"]}
+
+    def test_matrix_counts_and_omitted(self):
+        kinds = {}
+        for c in self.doc["cells"]:
+            kinds[c["group"]["kind"]] = kinds.get(c["group"]["kind"], 0) + 1
+        self.assertEqual(kinds, {"single": 82, "multi": 14, "background": 8})
+        self.assertEqual(sorted(o["id"] for o in self.doc["omitted"]), ["o20-nlos-p30", "o40-nlos-p30"])
+        self.assertFalse({o["id"] for o in self.doc["omitted"]} & set(self.cell))
+        self.assertTrue(all(p.get("resolved") for c in self.doc["cells"] for p in c["platforms"]))
+
+    def test_file_is_what_matrix_builds(self):
+        """入库的格子文件就是矩阵生成器的输出（意图），加冻结的位置：改了矩阵而不重新展开，这里就红。"""
+        from eval_dataset import matrix as M
+        self.assertEqual(M.build(copy.deepcopy(self.doc)), self.doc)
+        with open(C.path_of("formal-v1"), encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertEqual(text, json.dumps(json.loads(text), ensure_ascii=False, indent=2) + "\n")
+
+    def test_seed_from_matches_source_and_rejects_drift(self):
+        from eval_dataset import matrix as M
+        froms = {c["id"]: c["seed_from"]["cell"] for c in self.doc["cells"] if c.get("seed_from")}
+        self.assertEqual(froms, M.FROM_SAMPLE)
+        bad = copy.deepcopy(self.doc)
+        c = next(x for x in bad["cells"] if x.get("seed_from"))
+        c["platforms"][0]["alt_m"] += 1
+        with self.assertRaises(C.CellError):
+            C.check_seed_from(bad)
+        # 种子跟着来源格走：与样本集同一格的场景种子相同
+        sv = C.load("sample-v1")
+        for cid, sid in froms.items():
+            self.assertEqual(C.seed_basis(self.doc, self.cell[cid]), (sv["set_seed"], sid))
+
+    def test_horizon_rule_and_power_raise(self):
+        from eval_dataset import matrix as M
+        for c in self.doc["cells"]:
+            for p in c["platforms"]:
+                r = p.get("resolved") or {}
+                red = p.get("power_reduction")
+                if red:
+                    self.assertEqual(c["propagation"], "los")
+                    self.assertLessEqual(r["range_m"], red["max_range_m"] + 1.0, c["id"])
+                    self.assertAlmostEqual(red["max_range_m"], M.HORIZON_SHARE * M.horizon_m(p["alt_m"], 30.0), delta=0.1)
+                    for e in p["emitters"]:
+                        self.assertAlmostEqual(e["tx_power_dBm"], M.NOMINAL_TX_DBM - red["dB"], places=6)
+                if r.get("power_raise_dB"):
+                    self.assertEqual(c["propagation"], "nlos")
+                    e = next(x for x in p["emitters"] if x["id"] == p["primary"])
+                    self.assertLessEqual(S.tx_power_dBm(p, e), M.MAX_TX_DBM)
+                if not p.get("off"):
+                    tol = p["search"]["tol_dB"] if "search" in p else 0.05
+                    self.assertLessEqual(abs(r["snr_budget_dB"] - p["snr_dB"]), tol, c["id"])
+                if c["propagation"] == "nlos" and not p.get("off"):
+                    self.assertFalse(r["line_of_sight"], c["id"])
+                    self.assertGreaterEqual(r["diffraction_dB"], p["search"]["min_diffraction_dB"], c["id"])
+
+    def test_multi_platforms_apart(self):
+        import aoa_fix
+        for c in self.doc["cells"]:
+            ps = [p for p in c["platforms"] if not p.get("off")]
+            for i in range(len(ps)):
+                for j in range(i + 1, len(ps)):
+                    a, b = ps[i]["resolved"], ps[j]["resolved"]
+                    e, n, _ = aoa_fix.to_enu(aoa_fix.lla_to_ecef(a["lon"], a["lat"], 0.0), (b["lon"], b["lat"], 0.0))
+                    self.assertGreaterEqual(math.hypot(e, n), 99.0, f"{c['id']} {ps[i]['id']} {ps[j]['id']}")

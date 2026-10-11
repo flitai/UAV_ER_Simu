@@ -65,14 +65,41 @@ def cmd_resolve(a) -> int:
         print(f"前端（DroneRFb 训练背景 {fm['source']['n_slices']} 片）：增益不平衡 {fm['iq_gain_imbalance_dB']} dB、"
               f"相位不平衡 {fm['iq_phase_imbalance_deg']}°、直流比噪声 {fm['dc_rel_noise_dB']} dB")
     for cell in _pick(doc, a.cells):
-        R.resolve_cell(doc, cell)
+        R.resolve_cell(doc, cell, missing_only=a.missing_only)
+        if cell.get("seed_from"):
+            print(f"{cell['id']}：位置随来源格 {cell['seed_from']['set']}/{cell['seed_from']['cell']}")
+            continue
         for p in cell["platforms"]:
             r = p["resolved"]
             extra = "" if p.get("off") else (f"，预算信噪比 {r['snr_budget_dB']} dB（目标 {p['snr_dB']}），路损 {r['path_loss_dB']} dB，"
                                             f"刀口 {r['diffraction_dB']} dB，{'视距' if r['line_of_sight'] else '非视距'}")
-            print(f"{cell['id']} {p['id']}：方位 {r['azimuth_deg']}°、水平 {r['range_m']} m{extra}")
+            print(f"{cell['id']} {p['id']}：方位 {r['azimuth_deg']}°、水平 {r['range_m']} m{extra}", flush=True)
+        C.save(doc)                                      # 每格解算完就落盘：一百多格中途出错不必从头再来
     C.save(doc)
     print(f"已写回 {os.path.relpath(C.path_of(a.set), ROOT)}：审阅后提交")
+    return 0
+
+
+# ---------------------------------------------------------------- matrix
+
+def cmd_matrix(a) -> int:
+    """按 scripts/eval_dataset/matrix.py 展开正式集的格子文件；意图没变的格子保留已解算的位置。"""
+    from eval_dataset import matrix as M
+    if a.set != M.SET_ID:
+        raise SystemExit(f"矩阵只定义了 {M.SET_ID}")
+    existing = C.load(a.set) if os.path.exists(C.path_of(a.set)) else None
+    doc = M.build(existing)
+    C.save(doc)
+    kinds: dict = {}
+    for c in doc["cells"]:
+        kinds[c["group"]["kind"]] = kinds.get(c["group"]["kind"], 0) + 1
+    red = [(c["id"], p["id"], p["power_reduction"]["dB"]) for c in doc["cells"] for p in c["platforms"]
+           if "power_reduction" in p]
+    todo = sum(1 for c in doc["cells"] for p in c["platforms"] if not p.get("resolved"))
+    print(f"写出 {os.path.relpath(C.path_of(a.set), ROOT)}：{len(doc['cells'])} 格 {kinds}；"
+          f"降发射功率的平台 {len(red)} 个；待解算的平台 {todo} 个")
+    for cid, pid, db in red:
+        print(f"  {cid} {pid}：发射功率降 {db} dB")
     return 0
 
 
@@ -107,9 +134,18 @@ def prepare_cell(doc: dict, cell: dict, base: str | None = None) -> dict:
 
 def cmd_prepare(a) -> int:
     doc = C.load(a.set)
+    bad = []
     for cell in _pick(doc, a.cells):
-        files = prepare_cell(doc, cell)
-        print(f"{cell['id']}：{files['diagram']}（--validate 通过）")
+        try:
+            files = prepare_cell(doc, cell)
+        except SystemExit as e:                          # 一次报出全部不通过的格（正式集一百多格）
+            bad.append(str(e))
+            print(str(e), flush=True)
+            continue
+        print(f"{cell['id']}：{files['diagram']}（--validate 通过）", flush=True)
+    if bad:
+        print(f"不通过 {len(bad)} 格")
+        return 1
     return 0
 
 
@@ -213,7 +249,56 @@ def check_cell(doc: dict, cell: dict, res: list[dict], pkg_data: str) -> tuple[l
                       "snr_measured_n_s3": len(meas), "annotations_s3": len(mine3),
                       "s4_capture": {k: sum(1 for a in mine4 if a.get("cuav:capture") == k)
                                      for k in ("full", "partial", "none")}})
+    fails += co_adjacent_check(doc, cell, plats)
     return fails, {"ops": ops, "platforms": plats}
+
+
+def truth_rows_match(doc: dict, run_dir: str, pkg_data: str, res: list[dict]) -> list[str]:
+    """S3 的注记与引擎写的真值（truth.jsonl）逐行对应：辐射源、起止样点、类别都相同（Q-6 的验收项）。
+
+    样点号用导出工具的同一个 sample_at（与引擎 geo::sample_at 同式）；这里核的是「一行真值一条注记、
+    没有多也没有少、内容对得上」，不是取整规则本身（那由导出工具的单测守着）。"""
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import iq_export_sigmf as X
+    r3 = next(r for r in res if r["op_id"] == "s3")
+    with open(os.path.join(pkg_data, r3["stem"] + ".sigmf-meta"), encoding="utf-8") as fh:
+        meta = json.load(fh)
+    fs = meta["global"]["core:sample_rate"]
+    n = r3["samples"]
+    site = doc["site"]["id"]
+    want = []
+    with open(os.path.join(run_dir, "truth.jsonl"), encoding="utf-8") as fh:
+        for line in fh:
+            t = json.loads(line)
+            if t.get("site_id") not in (None, site):
+                continue
+            s0 = X.sample_at(t["t_s"], fs)
+            s1 = min(X.sample_at(t["t_end_s"], fs), n)
+            if s1 > s0:
+                want.append((t.get("emitter_id"), s0, s1 - s0, t["label"]))
+    got = [(a.get("cuav:emitter_id"), a["core:sample_start"], a["core:sample_count"], a["core:label"])
+           for a in meta["annotations"]]
+    if sorted(want, key=str) != sorted(got, key=str):
+        miss = len(set(want) - set(got))
+        extra = len(set(got) - set(want))
+        return [f"{r3['stem']}：注记与真值不能逐行对应（真值有而注记没有 {miss} 行，注记有而真值没有 {extra} 行）"]
+    return []
+
+
+CO_ADJ_TOL_DB = 1.0
+
+
+def co_adjacent_check(doc: dict, cell: dict, plats: list[dict]) -> list[str]:
+    """标准算例 4（多信号同频及邻频叠加，D-083 并入 Q-6）：视距的同频与邻频段，每个平台在 S3 上的实测信噪比
+    （线性平均，同时同频的突发不计）与链路预算之差不超过 1 dB。"""
+    if cell.get("group", {}).get("preset_group") != "mxco" or cell["propagation"] != "los":
+        return []
+    out = []
+    for p in plats:
+        m, b = p["snr_measured_dB_mean_lin_s3"], p["snr_budget_dB_median"]
+        if m is None or abs(m - b) > CO_ADJ_TOL_DB:
+            out.append(f"{cell['id']} {p['primary']}：同频邻频叠加后实测 {m} dB 对预算 {b:.2f} dB，超过 {CO_ADJ_TOL_DB} dB")
+    return out
 
 
 def preview(data_path: str, meta: dict, png: str, title: str) -> None:
@@ -279,6 +364,7 @@ def run_cell(doc: dict, cell: dict, base: str, keep_runs: bool) -> dict:
                        scenario_path=os.path.join(ROOT, files["scenario"]))
     X.validate_with_sigmf(pkg_data, [r["stem"] for r in res])
     fails, summ = check_cell(doc, cell, res, pkg_data)
+    fails += truth_rows_match(doc, run_dir, pkg_data, res)
     if not keep_runs:
         shutil.rmtree(run_dir, ignore_errors=True)
     prev_dir = os.path.join(base, "package", "previews")
@@ -298,6 +384,7 @@ def run_cell(doc: dict, cell: dict, base: str, keep_runs: bool) -> dict:
             "usable_band_Hz": g["cuav:usable_band_Hz"], "state": g["cuav:quality"]["state"],
             "lossless": r["lossless"], "requant_margin_dB": r["requant_margin_dB"],
             "annotations": r["annotations"], "capture": summ["ops"][r["op_id"]]["capture"],
+            "presets_version": g.get("cuav:presets_version"),
             "files": [{"name": f"data/{r['stem']}{ext}", "bytes": os.path.getsize(os.path.join(pkg_data, r["stem"] + ext)),
                        "sha256": _sha(os.path.join(pkg_data, r["stem"] + ext)),
                        "sha512": _sha(os.path.join(pkg_data, r["stem"] + ext), "sha512")} for ext in DELIVER_EXT]
@@ -309,14 +396,78 @@ def run_cell(doc: dict, cell: dict, base: str, keep_runs: bool) -> dict:
            "presets": sorted({e["preset"] for pl in cell["platforms"] for e in pl["emitters"] if "preset" in e}),
            "scenario_id": sid, "scenario_sha256": _sha(os.path.join(ROOT, files["scenario"])),
            "diagram_sha256": _sha(os.path.join(ROOT, files["diagram"])),
-           "seeds": {"run": S.seeds.derive(doc["set_seed"], cell["id"], "run"),
-                     "scenario": S.seeds.derive(doc["set_seed"], cell["id"], "scenario")},
+           "seeds": {"run": S.seeds.derive(*C.seed_basis(doc, cell), "run"),
+                     "scenario": S.seeds.derive(*C.seed_basis(doc, cell), "scenario")},
            "platforms": summ["platforms"], "ops": out_ops,
            "wall_s": round(wall, 1), "realtime_factor": round(C.duration_s(doc, cell) / wall, 4)}
     return {"record": rec, "fails": fails, "files": files}
 
 
-def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict) -> None:
+def presets_summary(records: list[dict]) -> str:
+    """各段 S3 元数据里的 cuav:presets_version 合起来，如「OFDM 族 v2，GFSK 族 v1」。"""
+    seen: dict = {}
+    for r in records:
+        for o in r["ops"]:
+            for k, v in (o.get("presets_version") or {}).items():
+                seen.setdefault(k, set()).add(v)
+    name = {"ofdm": "OFDM 族", "gfsk": "GFSK 族"}
+    return "，".join(f"{name.get(k, k)} {'/'.join(sorted(v))}" for k, v in sorted(seen.items())) or "—"
+
+
+def sample_relation(doc: dict, records: list[dict]) -> dict | None:
+    """seed_from 的格子与来源集合同一格的数据文件是否逐字节相同（按两边清单里记的 sha256 比）。"""
+    out = {"identical": [], "different": []}
+    by_id = {r["id"]: r for r in records}
+    cache: dict = {}
+    for c in doc["cells"]:
+        sf = c.get("seed_from")
+        if not sf or c["id"] not in by_id:
+            continue
+        if sf["set"] not in cache:
+            with open(os.path.join(out_dir(sf["set"]), "dataset.manifest.json"), encoding="utf-8") as fh:
+                cache[sf["set"]] = {r["id"]: r for r in json.load(fh)["cells"]}
+        src = cache[sf["set"]][sf["cell"]]
+        mine = {o["op_id"]: next(f["sha256"] for f in o["files"] if f["name"].endswith(".sigmf-data")) for o in by_id[c["id"]]["ops"]}
+        theirs = {o["op_id"]: next(f["sha256"] for f in o["files"] if f["name"].endswith(".sigmf-data")) for o in src["ops"]}
+        key = "identical" if mine == theirs else "different"
+        item = {"segment": S.scenario_id(doc, c), "sample_segment": src["scenario_id"],
+                "presets": sorted({x for x in by_id[c["id"]]["presets"]})}
+        if key == "different":
+            item.update(_annotation_diff(os.path.join(out_dir(doc["set_id"]), "package", "data", f"{item['segment']}_s3.sigmf-meta"),
+                                         os.path.join(out_dir(sf["set"]), "package", "data", f"{item['sample_segment']}_s3.sigmf-meta")))
+        out[key].append(item)
+    return out if (out["identical"] or out["different"]) else None
+
+
+def _annotation_diff(meta_a: str, meta_b: str) -> dict:
+    """两份 S3 元数据的注记比对：条数、（辐射源, 起点, 类别）是否逐条相同、长度不同的条数与差值范围（样点）。"""
+    def rows(path):
+        with open(path, encoding="utf-8") as fh:
+            m = json.load(fh)
+        return [(a.get("cuav:emitter_id"), a["core:sample_start"], a["core:label"], a["core:sample_count"])
+                for a in m["annotations"]]
+    a, b = rows(meta_a), rows(meta_b)
+    same_starts = [x[:3] for x in a] == [x[:3] for x in b]
+    d = [x[3] - y[3] for x, y in zip(a, b) if x[3] != y[3]] if same_starts else []
+    return {"annotations": [len(a), len(b)], "same_starts": same_starts, "length_changed": len(d),
+            "length_delta_samples": [min(d), max(d)] if d else None}
+
+
+def verify_random(doc: dict, base: str, share: float) -> dict:
+    """随机抽 share 比例的格子（至少一格，按集合种子抽、可复现）重跑并逐字节比对（Q-6 的验收项）。"""
+    import random
+    ids = [c["id"] for c in doc["cells"]]
+    n = max(1, math.ceil(share * len(ids)))
+    pick = sorted(random.Random(doc["set_seed"]).sample(ids, n), key=ids.index)
+    bad = {}
+    for cid in pick:
+        b = verify_cell(doc, cid, base)
+        if b:
+            bad[cid] = b
+    return {"share": share, "seed": doc["set_seed"], "cells": pick, "mismatched": bad}
+
+
+def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict, extra: dict | None = None) -> None:
     """数据手册与读取示例（tools/eval_dataset/ 的入库源文件）、甲方用的 index.json、SHA512SUMS、内部清单。"""
     import shutil
     pkg = os.path.join(base, "package")
@@ -328,7 +479,7 @@ def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict
             shutil.copy(os.path.join(src, "examples", f), os.path.join(ex, f))
         from eval_dataset import readme
         with open(os.path.join(pkg, "README.md"), "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(readme.render(doc, records, {"engine_version": state.get("engine_version")}))
+            fh.write(readme.render(doc, records, {"engine_version": state.get("engine_version"), **(extra or {})}))
     client = {"schema_version": "cuav-eval-dataset-index/1", "set_id": doc["set_id"], "name": doc["name"],
               "duration_s": doc["duration_s"],
               "segments": [{"id": r["id"], "title": r["title"], "receiver": r["receiver"],
@@ -357,6 +508,7 @@ def _write_package_extras(doc: dict, base: str, records: list[dict], state: dict
                 "package_bytes": sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(pkg) for f in fs
                                      if not is_mac_junk(os.path.relpath(os.path.join(d, f), pkg).replace(os.sep, "/"))),
                 "cells": records,
+                **({k: (extra or {})[k] for k in ("presets_version", "verify", "sample_relation") if (extra or {}).get(k)}),
                 "reproduce": [f"uv run --quiet --with numpy --with sigmf --with matplotlib python scripts/gen_eval_dataset.py run --set {doc['set_id']}"]}
     with open(os.path.join(base, "dataset.manifest.json"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
@@ -391,7 +543,15 @@ def cmd_run(a) -> int:
     if a.cells:
         print("只跑了部分格子：不写数据集清单与交付件")
     else:
-        _write_package_extras(doc, base, records, state)
+        extra: dict = {}
+        if doc.get("purpose") == "formal":
+            extra["presets_version"] = presets_summary(records)
+            extra["sample_relation"] = sample_relation(doc, records)
+            print(f"随机抽 {a.verify_share:.0%} 重跑比对 …", flush=True)
+            extra["verify"] = verify_random(doc, base, a.verify_share)
+            for cid, b in extra["verify"]["mismatched"].items():
+                fails.append(f"{cid}：重跑与交付件不同：{b}")
+        _write_package_extras(doc, base, records, state, extra)
         print(f"交付件在 {os.path.relpath(os.path.join(base, 'package'), ROOT)}；内部清单 "
               f"{os.path.relpath(os.path.join(base, 'dataset.manifest.json'), ROOT)}")
     if fails:
@@ -404,6 +564,11 @@ def cmd_run(a) -> int:
 
 def verify(doc: dict, cell_id: str, base: str) -> int:
     """重跑一格到临时目录，逐字节比对交付的数据、元数据、链路旁挂与预览图。"""
+    return 0 if not verify_cell(doc, cell_id, base) else 1
+
+
+def verify_cell(doc: dict, cell_id: str, base: str) -> list[str]:
+    """重跑一格，返回与交付件不同的文件名（空表即逐字节相同）。"""
     import filecmp
     import shutil
     cell = _pick(doc, cell_id)[0]
@@ -418,8 +583,8 @@ def verify(doc: dict, cell_id: str, base: str) -> int:
                 bad.append(f["name"])
     shutil.rmtree(tmp, ignore_errors=True)
     n = sum(len(o["files"]) for o in out["record"]["ops"])
-    print(f"重跑 {cell_id}：{n} 个文件" + ("逐字节相同" if not bad else f"，不同：{bad}"))
-    return 0 if not bad else 1
+    print(f"重跑 {cell_id}：{n} 个文件" + ("逐字节相同" if not bad else f"，不同：{bad}"), flush=True)
+    return bad
 
 
 def cmd_pack(a) -> int:
@@ -516,7 +681,11 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--set", required=True)
     r.add_argument("--cells", help="只解这些格子（逗号分隔）")
     r.add_argument("--frontend", action="store_true", help="重新量前端非理想（缺省只在还没量过时量）")
+    r.add_argument("--missing-only", action="store_true", help="只解还没有位置的平台（正式集一百多格，分批解）")
     r.set_defaults(func=cmd_resolve)
+    m = sub.add_parser("matrix", help="展开正式集的格子文件（Q-6）")
+    m.add_argument("--set", required=True)
+    m.set_defaults(func=cmd_matrix)
     p = sub.add_parser("prepare", help="写场景、链路规格与框图并 --validate")
     p.add_argument("--set", required=True)
     p.add_argument("--cells")
@@ -528,6 +697,8 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--keep-runs", action="store_true", help="保留 data/runs/ 里的运行目录")
     q.add_argument("--allow-dirty", action="store_true", help="允许生成器相关目录有未提交改动")
     q.add_argument("--verify", metavar="CELL", help="重跑一格到临时目录、逐字节比对交付件")
+    q.add_argument("--verify-share", type=float, default=0.05,
+                   help="正式集：整集生成后随机抽这一比例的格子重跑比对（缺省 0.05，按集合种子抽）")
     q.set_defaults(func=cmd_run)
     k = sub.add_parser("pack", help="核对交付包并打成确定性 zip（供转交）")
     k.add_argument("--set", required=True)
