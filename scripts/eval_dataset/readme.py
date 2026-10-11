@@ -205,7 +205,8 @@ def sample_relation(doc: dict, extra: dict) -> str:
         lines.append(f"其中 {len(rel['identical'])} 段不含 DJI 图传，数据文件与样本集逐字节相同。")
     if rel["different"]:
         lines.append(f"另 {len(rel['different'])} 段含 DJI 图传，与样本集不同：本数据集按经实测核实的循环前缀排布生成图传（见第 6 章），"
-                     "图传突发比样本集长 1–2 µs；突发的时隙排布概率随之按同一方法重算，个别时隙的抽取结果因此不同。"
+                     "图传突发比样本集长 1–2 µs（83 或 166 个样点）；突发的时隙排布概率随之按同一方法重算，个别时隙的抽取结果"
+                     "（有无突发、长短档）因此不同。"
                      "各段的差异逐条比对两者的注记得出，列在下表。")
     rows = ["", "", "| 本数据集的段 | 样本集的段 | 与样本集的差异 |", "|---|---|---|"]
     for x in sorted(rel["identical"] + rel["different"], key=lambda x: x["sample_segment"]):
@@ -213,9 +214,11 @@ def sample_relation(doc: dict, extra: dict) -> str:
             what = "数据文件逐字节相同"
         else:
             parts = []
-            lo_hi = x.get("length_delta_samples")
+            lo_hi = x.get("cp_delta_samples")
             if lo_hi:
-                parts.append(f"{x['length_changed']} 个图传突发长 {lo_hi[0]}–{lo_hi[1]} 个样点，起始样点相同")
+                parts.append(f"{x['cp_longer']} 个图传突发起始样点相同、长 {lo_hi[0]}–{lo_hi[1]} 个样点")
+            if x.get("draw_changed"):
+                parts.append(f"{x['draw_changed']} 个图传突发起始样点相同、长短档不同")
             if x.get("only_source"):
                 parts.append(f"样本集中有 {x['only_source']} 个图传突发在本段中没有")
             if x.get("only_here"):

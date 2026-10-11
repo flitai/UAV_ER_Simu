@@ -452,9 +452,14 @@ def _annotation_diff(meta_a: str, meta_b: str) -> dict:
     kb = {x[:3]: x[3] for x in b}
     common = sorted(set(ka) & set(kb))
     d = [ka[k] - kb[k] for k in common if ka[k] != kb[k]]
+    # 预设 v2 每 7 个符号放一个长循环前缀，15 / 30 符号的突发长 1.04 / 2.08 µs（80 MS/s 下 83 / 166 个样点）：
+    # 0 < 差 ≤ 200 个样点算「循环前缀排布」；其余是时隙抽取结果不同（如长突发变短突发）
+    cp = [x for x in d if 0 < x <= 200]
+    other = [x for x in d if not 0 < x <= 200]
     return {"annotations": [len(a), len(b)], "same_starts": set(ka) == set(kb), "common": len(common),
             "only_here": len(set(ka) - set(kb)), "only_source": len(set(kb) - set(ka)),
-            "length_changed": len(d), "length_delta_samples": [min(d), max(d)] if d else None}
+            "length_changed": len(d), "cp_longer": len(cp), "cp_delta_samples": [min(cp), max(cp)] if cp else None,
+            "draw_changed": len(other)}
 
 
 def snr_diff_distribution(doc: dict, base: str, records: list[dict]) -> dict:
