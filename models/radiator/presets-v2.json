@@ -549,7 +549,7 @@
       "id": "dji-droneid",
       "type": "droneid",
       "role": "droneid",
-      "name": "DJI DroneID",
+      "name": "DJI DroneID 广播",
       "numerology": "lte15k-n1024",
       "half_subcarriers": 300,
       "occupied_bw_Hz": 9015000,

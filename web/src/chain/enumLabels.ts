@@ -78,7 +78,7 @@ export const ENUM_LABELS: Readonly<Record<string, string>> = {
   'sync_state.locked': '已锁定', 'sync_state.holdover': '保持', 'sync_state.unsynced': '未同步',
   // 场景 emission.waveform.type（辐射源表单的波形下拉，Q-2 起有这一入口，D-088）
   'waveform.tone': '单音', 'waveform.noise': '带限噪声', 'waveform.burst': '门控突发',
-  'waveform.ofdm': 'OFDM', 'waveform.droneid': 'DroneID',
+  'waveform.ofdm': 'OFDM', 'waveform.droneid': 'DroneID 广播',
   'waveform.gfsk': 'GFSK',
 }
 

@@ -32,7 +32,7 @@ export const RADIATOR_PRESETS: readonly RadiatorPresetSpec[] = [
   { id: 'dji-uplink-1m', type: 'ofdm', role: 'rc_hopping', name: 'DJI 遥控上行 1.1 MHz（C/E 族）', fs_native_Hz: 15360000, occupied_bw_Hz: 1125000 },
   { id: 'dji-uplink-2m', type: 'ofdm', role: 'rc_hopping', name: 'DJI 遥控上行 2.2 MHz（A/G 族）', fs_native_Hz: 15360000, occupied_bw_Hz: 2235000 },
   { id: 'dji-uplink-4m', type: 'ofdm', role: 'rc_hopping', name: 'DJI 遥控上行 4.4 MHz（D/F 族）', fs_native_Hz: 15360000, occupied_bw_Hz: 4425000 },
-  { id: 'dji-droneid', type: 'droneid', role: 'droneid', name: 'DJI DroneID', fs_native_Hz: 15360000, occupied_bw_Hz: 9015000 },
+  { id: 'dji-droneid', type: 'droneid', role: 'droneid', name: 'DJI DroneID 广播', fs_native_Hz: 15360000, occupied_bw_Hz: 9015000 },
 ]
 
 /** 有理重采样的档位（与冻结表 fir_rsmp_v1.json 的 interp_L / decim_M_supported 相同）：只升采样 */

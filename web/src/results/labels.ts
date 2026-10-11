@@ -25,7 +25,7 @@ const KNOWN: Record<string, LabelStyle> = {
   cw_beacon: { text: '信标', color: '#115e59' },
   // Q-2（D-088）：DroneID 是预设表带来的新标签（识别库 v1 里没有它，库 v2 随 Q-4c）。
   // 橄榄绿与信标的青绿、遥控的紫都分得开；文字对底衬十锚点最小 5.67:1（display-route.md §4.1）
-  droneid: { text: 'DroneID', color: '#3f6212' },
+  droneid: { text: 'DroneID 广播', color: '#3f6212' },
   noise: { text: '噪声', color: '#57534e' },
   unknown: { text: '未知', color: '#a33333' },
 }
@@ -36,7 +36,7 @@ const KNOWN: Record<string, LabelStyle> = {
  */
 const TEMPLATE_TEXT: Record<string, string> = {
   ofdm_video: 'OFDM 图传', noise_video: '噪声图传', burst_fixed: '定频突发', ofdm_uplink: 'OFDM 上行',
-  gfsk_fhss: 'GFSK 跳频', burst_hopping: '跳频突发', tone: '单音', droneid: 'DroneID',
+  gfsk_fhss: 'GFSK 跳频', burst_hopping: '跳频突发', tone: '单音', droneid: 'DroneID 广播',
 }
 
 export function templateText(id: string | null | undefined): string {

@@ -14,7 +14,7 @@
         "sha256": "f0b05fb3e38525dfc9f42b64f033109220f83857afc94ae92164dbe8d20ab6e4"
       }
     ],
-    "presets_sha256": "60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde",
+    "presets_sha256": "a12d9c001766941cda59a07a419d3cd83285a455b072178e7171587b5408df0b",
     "note": "改了预设表或本脚本却没重跑 MATLAB，引擎单测据此当场红。"
   },
   "cases": [

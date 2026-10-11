@@ -4,7 +4,7 @@
  "generator": "algos/reference/gen_engine_golden.py --mode ofdm_frame",
  "presets": {
   "source": "models/radiator/presets-v2.json",
-  "sha256": "60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde"
+  "sha256": "a12d9c001766941cda59a07a419d3cd83285a455b072178e7171587b5408df0b"
  },
  "line_format": "每个突发一行 \"slot,start_n,variant\\n\"（十进制、无空格），整张表拼接后取 sha256",
  "cases": [

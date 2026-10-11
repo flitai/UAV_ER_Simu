@@ -4,7 +4,7 @@
  "generator": "algos/reference/gen_engine_golden.py --mode ofdm",
  "presets": {
   "source": "models/radiator/presets-v2.json",
-  "sha256": "60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde"
+  "sha256": "a12d9c001766941cda59a07a419d3cd83285a455b072178e7171587b5408df0b"
  },
  "contract": "子载波 k = -K..-1,+1..+K；数据：每突发 Xoshiro256pp(seed)，逐数据符号逐子载波一个 next_u64，低 b 位给 I、再往上 b 位给 Q；ZC 删去中间一项；x[n] = g·Σ X_k·e^{+j2πkn/N}，g = 1/√(2K)；先 CP（符号尾部）再符号本体",
  "cases": [

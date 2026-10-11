@@ -53,7 +53,7 @@ PRESET_NAME = {
     "dji-uplink-1m": "DJI 遥控上行 1.1 MHz 档", "dji-uplink-2m": "DJI 遥控上行 2.2 MHz 档",
     "dji-uplink-4m": "DJI 遥控上行 4.4 MHz 档", "dji-video-40m": "DJI 图传 40 MHz 档（5.8 GHz）",
     "frsky-d16v2-fcc": "FrSky D16 v2 遥控（FCC 档）", "futaba-sfhss": "Futaba S-FHSS 遥控",
-    "dji-video-10m": "DJI 图传 10 MHz 档", "dji-droneid": "DJI DroneID",
+    "dji-video-10m": "DJI 图传 10 MHz 档", "dji-droneid": "DJI DroneID 广播",
 }
 CLASS_NAME = {"A": "Mavic 3 Pro", "C": "Mini 2 SE", "D": "Mini 4 Pro", "E": "Mini 3", "F": "Air 3", "G": "Air 2S"}
 VARIANT_NAME = {"p1-ideal": "无非理想效应", "p1-tgn-b": "TGn-B（15 ns，K = 0 dB）", "p1-tgn-c": "TGn-C（30 ns，K = 0 dB）",
@@ -698,7 +698,7 @@ OBJECTIVES = [
     ("G3", "时域与帧结构特征", ["dur_s", "interval_s"], "合成信号的突发时长与突发间隔分布与实测一致"),
     ("G4", "包络统计特征", ["papr_dB"], "合成信号的峰均比与实测一致"),
     ("G5", "跳频特征", ["hops"], "跳频信号的频点数与频点跨度与实测一致"),
-    ("G6", "无同型实测项的结构正确性", [], "DroneID 与图传 10 MHz 档的时间与频谱结构参数与结构基准一致"),
+    ("G6", "无同型实测项的结构正确性", [], "DroneID 广播与图传 10 MHz 档的时间与频谱结构参数与结构基准一致"),
 ]
 
 
@@ -752,7 +752,7 @@ def sec_abstract(doc: dict, cnt: dict, sm: dict) -> str:
         f"{nm['初步支持'] or '无'}为「初步支持」；{nm['未验证'] or '无'}为「未验证」。不符合项的来源可归为三类：生成模型的结构"
         "（图传帧排布的固定时隙、遥控上行的跳频序列、OFDM 符号边界处理、GFSK 随机载荷），仿真配置未启用频率选择性衰落，"
         "以及实测数据自身的特性（采集接收机的频率响应、混入的其他信号、两组实测数据之间的差异）。敏感性分析表明，"
-        f"启用抽头延迟线后，有 {len(near)} 种信道模型配置下的图传谱平坦度与实测相当。DroneID 与图传 10 MHz 档的结构核查"
+        f"启用抽头延迟线后，有 {len(near)} 种信道模型配置下的图传谱平坦度与实测相当。DroneID 广播与图传 10 MHz 档的结构核查"
         f"{'各项均' if sm['sc_ok'] == sm['sc_n'] else '部分项未'}与结构基准一致。</p>"
         "<p>综合评价：本方法用于生成无人机射频 IQ 数据是可行的；达到「充分验证」的统计特征可信，「未验证」的统计特征尚需修改模型后重新验证；"
         "判定准则预先确定、主要比较对象独立、测量程序两侧相同、差异归因分级、结果可复现，验证过程具备科学性。"
@@ -789,7 +789,7 @@ def sec_scope(doc: dict, T: Counter) -> str:
         f"验证目标见{T.ref('obj')}。第 {ch('concl')} 章按验证目标给出结论，并综合评价该方法的可行性、可信性与科学性。</p>"
         + table(f"{T.new('obj')}　验证目标", ["编号", "目标", "要求", "对应统计量"], obj_rows)
         + f"{h3('scope', 2, '范围')}<ul>"
-        "<li>比对对象为 DJI 图传、DJI 遥控上行、FrSky 与 Futaba 第三方遥控共 8 个对照组，以及 DroneID 与图传 10 MHz 档 2 项结构核查。</li>"
+        "<li>比对对象为 DJI 图传、DJI 遥控上行、FrSky 与 Futaba 第三方遥控共 8 个对照组，以及 DroneID 广播与图传 10 MHz 档 2 项结构核查。</li>"
         "<li>比对在带内归一化后进行，只比较信号的形状与时间结构，不比较绝对电平。实测数据的采集接收机参数未公开，绝对电平不具可比性。</li>"
         f"<li>比对的观测点为 S3（见第 {ch('data', 3)} 节）。S0–S2 没有实测数据可供对照，S5 不在交付数据中。</li>"
         "</ul>"
@@ -900,9 +900,9 @@ def sec_sim(doc: dict, T: Counter) -> str:
         "<p>每类信号的波形结构与时间参数集中在机型预设中，每个参数标注出处等级。出处等级共六级："
         + "；".join(f"{g} 为{GRADE_TEXT[g]}" for g in GRADE_ORDER)
         + f"。各预设的结构与出处构成见{T.ref('presets')}。</p>"
-        f"<p>OFDM 类预设包括 DJI 图传、DJI 遥控上行与 DroneID。DroneID 的子载波数、子载波间隔、符号结构与发送周期取自公开的逆向分析结果"
+        f"<p>OFDM 类预设包括 DJI 图传、DJI 遥控上行与 DroneID 广播。DroneID 广播的子载波数、子载波间隔、符号结构与发送周期取自公开的逆向分析结果"
         f" {cite('NDSS23')}。DJI 图传与遥控上行的内部数值结构（子载波间隔、快速傅里叶变换点数、循环前缀长度）没有公开资料，"
-        "本方按与 DroneID 同族的类 LTE 结构假定；其占用带宽与时间参数取自厂商文档、论文或实测提取。"
+        "本方按与 DroneID 广播同族的类 LTE 结构假定；其占用带宽与时间参数取自厂商文档、论文或实测提取。"
         f"GFSK 类预设包括 FrSky 与 Futaba 遥控，其调制参数由开源实现中的射频芯片寄存器配置 {cite('MPM')} 按芯片数据手册的公式"
         f" {cite('CC2500')} 计算。{len(presets)} 个预设中有 {n_a} 个含本方假定的参数项，假定项逐项列在预设的出处说明中。</p>"
         + table(f"{t_pre}　机型预设与参数出处（出处等级：{legend}。后六列为涉及该等级的参数项数，"
@@ -1286,9 +1286,9 @@ def _sc_val(c: dict, k: str) -> str:
 
 def sec_checks(doc: dict, figs: dict, T: Counter, F: Counter) -> str:
     out = [f"{h2('checks')}",
-           "<p>DJI 图传 10 MHz 档与 DroneID 在本地实测数据中没有同型对照。在 DroneRFb 出版方训练集的 2177 个片段（均属实测样本集）中，"
+           "<p>DJI 图传 10 MHz 档与 DroneID 广播在本地实测数据中没有同型对照。在 DroneRFb 出版方训练集的 2177 个片段（均属实测样本集）中，"
            "按带宽 6.5–11.5 MHz、时长 0.35–1.0 ms 筛选候选突发，候选突发集中在 WiFi 信道上，背景片段中同样存在，"
-           "DroneID 信道上没有成群的候选。因此这两项改以结构参数为基准：DroneID 取公开的逆向分析结果 "
+           "DroneID 广播信道上没有成群的候选。因此这两项改以结构参数为基准：DroneID 广播取公开的逆向分析结果 "
            f"{cite('NDSS23')}，图传 10 MHz 档取本方的结构假定（第 {ch('sim', 2)} 节）。用同一测量程序测量合成数据，"
            "相对差 ≤ 5% 记为符合。</p>"]
     for i, sc in enumerate(doc["selfchecks"], start=1):
@@ -1329,7 +1329,7 @@ def sec_conclusions(doc: dict, T: Counter, cnt: dict, fd: dict, sm: dict) -> str
         "后者可通过启用抽头延迟线改善，但实测场地的多径参数未经测量。",
         "突发间隔与跳频序列的差异来自生成模型的结构：图传帧排布采用固定时隙，遥控上行跳频序列随机取点。消除这两项差异需要修改模型。",
         "GFSK 遥控信号的谱形受载荷内容影响，随机载荷不能复现实测谱中的窄峰。",
-        "DroneID 与图传 10 MHz 档的结构参数与结构基准一致（DroneID 以公开文献为基准，图传 10 MHz 档以本方结构假定为基准）；"
+        "DroneID 广播与图传 10 MHz 档的结构参数与结构基准一致（DroneID 广播以公开文献为基准，图传 10 MHz 档以本方结构假定为基准）；"
         "由于缺少同型实测数据，其真实感未经实测检验。",
     ]
     nm = sm["names"]
@@ -1386,7 +1386,7 @@ def sec_conclusions(doc: dict, T: Counter, cnt: dict, fd: dict, sm: dict) -> str
         f"<p><strong>可信性。</strong>全部 {sm['n_cmp']} 项可判定比较中，{sm['n_ok']} 项符合判定准则；{sm['n_pairs']} 个对照组中，"
         f"{sm['n_indep']} 个以验证集为主要比较对象。{nm['充分验证'] or '无'}达到「充分验证」，{nm['初步支持'] or '无'}为「初步支持」，"
         f"{nm['未验证'] or '无'}为「未验证」。{sm['n_gaps']} 个不符合项按来源分为{cat_txt}（第 {ch('attr', 3)} 节）；"
-        f"其中属于生成模型结构与仿真配置的不符合项，第 {ch('limits', 2)} 节给出了改进方向。无同型实测数据的 DroneID 与图传 10 MHz 档，"
+        f"其中属于生成模型结构与仿真配置的不符合项，第 {ch('limits', 2)} 节给出了改进方向。无同型实测数据的 DroneID 广播与图传 10 MHz 档，"
         f"结构核查 {sm['sc_n']} 项中 {sm['sc_ok']} 项符合（第 {ch('checks')} 章）。据此判断，本方法生成数据在{after_cjk(nm['充分验证'] or '—')}方面"
         f"的可信性已得到独立实测数据的支持；在{after_cjk(nm['未验证'] or '—')}方面，尚需修改模型后重新验证。</p>"
         "<p><strong>科学性。</strong>验证过程采取了以下措施：判定准则在比对之前确定并存档，比对过程中未调整任何模型参数；"
@@ -1410,7 +1410,7 @@ def sec_limits() -> str:
         "实测数据的采集接收机参数未公开，本报告只比较带内归一化后的形状与时间结构，不比较绝对电平。",
         "5.8 GHz 图传只有 Mavic 3 一型的实测数据，结论不外推到其他使用 5.8 GHz 图传的机型；Mavic 3 与 Futaba T14SG 两组没有验证集，比较结果不具独立性。",
         "Futaba 预设按 S-FHSS 协议生成，实测 T14SG 遥控器所用协议的时序与频点结构与 S-FHSS 不同，该组差异属于协议差异。",
-        "DJI 图传 10 MHz 档与 DroneID 没有同型实测数据，只完成了结构核查。",
+        "DJI 图传 10 MHz 档与 DroneID 广播没有同型实测数据，只完成了结构核查。",
         "全部数值为原型阶段验证结果。公开数据集只用于验证技术途径；获得实际接收机的实测数据后，应按同一程序重新比对。",
     ]
     improve = [

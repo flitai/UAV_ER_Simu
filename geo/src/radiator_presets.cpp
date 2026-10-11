@@ -1,6 +1,6 @@
 // 机型预设表 v2 —— 本文件由脚本生成，不要手改。
 //
-// 来源：models/radiator/presets-v2.json（sha256 60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde）
+// 来源：models/radiator/presets-v2.json（sha256 a12d9c001766941cda59a07a419d3cd83285a455b072178e7171587b5408df0b）
 // 生成：uv run --quiet python scripts/gen_radiator_presets.py
 //
 // 每项参数的出处档（V / P / S / A / D / M）与引文只在 JSON 的 provenance 里，这里只放
@@ -159,7 +159,7 @@ const RadiatorPreset kPresets[] = {
     },
 };
 
-const char kSha256[] = "60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde";
+const char kSha256[] = "a12d9c001766941cda59a07a419d3cd83285a455b072178e7171587b5408df0b";
 
 }  // namespace
 
