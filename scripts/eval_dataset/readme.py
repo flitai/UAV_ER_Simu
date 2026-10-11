@@ -237,6 +237,10 @@ def _formal_reps(doc: dict, records: list[dict], extra: dict) -> dict:
     co = [abs(p["snr_measured_dB_mean_lin_s3"] - p["snr_budget_dB_median"]) for r in records
           if cells[r["id"]].get("group", {}).get("preset_group") == "mxco" and _los(doc, r)
           for p in r["platforms"] if p.get("snr_measured_dB_mean_lin_s3") is not None]
+    los = sorted(((abs(p["snr_measured_dB_mean_lin_s3"] - p["snr_budget_dB_median"]), r["id"], p["snr_target_dB"])
+                  for r in records if _los(doc, r) for p in r["platforms"]
+                  if p.get("snr_measured_dB_mean_lin_s3") is not None), reverse=True)
+    import statistics
     ver = extra.get("verify") or {}
     sd = extra.get("snr_diff") or {}
     sd_rows = ["| 传播 | 注记条数 | 5% 分位 | 25% 分位 | 中位数 | 75% 分位 | 95% 分位 |", "|---|---|---|---|---|---|---|"]
@@ -245,6 +249,8 @@ def _formal_reps(doc: dict, records: list[dict], extra: dict) -> dict:
         if v["n"]:
             sd_rows.append(f"| {PROP[k]} | {v['n']} | " + " | ".join(_signed(v[q]) for q in ("p05", "p25", "median", "p75", "p95")) + " |")
     return {
+        "LOS_MEDIAN_DIFF": f"{statistics.median(x[0] for x in los):.2f}" if los else "—",
+        "LOS_MAX_SEG": (f"`{S.scenario_id(doc, cells[los[0][1]])}`，信噪比目标 {_snr(los[0][2])} dB") if los else "—",
         "SNR_DIFF_TABLE": "\n".join(sd_rows) if len(sd_rows) > 2 else "（没有可计算的注记。）",
         "SAMPLE_NAME": M.SAMPLE_NAME,
         "EXAMPLE_STEM": S.scenario_id(doc, ex),
