@@ -87,7 +87,7 @@ struct Waveform {
     double offset_Hz;    // 六种通用（noise 自 C-8、ofdm / droneid 自 Q-2、gfsk 自 Q-3）
     double period_s;     // burst
     double duty;         // burst，(0, 1)
-    std::string preset_id;       // ofdm / droneid：models/radiator/presets-v1.json 的 id；
+    std::string preset_id;       // ofdm / droneid：models/radiator/presets-v2.json 的 id；
                                  // gfsk：models/radiator/gfsk-presets-v1.json 的 id
     double frame_offset_s;       // ofdm / droneid：帧排布的起点，须为整数个原生样点；gfsk：第一帧的起点（秒）；缺省 0
     Waveform() : type(WaveformType::Tone), offset_Hz(0.0), period_s(0.0), duty(0.0), frame_offset_s(0.0) {}

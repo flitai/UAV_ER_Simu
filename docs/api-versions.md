@@ -385,7 +385,7 @@ stdout 与文件都逐行 flush。诊断文字走 stderr，不混进事件流。
 
 | type | 何时 | payload |
 |---|---|---|
-| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`detection_rows`（C-3：落盘的检测行数）、`feature_rows`、`recognition_rows`（C-4：落盘的特征行数与识别行数）、`truth_rows`、`evaluations`（C-5：落盘的真值行数与评价器分节数）、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
+| `task.state` | 运行开始与结束各一条 | 开始：`run_state = running`、`diagram_id`、`name`、`seed`、`seed_source ∈ {diagram, cli}`、`run{seed, duration_s, block_size?, max_rounds?}`、`nodes[]`、`observation_points[{op_id, node, port, products}]`、`presets{ofdm, gfsk}`（各为 `{version, sha256}`，两张机型预设表的版本，D-102；导出工具据此写 `cuav:presets_version`）、`engine_version`、`started_utc`。结束：`run_state ∈ {finished, failed}`、`result` 四态、`reasons[]`、`rounds`、`wall_s`、`realtime_factor`、`product_rows`、`detection_rows`（C-3：落盘的检测行数）、`feature_rows`、`recognition_rows`（C-4：落盘的特征行数与识别行数）、`truth_rows`、`evaluations`（C-5：落盘的真值行数与评价器分节数）、`nodes[{name, state, blocks_in, blocks_out, samples_in, samples_out, notes}]`、`ended_utc` |
 | `progress` | 每轮调度，按墙钟节流（`--progress-interval-ms`，默认 100；0 = 每轮） | `round`、`nodes[]`（同上） |
 | `log` | 装载摘要、种子覆盖、组件日志 | `level`、`message` |
 | `product_row` | 观测点每写一行 | `op_id`、`kind ∈ {spectrum, envelope}`、`row_index`、`row_len`。**不带数据**：该行已逐行刷到 `<out>/<op_id>/<kind>.f32`，服务端按 `row_index × row_len × 4` 的偏移读出并转成二进制帧（§4） |

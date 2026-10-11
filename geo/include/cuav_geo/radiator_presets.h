@@ -1,6 +1,6 @@
-// 机型预设表 v1（Q-2；14 号报告 §2；决策 D-088）。
+// 机型预设表（Q-2；14 号报告 §2；决策 D-088，v2 为 D-102）。
 //
-// 真理源是 models/radiator/presets-v1.json：每一项参数带 V / P / S / A / D / M 出处档与引文，
+// 真理源是 models/radiator/presets-v2.json（v1 原样留在同目录，是 v1 时期产物的出处）：每一项参数带 V / P / S / A / D / M 出处档与引文，
 // 本头文件只声明生成与评价**要用到**的那几项。实现 geo/src/radiator_presets.cpp 由
 // scripts/gen_radiator_presets.py 生成，不要手改；两者是否同步由 engine/tests/test_ofdm.cpp
 // 逐项核对并比对表文件的 sha256（同 FIR 系数表的做法，铁律 10）。
@@ -10,7 +10,8 @@
 // 生成的是纯数据的 C++，geo/ 仍不碰 JSON、仍无第三方依赖。
 //
 // 运行时不读 JSON：系数与结构是常量，读文件会让场景校验依赖部署目录布局。
-// 要改预设就出 v2，v1 原样留着守既有基准（同识别库 library-v1 的规矩）。
+// 要改预设就出新版本，旧版本原样留着作为它那时产物的出处（同识别库 library-v1 的规矩）。
+// 函数名不带版本号，版本由 radiator_presets_version() 给出。
 
 #ifndef CUAV_GEO_RADIATOR_PRESETS_H
 #define CUAV_GEO_RADIATOR_PRESETS_H
@@ -53,12 +54,15 @@ struct RadiatorPreset {
 };
 
 // 按 id 查；查不到返回 0，由调用方报错并列出可取值（铁律 15，不取最近一项）。
-const RadiatorPreset* radiator_preset_v1(const std::string& id);
-std::size_t radiator_preset_v1_count();
-const RadiatorPreset& radiator_preset_v1_at(std::size_t i);
+const RadiatorPreset* radiator_preset(const std::string& id);
+std::size_t radiator_preset_count();
+const RadiatorPreset& radiator_preset_at(std::size_t i);
 
 // 生成时读到的表文件 sha256，供单测比对「改了 JSON 忘了重生成」。
-const char* radiator_presets_v1_sha256();
+const char* radiator_presets_sha256();
+
+// 表的版本（"v2"）。
+const char* radiator_presets_version();
 
 // 相邻两个突发之间至少留这么多原生样点（一个突发没结束加上它之前开始的时隙一律空）。
 // 取 64：重采样滤波器的半支撑是 T/2 个原生样点（T ≈ 20），两个突发的输出支撑因此

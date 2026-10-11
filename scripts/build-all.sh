@@ -79,6 +79,15 @@ else
   echo "跳过：需要 uv" >&2
 fi
 
+printf '=== 图传数值结构的盲估计（D-102）===\n'
+# 合成夹具：15 kHz 与 30 kHz 都测得对、两种长循环前缀排布分得开、窄带信号不被旁瓣骗（关掉随带宽的
+# 搜索下限即测出 200 kHz）。不读数据集，约 10 秒。整份分析（约 15 分钟，要实测数据）不在这里跑。
+if command -v uv >/dev/null 2>&1; then
+  uv run --quiet --with numpy --with scipy python -m unittest tests/unit/test_cp_numerology.py
+else
+  echo "跳过：需要 uv" >&2
+fi
+
 printf '=== 识别库 v2（Q-4c，D-094）===\n'
 # library-v2.json 由入库的校准统计与 Q-0b 按规则逐字节生成；区间盖住统计量、v1 一个字节没动。只用标准库。
 # 校准统计本身重跑逐字节（q4c_feature_survey.py --check，约 11 分钟）不在这里跑。
@@ -90,7 +99,7 @@ else
 fi
 
 printf '=== 机型预设表（Q-2，D-088）===\n'
-# 生成的 C++ 与 models/radiator/presets-v1.json 一致；表里每个 M 档数能从 q0b-params.json 复算。只用标准库。
+# 生成的 C++ 与 models/radiator/presets-v2.json 一致；表里每个 M 档数能从 q0b-params.json 复算。只用标准库。
 if command -v uv >/dev/null 2>&1; then
   uv run --quiet python scripts/gen_radiator_presets.py --check
   uv run --quiet python -m unittest tests/unit/test_radiator_presets.py

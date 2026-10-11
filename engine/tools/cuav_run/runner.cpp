@@ -18,6 +18,8 @@
 #include "cuav/registry.h"
 #include "cuav/scenario_json.h"
 #include "cuav/types.h"
+#include "cuav_geo/gfsk_presets.h"
+#include "cuav_geo/radiator_presets.h"
 
 namespace cuav {
 namespace runner {
@@ -537,6 +539,13 @@ bool build_scenario_resolver(const Options& opt, MapScenarioResolver& map, FileS
     return true;
 }
 
+// 两张机型预设表的版本与 sha256（D-102）：导出工具据此写 cuav:presets_version，
+// 运行目录里没有这一项的是 D-102 之前的运行，那时两张表都是 v1。
+json presets_json() {
+    return json{{"ofdm", {{"version", geo::radiator_presets_version()}, {"sha256", geo::radiator_presets_sha256()}}},
+                {"gfsk", {{"version", "v1"}, {"sha256", geo::gfsk_presets_v1_sha256()}}}};
+}
+
 json run_json(const RunSpec& r) {
     json j{{"seed", r.seed}, {"duration_s", r.duration_s}};
     if (r.block_size) j["block_size"] = r.block_size;
@@ -698,6 +707,7 @@ int do_run(const Options& opt, std::ostream& events, std::ostream& diag) {
                                       {"seed", d.run.seed}, {"seed_source", seed_source},
                                       {"run", run_json(d.run)}, {"nodes", names},
                                       {"observation_points", taps_json(d)},
+                                      {"presets", presets_json()},
                                       {"engine_version", engine_version()}, {"started_utc", started}});
     {
         std::ostringstream o;

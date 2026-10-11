@@ -1,5 +1,5 @@
 // presets.ts 是机型预设表规格在浏览器一侧的副本，这份单测把它钉在真理源上（Q-2，D-088）：
-// 直接读 models/radiator/presets-v1.json 与 fir_rsmp_v1.json 逐项对拍（同 firSpecs.test.ts 的办法）。
+// 直接读 models/radiator/presets-v2.json 与 fir_rsmp_v1.json 逐项对拍（同 firSpecs.test.ts 的办法）。
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -14,8 +14,8 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const json = (rel: string) => JSON.parse(readFileSync(join(ROOT, rel), 'utf8'))
 
-test('预设副本与 models/radiator/presets-v1.json 逐项相同（顺序、类型、标签、名、原生采样率、占用带宽）', () => {
-  const doc = json('models/radiator/presets-v1.json')
+test('预设副本与 models/radiator/presets-v2.json 逐项相同（顺序、类型、标签、名、原生采样率、占用带宽）', () => {
+  const doc = json('models/radiator/presets-v2.json')
   const nums = new Map<string, { fs_native_Hz: number }>(doc.numerologies.map((n: { id: string; fs_native_Hz: number }) => [n.id, n]))
   assert.equal(RADIATOR_PRESETS.length, doc.presets.length)
   doc.presets.forEach((p: Record<string, unknown>, i: number) => {

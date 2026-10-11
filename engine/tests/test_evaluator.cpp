@@ -596,7 +596,7 @@ TEST_CASE("评价器 · OFDM 族：一个突发一行，与源同一张帧排布
     std::vector<TruthRow> want;
     for (const char* id : {"video-gated", "uplink"}) {
         const geo::Emitter* em = ls.scenario.find_emitter(id);
-        const geo::RadiatorPreset* p = geo::radiator_preset_v1(em->emission.waveform.preset_id);
+        const geo::RadiatorPreset* p = geo::radiator_preset(em->emission.waveform.preset_id);
         geo::EmitterRuntime rt;
         REQUIRE(rt.build(ls.scenario, id, err));
         geo::FrameSchedule fs2;

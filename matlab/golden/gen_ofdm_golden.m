@@ -76,7 +76,7 @@ out.matlab_vs_python_max_rel = worstPython;
 out.guards = struct();
 out.guards.source_m_sha256 = {struct('path', 'matlab/golden/gen_ofdm_golden.m', ...
     'sha256', cuav_sha256(fullfile(repo, 'matlab', 'golden', 'gen_ofdm_golden.m')))};
-out.guards.presets_sha256 = cuav_sha256(fullfile(repo, 'models', 'radiator', 'presets-v1.json'));
+out.guards.presets_sha256 = cuav_sha256(fullfile(repo, 'models', 'radiator', 'presets-v2.json'));
 out.guards.note = '改了预设表或本脚本却没重跑 MATLAB，引擎单测据此当场红。';
 out.cases = outCases;
 out.tolerance = struct('kernel_rel', tol, 'note', ...

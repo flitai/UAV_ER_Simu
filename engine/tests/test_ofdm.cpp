@@ -1,7 +1,7 @@
 // OFDM 族波形的单测（Q-2，14 号报告 §2，决策 D-088）。
 //
 // 分组：
-//   ① 预设表：geo/src/radiator_presets.cpp 与 models/radiator/presets-v1.json 逐项相同，
+//   ① 预设表：geo/src/radiator_presets.cpp 与 models/radiator/presets-v2.json 逐项相同，
 //      且表文件的 sha256 与生成时记下的一致（防「改了 JSON 忘了重生成」）；
 //   ② 原生率调制器（engine/src/ofdm.cpp）：缓存旋转因子的 FFT 与原版逐位相同、结构性质
 //      （子载波数、CP、ZC 功率）、对 Python 参考与 MATLAB 一方的黄金基准（算法核尺度 1e-9）。
@@ -56,9 +56,9 @@ int bits_per_axis(const std::string& c) {
 }
 }  // namespace
 
-TEST_CASE("预设表：生成的 C++ 与 models/radiator/presets-v1.json 逐项相同") {
-    const std::string raw = read_bytes(repo_path("models/radiator/presets-v1.json"));
-    CHECK_MESSAGE(sha256_hex(raw) == std::string(geo::radiator_presets_v1_sha256()),
+TEST_CASE("预设表：生成的 C++ 与 models/radiator/presets-v2.json 逐项相同") {
+    const std::string raw = read_bytes(repo_path("models/radiator/presets-v2.json"));
+    CHECK_MESSAGE(sha256_hex(raw) == std::string(geo::radiator_presets_sha256()),
                   "表文件变了而 C++ 没重生成：uv run --quiet python scripts/gen_radiator_presets.py");
     const nlohmann::json j = nlohmann::json::parse(raw);
     CHECK(j.at("schema").get<std::string>() == "cuav-radiator-presets/1");
@@ -73,14 +73,14 @@ TEST_CASE("预设表：生成的 C++ 与 models/radiator/presets-v1.json 逐项�
     };
 
     const auto& ps = j.at("presets");
-    REQUIRE(ps.size() == geo::radiator_preset_v1_count());
+    REQUIRE(ps.size() == geo::radiator_preset_count());
     for (std::size_t i = 0; i < ps.size(); ++i) {
         const auto& p = ps[i];
         const std::string id = p.at("id").get<std::string>();
         CAPTURE(id);
-        const geo::RadiatorPreset* c = geo::radiator_preset_v1(id);
+        const geo::RadiatorPreset* c = geo::radiator_preset(id);
         REQUIRE(c != 0);
-        CHECK(c == &geo::radiator_preset_v1_at(i));  // 顺序与 JSON 相同
+        CHECK(c == &geo::radiator_preset_at(i));  // 顺序与 JSON 相同
         CHECK(std::string(c->type) == p.at("type").get<std::string>());
         CHECK(std::string(c->role) == p.at("role").get<std::string>());
         CHECK(std::string(c->credibility) == p.at("credibility").get<std::string>());
@@ -125,11 +125,11 @@ TEST_CASE("预设表：生成的 C++ 与 models/radiator/presets-v1.json 逐项�
                 CHECK(c->cycle[r * (c->n_bursts + 1) + k] == row[static_cast<std::size_t>(k)].get<double>());
         }
     }
-    CHECK(geo::radiator_preset_v1("no-such-preset") == 0);
+    CHECK(geo::radiator_preset("no-such-preset") == 0);
 }
 
 TEST_CASE("预设表：DroneID 的结构逐项对 NDSS 2023 §III-B") {
-    const geo::RadiatorPreset* d = geo::radiator_preset_v1("dji-droneid");
+    const geo::RadiatorPreset* d = geo::radiator_preset("dji-droneid");
     REQUIRE(d != 0);
     CHECK(std::string(d->type) == "droneid");
     CHECK(d->fft_size == 1024);
@@ -168,8 +168,8 @@ TEST_CASE("FftPlan：与 fft_inplace(double) 逐位相同") {
 }
 
 TEST_CASE("调制器：每个符号恰 2K 个非零子载波、直流空、CP 逐位循环、ZC 符号功率恰为 1") {
-    for (std::size_t pi = 0; pi < geo::radiator_preset_v1_count(); ++pi) {
-        const geo::RadiatorPreset& p = geo::radiator_preset_v1_at(pi);
+    for (std::size_t pi = 0; pi < geo::radiator_preset_count(); ++pi) {
+        const geo::RadiatorPreset& p = geo::radiator_preset_at(pi);
         CAPTURE(p.id);
         ofdm::Modulator m;
         std::string err;
@@ -219,7 +219,7 @@ void check_ofdm_golden(const nlohmann::json& g, const std::string& who) {
         const std::string pid = c.at("preset").get<std::string>();
         CAPTURE(who);
         CAPTURE(pid);
-        const geo::RadiatorPreset* p = geo::radiator_preset_v1(pid);
+        const geo::RadiatorPreset* p = geo::radiator_preset(pid);
         REQUIRE(p != 0);
         ofdm::Modulator m;
         std::string err;
@@ -273,7 +273,7 @@ TEST_CASE("调制器：对 Python 参考（numpy ifft）的黄金基准，算法
     const std::string raw = read_bytes(repo_path("engine/tests/golden/ofdm.json"));
     const nlohmann::json g = nlohmann::json::parse(raw);
     CHECK_MESSAGE(g.at("presets").at("sha256").get<std::string>() ==
-                      std::string(geo::radiator_presets_v1_sha256()),
+                      std::string(geo::radiator_presets_sha256()),
                   "黄金基准是按旧预设表生成的：uv run --quiet --with numpy python "
                   "algos/reference/gen_engine_golden.py --mode ofdm -o engine/tests/golden/ofdm.json");
     check_ofdm_golden(g, "python");
@@ -283,7 +283,7 @@ TEST_CASE("调制器：对 MATLAB 一方（通信工具箱 ofdmmod）的黄金�
     const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/ofdm.matlab.json")));
     // 防陈旧：MATLAB 一方记着它生成那一刻读到的预设表与脚本的 sha256
     CHECK_MESSAGE(g.at("guards").at("presets_sha256").get<std::string>() ==
-                      std::string(geo::radiator_presets_v1_sha256()),
+                      std::string(geo::radiator_presets_sha256()),
                   "预设表变了而 MATLAB 一方没重跑：MATLAB_ROOT=<MATLAB 安装目录> sh matlab/run_matlab.sh");
     for (const auto& h : g.at("guards").at("source_m_sha256")) {
         const std::string rel = h.at("path").get<std::string>();
@@ -453,7 +453,7 @@ TEST_CASE("有理重采样：Coder 核对 Python 参考（直接型）与 MATLAB
 TEST_CASE("有理重采样：真实上行突发整段重采样，对 Python 参考 1e-9") {
     const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/rsmp.json")));
     const auto& b = g.at("burst");
-    const geo::RadiatorPreset* p = geo::radiator_preset_v1(b.at("preset").get<std::string>());
+    const geo::RadiatorPreset* p = geo::radiator_preset(b.at("preset").get<std::string>());
     REQUIRE(p != 0);
     ofdm::Modulator mod;
     std::string err;
@@ -505,7 +505,7 @@ TEST_CASE("有理重采样：冲激对齐偏差 0 样点（三档抽取比）") 
 
 TEST_CASE("帧排布：整张突发表对 Python 复刻逐位相同（每个预设 10 万个时隙）") {
     const nlohmann::json g = nlohmann::json::parse(read_bytes(repo_path("engine/tests/golden/ofdm_frame.json")));
-    CHECK_MESSAGE(g.at("presets").at("sha256").get<std::string>() == std::string(geo::radiator_presets_v1_sha256()),
+    CHECK_MESSAGE(g.at("presets").at("sha256").get<std::string>() == std::string(geo::radiator_presets_sha256()),
                   "黄金基准是按旧预设表生成的：uv run --quiet --with numpy python "
                   "algos/reference/gen_engine_golden.py --mode ofdm_frame -o engine/tests/golden/ofdm_frame.json");
     for (const auto& c : g.at("cases")) {
@@ -513,7 +513,7 @@ TEST_CASE("帧排布：整张突发表对 Python 复刻逐位相同（每个预�
         const std::string eid = c.at("emitter_id").get<std::string>();
         CAPTURE(pid);
         CAPTURE(eid);
-        const geo::RadiatorPreset* p = geo::radiator_preset_v1(pid);
+        const geo::RadiatorPreset* p = geo::radiator_preset(pid);
         REQUIRE(p != 0);
         geo::FrameSchedule fs;
         fs.build(*p, c.at("seed").get<std::uint64_t>(), eid, c.at("offset_n").get<std::int64_t>(),
@@ -538,7 +538,7 @@ TEST_CASE("帧排布：整张突发表对 Python 复刻逐位相同（每个预�
 }
 
 TEST_CASE("帧排布：随机访问（bursts_in）与顺序铺开逐项相同") {
-    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-20m-a");
+    const geo::RadiatorPreset* p = geo::radiator_preset("dji-video-20m-a");
     REQUIRE(p != 0);
     geo::FrameSchedule fs;
     fs.build(*p, 42u, "uav-9", 0, 5000 * p->slot_n);
@@ -558,12 +558,12 @@ TEST_CASE("帧排布：随机访问（bursts_in）与顺序铺开逐项相同") 
 }
 
 TEST_CASE("帧排布：占空与长突发占比对预设的拟合目标（10 万个时隙）") {
-    const nlohmann::json j = nlohmann::json::parse(read_bytes(repo_path("models/radiator/presets-v1.json")));
+    const nlohmann::json j = nlohmann::json::parse(read_bytes(repo_path("models/radiator/presets-v2.json")));
     for (const auto& pj : j.at("presets")) {
         if (!pj.count("frame_fit") || !pj.at("frame_fit").count("duty")) continue;
         const std::string pid = pj.at("id").get<std::string>();
         CAPTURE(pid);
-        const geo::RadiatorPreset* p = geo::radiator_preset_v1(pid);
+        const geo::RadiatorPreset* p = geo::radiator_preset(pid);
         geo::FrameSchedule fs;
         fs.build(*p, 20260904u, "uav-1", 0, 100000 * p->slot_n);
         std::int64_t on = 0;
@@ -582,7 +582,7 @@ TEST_CASE("帧排布：占空与长突发占比对预设的拟合目标（10 万
 TEST_CASE("重采样档位：geo 里声明的一份与冻结表、封装层三处相同") {
     CHECK(geo::kRsmpInterp == dsp::rsmp_fir_v1().interp);
     // geo 的 rsmp_decim_for 认的抽取比，恰是封装层支持的那几个
-    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-10m");   // 15.36 MS/s：三档都升采样
+    const geo::RadiatorPreset* p = geo::radiator_preset("dji-video-10m");   // 15.36 MS/s：三档都升采样
     REQUIRE(p != 0);
     std::vector<int> got;
     for (int m : rsmp_supported_decim()) {
@@ -723,7 +723,7 @@ TEST_CASE("OFDM 源：发射期间平均功率 1 mW（单位功率合同）") {
     LoadedScenario ls;
     std::string err;
     REQUIRE(load_scenario_file(repo_path(kOfdmFixture), ls, err));
-    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-10m");
+    const geo::RadiatorPreset* p = geo::radiator_preset("dji-video-10m");
     geo::FrameSchedule fs;
     fs.build(*p, ls.scenario.seed, "video", 0, static_cast<std::int64_t>(N) * 24 / 125);
     double pw = 0.0;
@@ -748,7 +748,7 @@ TEST_CASE("OFDM 源：整突发开关——1 ms 开、6 ms 关，突发要么整
     LoadedScenario ls;
     std::string err;
     REQUIRE(load_scenario_file(repo_path(kOfdmFixture), ls, err));
-    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-video-10m");
+    const geo::RadiatorPreset* p = geo::radiator_preset("dji-video-10m");
     geo::FrameSchedule fs;
     fs.build(*p, ls.scenario.seed, "video-gated", 0, static_cast<std::int64_t>(N) * 24 / 125);
     int on_bursts = 0, off_bursts = 0;
@@ -784,7 +784,7 @@ TEST_CASE("OFDM 源：上行逐突发的频点等于该突发中点时刻的跳�
     REQUIRE(load_scenario_file(repo_path(kOfdmFixture), ls, err));
     geo::EmitterRuntime rt;
     REQUIRE(rt.build(ls.scenario, "uplink", err));
-    const geo::RadiatorPreset* p = geo::radiator_preset_v1("dji-uplink-2m");
+    const geo::RadiatorPreset* p = geo::radiator_preset("dji-uplink-2m");
     geo::FrameSchedule fs;
     fs.build(*p, ls.scenario.seed, "uplink", 0, static_cast<std::int64_t>(N) * 24 / 125);
     int checked = 0;

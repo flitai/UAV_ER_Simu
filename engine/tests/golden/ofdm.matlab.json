@@ -11,10 +11,10 @@
     "source_m_sha256": [
       {
         "path": "matlab/golden/gen_ofdm_golden.m",
-        "sha256": "154966f00d92db94683c8cb14f3e1be80735431021e2310a62fa454e498e5b7f"
+        "sha256": "f0b05fb3e38525dfc9f42b64f033109220f83857afc94ae92164dbe8d20ab6e4"
       }
     ],
-    "presets_sha256": "bbd1d24cafb5ac1fe82a48553c1a866725b86cca20884d0bec9cdfb666cc6839",
+    "presets_sha256": "60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde",
     "note": "改了预设表或本脚本却没重跑 MATLAB，引擎单测据此当场红。"
   },
   "cases": [

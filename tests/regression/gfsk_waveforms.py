@@ -300,7 +300,7 @@ def check_export() -> None:
         if metas:
             meta = json.load(open(os.path.join(out, metas[0]), encoding="utf-8"))
             g = meta["global"]
-            check(g.get("cuav:preset_ids") == ["frsky-d16v2-fcc", "futaba-sfhss"] and g.get("cuav:presets_version") == "v1",
+            check(g.get("cuav:preset_ids") == ["frsky-d16v2-fcc", "futaba-sfhss"] and g.get("cuav:presets_version") == {"gfsk": "v1"},
                   f"全局 {g.get('cuav:preset_ids')} / {g.get('cuav:presets_version')}")
             ann = meta["annotations"]
             ids = {}

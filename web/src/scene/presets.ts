@@ -1,7 +1,7 @@
 // 机型预设表 v1 的规格在浏览器一侧的**副本**（Q-2，D-088；GFSK 族那张表自 Q-3，D-089）：场景编辑器的预设挑单、选预设即填占用带宽、
 // 频率计划里「OFDM 波形的采样率在重采样档位里」那一条检查都读它。
 //
-// 真理源是 `models/radiator/presets-v1.json`（每项参数的出处档与引文在那里）。这里只抄编辑器要用的几项，
+// 真理源是 `models/radiator/presets-v2.json`（每项参数的出处档与引文在那里）。这里只抄编辑器要用的几项，
 // 不抄数值结构、突发与帧排布——那些只在引擎与 geo/ 里用。`presets.test.ts` 直接读 JSON 与
 // `models/radiator/fir_rsmp_v1.json` 逐项对拍：改了表却忘了改副本，当场红（同 firSpecs.ts 的办法，铁律 10）。
 

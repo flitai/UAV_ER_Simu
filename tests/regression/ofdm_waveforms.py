@@ -262,7 +262,7 @@ def check_export() -> None:
             meta = json.load(open(os.path.join(out, metas[0]), encoding="utf-8"))
             g = meta["global"]
             check(g.get("cuav:preset_ids") == ["dji-droneid", "dji-uplink-2m", "dji-video-20m-a"]
-                  and g.get("cuav:presets_version") == "v1", f"全局 {g.get('cuav:preset_ids')} / {g.get('cuav:presets_version')}")
+                  and g.get("cuav:presets_version") == {"ofdm": "v2"}, f"全局 {g.get('cuav:preset_ids')} / {g.get('cuav:presets_version')}")
             ann = meta["annotations"]
             labs = {}
             for a in ann:

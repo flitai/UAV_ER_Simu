@@ -3,8 +3,8 @@
  "purpose": "原生采样率 OFDM 调制的对拍基准（Q-2，D-088）：引擎 engine/src/ofdm.cpp 对 algos/reference/ofdm_ref.py（numpy ifft）；MATLAB 一方读本文件的子载波值做 ofdmmod，写 ofdm.matlab.json",
  "generator": "algos/reference/gen_engine_golden.py --mode ofdm",
  "presets": {
-  "source": "models/radiator/presets-v1.json",
-  "sha256": "bbd1d24cafb5ac1fe82a48553c1a866725b86cca20884d0bec9cdfb666cc6839"
+  "source": "models/radiator/presets-v2.json",
+  "sha256": "60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde"
  },
  "contract": "子载波 k = -K..-1,+1..+K；数据：每突发 Xoshiro256pp(seed)，逐数据符号逐子载波一个 next_u64，低 b 位给 I、再往上 b 位给 Q；ZC 删去中间一项；x[n] = g·Σ X_k·e^{+j2πkn/N}，g = 1/√(2K)；先 CP（符号尾部）再符号本体",
  "cases": [
@@ -5973,7 +5973,7 @@
    "fft_size": 1024,
    "half_subcarriers": 300,
    "gain": 0.040824829046386304,
-   "burst_length": 16448,
+   "burst_length": 16464,
    "symbols": [
     {
      "symbol": 1,
@@ -7690,7 +7690,7 @@
    "fft_size": 2048,
    "half_subcarriers": 600,
    "gain": 0.028867513459481284,
-   "burst_length": 32896,
+   "burst_length": 32928,
    "symbols": [
     {
      "symbol": 2,

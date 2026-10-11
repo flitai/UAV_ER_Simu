@@ -3,8 +3,8 @@
  "purpose": "OFDM 帧排布的对拍基准（Q-2，D-088 ⑤）：geo/src/ofdm_frame.cpp 对 algos/reference/ofdm_ref.py",
  "generator": "algos/reference/gen_engine_golden.py --mode ofdm_frame",
  "presets": {
-  "source": "models/radiator/presets-v1.json",
-  "sha256": "bbd1d24cafb5ac1fe82a48553c1a866725b86cca20884d0bec9cdfb666cc6839"
+  "source": "models/radiator/presets-v2.json",
+  "sha256": "60541c8ff9b8fd9708fbb4a56684ab83e513776e559cf36f7a60834dfba2ddde"
  },
  "line_format": "每个突发一行 \"slot,start_n,variant\\n\"（十进制、无空格），整张表拼接后取 sha256",
  "cases": [
@@ -15,8 +15,8 @@
    "offset_n": 0,
    "end_n": 3072000000,
    "slots": 100000,
-   "n_bursts": 63561,
-   "sha256_lines": "37ff0e499ffb8c5ecf675a3ed9e171baa90e1549d7b2e40893f36673a6024b16",
+   "n_bursts": 63498,
+   "sha256_lines": "35ffaa5aff81275c99289936ef27f6396aaefc79b115642edce5dbca902bfd5f",
    "first": [
     [
      1,
@@ -220,9 +220,9 @@
     ]
    ],
    "stats": {
-    "duty": 0.409383453125,
-    "bursts_per_s": 317.805,
-    "long_share": 0.20304903950535705,
+    "duty": 0.4093583697916667,
+    "bursts_per_s": 317.49,
+    "long_share": 0.2029985196384138,
     "interval_ms_quantiles": {
      "10": 2.0,
      "25": 2.0,
@@ -239,8 +239,8 @@
    "offset_n": 71680,
    "end_n": 3072071680,
    "slots": 100000,
-   "n_bursts": 63849,
-   "sha256_lines": "756247070835881f8d3d9bc4c079c5d8e78df3a7b98c85029ff4138e676ee262",
+   "n_bursts": 63792,
+   "sha256_lines": "f7906881f81b46cb5b7ce7105cb6358f88f6784049fc470d7102918074d422b6",
    "first": [
     [
      0,
@@ -438,15 +438,15 @@
      0
     ],
     [
-     63,
-     2007040,
-     0
+     65,
+     2068480,
+     1
     ]
    ],
    "stats": {
-    "duty": 0.410433109375,
-    "bursts_per_s": 319.245,
-    "long_share": 0.2006922582969193,
+    "duty": 0.41044655989583334,
+    "bursts_per_s": 318.96,
+    "long_share": 0.20063644344118384,
     "interval_ms_quantiles": {
      "10": 2.0,
      "25": 2.0,
@@ -463,8 +463,8 @@
    "offset_n": 0,
    "end_n": 6144000000,
    "slots": 100000,
-   "n_bursts": 63561,
-   "sha256_lines": "e964102efa2aae4488190970933768d0c42ce47622f736fe92b81e6bc0021102",
+   "n_bursts": 63498,
+   "sha256_lines": "54c4b10fdd44c5414e293e8b2ed9d38b2fb5cf3804701711335c3da36d9630ca",
    "first": [
     [
      1,
@@ -668,9 +668,9 @@
     ]
    ],
    "stats": {
-    "duty": 0.409383453125,
-    "bursts_per_s": 317.805,
-    "long_share": 0.20304903950535705,
+    "duty": 0.4093583697916667,
+    "bursts_per_s": 317.49,
+    "long_share": 0.2029985196384138,
     "interval_ms_quantiles": {
      "10": 2.0,
      "25": 2.0,
@@ -687,8 +687,8 @@
    "offset_n": 143360,
    "end_n": 6144143360,
    "slots": 100000,
-   "n_bursts": 63849,
-   "sha256_lines": "c49207f1a309862e6e255b630e26615eaaaa2e406df91835abc2c848fae5ffdb",
+   "n_bursts": 63792,
+   "sha256_lines": "b6989b1495581a0759cf2df488ed63d74c596144d2e37defb126f0a0ca90eaf7",
    "first": [
     [
      0,
@@ -886,15 +886,15 @@
      0
     ],
     [
-     63,
-     4014080,
-     0
+     65,
+     4136960,
+     1
     ]
    ],
    "stats": {
-    "duty": 0.410433109375,
-    "bursts_per_s": 319.245,
-    "long_share": 0.2006922582969193,
+    "duty": 0.41044655989583334,
+    "bursts_per_s": 318.96,
+    "long_share": 0.20063644344118384,
     "interval_ms_quantiles": {
      "10": 2.0,
      "25": 2.0,
@@ -911,8 +911,8 @@
    "offset_n": 0,
    "end_n": 12288000000,
    "slots": 100000,
-   "n_bursts": 85605,
-   "sha256_lines": "f83a25e17c80adda652368c0966b176067e74095d5da7d5fec8dda3eb9ad1a89",
+   "n_bursts": 85528,
+   "sha256_lines": "a10c4c1866d2abf225a2133b8db730c21ae74a8a6556453252225127951c136c",
    "first": [
     [
      1,
@@ -1116,9 +1116,9 @@
     ]
    ],
    "stats": {
-    "duty": 0.21770260677083333,
-    "bursts_per_s": 214.0125,
-    "long_share": 0.6244728695753753,
+    "duty": 0.21769023307291666,
+    "bursts_per_s": 213.82,
+    "long_share": 0.6245557010569638,
     "interval_ms_quantiles": {
      "10": 4.0,
      "25": 4.0,
@@ -1135,8 +1135,8 @@
    "offset_n": 286720,
    "end_n": 12288286720,
    "slots": 100000,
-   "n_bursts": 85800,
-   "sha256_lines": "ad06de3cc5c158c7756453e30bd63497351490a9e9df3f47cd84b28f5dced1a4",
+   "n_bursts": 85722,
+   "sha256_lines": "676ef0f5831bd4849558ca859383a38826d5fee2253e821839426400f141211e",
    "first": [
     [
      0,
@@ -1340,9 +1340,9 @@
     ]
    ],
    "stats": {
-    "duty": 0.21819859375,
-    "bursts_per_s": 214.5,
-    "long_share": 0.6244755244755245,
+    "duty": 0.2181818046875,
+    "bursts_per_s": 214.305,
+    "long_share": 0.6244837964583188,
     "interval_ms_quantiles": {
      "10": 4.0,
      "25": 4.0,
@@ -1359,8 +1359,8 @@
    "offset_n": 0,
    "end_n": 12288000000,
    "slots": 100000,
-   "n_bursts": 59727,
-   "sha256_lines": "562cffdef466c4266d5a36007f492937542e62f5f583a4649599fc756d380cec",
+   "n_bursts": 59678,
+   "sha256_lines": "d7186d803c01aa0e30f8cd23a77ecc0437efadda93484a1c731696fec56bc27e",
    "first": [
     [
      1,
@@ -1564,9 +1564,9 @@
     ]
    ],
    "stats": {
-    "duty": 0.401934796875,
-    "bursts_per_s": 298.635,
-    "long_share": 0.25700269559830563,
+    "duty": 0.40199893229166667,
+    "bursts_per_s": 298.39,
+    "long_share": 0.2570126344716646,
     "interval_ms_quantiles": {
      "10": 2.0,
      "25": 2.0,
@@ -1583,8 +1583,8 @@
    "offset_n": 286720,
    "end_n": 12288286720,
    "slots": 100000,
-   "n_bursts": 60045,
-   "sha256_lines": "66bfa9f55d79d09be1ee2390aa0a6e063eab33850f3dddc81264a38fd7ea44e0",
+   "n_bursts": 59993,
+   "sha256_lines": "ff526e31a53f07e27e86e506e69296f6e41b67f805433f9b02ee47e60dc44b50",
    "first": [
     [
      0,
@@ -1788,9 +1788,9 @@
     ]
    ],
    "stats": {
-    "duty": 0.4032574609375,
-    "bursts_per_s": 300.225,
-    "long_share": 0.25445915563327504,
+    "duty": 0.4033068046875,
+    "bursts_per_s": 299.965,
+    "long_share": 0.25447968929708464,
     "interval_ms_quantiles": {
      "10": 2.0,
      "25": 2.0,

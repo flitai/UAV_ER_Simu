@@ -120,7 +120,7 @@ std::string Evaluator::label_for_waveform(const std::string& waveform, double bw
 // 铺到整场景时长：评价器不知道框图时长，多铺的突发在 build_truth_rows 里被链路可见窗口滤掉。
 bool Evaluator::ofdm_truth_bursts(const geo::Scenario& sc, const geo::Emitter& e, EmitterInfo& info, std::string& err) {
     const geo::Waveform& w = e.emission.waveform;
-    const geo::RadiatorPreset* p = geo::radiator_preset_v1(w.preset_id);
+    const geo::RadiatorPreset* p = geo::radiator_preset(w.preset_id);
     if (p == 0) {
         err = "Evaluator：辐射源 " + e.id + " 的预设 " + w.preset_id + " 不在机型预设表 v1 里";
         return false;

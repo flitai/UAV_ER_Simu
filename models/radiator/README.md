@@ -4,7 +4,7 @@
 样点域的活动时间线在 `geo/src/activity.cpp`（`geo::ActivitySchedule`），
 带限的双二阶节在 `engine/src/dsp.cpp`；参考实现
 `algos/reference/gen_engine_golden.py --mode scene_noise`（Python，独立第二实现）。
-**OFDM 族（Q-2，§7）**：机型预设表 `models/radiator/presets-v1.json`（生成的 C++ 在
+**OFDM 族（Q-2，§7）**：机型预设表 `models/radiator/presets-v2.json`（D-102；v1 原样留在同目录，是 v1 时期产物的出处；生成的 C++ 在
 `geo/src/radiator_presets.cpp`）、帧排布 `geo/src/ofdm_frame.cpp`、原生率调制 `engine/src/ofdm.cpp`、
 有理重采样 `engine/src/resampler.cpp`（**算法核是 MATLAB Coder 产物** `models/radiator/coder/`，
 故组件目录里本组件 `implementation = coder`、`source_ref` 指向它，08 §13 第 4 条）。
@@ -139,18 +139,18 @@ D-063（检测器的已知行为）、**D-069（本卡：活动时间线按样�
 ### 7.1 结构从哪来
 
 场景只写 `emission.waveform = {type: ofdm | droneid, preset_id, offset_Hz?, frame_offset_s?}`，其余全部取自
-**机型预设表** `models/radiator/presets-v1.json`（每项带 V / P / S / A / D / M 出处与引文，这里不重抄）：
+**机型预设表** `models/radiator/presets-v2.json`（每项带 V / P / S / A / D / M 出处与引文，这里不重抄）：
 
 | 预设 | 数值结构 | 子载波 | 突发 | 帧排布 | 可信度 |
 |---|---|---|---|---|---|
-| `dji-video-10m` | 1024 点 / 15.36 MS/s | ±300 | 15 或 30 符号（1.071 / 2.141 ms） | 2 ms 时隙按概率抽（借 A/D/F/G 族） | V1 |
+| `dji-video-10m` | 1024 点 / 15.36 MS/s | ±300 | 15 或 30 符号（1.072 / 2.143 ms） | 2 ms 时隙按概率抽（借 A/D/F/G 族） | V1 |
 | `dji-video-20m-a` | 2048 / 30.72 | ±600（18.015 MHz） | 同上 | 2 ms 时隙，占空 0.411、长突发占比 0.2033 | V1 |
-| `dji-video-20m-c` | 2048 / 30.72 | ±600 | 13 或 15 符号（0.928 / 1.071 ms） | 4 ms 时隙，占空 0.2181 | V1 |
+| `dji-video-20m-c` | 2048 / 30.72 | ±600 | 13 或 15 符号（0.929 / 1.072 ms） | 4 ms 时隙，占空 0.2181 | V1 |
 | `dji-video-40m` | 4096 / 61.44 | ±1200（36.015 MHz） | 15 或 30 符号 | 2 ms 时隙，Mavic 3 5.8 GHz 的占空与占比 | V1 |
 | `dji-uplink-1m/2m/4m` | 1024 / 15.36 | ±37 / ±74 / ±147 | 7 符号 = 0.500 ms（4m 档拉长 CP 到 0.548 ms） | 图案 [发, 空, 发, 空, 空] × 2 ms，「发」以 q 空过 | V1 |
 | `dji-droneid` | 1024 / 15.36 | ±300（601 含直流） | 9 符号，第 4 / 6 符号 ZC 根 600 / 147，CP 80/72×7/80 | 640 ms 一次 | V2 |
 
-图传与上行的「类 LTE」数值结构是**推定**（14 §2.2，交付文档首页）；DroneID 的结构在 NDSS 2023 §III-B
+图传四档的长循环前缀放在每 7 个符号的首符号（LTE 常规循环前缀的时隙排布，v2 起；v1 只放首符号，突发短 1.04 µs / 2.08 µs）。图传与上行的「类 LTE」数值结构 v1 是**推定**（14 §2.2）；**v2 起其中的子载波间隔与平均循环前缀长度有实测依据**（D-102，14 §2.7）：`algos/reference/cp_numerology.py` 用循环前缀自相关在实测样本集上测得图传各型与上行 2.2 / 4.4 MHz 档都是 15 kHz、图传平均符号周期与时隙排布相符，结果 `data/iq/measured/cp-numerology.json`；FFT 点数在信号上不可观测，仍为假定，上行 1.1 MHz 档只说相容。DroneID 的结构在 NDSS 2023 §III-B
 逐项核过、ZC 取法照 proto17 `create_zc.m`（601 点删去中间一项）。星座一个预设一种（图传 16QAM、其余 QPSK），
 载荷是种子随机比特、不编码，**不含任何真实身份**。
 

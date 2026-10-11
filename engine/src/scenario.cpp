@@ -628,7 +628,7 @@ bool SceneEmitterSource::configure(const std::map<std::string, double>& params,
 }
 
 bool SceneEmitterSource::configure_ofdm(std::string& err) {
-    preset_ = geo::radiator_preset_v1(waveform_.preset_id);
+    preset_ = geo::radiator_preset(waveform_.preset_id);
     if (preset_ == 0) {
         err = "SceneEmitterSource：预设 " + waveform_.preset_id + " 不在机型预设表 v1 里";
         return false;

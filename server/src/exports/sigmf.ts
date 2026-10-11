@@ -15,9 +15,9 @@ import { createReadStream, promises as fsp } from 'node:fs'
 import { basename, join } from 'node:path'
 import { createInterface } from 'node:readline'
 
-export const EXPORTER_VERSION = '0.3.0'   // 0.3.0（试样集，D-092）：可用频带、capture、实测信噪比；0.2.0（Q-4，D-091）：上下沿按实际载频
+export const EXPORTER_VERSION = '0.4.0'   // 0.4.0（D-102）：cuav:presets_version 按表给出；0.3.0（试样集，D-092）：可用频带、capture、实测信噪比；0.2.0（Q-4，D-091）：上下沿按实际载频
 export const SIGMF_VERSION = '1.2.6'
-const CUAV_EXT_VERSION = '1.2.0'
+const CUAV_EXT_VERSION = '1.3.0'
 const FULL_SCALE = 32768
 const CHUNK = 1 << 22                    // 每块复样点数（约 32 MB cf32），与 Python 版相同
 const S3_GRID_TOL = 0.01
@@ -415,13 +415,25 @@ function linkAt(links: Json[], starts: number[], t: number): Json | null {
   return best ? best[1] : null
 }
 
-function presetKeys(scen: Json): Json {
+const PRESET_TABLE: Record<string, string> = { ofdm: 'ofdm', droneid: 'ofdm', gfsk: 'gfsk' }   // 波形类型 → 预设表
+
+/** 场景用到的机型预设与各表版本（D-102）：版本取自第一条 task.state 的 presets，只列用到的表；
+ *  没有这一项的运行出自 D-102 之前，两张表都是 v1。与 Python 参考 _preset_keys 同式。 */
+function presetKeys(scen: Json, first: Json): Json {
   const ids = new Set<string>()
+  const tables = new Set<string>()
   for (const e of (scen.emitters as Json[] | undefined) ?? []) {
     const w = ((e.emission as Json | undefined)?.waveform as Json | undefined) ?? {}
-    if (typeof w.preset_id === 'string') ids.add(w.preset_id)
+    if (typeof w.preset_id === 'string') {
+      ids.add(w.preset_id)
+      tables.add(PRESET_TABLE[String(w.type)])
+    }
   }
-  return ids.size ? { 'cuav:preset_ids': [...ids].sort(), 'cuav:presets_version': 'v1' } : {}
+  if (!ids.size) return {}
+  const run = (first.presets as Json | undefined) ?? {}
+  const ver: Json = {}
+  for (const t of [...tables].sort()) ver[t] = ((run[t] as Json | undefined)?.version as string | undefined) ?? 'v1'
+  return { 'cuav:preset_ids': [...ids].sort(), 'cuav:presets_version': ver }
 }
 
 /** 非理想与衰落的参数（Q-4，D-091）：只在任一项不是缺省时写 cuav:impairments。与 Python 参考 _impairments 同式。 */
@@ -945,7 +957,7 @@ async function exportOp(o: ExportOptions, d: Diagram, diagramSha: string, scen: 
         export_requantization: requant,
       },
       'cuav:signal_trace': idx.trace ?? null,
-      ...presetKeys(scen),
+      ...presetKeys(scen, first),
       ...impairments(ch, scen, cat),
       'cuav:model_trace': stages,
       'cuav:links_file': linksName,

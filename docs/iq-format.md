@@ -247,7 +247,7 @@
 | `global` | `cuav:time_basis` / `cuav:continuity` / `cuav:start_sample` / `cuav:t0_s` | `logical_sim` / `continuous` / 第一个样点的序号与逻辑时间（铁律 3） |
 | `global` | `cuav:seed` / `cuav:seed_source` / `cuav:diagram_id` / `cuav:diagram_sha256` / `cuav:scenario_id` / `cuav:scenario_sha256` | 复现信息（铁律 8、9） |
 | `global` | `cuav:impairments` | 非理想与衰落的参数（Q-4，D-091），**只在任一项不是缺省时写**：`receiver{node_id, lo_offset_Hz?, iq_gain_imbalance_dB?, iq_phase_imbalance_deg?, dc_offset_mW?, phase_noise?{model: pll_single_pole, level_dBc_Hz, corner_Hz, rms_phase_deg}}`（只列非零项）、`fading[]`（本站每条开了衰落的链路 `{emitter_id, node_id, model, k_los_dB, min_doppler_Hz, delay_spread_ns}`）、`cfo_ppm{emitter_id: ppm}`。前端的 trace 会被后级覆写，这些参数只能从框图读、在这里带出 |
-| `global` | `cuav:preset_ids` / `cuav:presets_version` | 场景里用到的机型预设（`models/radiator/presets-v1.json` 与 `gfsk-presets-v1.json` 的 id，两张表互不重名，升序）与表版本；**只在有 ofdm / droneid / gfsk 辐射源时写**（Q-2 D-088、Q-3 D-089） |
+| `global` | `cuav:preset_ids` / `cuav:presets_version` | 场景里用到的机型预设（OFDM 族表 `models/radiator/presets-v2.json` 与 GFSK 族表 `gfsk-presets-v1.json` 的 id，两张表互不重名，升序）与各表的版本：`cuav:presets_version` 是对象，只列场景实际用到的表，如 `{"ofdm": "v2"}`，版本取自 `cuav_run` 写在第一条 `task.state` 里的 `presets`；没有这一项的运行出自 D-102 之前，两张表都写 `v1`（导出工具 0.4.0 起，D-102；此前是字符串 `"v1"`）；**只在有 ofdm / droneid / gfsk 辐射源时写**（Q-2 D-088、Q-3 D-089） |
 | `global` | `cuav:origin_kind` | `synthetic`；混合增强为 `mixed`（铁律 14 的数据层标记） |
 | `global` | `cuav:lossless` / `cuav:quality` | 是否无损；`{state, reasons, engine_clipped_samples, export_clipped_samples, export_requantization}`（§3.2 的重量化余量等） |
 | `global` | `cuav:signal_trace` / `cuav:model_trace` | 被观测信号的溯源；观测点上游每个节点的 `{node_id, type, model_id, model_version, model_level, model_layer, implementation}`（取自组件目录） |

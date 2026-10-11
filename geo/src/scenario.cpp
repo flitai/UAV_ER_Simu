@@ -61,11 +61,11 @@ namespace {
 // 记在模型卡的已知边界里，不当作混叠去拒。
 bool check_ofdm_emitter(const Scenario& sc, const Emitter& e, std::string& err) {
     const Waveform& w = e.emission.waveform;
-    const RadiatorPreset* p = radiator_preset_v1(w.preset_id);
+    const RadiatorPreset* p = radiator_preset(w.preset_id);
     if (p == 0) {
         std::string ids;
-        for (std::size_t i = 0; i < radiator_preset_v1_count(); ++i)
-            ids += (i ? " / " : "") + std::string(radiator_preset_v1_at(i).id);
+        for (std::size_t i = 0; i < radiator_preset_count(); ++i)
+            ids += (i ? " / " : "") + std::string(radiator_preset_at(i).id);
         err = "辐射源 " + e.id + " 的 preset_id「" + w.preset_id + "」不在机型预设表 v1 里（可取 " + ids + "）";
         return false;
     }

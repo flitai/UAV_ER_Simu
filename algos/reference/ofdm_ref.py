@@ -29,7 +29,7 @@ import numpy as np
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(_HERE))
-PRESETS_REL = os.path.join("models", "radiator", "presets-v1.json")
+PRESETS_REL = os.path.join("models", "radiator", "presets-v2.json")
 
 
 def _xoshiro():

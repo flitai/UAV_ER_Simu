@@ -71,10 +71,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-VERSION = "0.3.0"                 # 0.3.0（试样集，D-092）：可用频带、capture、实测信噪比；0.2.0（Q-4，D-091）：上下沿按实际载频
+VERSION = "0.4.0"                 # 0.4.0（D-102）：cuav:presets_version 按表给出；0.3.0（试样集，D-092）：可用频带、capture、实测信噪比；0.2.0（Q-4，D-091）：上下沿按实际载频
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIGMF_VERSION = "1.2.6"            # sigmf 包 1.13.0 实现的规范版本（2026-09-29 锁定）
-CUAV_EXT_VERSION = "1.2.0"
+CUAV_EXT_VERSION = "1.3.0"
 FULL_SCALE = 32768
 CHUNK = 1 << 22                    # 分块处理的样点数（每块约 32 MB cf32）
 S3_GRID_TOL = 0.01                 # S3 样点离整数码的最大允许偏差（码）
@@ -356,12 +356,25 @@ def _link_at(links: list[dict], starts: list[float], t: float) -> dict | None:
     return best[1]
 
 
-def _preset_keys(scen: dict) -> dict:
-    """场景里用到的机型预设（Q-2 OFDM 族 D-088、Q-3 GFSK 族 D-089；两张表的 id 互不重名、版本都是 v1）：
-    没有按预设发射的辐射源时一个键都不写，既有导出逐字节不变。"""
-    ids = sorted({(e.get("emission") or {}).get("waveform", {}).get("preset_id")
-                  for e in scen.get("emitters", [])} - {None})
-    return {"cuav:preset_ids": ids, "cuav:presets_version": "v1"} if ids else {}
+PRESET_TABLE = {"ofdm": "ofdm", "droneid": "ofdm", "gfsk": "gfsk"}   # 波形类型 → 预设表
+
+
+def _preset_keys(scen: dict, first: dict) -> dict:
+    """场景里用到的机型预设（Q-2 OFDM 族 D-088、Q-3 GFSK 族 D-089；两张表的 id 互不重名）与各表的版本。
+
+    版本取自 cuav_run 写在第一条 task.state 里的 presets（D-102）：只列场景实际用到的表，如 {"ofdm": "v2"}；
+    没有这一项的运行出自 D-102 之前，那时两张表都是 v1。没有按预设发射的辐射源时一个键都不写。"""
+    ids, tables = set(), set()
+    for e in scen.get("emitters", []):
+        w = (e.get("emission") or {}).get("waveform", {})
+        if w.get("preset_id") is not None:
+            ids.add(w["preset_id"])
+            tables.add(PRESET_TABLE[w.get("type")])
+    if not ids:
+        return {}
+    run = first.get("presets") or {}
+    return {"cuav:preset_ids": sorted(ids),
+            "cuav:presets_version": {t: (run.get(t) or {}).get("version", "v1") for t in sorted(tables)}}
 
 
 def _impairments(ch: Chain, scen: dict, catalog: dict) -> dict:
@@ -814,7 +827,7 @@ def export_op(run_dir: str, diagram: dict, diagram_sha: str, scen_path: str, sce
                              "export_clipped_samples": q.clipped_export,
                              "export_requantization": requant},
             "cuav:signal_trace": idx.get("trace"),
-            **_preset_keys(scen),
+            **_preset_keys(scen, first),
             **_impairments(ch, scen, catalog),
             "cuav:model_trace": stages,
             "cuav:links_file": f"{stem}.cuav-links.jsonl",

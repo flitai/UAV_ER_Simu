@@ -1,4 +1,4 @@
-"""机型预设表 models/radiator/presets-v1.json 的单测（Q-2，决策 D-088）。
+"""机型预设表 models/radiator/presets-v2.json 的单测（Q-2，决策 D-088；v2 为 D-102）。
 
 三组：
   ① 不变量：直接调生成脚本的 validate()（与生成 C++ 前的核对是同一段代码）；
@@ -35,7 +35,7 @@ def _gen_module():
     return mod
 
 
-PRESETS = _load(os.path.join("models", "radiator", "presets-v1.json"))
+PRESETS = _load(os.path.join("models", "radiator", "presets-v2.json"))
 Q0B = _load(os.path.join("data", "iq", "measured", "q0b-params.json"))
 
 
@@ -163,6 +163,41 @@ class IndependentCheck(unittest.TestCase):
 
     def test_family_c(self):
         self._check("dji-video-20m-c", 0.10)
+
+
+class NumerologyFromMeasurement(unittest.TestCase):
+    """v2 的数值结构出处（D-102）钉在 data/iq/measured/cp-numerology.json 上（循环前缀自相关，只用实测样本集）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cpn = _load(os.path.join("data", "iq", "measured", "cp-numerology.json"))
+        cls.g = {x["name"]: x for x in cls.cpn["groups"]}
+
+    def test_holdout_untouched(self):
+        self.assertEqual(self.cpn["holdout"]["intersection"], 0)
+        self.assertGreater(self.cpn["holdout"]["checked_products"], 0)
+
+    def test_video_subcarrier_spacing(self):
+        for name, x in self.g.items():
+            if name.startswith("video-"):
+                self.assertAlmostEqual(x["scs_kHz"], 15.0, delta=1e-3, msg=name)
+
+    def test_cp_layout_per_slot(self):
+        # 实测平均符号周期离「每 7 个符号一个长循环前缀」的仿真读数更近，离「只放首符号」更远
+        sim = self.cpn["sim"]
+        for t in "ACDEFG":
+            ts = self.g[f"video-20m-{t}"]["Ts_us"]
+            self.assertLess(abs(ts - sim["per_slot"]["Ts_us"]), abs(ts - sim["first_only"]["Ts_us"]), t)
+        for pid in ("dji-video-10m", "dji-video-20m-a", "dji-video-20m-c", "dji-video-40m"):
+            for b in preset(pid)["bursts"]:
+                self.assertEqual(b["cp_long_at"], [i for i in range(b["n_symbols"]) if i % 7 == 0], pid)
+
+    def test_uplink_grades(self):
+        for pid, name in (("dji-uplink-2m", "uplink-2m"), ("dji-uplink-4m", "uplink-4m")):
+            self.assertAlmostEqual(self.g[name]["scs_kHz"], 15.0, delta=0.01, msg=pid)
+            self.assertTrue(preset(pid)["provenance"]["numerology"].startswith("M"), pid)
+        # 1.1 MHz 档的相关峰弱，只说相容，不升档
+        self.assertTrue(preset("dji-uplink-1m")["provenance"]["numerology"].startswith("A"))
 
 
 if __name__ == "__main__":

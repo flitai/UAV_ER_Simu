@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""把机型预设表生成成 C++ 源（Q-2，14 号报告 §2，决策 D-088）。
+"""把机型预设表生成成 C++ 源（Q-2，14 号报告 §2，决策 D-088；v2 为 D-102）。
 
 真理源：
-    models/radiator/presets-v1.json  →  geo/src/radiator_presets.cpp
+    models/radiator/presets-v2.json  →  geo/src/radiator_presets.cpp
+
+v1（presets-v1.json）原样留着，是 v1 时期产物（试样集 sample-v1、真实感对照 realism-v1）的出处；
+要改预设就出新版本（D-088 ①）。
 
 引擎与 geo 不在运行时读 JSON（同 FIR 系数表，scripts/gen_fir_taps.py 的头注）。生成前先把
 预设表的不变量逐条核一遍，任何一条不成立就不写文件（铁律 15：宁可报错不生成有问题的表）：
@@ -32,7 +35,8 @@ import os
 import sys
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TABLE = os.path.join("models", "radiator", "presets-v1.json")
+VERSION = "v2"
+TABLE = os.path.join("models", "radiator", f"presets-{VERSION}.json")
 OUT = os.path.join("geo", "src", "radiator_presets.cpp")
 
 BITS_PER_AXIS = {"qpsk": 1, "16qam": 2, "64qam": 3}
@@ -77,7 +81,7 @@ def closed_form_draw(duty: float, lam: float, slot_s: float, ds: float, dl: floa
 
 def validate(doc: dict) -> list:
     _need(doc.get("schema") == "cuav-radiator-presets/1", "schema 不是 cuav-radiator-presets/1")
-    _need(doc.get("version") == "v1", "version 不是 v1")
+    _need(doc.get("version") == VERSION, f"version 不是 {VERSION}")
     nums = {}
     for n in doc["numerologies"]:
         fs = n["fft_size"] * n["subcarrier_spacing_Hz"]
@@ -154,7 +158,7 @@ def _ident(pid: str) -> str:
 def render(items: list, sha: str) -> str:
     L = []
     w = L.append
-    w("// 机型预设表 v1 —— 本文件由脚本生成，不要手改。")
+    w(f"// 机型预设表 {VERSION} —— 本文件由脚本生成，不要手改。")
     w("//")
     w(f"// 来源：{TABLE.replace(os.sep, '/')}（sha256 {sha}）")
     w("// 生成：uv run --quiet python scripts/gen_radiator_presets.py")
@@ -200,18 +204,20 @@ def render(items: list, sha: str) -> str:
     w("")
     w("}  // namespace")
     w("")
-    w("const RadiatorPreset* radiator_preset_v1(const std::string& id) {")
+    w("const RadiatorPreset* radiator_preset(const std::string& id) {")
     w("    for (std::size_t i = 0; i < sizeof(kPresets) / sizeof(kPresets[0]); ++i) {")
     w("        if (id == kPresets[i].id) return &kPresets[i];")
     w("    }")
     w("    return 0;  // 不在表里：由调用方报错并列出可取值，不静默顶替（铁律 15）")
     w("}")
     w("")
-    w("std::size_t radiator_preset_v1_count() { return sizeof(kPresets) / sizeof(kPresets[0]); }")
+    w("std::size_t radiator_preset_count() { return sizeof(kPresets) / sizeof(kPresets[0]); }")
     w("")
-    w("const RadiatorPreset& radiator_preset_v1_at(std::size_t i) { return kPresets[i]; }")
+    w("const RadiatorPreset& radiator_preset_at(std::size_t i) { return kPresets[i]; }")
     w("")
-    w("const char* radiator_presets_v1_sha256() { return kSha256; }")
+    w("const char* radiator_presets_sha256() { return kSha256; }")
+    w("")
+    w(f'const char* radiator_presets_version() {{ return "{VERSION}"; }}')
     w("")
     w("}  // namespace geo")
     w("}  // namespace cuav")

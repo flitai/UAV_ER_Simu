@@ -4,7 +4,7 @@
 真理源：
     models/radiator/gfsk-presets-v1.json  →  geo/src/gfsk_presets.cpp
 
-与 OFDM 族那张表（models/radiator/presets-v1.json，scripts/gen_radiator_presets.py）分开：那张表的
+与 OFDM 族那张表（models/radiator/presets-v2.json，scripts/gen_radiator_presets.py）分开：那张表的
 sha256 钉在 OFDM 的两份黄金基准里，而它的结构（FFT 点数、CP、时隙抽签）本来也套不上 GFSK。
 
 引擎与 geo 不在运行时读 JSON（同 FIR 系数表）。生成前先把不变量逐条核一遍，任何一条不成立就不写
