@@ -248,7 +248,9 @@ def _formal_reps(doc: dict, records: list[dict], extra: dict) -> dict:
         v = sd.get(k) or {"n": 0}
         if v["n"]:
             sd_rows.append(f"| {PROP[k]} | {v['n']} | " + " | ".join(_signed(v[q]) for q in ("p05", "p25", "median", "p75", "p95")) + " |")
+    fm = doc.get("frontend_measured") or {}
     return {
+        "IQ_PHASE": f"{fm.get('iq_phase_imbalance_deg', 0):g}".replace("-", "−"),   # 负号用「−」（样本集的模板不动）
         "LOS_MEDIAN_DIFF": f"{statistics.median(x[0] for x in los):.2f}" if los else "—",
         "LOS_MAX_SEG": (f"`{S.scenario_id(doc, cells[los[0][1]])}`，信噪比目标 {_snr(los[0][2])} dB") if los else "—",
         "SNR_DIFF_TABLE": "\n".join(sd_rows) if len(sd_rows) > 2 else "（没有可计算的注记。）",
