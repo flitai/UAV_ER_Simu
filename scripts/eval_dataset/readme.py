@@ -110,11 +110,24 @@ def matrix_table(doc: dict) -> str:
     return "\n".join(rows)
 
 
+SIGNAL_LABEL = {
+    "dji-video-10m": "图传 10 MHz", "dji-video-20m-a": "图传 20 MHz", "dji-video-20m-c": "图传 20 MHz",
+    "dji-video-40m": "图传 40 MHz", "dji-droneid": "DroneID 广播", "dji-uplink-1m": "遥控上行（1.1 MHz 跳频）",
+    "dji-uplink-2m": "遥控上行（2.2 MHz 跳频）", "dji-uplink-4m": "遥控上行（4.4 MHz 跳频）",
+    "frsky-d16v2-fcc": "FrSky D16 遥控（FCC，跳频）", "futaba-sfhss": "Futaba S-FHSS 遥控（跳频）",
+}
+
+
 def _plat_desc(doc: dict, cell: dict) -> str:
+    """平台与信号：信号名，定频的加中心频率（跳频的频点见注记）。"""
     out = []
     for p in cell["platforms"]:
-        ems = "、".join(f"{e['equipment_model']}（{e.get('preset', '—')}）" for e in p["emitters"])
-        out.append(f"{p['name']}：{ems}")
+        ems = []
+        for e in p["emitters"]:
+            lab = SIGNAL_LABEL.get(e.get("preset", ""), e.get("equipment_model", e["id"]))
+            hop = "preset" in e and S.is_hopping(e["preset"])
+            ems.append(lab if hop or "center_Hz" not in e else f"{lab} @ {_mhz(e['center_Hz'])} MHz")
+        out.append(f"{p['name']}：{'、'.join(ems)}")
     return "；".join(out)
 
 
@@ -177,7 +190,7 @@ def power_table(doc: dict) -> str:
                 why, delta = "视距距离超过无线电视距的 80%", -red["dB"]
             else:
                 why, delta = "非视距位置在标称功率下达不到目标", rai
-            rows.append(f"| `{S.scenario_id(doc, c)}` | {p['name']} | {tx:g} | {_signed(delta, 1)} | {why} |")
+            rows.append(f"| `{S.scenario_id(doc, c)}` | {p['name']} | {tx:.1f} | {_signed(delta, 1)} | {why} |")
             n += 1
     return "\n".join(rows) if n else "本数据集没有调整发射功率的段。"
 
@@ -191,15 +204,26 @@ def sample_relation(doc: dict, extra: dict) -> str:
     if rel["identical"]:
         lines.append(f"其中 {len(rel['identical'])} 段不含 DJI 图传，数据文件与样本集逐字节相同。")
     if rel["different"]:
-        same = all(x.get("same_starts") for x in rel["different"])
         lines.append(f"另 {len(rel['different'])} 段含 DJI 图传，与样本集不同：本数据集按经实测核实的循环前缀排布生成图传（见第 6 章），"
-                     "样本集生成时图传只在突发的首个符号使用长循环前缀。"
-                     + ("两者的注记条数、每条注记的辐射源、起始样点与类别都相同，只有图传突发的长度不同。" if same else
-                        "两者的图传突发排布有差异。"))
-    rows = ["", "", "| 本数据集的段 | 样本集的段 | 数据文件 |", "|---|---|---|"]
+                     "图传突发比样本集长 1–2 µs；突发的时隙排布概率随之按同一方法重算，个别时隙的抽取结果因此不同。"
+                     "各段的差异逐条比对两者的注记得出，列在下表。")
+    rows = ["", "", "| 本数据集的段 | 样本集的段 | 与样本集的差异 |", "|---|---|---|"]
     for x in sorted(rel["identical"] + rel["different"], key=lambda x: x["sample_segment"]):
-        same = x in rel["identical"]
-        rows.append(f"| `{x['segment']}` | `{x['sample_segment']}` | {'逐字节相同' if same else '图传的循环前缀排布不同'} |")
+        if x in rel["identical"]:
+            what = "数据文件逐字节相同"
+        else:
+            parts = []
+            lo_hi = x.get("length_delta_samples")
+            if lo_hi:
+                parts.append(f"{x['length_changed']} 个图传突发长 {lo_hi[0]}–{lo_hi[1]} 个样点，起始样点相同")
+            if x.get("only_source"):
+                parts.append(f"样本集中有 {x['only_source']} 个图传突发在本段中没有")
+            if x.get("only_here"):
+                parts.append(f"本段有 {x['only_here']} 个突发在样本集中没有")
+            if x["common"] - x["length_changed"]:
+                parts.append(f"其余 {x['common'] - x['length_changed']} 条注记相同")
+            what = "；".join(parts)
+        rows.append(f"| `{x['segment']}` | `{x['sample_segment']}` | {what} |")
     return "".join(lines) + "\n".join(rows)
 
 

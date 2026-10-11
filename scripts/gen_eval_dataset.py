@@ -448,10 +448,13 @@ def _annotation_diff(meta_a: str, meta_b: str) -> dict:
         return [(a.get("cuav:emitter_id"), a["core:sample_start"], a["core:label"], a["core:sample_count"])
                 for a in m["annotations"]]
     a, b = rows(meta_a), rows(meta_b)
-    same_starts = [x[:3] for x in a] == [x[:3] for x in b]
-    d = [x[3] - y[3] for x, y in zip(a, b) if x[3] != y[3]] if same_starts else []
-    return {"annotations": [len(a), len(b)], "same_starts": same_starts, "length_changed": len(d),
-            "length_delta_samples": [min(d), max(d)] if d else None}
+    ka = {x[:3]: x[3] for x in a}
+    kb = {x[:3]: x[3] for x in b}
+    common = sorted(set(ka) & set(kb))
+    d = [ka[k] - kb[k] for k in common if ka[k] != kb[k]]
+    return {"annotations": [len(a), len(b)], "same_starts": set(ka) == set(kb), "common": len(common),
+            "only_here": len(set(ka) - set(kb)), "only_source": len(set(kb) - set(ka)),
+            "length_changed": len(d), "length_delta_samples": [min(d), max(d)] if d else None}
 
 
 def snr_diff_distribution(doc: dict, base: str, records: list[dict]) -> dict:
@@ -606,6 +609,7 @@ def cmd_rerender(a) -> int:
     extra = {k: man[k] for k in ("presets_version", "verify", "sample_relation", "snr_diff") if k in man}
     if doc.get("purpose") == "formal":
         extra["snr_diff"] = snr_diff_distribution(doc, base, man["cells"])
+        extra["sample_relation"] = sample_relation(doc, man["cells"])
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     extra["docs"] = {"commit": head, "note": "说明类交付件（README、index.json、SHA512SUMS）按这一提交重出；数据未重新生成"}
     before = {f["name"]: f["sha512"] for r in man["cells"] for o in r["ops"] for f in o["files"]}
