@@ -133,7 +133,7 @@ class TestCellsFile(unittest.TestCase):
             C.validate(bad)
 
     def test_file_is_canonical(self):
-        for set_id in ("sample-v1", "realism-v1"):
+        for set_id in ("sample-v1", "realism-v1", "realism-v2"):
             with open(C.path_of(set_id), encoding="utf-8") as fh:
                 text = fh.read()
             self.assertEqual(text, json.dumps(json.loads(text), ensure_ascii=False, indent=2) + "\n", set_id)
