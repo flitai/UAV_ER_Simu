@@ -149,6 +149,110 @@ def cmd_prepare(a) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- baseline（Q-7，D-106）
+
+BASELINE_SUBBAND_BINS = 8          # 子带检测最小块宽 8 个频点、按级加倍（D-093 用户定）
+
+
+def baseline_cell(doc: dict, cell: dict, base: str, keep_runs: bool = False) -> dict:
+    """在交付的 S4 上跑本方检测识别链（子带检测 + 识别库 v2），留下评价结果。
+
+    场景、种子与生成时相同，只给检测器开子带、只留 S4 观测点；检测、特征、识别与评价只读信号、不改信号。
+    为证明基准跑的就是交付给对方的数据：把这次运行的 S4 再导出一遍，与交付包里的 `.sigmf-data` 逐字节比对。"""
+    import shutil
+    import time
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import iq_export_sigmf as X
+    rel = lambda q: os.path.relpath(q, ROOT)            # noqa: E731
+    sid = S.scenario_id(doc, cell)
+    scen_path = os.path.join(base, "scenarios", f"{sid}.scenario.json")
+    if not os.path.exists(scen_path):
+        raise SystemExit(f"{cell['id']}：没有生成时的场景文件 {rel(scen_path)}（先跑 run）")
+    bdir = os.path.join(base, "baseline")
+    spec_path = os.path.join(bdir, "repro", f"{sid}.chain.json")
+    diag_path = os.path.join(bdir, "repro", f"{sid}.diagram.json")
+    os.makedirs(os.path.dirname(spec_path), exist_ok=True)
+    spec = S.chain_spec(doc, cell, rel(scen_path))
+    spec["diagram_id"] += "-baseline"
+    spec["slots"]["det"] = {**spec["slots"]["det"], "subband_bins": BASELINE_SUBBAND_BINS}
+    spec["taps"], spec["iq"] = ["s4"], ["s4"]
+    with open(spec_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(spec, ensure_ascii=False, indent=2) + "\n")
+    p = subprocess.run(["npx", "tsx", "src/chain/examples/_gen.ts", "eval", "--spec", rel(spec_path)],
+                       cwd=os.path.join(ROOT, "web"), capture_output=True)
+    if p.returncode != 0:
+        raise SystemExit(f"{cell['id']}：_gen eval 失败：{p.stderr.decode('utf-8', 'replace').strip()}")
+    with open(diag_path, "wb") as fh:
+        fh.write(p.stdout)
+    run_dir = os.path.join(ROOT, "data", "runs", f"eval-{doc['set_id']}-{cell['id']}-baseline")
+    shutil.rmtree(run_dir, ignore_errors=True)
+    t0 = time.time()
+    r = subprocess.run([_engine(), "--run", rel(diag_path), "--out", rel(run_dir),
+                        "--task-id", f"eval-{doc['set_id']}-{cell['id']}-baseline", "--scenario", rel(scen_path),
+                        "--library-root", "models/recognition"], cwd=ROOT, capture_output=True, text=True)
+    wall = time.time() - t0
+    if r.returncode != 0:
+        raise SystemExit(f"{cell['id']}：cuav_run 退出码 {r.returncode}：{r.stderr.strip()[-800:]}")
+    shutil.copy(diag_path, os.path.join(run_dir, "diagram.json"))
+    tmp = os.path.join(ROOT, "data", "tmp", f"eval-baseline-{doc['set_id']}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
+    res = X.export_run(run_dir, tmp, ops=["s4"], stem_prefix=sid, scenario_path=scen_path)
+    import filecmp
+    same = filecmp.cmp(os.path.join(tmp, res[0]["stem"] + ".sigmf-data"),
+                       os.path.join(base, "package", "data", f"{sid}_s4.sigmf-data"), shallow=False)
+    shutil.rmtree(tmp, ignore_errors=True)
+    with open(os.path.join(run_dir, "metrics.json"), encoding="utf-8") as fh:
+        metrics = json.load(fh)
+    os.makedirs(os.path.join(bdir, "metrics"), exist_ok=True)
+    shutil.copy(os.path.join(run_dir, "metrics.json"), os.path.join(bdir, "metrics", f"{sid}.metrics.json"))
+    if not keep_runs:
+        shutil.rmtree(run_dir, ignore_errors=True)
+    site = next(x for x in metrics["sites"] if x.get("site_id") == doc["site"]["id"])
+    return {"id": cell["id"], "segment": sid, "group": cell.get("group"), "propagation": cell["propagation"],
+            "s4_identical_to_package": same, "diagram_sha256": _sha(diag_path), "wall_s": round(wall, 1),
+            "site": site}
+
+
+def cmd_baseline(a) -> int:
+    """全部格子跑本方基准（Q-7），写 data/eval/<集合>/baseline.json；任何一格的 S4 与交付文件不同即失败。"""
+    doc = C.load(a.set)
+    base = out_dir(doc["set_id"])
+    gs = git_state()
+    if gs["dirty"] and not a.allow_dirty:
+        raise SystemExit(f"这些目录有未提交的改动：{gs['dirty_paths'][:8]}（--allow-dirty 跳过）")
+    recs, bad = [], []
+    for cell in _pick(doc, a.cells):
+        rec = baseline_cell(doc, cell, base, a.keep_runs)
+        recs.append(rec)
+        st = rec["site"]
+        tf = st.get("segments_tf") or {}
+        rc = st.get("recognition") or {}
+        print(f"{cell['id']}：S4 与交付文件{'逐字节相同' if rec['s4_identical_to_package'] else '不同'}；"
+              f"突发 {tf.get('matched')}/{tf.get('truth')}、虚警段 {tf.get('false_segments')}；"
+              f"识别 {rc.get('accuracy')}（{rc.get('evaluated')} 段）；墙钟 {rec['wall_s']} s", flush=True)
+        if not rec["s4_identical_to_package"]:
+            bad.append(cell["id"])
+    if a.cells:
+        print("只跑了部分格子：不写 baseline.json")
+    else:
+        cat = json.loads(subprocess.run([_engine(), "--catalog"], capture_output=True, text=True, check=True).stdout)
+        out = {"schema_version": "cuav-eval-baseline/1", "set_id": doc["set_id"], "git": gs,
+               "cuav_run_sha256": _sha(_engine()), "engine_version": cat["engine_version"],
+               "config": {"observation_point": "s4", "detector": "EnergyDetector（滑动噪声估计）",
+                          "subband_bins": BASELINE_SUBBAND_BINS, "recognition_library": "v2（随子带口径自动选用）",
+                          "note": "场景、种子与生成时相同；只给检测器开子带、只留 S4。每格的 S4 再导出一遍与交付文件逐字节比对。"},
+               "cells": recs,
+               "reproduce": [f"uv run --quiet --with numpy --with sigmf python scripts/gen_eval_dataset.py baseline --set {doc['set_id']}"]}
+        with open(os.path.join(base, "baseline.json"), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
+        print(f"写了 {os.path.relpath(os.path.join(base, 'baseline.json'), ROOT)}")
+    if bad:
+        print(f"S4 与交付文件不同的格：{bad}")
+        return 1
+    return 0
+
+
 # ---------------------------------------------------------------- run
 
 DIRTY_PATHS = ["engine", "geo", "models", "tools", "scripts", "algos", "web/src"]
@@ -765,6 +869,12 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--verify-share", type=float, default=0.05,
                    help="正式集：整集生成后随机抽这一比例的格子重跑比对（缺省 0.05，按集合种子抽）")
     q.set_defaults(func=cmd_run)
+    bl = sub.add_parser("baseline", help="在交付的 S4 上跑本方检测识别链（子带检测 + 识别库 v2），写 baseline.json")
+    bl.add_argument("--set", required=True)
+    bl.add_argument("--cells", help="只跑这些格子（逗号分隔；不写 baseline.json）")
+    bl.add_argument("--keep-runs", action="store_true")
+    bl.add_argument("--allow-dirty", action="store_true")
+    bl.set_defaults(func=cmd_baseline)
     rr = sub.add_parser("rerender", help="只重出 README、index.json 与 SHA512SUMS（不重跑数据）")
     rr.add_argument("--set", required=True)
     rr.set_defaults(func=cmd_rerender)

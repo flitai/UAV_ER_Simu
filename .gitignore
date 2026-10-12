@@ -41,6 +41,7 @@ data/iq/measured/*/*.manifest.json
 # Q-5 真实感对照的结果（14 报告 §7.3–§7.4）：小文件，入库；由 algos/reference/realism_compare.py 生成。
 # 报告 realism-report.html 不入库（图内嵌，约几 MB），同一脚本逐字节重生成
 !data/eval/*/realism.json
+!data/eval/*/baseline.json
 
 # 公开数据集，永不入库。用通配以覆盖后续新增的数据集目录。
 #   Datasets1-DroneRFb-DIR  64 GB
