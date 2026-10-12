@@ -19,6 +19,7 @@ import { detectionStore, probeDetections } from '../results/detectionStore.js'
 import { probeRecognitions, recognitionStore } from '../results/recognitionStore.js'
 import { metricsStore, probeMetrics } from '../results/metricsStore.js'
 import { probeTruth, truthStore, visibleTruth } from '../results/truthStore.js'
+import { demodStore, probeDemod } from '../results/demodStore.js'
 import { probeTimeline3, timeline3 } from '../results/timeline3.js'
 import { probeTaskList, taskListStore } from '../results/taskListStore.js'
 import { datasetStore, probeDataCenter } from '../data/datasetStore.js'
@@ -147,6 +148,7 @@ export function AppShell() {
       recognitions: probeRecognitions(recognitionStore.get()),
       metrics: probeMetrics(metricsStore.get()),
       truth: probeTruth(truthStore.get()),
+      demod: probeDemod(demodStore.get()),
       // 时间线三行算的是焦点站那一份，与画面上看到的完全同一条路径（results/timeline3.ts）
       timeline3: (() => {
         const d = detectionStore.get()

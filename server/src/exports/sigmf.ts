@@ -536,6 +536,22 @@ async function usableBand(root: string, ch: Chain, cat: Map<string, CatalogCompo
   return [lo, hi, transient]
 }
 
+/**
+ * 某个观测点的可用频带、起始暂态与所属站（解调页签用，D-107）：与导出同一套算法，只读。
+ * 观测点挂在 ADC 之前（S0–S2）时上游没有滤波器、也不一定只连一个站：频带取 ±fs/2，站为 null。
+ */
+export async function opBand(root: string, diagram: unknown, opId: string, catalog: CatalogDoc, fs: number,
+  fc: number): Promise<{ lo: number; hi: number; transient_s: number; site_id: string | null }> {
+  const d = diagram as Diagram
+  const op = (d.observation_points ?? []).find((o) => o.id === opId)
+  if (!op) throw new ExportError(`框图里没有观测点 ${opId}`)
+  if (pointOf(d, op) === null) return { lo: fc - fs / 2, hi: fc + fs / 2, transient_s: 0, site_id: null }
+  const cat = new Map(catalog.components.map((c) => [c.type, c]))
+  const ch = chainFor(d, op, cat)
+  const [lo, hi, transient] = await usableBand(root, ch, cat, fs, fc)
+  return { lo, hi, transient_s: transient, site_id: ch.siteId }
+}
+
 function captureOf(lo: number, hi: number, band: [number, number]): string {
   if (lo >= band[0] && hi <= band[1]) return 'full'
   if (hi > band[0] && lo < band[1]) return 'partial'

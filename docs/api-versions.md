@@ -312,6 +312,38 @@ GET 应答：
 - 实现是 `server/src/exports/sigmf.ts`，与 Python 参考 `tools/iq_export_sigmf.py` 在真引擎运行上逐项核对一致
   （`tests/regression/export_parity.py`：数据文件逐字节、元数据逐值），见 `docs/iq-format.md` §4.5。
 
+### 3.1h 按突发解调（2026-10-13，D-107）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/results/{task}/{op}/demod/bursts` | 可解调的突发：真值行里 `waveform ∈ {ofdm, droneid, gfsk}`、属于该观测点的站、整段落在该观测点可用频带内 |
+| GET | `/api/v1/results/{task}/{op}/demod?emitter_id&t_s` | 解调一个突发，回二进制帧（下述） |
+
+**原始 IQ 不出服务端**（铁律 7）：服务端从 `data/runs/<任务>/<观测点>/iq.cf32` 读一段、解调，只回点集与读数。
+客户端只能点名一个真值行（辐射源 + 起始时刻，容差 1e-9 s），预设、名义中心频率与粗窗都由服务端从真值行取。
+
+`demod/bursts` 应答（JSON）：`{op_id, sample_rate_Hz, center_Hz, band_Hz: [下沿, 上沿], site_id, algo_version,
+emitters: [{emitter_id, label, waveform, preset_id, preset_name, count}], bursts: [{emitter_id, label, waveform, preset_id,
+t_s, t_end_s, center_Hz, bw_Hz, overlap: [同时同频的其他辐射源], edge: 取段是否贴着文件起止或上游滤波器起始暂态}]}`。
+可用频带与导出同一套算法（`server/src/exports/sigmf.ts` 的 `opBand()`）。
+
+`demod` 应答：`application/octet-stream`，布局与 WS 行帧相同（D-044）——`[u32 LE 帧头长][UTF-8 JSON 帧头，空格补齐到
+4 字节][Float32 LE 数据]`。帧头 `schema = cuav-demod/1`，含 `state`（四态）与 `reasons`、`kind ∈ {ofdm, gfsk, null}`、
+预设与真值行的字段、`truth: {cfo_Hz, delay_s}`（只供 `?dev=1` 对照）、`trace`（铁律 8 六件套）与 `sections`
+（数据按它依次排）：
+
+- `kind = ofdm`：`constellation, variant, n_symbols, n_subcarriers, evm_rms, mer_dB, cfo_Hz, delay_s, q, eps_Hz, sync_ratio,
+  ideal`；数据段 `points`（均衡后的点，I / Q 交织，`count` 个）。
+- `kind = gfsk`：`modulation, bt, symbol_rate_Hz, deviation_nominal_Hz, deviation_Hz, n_symbols, cfo_Hz, delay_s, header_match`；
+  数据段 `deviations`（每个符号中心的频偏，Hz）与 `trace`（相对包起点的秒、Hz 交织，≤ 2000 个点）。
+- `kind = null`：解不出（同步失败、取段超出文件、不在可用频带内），`state` 与 `reasons` 说明。
+
+状态：同时同频有其他辐射源的突发 → `degraded`（`co_channel`）；取段贴着文件起止或滤波暂态 → `degraded`（`edge`）；
+同步失败或 GFSK 前导与同步字对上 < 56/64 → `invalid`。错误码：任务不存在 404；运行未结束 409 `not_ready`（`Retry-After: 1`）；
+观测点没开 `iq` 或 `iq` 不完整 404 `iq_missing`；真值里找不到该突发 404 `burst_not_found`；缺 `emitter_id` / `t_s` 400。
+一次只算一个突发，最近 32 个结果按（任务, 观测点, 辐射源, t_s, 算法版本）缓存。
+实现 `server/src/demod/`，与 Python 参考 `algos/reference/demod.py` 由 `tests/regression/demod_parity.py` 逐项对拍。
+
 ### 3.3 已冻结、待实现（2026-09-04，D-030 / D-031；B-5 四个端点与 B-6 的事件补取端点已于 2026-09-05 实现并移入 3.1a，B-7 的视窗抽取端点已于 2026-09-06 实现并移入 3.1b，G-4 的场景端点已于 2026-09-06 实现并移入 3.1c）
 
 **本表已空**：`/api/v1/datasets/{data_id}` 已于 2026-09-19 由 U-4 实现并移入 3.1e。

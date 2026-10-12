@@ -762,3 +762,67 @@ export async function postCoverage(body: Record<string, unknown>, signal?: Abort
   meta.layers.forEach((id, i) => { layers[id] = all.subarray(i * n, (i + 1) * n) })
   return { ok: true, meta, layers }
 }
+
+// ---------------------------------------------------------------- 按突发解调（D-107）
+
+export interface DemodBurst {
+  emitter_id: string; label: string | null; waveform: string; preset_id: string | null
+  t_s: number; t_end_s: number; center_Hz: number; bw_Hz: number; overlap: string[]; edge: boolean
+}
+export interface DemodEmitter {
+  emitter_id: string; label: string | null; waveform: string; preset_id: string | null; preset_name: string | null; count: number
+}
+export interface DemodBursts {
+  op_id: string; sample_rate_Hz: number; center_Hz: number; band_Hz: [number, number]; site_id: string | null
+  algo_version: string; emitters: DemodEmitter[]; bursts: DemodBurst[]
+}
+/** 解调结果的帧头（cuav-demod/1）；数值字段随 kind 出现 */
+export interface DemodHeader {
+  schema: string; algo_version: string; task_id: string; op_id: string; emitter_id: string; label: string | null
+  waveform: string; preset_id: string | null; preset_name: string | null; t_s: number; t_end_s: number
+  center_Hz: number; bw_Hz: number; state: string; reasons: string[]; overlap: string[]
+  truth: { cfo_Hz: number | null; delay_s: number | null }
+  trace: Record<string, unknown>
+  kind: 'ofdm' | 'gfsk' | null
+  sections: Array<{ name: string; count: number; stride: number }>
+  constellation?: string; n_symbols?: number; n_subcarriers?: number; evm_rms?: number; mer_dB?: number
+  cfo_Hz?: number; delay_s?: number; q?: number; sync_ratio?: number | null; ideal?: Array<[number, number]>
+  modulation?: string; bt?: number | null; symbol_rate_Hz?: number; deviation_nominal_Hz?: number
+  deviation_Hz?: number; header_match?: number
+}
+export interface DemodFrame { header: DemodHeader; sections: Record<string, Float32Array> }
+
+export async function getDemodBursts(task: string, op: string, base = ''): Promise<DemodBursts | null> {
+  const r = await fetch(`${base}/api/v1/results/${encodeURIComponent(task)}/${encodeURIComponent(op)}/demod/bursts`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`demod/bursts HTTP ${r.status}`)
+  return json<DemodBursts>(r)
+}
+
+/** 帧布局与 D-044 相同：[u32 LE 帧头长][JSON 帧头，空格补齐到 4 字节][Float32 LE，按 sections 依次排] */
+export function decodeDemodFrame(buf: ArrayBuffer): DemodFrame {
+  const dv = new DataView(buf)
+  const hl = dv.getUint32(0, true)
+  if (hl % 4 !== 0 || 4 + hl > buf.byteLength) throw new Error(`帧头长度不合法：${hl}`)
+  const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, hl))) as DemodHeader
+  const sections: Record<string, Float32Array> = {}
+  let off = 4 + hl
+  for (const s of header.sections ?? []) {
+    const n = s.count * s.stride
+    if (off + 4 * n > buf.byteLength) throw new Error(`数据段 ${s.name} 不完整`)
+    sections[s.name] = new Float32Array(buf, off, n)
+    off += 4 * n
+  }
+  return { header, sections }
+}
+
+export async function getDemod(task: string, op: string, emitter: string, t: number, signal?: AbortSignal, base = ''): Promise<DemodFrame> {
+  const q = new URLSearchParams({ emitter_id: emitter, t_s: String(t) })
+  const r = await fetch(`${base}/api/v1/results/${encodeURIComponent(task)}/${encodeURIComponent(op)}/demod?${q}`, { signal })
+  if (!r.ok) {
+    let msg = `demod HTTP ${r.status}`
+    try { msg = String(((await r.json()) as { message?: string }).message ?? msg) } catch { /* 非 JSON */ }
+    throw new Error(msg)
+  }
+  return decodeDemodFrame(await r.arrayBuffer())
+}

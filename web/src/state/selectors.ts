@@ -14,6 +14,7 @@ import type { probeDetections } from '../results/detectionStore.js'
 import type { probeRecognitions } from '../results/recognitionStore.js'
 import type { probeMetrics } from '../results/metricsStore.js'
 import { probeTruth } from '../results/truthStore.js'
+import type { probeDemod } from '../results/demodStore.js'
 import { probeTimeline3 } from '../results/timeline3.js'
 import { zones } from '../scene/editor/scenarioOps.js'
 import { focusTargetId } from '../scene/focus.js'
@@ -88,6 +89,8 @@ export interface ProbeExtras {
   recognitions?: ReturnType<typeof probeRecognitions>
   /** 评价指标的摘要（C-5），由 results/metricsStore.ts 的 probeMetrics 算 */
   metrics?: ReturnType<typeof probeMetrics>
+  /** 解调页签（D-107），由 results/demodStore.ts 的 probeDemod 算；只读，不触发取数 */
+  demod?: ReturnType<typeof probeDemod>
   /** 真值段的摘要（C-9），由 results/truthStore.ts 的 probeTruth 算 */
   truth?: ReturnType<typeof probeTruth>
   /** 检测识别页签的时间线三行（C-9），由 results/timeline3.ts 的 probeTimeline3 算 */
@@ -293,6 +296,7 @@ export function probeApp(s: AppState, x: ProbeExtras) {
     // 任务列表（U-4）：与 results 并列而不是塞进它——results 里那几项是**本次运行的产物**，
     // 任务列表是别的任务的清单，不是产物
     taskList: x.taskList ?? null,
+    demod: x.demod ?? null,
     dataCenter: x.dataCenter ?? null,
     perf: s.ui.devMode ? { longTasks: x.longTasks ?? null } : null,
     badges: { noScene: !s.scene.summary },

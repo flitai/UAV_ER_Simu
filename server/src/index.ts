@@ -26,6 +26,7 @@ import { Engine, defaultEngineBinary } from './tasks/engine.js'
 import { createTaskManager } from './tasks/manager.js'
 import { handleTaskRoutes } from './tasks/routes.js'
 import { handleResultRoutes } from './products/routes.js'
+import { handleDemodRoutes } from './demod/routes.js'
 import { handleScenarioRoutes } from './scenarios.js'
 import { handleCoverageRoutes } from './coverage.js'
 import { handleDiagramRoutes } from './diagrams.js'
@@ -144,6 +145,8 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   }
   // 视窗抽取（B-7）：结果路由自己管方法与错误码
   if (path.startsWith('/api/v1/results/')) {
+    // 按突发解调（D-107）：只把点集送到浏览器，原始 IQ 不出服务端
+    if (await handleDemodRoutes(req, res, url, { root: ROOT, mgr: tasks, catalog: exportsSvc.deps.catalog })) return
     if (await handleResultRoutes(req, res, url, { mgr: tasks })) return
   }
   if (method !== 'GET' && method !== 'HEAD') {

@@ -673,3 +673,14 @@ button.mini { font-size: 11px; padding: 0 5px; }
 /* 数据导出页签（D-090）：与任务页签同一套表格与表头行，进度条收窄 */
 .export-panel progress { width: 160px; vertical-align: middle; }
 .export-panel .site-table-wrap + .site-table-wrap { margin-top: 12px; }
+
+/* 解调页签（D-107）：左侧星座 / 频偏图，右侧突发表 */
+.demod-panel { overflow: hidden; }
+.demod-body { display: flex; gap: 14px; align-items: flex-start; min-height: 0; flex: 1; }
+.demod-plot { flex: 0 0 auto; }
+.demod-plot canvas { border: 1px solid var(--border); border-radius: 4px; }
+.demod-list { flex: 0 1 560px; min-width: 300px; max-height: 520px; overflow-y: auto; }
+.demod-list tbody tr { cursor: pointer; }
+.demod-list tbody tr:hover td { background: var(--hover); }
+.demod-list tbody tr.on td { background: var(--sel-bg); }
+.demod-list thead th { position: sticky; top: 0; background: var(--white); }

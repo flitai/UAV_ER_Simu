@@ -1,6 +1,7 @@
 // 结果视图（09 §7.1，10 报告 §5.7）：信号 / 检测识别 / 评价 / 任务 / 数据导出五页签（数据导出自 D-090）。
 // 信号页是 U-3（频谱、瀑布、包络）；检测识别页自 C-9 起是时间线三行 + 检测列表（突发 / 帧）+ 识别列表；
 // 评价页是 C-9 新增的指标卡、混淆矩阵与 ROC；任务页是 U-4 的任务列表与摘要（D-075）。
+// 解调页（D-107）只在本任务有观测点保存了原始 IQ 时出现：按突发解调出星座（OFDM）或频偏图（GFSK）。
 
 import { ColumnLayout } from '../shell/ColumnLayout.js'
 import { fmtFactor } from '../shell/format.js'
@@ -16,6 +17,7 @@ import { TaskSummary } from './TaskSummary.js'
 import { useTaskList } from './taskListStore.js'
 import { EvaluationAside, EvaluationSummary, EvaluationView } from './EvaluationView.js'
 import { ExportView } from './ExportView.js'
+import { DemodSummary, DemodView, iqOps } from './DemodView.js'
 import { useDetections } from './detectionStore.js'
 import { useRecognitions } from './recognitionStore.js'
 import { useMetrics } from './metricsStore.js'
@@ -24,7 +26,7 @@ import { countLines, splitNotes } from '../shell/taskNotes.js'
 import { stateBadge } from '../shell/badges.js'
 
 const TABS: Array<{ id: ResultsTab; label: string }> = [
-  { id: 'signal', label: '信号' }, { id: 'detections', label: '检测识别' },
+  { id: 'signal', label: '信号' }, { id: 'demod', label: '解调' }, { id: 'detections', label: '检测识别' },
   { id: 'evaluation', label: '评价' }, { id: 'tasks', label: '任务' }, { id: 'export', label: '数据导出' },
 ]
 
@@ -42,6 +44,8 @@ export function ResultsView() {
   // 任务列表（U-4）：只在任务页签可见时取，本页里还有在跑的才接着轮询
   useTaskList(s.ui.view === 'results' && s.ui.resultsTab === 'tasks', s.task.id, s.task.runState)
   const { alerts, routine } = splitNotes(s.task.nodes, s.task.reasons)
+  // 解调页签只在有观测点保存了原始 IQ 时出现（D-048 ⑨：没有数据源就不出控件）
+  const hasIq = iqOps(s.task.observationPoints).length > 0
   return (
     <ColumnLayout
       left={<>
@@ -83,7 +87,7 @@ export function ResultsView() {
       center={
         <div className="results">
           <div className="tabs" role="tablist">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t.id !== 'demod' || hasIq).map((t) => (
               <button key={t.id} type="button" role="tab" data-results-tab={t.id} className={s.ui.resultsTab === t.id ? 'on' : ''}
                 onClick={() => dispatch({ type: 'ui/resultsTab', tab: t.id })}>{t.label}</button>
             ))}
@@ -101,6 +105,7 @@ export function ResultsView() {
             </div>
           )}
           {s.ui.resultsTab === 'signal' && <SignalView />}
+          {s.ui.resultsTab === 'demod' && <DemodView />}
           {s.ui.resultsTab === 'detections' && <DetectionView />}
           {s.ui.resultsTab === 'evaluation' && <EvaluationView />}
           {s.ui.resultsTab === 'tasks' && <TaskList />}
@@ -109,6 +114,7 @@ export function ResultsView() {
       }
       right={
         s.ui.resultsTab === 'signal' ? <InstrumentPanel />
+          : s.ui.resultsTab === 'demod' ? <DemodSummary />
           : s.ui.resultsTab === 'detections' ? <DetectionSummary />
           : s.ui.resultsTab === 'evaluation' ? <><EvaluationSummary /><EvaluationAside /></>
           : <TaskSummary />
