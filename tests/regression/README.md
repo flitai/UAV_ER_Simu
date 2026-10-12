@@ -35,6 +35,7 @@
 
 ```
 uv run --quiet --with numpy python tests/regression/standard_cases.py   # 已接进 scripts/build-all.sh
+uv run --quiet --with numpy python tests/regression/standard_cases.py --json <文件>   # 另把每项的实测值、期望值、容差与单位写成 JSON（Q-7 的实现验证说明从这里取数，D-106）
 ```
 
 第 9、10 项要 `data/iq/measured/`（不入 git，D-027）。数据不在时脚本**明说跳过**、
