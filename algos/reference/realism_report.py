@@ -27,15 +27,35 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-OUT_HTML = os.path.join(ROOT, "data", "eval", "realism-v1", "realism-report.html")
-CELLS = os.path.join(ROOT, "tests", "regression", "eval-dataset", "realism-v1.json")
-PRESETS = [os.path.join(ROOT, "models", "radiator", f) for f in ("presets-v1.json", "gfsk-presets-v1.json")]
-
 REPORT_TITLE = "无人机射频 IQ 信号仿真方法与可信性验证报告"
 REPORT_SUBTITLE = "仿真方法说明与基于公开实测数据的统计特征比对"
 REPORT_SHORT = "IQ 信号仿真可信性验证报告"
-REPORT_VERSION = "v1.2"
-REPORT_DATE = "2026-10-10"
+
+# 每个格子集对应一版报告：用哪两张机型预设表、版本、日期、适用对象（D-105）。
+SETS = {
+    "realism-v1": {"presets": ("presets-v1.json", "gfsk-presets-v1.json"), "version": "v1.2", "date": "2026-10-10",
+                   "scope": "本方无人机射频 IQ 信号仿真方法及其生成的数据（仿真合成数据样本集及后续正式数据集）",
+                   "note": None},
+    "realism-v2": {"presets": ("presets-v2.json", "gfsk-presets-v1.json"), "version": "v1.3", "date": "2026-10-12",
+                   "scope": "本方无人机射频 IQ 信号仿真方法（机型预设：OFDM 类 v2、GFSK 类 v1）及按该版本生成的数据"
+                            "（仿真合成数据集 v1）",
+                   "note": "本版的合成数据按机型预设 v2 生成并重新比对。v2 依据循环前缀相关的实测核实，修改了 DJI 图传的循环前缀排布"
+                           "（见{sim2}）。上一版（v1.2）比对的是按机型预设 v1 生成的数据，适用于仿真合成数据样本集 v1。"},
+}
+
+
+def use_set(set_id: str) -> None:
+    """选格子集：报告的输出位置、格子文件、机型预设表与版本信息随之确定。"""
+    global SET_ID, OUT_HTML, CELLS, PRESETS, REPORT_VERSION, REPORT_DATE
+    cfg = SETS[set_id]
+    SET_ID = set_id
+    OUT_HTML = os.path.join(ROOT, "data", "eval", set_id, "realism-report.html")
+    CELLS = os.path.join(ROOT, "tests", "regression", "eval-dataset", f"{set_id}.json")
+    PRESETS = [os.path.join(ROOT, "models", "radiator", f) for f in cfg["presets"]]
+    REPORT_VERSION, REPORT_DATE = cfg["version"], cfg["date"]
+
+
+use_set("realism-v2")
 
 # 配色（作图规范的参考色板，浅色）：验证集 = 1 号蓝，合成数据 = 2 号橙，实测样本集 = 3 号青（虚线，作参照）
 C_MAIN, C_SYNTH, C_REF = "#2a78d6", "#eb6834", "#1baf7a"
@@ -74,6 +94,8 @@ REFS = [
     ("TGac", "IEEE 802.11-09/0308r12，TGac Channel Model Addendum（视距 K 因子目标值）。"),
     ("MPM", "DIY-Multiprotocol-TX-Module，开源多协议遥控发射模块固件（FrSky、Futaba S-FHSS 协议实现）。"),
     ("CC2500", "Texas Instruments，CC2500 Low-Cost Low-Power 2.4 GHz RF Transceiver，数据手册 SWRS040C。"),
+    ("vdBeek", "J.-J. van de Beek, M. Sandell, P. O. Börjesson，ML Estimation of Time and Frequency Offset in OFDM Systems，"
+               "IEEE Transactions on Signal Processing，45(7):1800–1805，1997。"),
 ]
 REF_NO = {k: i + 1 for i, (k, _) in enumerate(REFS)}
 
@@ -861,6 +883,29 @@ def preset_row(p: dict, numer: dict) -> list[str]:
             + [str(g[x]) if g[x] else "—" for x in GRADE_ORDER])
 
 
+def _numerology_text(presets: list[dict], numer: dict) -> str:
+    """DJI 图传与上行数值结构的出处说明，由预设表里图传 20 MHz 档的出处等级决定写法：
+    只有 A（假定）是 v1 的写法；含 M（实测）是 v2 的写法，子载波间隔与长循环前缀的间隔从预设表读出。"""
+    v = next(p for p in presets if p["id"] == "dji-video-20m-a")
+    m = _GRADE_RE.match(v["provenance"]["numerology"])
+    grades = set(m.group(1).split(" + ")) if m else set()
+    if "M" not in grades:
+        return ("DJI 图传与遥控上行的内部数值结构（子载波间隔、快速傅里叶变换点数、循环前缀长度）没有公开资料，"
+                "本方按与 DroneID 广播同族的类 LTE 结构假定；其占用带宽与时间参数取自厂商文档、论文或实测提取。")
+    scs = numer[v["numerology"]]["subcarrier_spacing_Hz"] / 1e3
+    longs = v["bursts"][0]["cp_long_at"]
+    every = longs[1] - longs[0] if len(longs) > 1 else None
+    up = next(p for p in presets if p["id"] == "dji-uplink-2m")
+    up_m = "M" in (_GRADE_RE.match(up["provenance"]["numerology"]).group(1).split(" + "))
+    return ("DJI 图传与遥控上行的内部数值结构没有公开资料。本方先按与 DroneID 广播同族的类 LTE 结构假定，再从实测信号上核实："
+            f"循环前缀是符号尾部的复制，突发内的自相关在有用符号长度处出现峰值，由此得到子载波间隔 {cite('vdBeek')}；"
+            "再把相隔一个有用符号长度的两个样点之积按候选周期折叠，得到平均符号周期，进而判断长循环前缀的排布。核实只使用实测样本集，验证集未参与。"
+            f"结果是：DJI 图传的子载波间隔为 {scs:g} kHz，"
+            + (f"每 {every} 个 OFDM 符号的首个符号使用长循环前缀（与 LTE 常规循环前缀的排布相同）" if every else "")
+            + ("；遥控上行 2.2 MHz 与 4.4 MHz 档的子载波间隔也为 15 kHz" if up_m else "")
+            + "。快速傅里叶变换点数无法从信号上观测，仍为本方假定。占用带宽与时间参数取自厂商文档、论文或实测提取。")
+
+
 def sec_sim(doc: dict, T: Counter) -> str:
     chain = [
         ["场景与链路预算", "航迹按时间插值；按固定帧率计算每条链路的距离、方位、多普勒频移、传播时延与传播损耗",
@@ -901,8 +946,7 @@ def sec_sim(doc: dict, T: Counter) -> str:
         + "；".join(f"{g} 为{GRADE_TEXT[g]}" for g in GRADE_ORDER)
         + f"。各预设的结构与出处构成见{T.ref('presets')}。</p>"
         f"<p>OFDM 类预设包括 DJI 图传、DJI 遥控上行与 DroneID 广播。DroneID 广播的子载波数、子载波间隔、符号结构与发送周期取自公开的逆向分析结果"
-        f" {cite('NDSS23')}。DJI 图传与遥控上行的内部数值结构（子载波间隔、快速傅里叶变换点数、循环前缀长度）没有公开资料，"
-        "本方按与 DroneID 广播同族的类 LTE 结构假定；其占用带宽与时间参数取自厂商文档、论文或实测提取。"
+        f" {cite('NDSS23')}。" + _numerology_text(presets, numer) +
         f"GFSK 类预设包括 FrSky 与 Futaba 遥控，其调制参数由开源实现中的射频芯片寄存器配置 {cite('MPM')} 按芯片数据手册的公式"
         f" {cite('CC2500')} 计算。{len(presets)} 个预设中有 {n_a} 个含本方假定的参数项，假定项逐项列在预设的出处说明中。</p>"
         + table(f"{t_pre}　机型预设与参数出处（出处等级：{legend}。后六列为涉及该等级的参数项数，"
@@ -1429,6 +1473,16 @@ def sec_limits() -> str:
         + "".join(f"<li>{e(x)}</li>" for x in improve) + "</ol>")
 
 
+def _preset_versions() -> list[str]:
+    out = []
+    for path in PRESETS:
+        with open(path, encoding="utf-8") as fh:
+            d = json.load(fh)
+        kind = "GFSK 类" if "gfsk" in os.path.basename(path) else "OFDM 类"
+        out.append(f"{kind} {d.get('version', 'v1')}")
+    return out
+
+
 def sec_appendix(doc: dict) -> str:
     samples = []
     for p in doc["pairs"]:
@@ -1444,6 +1498,7 @@ def sec_appendix(doc: dict) -> str:
         "<h2 id=sc>附录 C　复现信息</h2><ul>"
         "<li>合成数据由本方仿真系统按固定随机种子生成，同一配置可逐字节复现。</li>"
         f"<li>测量程序版本：{e(doc['ruler'].split()[-1])}；比对程序版本：{e(doc['producer'].split()[-1])}。</li>"
+        f"<li>机型预设表版本：{e('、'.join(_preset_versions()))}。</li>"
         f"<li>验证集清单的 SHA-256：<code>{inp['holdout_manifest_sha256']}</code>。</li>"
         f"<li>合成数据配置文件的 SHA-256：<code>{inp['cells_sha256']}</code>。</li>"
         "<li>全部统计结果以结构化数据文件形式随本报告留存，本报告中的数值均由该文件生成。</li></ul>")
@@ -1462,8 +1517,9 @@ def write(doc: dict, figs: dict) -> str:
     toc = "<nav class=toc>" + "".join(f'<div><a href="#{i}">{t}</a></div>' for i, t in toc_items) + "</nav>"
     info = table("", ["项目", "内容"], [
         ["报告名称", e(REPORT_TITLE)], ["版本", REPORT_VERSION], ["日期", REPORT_DATE],
-        ["适用对象", "本方无人机射频 IQ 信号仿真方法及其生成的数据（仿真合成数据样本集及后续正式数据集）"],
-        ["数据状态", "原型阶段验证结果"]], cls="info")
+        ["适用对象", SETS[SET_ID]["scope"]]]
+        + ([["版本说明", SETS[SET_ID]["note"].format(sim2=f"第 {ch('sim', 2)} 节")]] if SETS[SET_ID]["note"] else [])
+        + [["数据状态", "原型阶段验证结果"]], cls="info")
     page = (f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(REPORT_SHORT)}</title><style>{CSS}</style></head><body><main>

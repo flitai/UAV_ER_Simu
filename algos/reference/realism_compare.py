@@ -5,7 +5,7 @@
 
 1. **实测一侧**：按 §7.3 的配对选实测片段（DroneRFb 只取视距片），用 Q-0b 的提取器
    （`q0b_param_extract.py`，常数一个不改）逐块量突发，分「验证集」「实测样本集」「全部」三列。
-2. **合成一侧**：按格子集 `tests/regression/eval-dataset/realism-v1.json` 逐格跑 `cuav_run`（只出 S3），
+2. **合成一侧**：按格子集 `tests/regression/eval-dataset/<集合>.json`（`--set`，缺省 realism-v2）逐格跑 `cuav_run`（只出 S3），
    读 `s3/iq.cf32`，按实测的块长切块，用同一个提取器量。
 3. **比**：每对每个统计量给三列的数、差、KS 距离与判定；平均谱形给带内 dB 均方根差；跳频点给点数与跨度；
    归因变体（只对 P1）与结构自检另列。
@@ -17,8 +17,8 @@
 三列共用该对第一型的窗（同一对里各型的窗差不到 0.3%）；代表性时频图取「按 data_id 排序第一个满足条件的块」。
 
 输出：
-- `data/eval/realism-v1/realism.json`（入库）：全部数字、样本清单与判定；不写时间戳与 git 提交，两次运行逐字节相同；
-- 报告由 `realism_report.py` 写成单文件 HTML（`data/eval/realism-v1/realism-report.html`，不入库）。
+- `data/eval/<集合>/realism.json`（入库）：全部数字、样本清单与判定；不写时间戳与 git 提交，两次运行逐字节相同；
+- 报告由 `realism_report.py` 写成单文件 HTML（`data/eval/<集合>/realism-report.html`，不入库）。
 
 缓存（`data/tmp/realism/cache/`）：实测一侧按「本脚本 + Q-0b 脚本 + 索引 + 验证集清单」的哈希缓存，
 合成一侧按「本脚本 + Q-0b 脚本 + 框图 + 场景 + 引擎」的哈希逐格缓存；改了任何一样就重算。`--no-cache` 全部重算。
@@ -56,9 +56,18 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import q0b_param_extract as Q  # noqa: E402
 
 VERSION = "0.1.0"
-SET_ID = "realism-v1"
+# 格子集：realism-v1 按机型预设 v1 生成（报告 v1.2，留作记录；D-102 之后引擎缺省用 v2，v1 已不能逐字节重算），
+# realism-v2 与 v1 同格同种子、只换预设 v2（报告 v1.3，随正式集交付）。--set 选择，缺省 v2。
+SET_ID = "realism-v2"
 OUT_DIR = os.path.join("data", "eval", SET_ID)
 OUT_JSON = os.path.join(OUT_DIR, "realism.json")
+
+
+def use_set(set_id: str) -> None:
+    global SET_ID, OUT_DIR, OUT_JSON
+    SET_ID = set_id
+    OUT_DIR = os.path.join("data", "eval", SET_ID)
+    OUT_JSON = os.path.join(OUT_DIR, "realism.json")
 TMP = os.path.join("data", "tmp", "realism")
 CUAV_RUN = os.environ.get("CUAV_RUN", os.path.join(ROOT, "engine", "build", "cuav_run"))
 
@@ -883,7 +892,8 @@ def build(workers: int, use_cache: bool) -> tuple[dict, dict]:
         obw = median(values(col, "obw99_Hz"))
         if sc["id"] == "s1":
             d["checks"].append(_selfcheck("99% 占用带宽", obw, OCC_10M_HZ, "Hz",
-                                          "601 个子载波 × 15 kHz（与 DroneID 同族的数值结构假定）"))
+                                          "601 个子载波 × 15 kHz（与 DroneID 同族的数值结构假定）" if SET_ID == "realism-v1" else
+                                          "601 个子载波 × 15 kHz（沿用 20 MHz 档的数值结构，其子载波间隔已由实测核实）"))
         else:
             dur = median(values(col, "dur_s"))
             t_abs = sorted(b["start"] / b["fs"] + z["t0_s"] for b in synth["blocks"] for z in b["res"]["s2"]["rows"])
@@ -938,7 +948,10 @@ def main(argv=None) -> int:
     ap.add_argument("--no-cache", action="store_true", help="不用缓存，全部重算（含重跑引擎）")
     ap.add_argument("--check", action="store_true", help="全部重算，核对入库的 realism.json 逐字节相同（不写文件）")
     ap.add_argument("--no-report", action="store_true", help="只写 realism.json，不出 HTML")
+    ap.add_argument("--set", default="realism-v2", choices=("realism-v1", "realism-v2"),
+                    help="格子集（缺省 realism-v2，按机型预设 v2；realism-v1 是按 v1 的旧记录）")
     a = ap.parse_args(argv)
+    use_set(a.set)
     if not os.path.exists(CUAV_RUN):
         raise SystemExit(f"找不到引擎 {rel(CUAV_RUN)}：先建 engine/build")
     doc, figs = build(a.workers, use_cache=not (a.no_cache or a.check))
@@ -962,6 +975,7 @@ def main(argv=None) -> int:
         print(f"  {d['id']} {d['preset']}：有差距 {'、'.join(gap) or '无'}；无法比较 {'、'.join(na) or '无'}")
     if not a.no_report:
         import realism_report
+        realism_report.use_set(SET_ID)
         path = realism_report.write(doc, figs)
         print(f"写了 {rel(path)}")
     return 0
