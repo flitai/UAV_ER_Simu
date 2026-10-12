@@ -43,10 +43,19 @@ HANN_ENBW_DB = 10.0 * math.log10(1.5)
 
 results: list[tuple[str, bool, str]] = []
 skipped: list[tuple[str, str]] = []
+measured: list[dict] = []          # --json 用：每项的判据与实测值（Q-7 的实现验证说明从这里取数，D-106）
 
 
-def check(case: str, ok: bool, detail: str) -> None:
+def M(**kw) -> dict:
+    """结构化读数（value / expected / tol / unit），作 check 的第三个参数。"""
+    return {k: (float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v) for k, v in kw.items()}
+
+
+def check(case: str, ok: bool, a, b: str | None = None) -> None:
+    """check(case, ok, detail) 或 check(case, ok, M(...), detail)。"""
+    meas, detail = (a, b) if b is not None else ({}, a)
     results.append((case, ok, detail))
+    measured.append({"case": case, "ok": bool(ok), **meas})
     print(f"  {'通过' if ok else '不过'}  {case}：{detail}")
 
 
@@ -114,6 +123,7 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     peak = int(np.argmax(med))
     got_off = f[peak]
     check("算例 1 单音频移", abs(got_off - want_off) <= binw / 2,
+          M(value=got_off, expected=want_off, tol=binw / 2, unit="Hz"),
           f"峰值在 {got_off:+.3f} Hz（bin {peak}），应在 {want_off:+.3f} Hz"
           f"（48828.125 + 多普勒 {lk['doppler_Hz']:+.3f}），容差半个 bin = {binw / 2:.3f} Hz")
 
@@ -122,7 +132,7 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     lin = (10.0 ** (a[rows][:, peak - half:peak + half + 1] / 10.0)).sum(axis=1)
     got = 10.0 * math.log10(float(np.mean(lin))) - HANN_ENBW_DB
     want = 27.0 + 2.0 + 3.0 - float(lk["path_loss_dB"])
-    check("算例 1 功率标度（S1 = 链路预算）", abs(got - want) <= 0.15,
+    check("算例 1 功率标度（S1 = 链路预算）", abs(got - want) <= 0.15, M(value=got, expected=want, tol=0.15, unit="dBm"),
           f"S1 读 {got:.3f} dBm，链路预算 27 + 2 + 3 − {lk['path_loss_dB']:.3f} = {want:.3f} dBm，"
           f"差 {got - want:+.3f} dB（容差 0.15）")
 
@@ -137,10 +147,11 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
         return 10.0 * math.log10(float(np.mean(v))) - HANN_ENBW_DB
 
     s0 = tone_dbm("s0")
-    check("算例 1 电平链起点：S0 = 发射功率", abs(s0 - 27.0) <= 0.05,
+    check("算例 1 电平链起点：S0 = 发射功率", abs(s0 - 27.0) <= 0.05, M(value=s0, expected=27.0, tol=0.05, unit="dBm"),
           f"S0 读 {s0:.4f} dBm，场景写的 tx_power_dBm = 27（容差 0.05）")
     s2 = tone_dbm("s2")
     check("算例 1 电平链：S2 − S1 = 前端增益", abs((s2 - got) - 20.0) <= 0.05,
+          M(value=s2 - got, expected=20.0, tol=0.05, unit="dB"),
           f"S2 {s2:.3f} − S1 {got:.3f} = {s2 - got:.3f} dB，前端增益 20 dB（容差 0.05）")
 
     # --- 算例 6：ADC 量化和削波 ------------------------------------------------------
@@ -154,10 +165,10 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     n_in = int(adc["samples_in"])
     ratio = clip / n_in if n_in else 0.0
     check("算例 6 削波计数是数据标记，进索引但不改观测点状态",
-          clip > 0 and i3["state"] == "valid",
+          clip > 0 and i3["state"] == "valid", M(value=clip, unit="样点"),
           f"S3 索引记削波 {clip} / {n_in} 个样点（{ratio:.4%}），产品状态 {i3['state']}")
     check("算例 6 削波比例超阈值才把组件标降级（D-051 ⑥）",
-          adc["state"] == "degraded" and ratio > 0.01,
+          adc["state"] == "degraded" and ratio > 0.01, M(value=ratio, expected=0.01, unit="比例"),
           f"比例 {ratio:.4%} 超过缺省 degrade_clip_ratio = 1%，ADC 节点 {adc['state']}；"
           f"给的理由：{'；'.join(adc['notes'])}")
 
@@ -197,6 +208,7 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     rise = n3 - n2
     check("算例 6 ADC 量化噪声的抬升合解析预期",
           abs(rise - rise_pred) <= 0.15 and int(i3h.get("clipped_samples", 0)) == 0,
+          M(value=rise, expected=rise_pred, tol=0.15, unit="dB"),
           f"满量程抬到 {fs_dbm:g} dBm 后削波 {i3h.get('clipped_samples')} 个；"
           f"S2 底噪 {n2:.3f} dBm、S3 {n3:.3f} dBm，实测抬升 {rise:+.3f} dB，"
           f"按 {bits:g} 位量化步长算应抬 {rise_pred:+.3f} dB，差 {rise - rise_pred:+.3f} dB（容差 0.15）")
@@ -205,7 +217,7 @@ def synthetic_cases(engine: str, out: str, out2: str) -> None:
     run_chain(engine, "chain-synthetic.json", out2,
               scenario=os.path.join(SCENARIOS, "golden-01.scenario.json"))
     same, diff, only = compare_products(out, out2)
-    check("算例 11 同种子逐字节复现", not diff and not only,
+    check("算例 11 同种子逐字节复现", not diff and not only, M(value=same, unit="个文件"),
           f"{same} 个产品文件逐字节相同" + (f"；{len(diff)} 个不同：{diff[:3]}" if diff else "")
           + (f"；{len(only)} 个只在一侧：{only[:3]}" if only else ""))
 
@@ -255,12 +267,12 @@ def wideband_cases(engine: str, out: str) -> None:
     # −3 dB 带宽：以峰值为基准，取连续超过 peak − 3 dB 的频率跨度
     above = np.where(med >= peak_db - 3.0)[0]
     bw3 = float(f[above.max()] - f[above.min()]) if above.size else 0.0
-    check("算例 2 带限噪声的 −3 dB 带宽", abs(bw3 - 2.0e6) <= 0.15e6,
+    check("算例 2 带限噪声的 −3 dB 带宽", abs(bw3 - 2.0e6) <= 0.15e6, M(value=bw3, expected=2.0e6, tol=0.15e6, unit="Hz"),
           f"实测 {bw3 / 1e6:.4f} MHz，设定 bw_Hz = 2 MHz（容差 0.15 MHz）")
     sig = band_dbm(a, f, ctr - 1e6, ctr + 1e6, rows)
     noi = band_dbm(a, f, ctr - 1e6, ctr + 1e6, quiet)
     snr = sig - noi
-    check("算例 2 目标信噪比可读且为正", snr > 10.0,
+    check("算例 2 目标信噪比可读且为正", snr > 10.0, M(value=snr, unit="dB"),
           f"带内 {sig:.3f} dBm、同带静默期底噪 {noi:.3f} dBm，信噪比 {snr:.3f} dB")
 
     # --- 算例 3：突发开关和占空比 ----------------------------------------------------
@@ -271,7 +283,7 @@ def wideband_cases(engine: str, out: str) -> None:
     floor = float(np.percentile(pw, 5))
     top = float(np.percentile(pw, 95))
     on = float(np.mean(pw > (floor + top) / 2.0))
-    check("算例 3 突发占空比", abs(on - 0.3) <= 0.05,
+    check("算例 3 突发占空比", abs(on - 0.3) <= 0.05, M(value=on, expected=0.3, tol=0.05, unit="比例"),
           f"导通帧占比 {on:.4f}，场景设定 duty = 0.3（容差 0.05；判据取 5% / 95% 分位的中点 "
           f"{(floor + top) / 2:.2f} dBm）")
 
@@ -285,7 +297,7 @@ def measured_cases(engine: str, out_replay: str, out_mixed: str) -> None:
     want_fs = float(mani["sampling"]["sample_rate_Hz"])
     want_n = int(mani["sampling"]["sample_count"])
     got_n = int([x for x in st["nodes"] if x["name"] == "tx"][0]["samples_out"])
-    check("算例 9 实测回放的样点数与清单一致", got_n == want_n,
+    check("算例 9 实测回放的样点数与清单一致", got_n == want_n, M(value=got_n, expected=want_n, unit="样点"),
           f"回放 {got_n} 个样点，清单记 {want_n}")
     check("算例 9 采样率与中心频率取自清单不是框图",
           float(idx["sample_rate_Hz"]) == want_fs
@@ -306,6 +318,7 @@ def measured_cases(engine: str, out_replay: str, out_mixed: str) -> None:
     for lo, hi in ((-10e6, -5e6), (5e6, 10e6)):
         d = band_dbm(am, fm, lo, hi) - band_dbm(a, f, lo, hi)
         check(f"算例 10 背景原样通过（{lo / 1e6:+g}…{hi / 1e6:+g} MHz）", abs(d) <= 0.05,
+              M(value=d, expected=0.0, tol=0.05, unit="dB"),
               f"混合与纯回放差 {d:+.4f} dB")
     # ② 合成单音落在 +2.5 MHz，扣掉同处背景后应等于链路预算
     binw = float(im["bin_width_Hz"])
@@ -321,7 +334,7 @@ def measured_cases(engine: str, out_replay: str, out_mixed: str) -> None:
     d = lm - lr
     tone = 10.0 * math.log10(max(float(np.median(d)), 1e-30)) - HANN_ENBW_DB
     want = 27.0 + 2.0 + 3.0 - float(lk["path_loss_dB"])
-    check("算例 10 合成目标的绝对电平", abs(tone - want) <= 0.3,
+    check("算例 10 合成目标的绝对电平", abs(tone - want) <= 0.3, M(value=tone, expected=want, tol=0.3, unit="dBm"),
           f"混合谱逐行扣掉背景后单音 {tone:.3f} dBm，链路预算 {want:.3f} dBm，"
           f"差 {tone - want:+.3f} dB（容差 0.3；背景在这一段的功率均值是中位的 "
           f"{float(np.mean(lr)) / float(np.median(lr)):.0f} 倍，故取中位不取均值）")
@@ -335,6 +348,7 @@ def main(argv=None) -> int:
     ap.add_argument("--engine", default=os.path.join("engine", "build", "cuav_run"))
     ap.add_argument("--out-root", default=os.path.join("data", "runs"))
     ap.add_argument("--keep", action="store_true", help="保留产品目录")
+    ap.add_argument("--json", help="把每项的判据与实测值写到该文件")
     a = ap.parse_args(argv)
     engine = os.path.join(ROOT, a.engine) if not os.path.isabs(a.engine) else a.engine
     if not os.path.exists(engine):
@@ -362,6 +376,11 @@ def main(argv=None) -> int:
             shutil.rmtree(p, ignore_errors=True)
 
     bad = [r for r in results if not r[1]]
+    if a.json:
+        with open(a.json, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump({"checks": measured, "skipped": [{"cases": c, "reason": r} for c, r in skipped]}, fh,
+                      ensure_ascii=False, indent=2)
+            fh.write("\n")
     print()
     print(f"共 {len(results)} 项，不通过 {len(bad)} 项"
           + (f"，跳过 {len(skipped)} 组（{skipped[0][1]}）" if skipped else ""))

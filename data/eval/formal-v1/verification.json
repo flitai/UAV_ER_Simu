@@ -1,0 +1,548 @@
+{
+  "schema_version": "cuav-verification-snapshot/1",
+  "git": {
+    "commit": "d66653700a3d98ce2f44168655d2027904d133a6",
+    "dirty_paths": [
+      "tests/regression/standard_cases.py",
+      "scripts/q7/"
+    ]
+  },
+  "cuav_run_sha256": "56a472ebf2e6f0ee4229ac1420b7aae0c8420f060badb61f8eff89806fde952e",
+  "standard_cases": {
+    "checks": [
+      {
+        "case": "全合成链的四态如实传出（缺省参数下 ADC 过载，D-066 ⑨）",
+        "ok": true
+      },
+      {
+        "case": "算例 1 单音频移",
+        "ok": true,
+        "value": 48828.125,
+        "expected": 48970.50149438359,
+        "tol": 244.140625,
+        "unit": "Hz"
+      },
+      {
+        "case": "算例 1 功率标度（S1 = 链路预算）",
+        "ok": true,
+        "value": -51.06520891912731,
+        "expected": -51.14644749139161,
+        "tol": 0.15,
+        "unit": "dBm"
+      },
+      {
+        "case": "算例 1 电平链起点：S0 = 发射功率",
+        "ok": true,
+        "value": 27.000000182681756,
+        "expected": 27.0,
+        "tol": 0.05,
+        "unit": "dBm"
+      },
+      {
+        "case": "算例 1 电平链：S2 − S1 = 前端增益",
+        "ok": true,
+        "value": 20.000025101092767,
+        "expected": 20.0,
+        "tol": 0.05,
+        "unit": "dB"
+      },
+      {
+        "case": "算例 6 削波计数是数据标记，进索引但不改观测点状态",
+        "ok": true,
+        "value": 609142.0,
+        "unit": "样点"
+      },
+      {
+        "case": "算例 6 削波比例超阈值才把组件标降级（D-051 ⑥）",
+        "ok": true,
+        "value": 0.0609142,
+        "expected": 0.01,
+        "unit": "比例"
+      },
+      {
+        "case": "算例 6 ADC 量化噪声的抬升合解析预期",
+        "ok": true,
+        "value": 1.229239763735464,
+        "expected": 1.1937537363019655,
+        "tol": 0.15,
+        "unit": "dB"
+      },
+      {
+        "case": "算例 11 同种子逐字节复现",
+        "ok": true,
+        "value": 24.0,
+        "unit": "个文件"
+      },
+      {
+        "case": "算例 2 带限噪声的 −3 dB 带宽",
+        "ok": true,
+        "value": 1972656.25,
+        "expected": 2000000.0,
+        "tol": 150000.0,
+        "unit": "Hz"
+      },
+      {
+        "case": "算例 2 目标信噪比可读且为正",
+        "ok": true,
+        "value": 36.110046405023255,
+        "unit": "dB"
+      },
+      {
+        "case": "算例 3 突发占空比",
+        "ok": true,
+        "value": 0.30434464599180805,
+        "expected": 0.3,
+        "tol": 0.05,
+        "unit": "比例"
+      },
+      {
+        "case": "算例 9 实测回放的样点数与清单一致",
+        "ok": true,
+        "value": 4000000.0,
+        "expected": 4000000.0,
+        "unit": "样点"
+      },
+      {
+        "case": "算例 9 采样率与中心频率取自清单不是框图",
+        "ok": true
+      },
+      {
+        "case": "算例 9 标度是 dBm 且带标定来源（D-047）",
+        "ok": true
+      },
+      {
+        "case": "算例 9 数据集自带的 degraded 如实传到结果（铁律 15）",
+        "ok": true
+      },
+      {
+        "case": "算例 10 背景原样通过（-10…-5 MHz）",
+        "ok": true,
+        "value": 0.0005993812645286312,
+        "expected": 0.0,
+        "tol": 0.05,
+        "unit": "dB"
+      },
+      {
+        "case": "算例 10 背景原样通过（+5…+10 MHz）",
+        "ok": true,
+        "value": 0.0006749517675643801,
+        "expected": 0.0,
+        "tol": 0.05,
+        "unit": "dB"
+      },
+      {
+        "case": "算例 10 合成目标的绝对电平",
+        "ok": true,
+        "value": -77.65337239242493,
+        "expected": -77.46411270130433,
+        "tol": 0.3,
+        "unit": "dBm"
+      },
+      {
+        "case": "算例 10 单音精确落在 bin 中心",
+        "ok": true
+      }
+    ],
+    "skipped": []
+  },
+  "crosslayer_1": {
+    "path_loss_dB": 109.4569974933389,
+    "S_dBm": -100.4569974933389,
+    "N_dBm": -91.47070322106944,
+    "snr_dB": -8.986294272269461,
+    "M": 921,
+    "eta": 1.1049282774378586,
+    "pd_analytic_deterministic": 0.7163728291195213,
+    "pd_analytic_random": 0.715079041965897,
+    "pd_mc": 0.7026201984227932,
+    "delta": 0.013752630696728052,
+    "tolerance": 0.05,
+    "frames": {
+      "f1": 0.8225134008338297,
+      "fn": 1169,
+      "fp": 23,
+      "pd": 0.7026201984227932,
+      "pfa": 0.0014743589743589744,
+      "precision": 0.9917414721723519,
+      "recall": 0.7026201984227932,
+      "tn": 15577,
+      "total": 19531,
+      "tp": 2762,
+      "truth_on": 3931
+    },
+    "segments": {
+      "detect_delay_s": {
+        "max": 0.010239999999999583,
+        "mean": 0.0011027692307693231
+      },
+      "detected": 157,
+      "false_segments": 22,
+      "matched": 78,
+      "pd_segment": 0.9873417721518988,
+      "truth": 79,
+      "truth_out_of_band": 0
+    },
+    "recognition": {
+      "accuracy": 0.5333333333333333,
+      "evaluated": 135
+    },
+    "evaluate_py": "逐值一致"
+  },
+  "unit_tests": {
+    "doctest": {
+      "cases": 407,
+      "passed": 407,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "ctest_engine": {
+      "total": 17,
+      "failed": 0,
+      "exit_code": 0
+    },
+    "ctest_geo": {
+      "total": 1,
+      "failed": 0,
+      "exit_code": 0
+    }
+  },
+  "goldens": [
+    {
+      "file": "engine/tests/golden/channelizer.json",
+      "name": "channelizer",
+      "cases": 4,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 422896
+    },
+    {
+      "file": "engine/tests/golden/ddc.json",
+      "name": "ddc",
+      "cases": null,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 300148
+    },
+    {
+      "file": "engine/tests/golden/energy_detector.json",
+      "name": "energy_detector",
+      "cases": null,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 1521
+    },
+    {
+      "file": "engine/tests/golden/energy_detector_sliding.json",
+      "name": "energy_detector_sliding",
+      "cases": null,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 128676
+    },
+    {
+      "file": "engine/tests/golden/energy_detector_subband.json",
+      "name": "energy_detector_subband",
+      "cases": null,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 246553
+    },
+    {
+      "file": "engine/tests/golden/fading.json",
+      "name": "fading",
+      "cases": 6,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 13395
+    },
+    {
+      "file": "engine/tests/golden/features.json",
+      "name": "features",
+      "cases": null,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 29033
+    },
+    {
+      "file": "engine/tests/golden/features_subband.json",
+      "name": "features_subband",
+      "cases": null,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 25811
+    },
+    {
+      "file": "engine/tests/golden/gfsk.json",
+      "name": "gfsk",
+      "cases": 3,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 32804
+    },
+    {
+      "file": "engine/tests/golden/gfsk_frame.json",
+      "name": "gfsk_frame",
+      "cases": 2,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 2182
+    },
+    {
+      "file": "engine/tests/golden/metrics.json",
+      "name": "metrics",
+      "cases": null,
+      "tolerance": {
+        "rel": 1e-09,
+        "abs": 1e-12
+      },
+      "matlab": false,
+      "bytes": 134685
+    },
+    {
+      "file": "engine/tests/golden/metrics_subband.json",
+      "name": "metrics_subband",
+      "cases": null,
+      "tolerance": {
+        "rel": 1e-09,
+        "abs": 1e-12
+      },
+      "matlab": false,
+      "bytes": 160271
+    },
+    {
+      "file": "engine/tests/golden/metrics_subband_recognition.json",
+      "name": "metrics_subband_recognition",
+      "cases": null,
+      "tolerance": {
+        "rel": 1e-09,
+        "abs": 1e-12
+      },
+      "matlab": false,
+      "bytes": 163047
+    },
+    {
+      "file": "engine/tests/golden/ofdm.json",
+      "name": "ofdm",
+      "cases": 4,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 480670
+    },
+    {
+      "file": "engine/tests/golden/ofdm_frame.json",
+      "name": "ofdm_frame",
+      "cases": 16,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 36141
+    },
+    {
+      "file": "engine/tests/golden/phase_noise.json",
+      "name": "phase_noise",
+      "cases": 3,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 152359
+    },
+    {
+      "file": "engine/tests/golden/recognition.json",
+      "name": "recognition",
+      "cases": 13,
+      "tolerance": {
+        "rel": 1e-09
+      },
+      "matlab": false,
+      "bytes": 16655
+    },
+    {
+      "file": "engine/tests/golden/recognition_v2.json",
+      "name": "recognition_v2",
+      "cases": 10,
+      "tolerance": {
+        "rel": 1e-09
+      },
+      "matlab": false,
+      "bytes": 14188
+    },
+    {
+      "file": "engine/tests/golden/recognition_v2_library.json",
+      "name": "recognition_v2_library",
+      "cases": 5,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 3140
+    },
+    {
+      "file": "engine/tests/golden/rsmp.json",
+      "name": "rsmp",
+      "cases": 3,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 62418
+    },
+    {
+      "file": "engine/tests/golden/rx_filter.json",
+      "name": "rx_filter",
+      "cases": 2,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 481728
+    },
+    {
+      "file": "engine/tests/golden/scene_gfsk.json",
+      "name": "scene_gfsk",
+      "cases": 2,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 89995
+    },
+    {
+      "file": "engine/tests/golden/scene_noise_bandlimit.json",
+      "name": "scene_noise_bandlimit",
+      "cases": null,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 228486
+    },
+    {
+      "file": "engine/tests/golden/scene_ofdm.json",
+      "name": "scene_ofdm",
+      "cases": 2,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 45357
+    },
+    {
+      "file": "engine/tests/golden/spectrum_welch.json",
+      "name": "spectrum_welch",
+      "cases": null,
+      "tolerance": {},
+      "matlab": true,
+      "bytes": 70314
+    },
+    {
+      "file": "tests/golden/airports-basemap-style.json",
+      "name": "airports-basemap-style",
+      "cases": 60,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 35084
+    },
+    {
+      "file": "tests/golden/analytic-pd.json",
+      "name": "analytic-pd",
+      "cases": 137,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 12447
+    },
+    {
+      "file": "tests/golden/aoa_location.json",
+      "name": "aoa_location",
+      "cases": 48,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 41770
+    },
+    {
+      "file": "tests/golden/component-catalog.json",
+      "name": "component-catalog",
+      "cases": 25,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 115062
+    },
+    {
+      "file": "tests/golden/coverage-cells.json",
+      "name": "coverage-cells",
+      "cases": 85,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 31885
+    },
+    {
+      "file": "tests/golden/geo_fix.json",
+      "name": "geo_fix",
+      "cases": 51,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 10710
+    },
+    {
+      "file": "tests/golden/geodesy.json",
+      "name": "geodesy",
+      "cases": 210,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 42570
+    },
+    {
+      "file": "tests/golden/occlusion-aoi.json",
+      "name": "occlusion-aoi",
+      "cases": 5,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 2797
+    },
+    {
+      "file": "tests/golden/occlusion.json",
+      "name": "occlusion",
+      "cases": 160,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 45759
+    },
+    {
+      "file": "tests/golden/product-window.json",
+      "name": "product-window",
+      "cases": 12,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 91032
+    },
+    {
+      "file": "tests/golden/propagation.json",
+      "name": "propagation",
+      "cases": 186,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 16444
+    },
+    {
+      "file": "tests/golden/scenario-track-golden-01.json",
+      "name": "scenario-track-golden-01",
+      "cases": 361,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 97786
+    },
+    {
+      "file": "tests/golden/scenario-track-golden-02.json",
+      "name": "scenario-track-golden-02",
+      "cases": 122,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 33605
+    },
+    {
+      "file": "tests/golden/scenario-track-golden-03.json",
+      "name": "scenario-track-golden-03",
+      "cases": 723,
+      "tolerance": {},
+      "matlab": false,
+      "bytes": 181750
+    },
+    {
+      "file": "tests/golden/tdoa_location.json",
+      "name": "tdoa_location",
+      "cases": 164,
+      "tolerance": null,
+      "matlab": false,
+      "bytes": 133788
+    }
+  ],
+  "reproduce": [
+    "uv run --quiet --with numpy --with scipy python scripts/q7/verification_snapshot.py"
+  ]
+}

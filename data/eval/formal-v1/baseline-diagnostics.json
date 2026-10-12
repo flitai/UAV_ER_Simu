@@ -1,0 +1,208 @@
+{
+ "schema_version": "cuav-baseline-diagnostics/1",
+ "set_id": "formal-v1",
+ "library_sha256": "a72dc269fd70b7b180d9fe8dff6f7c34e84785220c7501ed9cf6305950ee6361",
+ "video_low_snr": {
+  "segment": "fv1-v20-los-p05",
+  "metrics_sha256": "c1173409d33220671b988e1eb3176709c54d32cd1db30f4e78f196154face01b",
+  "long_segment_min_s": 0.0005,
+  "bursts": {
+   "truth": 320,
+   "matched": 320,
+   "segments": 1536,
+   "fragments": 1188,
+   "false_segments": 28
+  },
+  "recognition": {
+   "evaluated": 320,
+   "accuracy": 0.23125
+  },
+  "template_intervals": {
+   "ofdm_video": {
+    "hop_from_prev_Hz": [
+     1143.0,
+     285000.0
+    ],
+    "bandwidth_Hz": [
+     6612000.0,
+     48300000.0
+    ]
+   },
+   "ofdm_uplink": {
+    "hop_from_prev_Hz": [
+     2544.0,
+     76960000.0
+    ],
+    "bandwidth_Hz": [
+     752300.0,
+     6117000.0
+    ]
+   }
+  },
+  "groups": [
+   {
+    "label": "video_link",
+    "template": "ofdm_video",
+    "segments": 362,
+    "bandwidth_Hz": {
+     "p10": 7304687.5,
+     "median": 14589843.75,
+     "p90": 17890625.0
+    },
+    "hop_from_prev_abs_Hz": {
+     "p10": 29538.298553943634,
+     "median": 628970.1684718132,
+     "p90": 3857419.790799618
+    },
+    "spectral_flatness": {
+     "p10": 0.9883788333850569,
+     "median": 0.990111930046923,
+     "p90": 0.9949069577581852
+    },
+    "snr_dB": {
+     "p10": 3.4377246289912495,
+     "median": 5.322443820369756,
+     "p90": 7.561887588811574
+    },
+    "hop_known": 361,
+    "hop_in_video_interval": 148,
+    "hop_in_uplink_interval": 359,
+    "bandwidth_in_video_interval": 336
+   },
+   {
+    "label": "rc_hopping",
+    "template": "ofdm_uplink",
+    "segments": 301,
+    "bandwidth_Hz": {
+     "p10": 4179687.5,
+     "median": 7070312.5,
+     "p90": 10781250.0
+    },
+    "hop_from_prev_abs_Hz": {
+     "p10": 1588570.28855896,
+     "median": 6690605.522531033,
+     "p90": 11722067.554233551
+    },
+    "spectral_flatness": {
+     "p10": 0.9815116379235156,
+     "median": 0.9889077689877984,
+     "p90": 0.9909069724976501
+    },
+    "snr_dB": {
+     "p10": 4.054818453993309,
+     "median": 4.960798561598372,
+     "p90": 5.747799098607269
+    },
+    "hop_known": 301,
+    "hop_in_video_interval": 0,
+    "hop_in_uplink_interval": 301,
+    "bandwidth_in_video_interval": 161
+   }
+  ]
+ },
+ "droneid": {
+  "segment": "fv1-o40-los-p30",
+  "metrics_sha256": "acb408559f8e579102b622f46854b8d6b02d690b74f055d1c5367a18f98198d5",
+  "droneid_emitter": {
+   "uav-1-droneid": {
+    "detect_delay_mean_s": 0.0,
+    "matched": 1,
+    "merged": 1,
+    "pd_burst": 0.5,
+    "truth": 2
+   }
+  },
+  "bursts": [
+   {
+    "t_s": 0.1,
+    "t_end_s": 0.10064322916666667,
+    "center_Hz": 5776500000.0,
+    "bw_Hz": 9015000.0,
+    "segments": [
+     {
+      "t_s": 0.0999936,
+      "duration_s": 0.0010879999999999918,
+      "bandwidth_Hz": 42187500.0,
+      "spectral_flatness": 0.9809978937775229,
+      "hop_from_prev_Hz": -3422216.0010824203,
+      "interval_from_prev_s": 0.0009216000000000085,
+      "label": "video_link",
+      "template": "ofdm_video",
+      "result": "known",
+      "posterior": 0.5248220039104604
+     }
+    ]
+   },
+   {
+    "t_s": 0.74,
+    "t_end_s": 0.7406432291666667,
+    "center_Hz": 5776500000.0,
+    "bw_Hz": 9015000.0,
+    "segments": [
+     {
+      "t_s": 0.7399936,
+      "duration_s": 0.0006528000000000089,
+      "bandwidth_Hz": 9062500.0,
+      "spectral_flatness": 0.9885095556861694,
+      "hop_from_prev_Hz": null,
+      "interval_from_prev_s": null,
+      "label": "video_link",
+      "template": "ofdm_video",
+      "result": "ambiguous",
+      "posterior": 0.34399320643381587
+     }
+    ]
+   }
+  ],
+  "template_intervals": {
+   "droneid": {
+    "bandwidth_Hz": [
+     2447000.0,
+     12240000.0
+    ],
+    "duration_s": [
+     0.0004741,
+     0.0008985
+    ],
+    "spectral_flatness": [
+     0.911059,
+     1.0
+    ],
+    "hop_from_prev_Hz": [
+     1411.0,
+     1990000.0
+    ],
+    "interval_from_prev_s": [
+     0.4736,
+     0.8631
+    ]
+   },
+   "ofdm_video": {
+    "bandwidth_Hz": [
+     6612000.0,
+     48300000.0
+    ],
+    "duration_s": [
+     0.0004021,
+     0.002904
+    ],
+    "spectral_flatness": [
+     0.929484,
+     1.0
+    ],
+    "hop_from_prev_Hz": [
+     1143.0,
+     285000.0
+    ],
+    "interval_from_prev_s": [
+     0.0006448,
+     0.009348
+    ]
+   }
+  }
+ },
+ "reproduce": [
+  "uv run --quiet --with numpy --with sigmf python scripts/gen_eval_dataset.py baseline --set formal-v1 --cells v20-los-p05,o40-los-p30 --keep-runs",
+  "python3 scripts/q7/baseline_diagnostics.py --set formal-v1"
+ ]
+}

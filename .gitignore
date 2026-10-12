@@ -42,6 +42,9 @@ data/iq/measured/*/*.manifest.json
 # 报告 realism-report.html 不入库（图内嵌，约几 MB），同一脚本逐字节重生成
 !data/eval/*/realism.json
 !data/eval/*/baseline.json
+!data/eval/*/verification.json
+!data/eval/*/baseline-diagnostics.json
+# 交付文档包（docs/ 与 cuav-eval-<集合>-docs.zip）不入库：scripts/q7/ 的生成器从上面几个结果文件逐字节重出
 
 # 公开数据集，永不入库。用通配以覆盖后续新增的数据集目录。
 #   Datasets1-DroneRFb-DIR  64 GB
