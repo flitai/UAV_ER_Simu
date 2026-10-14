@@ -21,7 +21,7 @@ import { getDataset } from '../api/client.js'
 import { formatEng } from '../diagram/format.js'
 import { fmtBytes, fmtHz } from '../shell/format.js'
 import { emitters as sceneEmitters, setPath, sites as sceneSites, type Obj } from '../scene/editor/scenarioOps.js'
-import { fieldsFor, modelOf, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
+import { chainFieldsFor, modelOf, NO_MODEL, readField, type DeviceKind } from '../scene/editor/deviceFields.js'
 import { paramLabel, paramTitle } from './paramLabels.js'
 import { DeviceRow } from '../scene/ObjectForm.js'
 import type { ScenarioDoc } from '../state/types.js'
@@ -619,7 +619,9 @@ function EntityPick(p: {
     const o = byId.get(id)
     if (!o) return id
     const name = typeof o.name === 'string' && o.name ? o.name : ''
-    return [id, name, modelOf(p.kind, o)].filter(Boolean).join(' · ')
+    // 没标型号时不写「未标型号」：那是分组用的键，写在下拉里读起来像漏填了参数
+    const model = modelOf(p.kind, o)
+    return [id, name, model === NO_MODEL ? '' : model].filter(Boolean).join(' · ')
   }
   return (
     <label className="chain-entity">
@@ -694,6 +696,9 @@ function SlotPanel(p: {
     ? participants.filter((e) => modelOf(kind, byId.get(e)) === model)
     : []
   const index = focus ? list.findIndex((x) => String(x.id) === focus) : -1
+  // 这条链做不做时差定位：与编译时插不插到达时间节点同一判据（compile.ts 的 needToa）
+  const usesTdoa = slotState(p.chain, 'loc', p.catalog) === 'active'
+    && String(p.chain.slots.loc.params.method ?? 'aoa') !== 'aoa'
 
   const fixed = v.fixed ?? {}
   const derived = DERIVED_PARAMS[p.id] ?? []
@@ -722,7 +727,7 @@ function SlotPanel(p: {
         <div className="pp-sub" data-slot-owner={owner}>
           {owner === 'shared'
             ? '全图共用'
-            : `${owner === 'emitter' ? '无人机' : '侦测站'} ${focus || '（未选）'}${model ? ` · 型号 ${model}` : ''}`}
+            : `${owner === 'emitter' ? '无人机' : '侦测站'} ${focus || '（未选）'}${model && model !== NO_MODEL ? ` · 型号 ${model}` : ''}`}
         </div>
         {pending.length > 0 && <div className="pp-warn" data-pending>待填：{pending.map((n) => paramLabel({ name: n })).join('、')}</div>}
       </div>
@@ -731,7 +736,7 @@ function SlotPanel(p: {
       {kind && entity && index >= 0 && (
         <div className="group" data-form="entity-device">
           <div className="pp-title">设备参数 · 来自场景</div>
-          {fieldsFor(kind, entity).map((f) => (
+          {chainFieldsFor(kind, entity, usesTdoa).map((f) => (
             <DeviceRow key={f.key} field={f} entity={entity} kind={kind} index={index}
               onCommit={p.onSceneField} />
           ))}

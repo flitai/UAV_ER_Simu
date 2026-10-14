@@ -28,6 +28,11 @@ export interface DeviceField {
   options?: readonly string[]
   /** 缺省值：字段缺席时显示它，但**不**代表文件里有这个值 */
   fallback?: string
+  /**
+   * 字段缺席时输入框的占位文字，写**缺席的实际含义**（载频偏差缺席即 0；可选的型号与站钟缺席即「—」）。
+   * 只是显示，不写回文件（铁律 15）。不给就显示「未设置」——只留给缺席会出错的字段。
+   */
+  absent?: string
   /** 只在满足条件时出现（波形字段随波形种类变） */
   when?: (entity: Obj) => boolean
 }
@@ -60,16 +65,16 @@ function hasWaveformKey(k: string) {
  */
 export const SITE_DEVICE_FIELDS: readonly DeviceField[] = [
   // 型号本身也要能设，否则「同型号共用一套参数」这件事在界面上根本发动不起来（D-054）
-  { key: 'site.model', label: '设备型号', unit: '', rel: 'equipment_model', type: 'text' },
+  { key: 'site.model', label: '设备型号', unit: '', rel: 'equipment_model', type: 'text', absent: '—' },
   { key: 'site.antenna_gain', label: '天线增益', unit: 'dBi', rel: 'antenna.gain_dBi', type: 'number' },
   { key: 'site.fs', label: '采样率', unit: 'Hz', rel: 'receiver.fs_Hz', type: 'number' },
   { key: 'site.center', label: '中心频率', unit: 'Hz', rel: 'receiver.center_Hz', type: 'number' },
   { key: 'site.bw', label: '带宽', unit: 'Hz', rel: 'receiver.bw_Hz', type: 'number' },
   { key: 'site.nf', label: '噪声系数', unit: 'dB', rel: 'receiver.nf_dB', type: 'number' },
-  { key: 'site.clock_sigma', label: '站钟同步 σ', unit: 'ns', rel: 'clock.sync_sigma_ns', type: 'number' },
-  { key: 'site.clock_bias', label: '固定钟差', unit: 'ns', rel: 'clock.bias_ns', type: 'number' },
-  { key: 'site.rx_delay', label: '通道群时延', unit: 'ns', rel: 'clock.rx_delay_ns', type: 'number' },
-  { key: 'site.rx_delay_sigma', label: '群时延 σ', unit: 'ns', rel: 'clock.rx_delay_sigma_ns', type: 'number' },
+  { key: 'site.clock_sigma', label: '站钟同步 σ', unit: 'ns', rel: 'clock.sync_sigma_ns', type: 'number', absent: '—' },
+  { key: 'site.clock_bias', label: '固定钟差', unit: 'ns', rel: 'clock.bias_ns', type: 'number', absent: '—' },
+  { key: 'site.rx_delay', label: '通道群时延', unit: 'ns', rel: 'clock.rx_delay_ns', type: 'number', absent: '—' },
+  { key: 'site.rx_delay_sigma', label: '群时延 σ', unit: 'ns', rel: 'clock.rx_delay_sigma_ns', type: 'number', absent: '—' },
   {
     key: 'site.sync_state', label: '同步状态', unit: '', rel: 'clock.sync_state', type: 'enum',
     options: ['locked', 'holdover', 'unsynced'], fallback: 'locked',
@@ -79,7 +84,7 @@ export const SITE_DEVICE_FIELDS: readonly DeviceField[] = [
 /** 辐射源的设备参数。`polarization` 同样是自 D-051 就有格式、界面一直没入口的一项。 */
 export const EMITTER_DEVICE_FIELDS: readonly DeviceField[] = [
   // 缺省留空即回退 platform_type 作分组键（D-054）
-  { key: 'em.model', label: '设备型号', unit: '', rel: 'equipment_model', type: 'text' },
+  { key: 'em.model', label: '设备型号', unit: '', rel: 'equipment_model', type: 'text', absent: '—' },
   { key: 'em.center', label: '中心频率', unit: 'Hz', rel: 'emission.center_Hz', type: 'number' },
   // OFDM 族与 GFSK 族的占用带宽由机型预设给出、场景里必须等于它（D-088、D-089），不单独改——表单上只读显示
   { key: 'em.bw', label: '占用带宽', unit: 'Hz', rel: 'emission.bw_Hz', type: 'number',
@@ -91,7 +96,7 @@ export const EMITTER_DEVICE_FIELDS: readonly DeviceField[] = [
     options: ['vertical', 'horizontal', 'slant45', 'rhcp', 'lhcp'], fallback: 'vertical',
   },
   // 发射机载频偏差（Q-4，D-091）：缺席即 0、留空不改；越界（|·| > 100 ppm）由保存时的引擎校验拒
-  { key: 'em.cfo', label: '载频偏差', unit: 'ppm', rel: 'emission.cfo_ppm', type: 'number' },
+  { key: 'em.cfo', label: '载频偏差', unit: 'ppm', rel: 'emission.cfo_ppm', type: 'number', absent: '0' },
   { key: 'em.offset', label: '频偏', unit: 'Hz', rel: 'emission.waveform.offset_Hz', type: 'number', when: hasWaveformKey('offset_Hz') },
   { key: 'em.period', label: '突发周期', unit: 's', rel: 'emission.waveform.period_s', type: 'number', when: hasWaveformKey('period_s') },
   { key: 'em.duty', label: '占空比', unit: '', rel: 'emission.waveform.duty', type: 'number', when: hasWaveformKey('duty') },
@@ -105,6 +110,16 @@ export const DEVICE_FIELDS: Readonly<Record<DeviceKind, readonly DeviceField[]>>
 /** 这个实体这一版实际要显示的字段（滤掉波形对不上的那几个）。 */
 export function fieldsFor(kind: DeviceKind, entity: Obj | undefined): DeviceField[] {
   return DEVICE_FIELDS[kind].filter((f) => !f.when || (entity ? f.when(entity) : false))
+}
+
+/**
+ * 框图页右栏要显示的设备字段。与 `fieldsFor` 只差站钟一组：站钟只有时差定位才用（D-053），
+ * 场景里没写、这条链也不做时差定位时，框图页不摆这五行——否则侦测站一侧的七张卡片上
+ * 每张都是一排空着的站钟（2026-10-13 用户指出）。场景视图的对象表单仍然全部显示，照常可填。
+ */
+export function chainFieldsFor(kind: DeviceKind, entity: Obj | undefined, usesTdoa: boolean): DeviceField[] {
+  const hasClock = readField(entity, 'clock') !== undefined
+  return fieldsFor(kind, entity).filter((f) => !f.rel.startsWith('clock.') || usesTdoa || hasClock)
 }
 
 /**

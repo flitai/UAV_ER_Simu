@@ -138,7 +138,7 @@ export function DeviceRow({
     const cur = typeof raw === 'string' ? raw : ''
     return (
       <Row label={field.label}>
-        <input className="form-input" defaultValue={cur} placeholder="未设置" data-field={path}
+        <input className="form-input" defaultValue={cur} placeholder={field.absent ?? '未设置'} data-field={path}
           onBlur={(e) => {
             const text = e.currentTarget.value.trim()
             if (text !== cur) onCommit(path, text === '' ? undefined : text)
@@ -152,7 +152,7 @@ export function DeviceRow({
         className="form-input"
         // 字段缺席（站钟那几项本来就可能没有）时留空，不写 0——0 是个合法取值，顶上去就分不清了
         defaultValue={typeof raw === 'number' ? String(raw) : ''}
-        placeholder={typeof raw === 'number' ? undefined : '未设置'}
+        placeholder={typeof raw === 'number' ? undefined : (field.absent ?? '未设置')}
         data-field={path}
         onBlur={(e) => {
           const text = e.currentTarget.value.trim()
