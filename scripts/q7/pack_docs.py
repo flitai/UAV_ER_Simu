@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""正式集配套文档包（Q-7，D-106）：两份新文档 + 机器可读的基准结果 + 真实感对照报告 v1.3 + 一页说明，另成一个小包。
+"""正式集配套文档包（Q-7，D-106）：两份新文档 + 机器可读的基准结果 + 可信性验证报告 v1.4 + 一页说明，另成一个小包。
 
 数据包（`cuav-eval-<集合>.zip`）与其 README 一字不动（用户 2026-10-12：已发或不想重传，文档另成一包）。
 
 步骤：
 1. 输入的入库文件（验证快照、基准结果、格子文件、真实感对照 JSON、本目录的生成器）有未提交改动即拒（`--allow-dirty` 跳过）；
-2. 重新生成两份文档与机器可读结果，拷入真实感对照报告（核对它是 v1.3）；
+2. 重新生成两份文档与机器可读结果，拷入可信性验证报告（核对它是 v1.4）；
 3. 写说明 `README.md`（含对应数据包 zip 的 SHA-512）与 `SHA512SUMS`；
 4. 出包前检查：文件名纯 ASCII、没有本机路径、正文没有决策编号与内部步骤号；
 5. 用单机包同一个 `deploy/pack.py` 的 write_zip 出确定性 zip（时间戳取输入最后一次提交的时间），再写 `.sha512` 旁挂。
@@ -35,7 +35,7 @@ import model_doc  # noqa: E402
 import pack as P  # noqa: E402
 
 REALISM_SRC = ("data", "eval", "realism-v2", "realism-report.html")
-REALISM_VERSION = "v1.3"
+REALISM_VERSION = "v1.4"
 INTERNAL = re.compile(r"D-\d{3}|\bQ-\d")
 
 README = """# {name}：配套文档

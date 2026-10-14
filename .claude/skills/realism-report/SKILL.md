@@ -6,7 +6,7 @@ description: 本项目「无人机射频 IQ 信号仿真方法与可信性验证
 # 无人机射频 IQ 信号仿真方法与可信性验证报告
 
 报告名称自 v1.2（2026-10-10，D-100）起如上；内部仍称「真实感对照报告」，文件名 `realism-report.html` 不变。
-**当前版本 v1.3（2026-10-12，D-105）**：格子集 `realism-v2`（按机型预设 v2 生成），随正式集交付；v1.2 对应 `realism-v1`（按预设 v1，随样本集），留作记录、不再重出。
+**当前版本 v1.4（2026-10-13，D-108）**：格子集 `realism-v2`（按机型预设 v2 生成），随正式集交付；v1.4 只改结论措辞（「未验证」三项的去向写成「获得目标设备的第一手实测数据或详细技术参数后可据此修正」），数据与判定同 v1.3（D-105）；v1.2 对应 `realism-v1`（按预设 v1，随样本集），留作记录、不再重出。
 
 通用写法（章节结构、措辞、不符合项三段式、生成器、成稿检查）见用户级 skill `formal-tech-report`，句子级规则见 `tech-zh`；本文件只记本项目的事实。
 
@@ -19,9 +19,9 @@ description: 本项目「无人机射频 IQ 信号仿真方法与可信性验证
 - 章序：`CHAPTERS` 定义一次，标题与正文的「第 n 章 / 第 n.m 节」由 `ch()` 生成；不要在正文里写章节号字面量。
   报告里不手抄任何数字；原因段由 `findings()` 按结果生成。
 - 产物：`data/eval/<集合>/realism-report.html`（不入库，单文件，图内嵌，离线可开）。
-- 交付：v1.3 随正式集的配套文档包交付（Q-7，D-106）：`scripts/q7/pack_docs.py` 把 `realism-v2/realism-report.html` 拷进 `data/eval/formal-v1/docs/` 并核对封面版本是 v1.3。
+- 交付：随正式集的配套文档包交付（Q-7，D-106）：`scripts/q7/pack_docs.py` 把 `realism-v2/realism-report.html` 拷进 `data/eval/formal-v1/docs/` 并核对封面版本是 `pack_docs.py` 的 `REALISM_VERSION`（现为 v1.4）。
   同包的另两份文档引用它时写正式名称（简称「可信性验证报告」），不写「真实感对照报告」；它们的自查多一条 `--forbid 真实感`。
-- 口径与落地记录：14 号报告 §7.3（判定准则，比对前定）、§7.4（结果、查出的问题与 v1.2 / v1.3 的版本记录）；决策 D-096、D-097、D-098、D-100、D-105。
+- 口径与落地记录：14 号报告 §7.3（判定准则，比对前定）、§7.4（结果、查出的问题与 v1.2 / v1.3 / v1.4 的版本记录）；决策 D-096、D-097、D-098、D-100、D-105、D-108。
 
 ## 重出
 
@@ -51,7 +51,7 @@ python3 ~/.claude/skills/formal-tech-report/scripts/check_report.py data/eval/re
 node ~/.claude/skills/formal-tech-report/scripts/check_layout.mjs data/eval/realism-v2/realism-report.html --out data/tmp/realism/shots
 ```
 
-`ban-words.txt` 是本项目的禁用词（内部说法与旧称）。v1.2 与 v1.3 在这套检查下都是错误 0、警告 0（v1.1 的五条警告：表图未在正文引用、
+`ban-words.txt` 是本项目的禁用词（内部说法与旧称）。v1.2、v1.3、v1.4 在这套检查下都是错误 0、警告 0（v1.1 的五条警告：表图未在正文引用、
 文献 [3] 未引用、负号用连字符、两处「明显」，已在 v1.2 一并改掉）。
 
 - [ ] 表、图编号从 1 起连续，与版面顺序一致；没有残留占位符（生成器会报错）。

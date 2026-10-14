@@ -34,7 +34,7 @@ from report_kit import CSS, Chapters, Report, e, num, table, verdict  # noqa: E4
 VERSION, DATE = "v1.0", "2026-10-12"
 TITLE = "仿真模型与实现验证说明"
 SUBTITLE = "仿真合成数据集 v1 的生成模型、参数出处与实现校核"
-REALISM = "《无人机射频 IQ 信号仿真方法与可信性验证报告》v1.3"
+REALISM = "《无人机射频 IQ 信号仿真方法与可信性验证报告》v1.4"
 BASELINE = "《本方基准结果》v1.0"
 
 CSS_EXTRA = """

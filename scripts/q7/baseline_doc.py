@@ -31,7 +31,7 @@ VERSION, DATE = "v1.0", "2026-10-12"
 TITLE = "本方基准结果"
 SUBTITLE = "本方检测识别算法在仿真合成数据集 v1 上的结果"
 MODEL_DOC = "《仿真模型与实现验证说明》v1.0"
-REALISM = "《无人机射频 IQ 信号仿真方法与可信性验证报告》v1.3"
+REALISM = "《无人机射频 IQ 信号仿真方法与可信性验证报告》v1.4"
 
 LABEL_CN = OrderedDict([("video_link", "图传"), ("rc_hopping", "跳频遥控"), ("droneid", "DroneID 广播"),
                         ("telemetry_burst", "遥测突发"), ("cw_beacon", "单音信标"), ("unknown", "未知")])
