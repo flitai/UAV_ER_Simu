@@ -108,7 +108,7 @@ function FocusCard({ c }: { c: TargetCardData }) {
   return (
     <div className="focus-card" data-focus-card={c.id}>
       <div className="focus-head">
-        <PlatformIcon type={c.platform_type} size={20} />
+        <PlatformIcon kind={c.platform_kind} size={20} />
         <span className="focus-title">{c.name}</span>
         <span className="dim">{c.id}</span>
         {c.inZone && <span className="card-badge alert" data-card-zone={c.inZone}>{c.inZoneName ?? c.inZone}</span>}
@@ -158,7 +158,8 @@ function FocusCard({ c }: { c: TargetCardData }) {
       <details className="focus-identity" data-focus-identity>
         <summary>身份</summary>
         <div className="kv-grid focus-identity-body">
-          <Kv k="机型" v={PLATFORM_LABEL[c.platform_type] ?? c.platform_type} />
+          {/* 遥控器不写它挂的 platform_type，否则图标是遥控器、文字是多旋翼（D-109） */}
+          <Kv k="机型" v={c.platform_kind === 'remote' ? '遥控器' : PLATFORM_LABEL[c.platform_type] ?? c.platform_type} />
           {c.equipment_model && <Kv k="型号" v={c.equipment_model} />}
           {c.center_Hz !== null && <Kv k="中心" v={fmtHz(c.center_Hz)} />}
           {c.bw_Hz !== null && <Kv k="带宽" v={fmtHz(c.bw_Hz)} />}
@@ -182,7 +183,7 @@ function TargetList({ cards, focusId, onPick }: { cards: TargetCardData[]; focus
           const m = c.motion
           return (
             <tr key={c.id} className={c.id === focusId ? 'sel' : ''} data-target-row={c.id} onClick={() => onPick(c.id)}>
-              <td className="icon"><PlatformIcon type={c.platform_type} size={14} /></td>
+              <td className="icon"><PlatformIcon kind={c.platform_kind} size={14} /></td>
               <td className="name" title={c.name}>{c.name}{c.inZone ? <span className="card-badge alert" data-row-zone={c.inZone}>告警区</span> : null}</td>
               <td className="num mono">{m ? m.alt_m.toFixed(0) : '—'}</td>
               <td className="num mono">{m?.speed_mps !== null && m?.speed_mps !== undefined ? m.speed_mps.toFixed(1) : '—'}</td>

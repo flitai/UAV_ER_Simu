@@ -1,16 +1,20 @@
 // 卡片用的两种小图形（13 报告 §3.3）：机型剪影与小方位盘。内联 SVG，不加载任何资源（铁律 6）。
 
-import { PLATFORM_SHAPES, platformKind } from '../style/platformIcons.js'
+import { PLATFORM_SHAPES, type PlatformKind } from '../style/platformIcons.js'
 
 /**
  * 机型剪影：与地图图标同一份（D-078，platformIcons.ts），currentColor 填色，朝上画。
- * 四个 `platform_type` 归成两种剪影；具体机型写在旁边的文字里。
+ * 四个 `platform_type` 归成两种剪影，遥控器另一种（D-109，`emitterPlatformKind` 判）；具体机型写在旁边的文字里。
  */
-export function PlatformIcon({ type, size = 22 }: { type: string; size?: number }) {
-  const shape = PLATFORM_SHAPES[platformKind(type).kind]
+export function PlatformIcon({ kind, size = 22 }: { kind: PlatformKind; size?: number }) {
+  const shape = PLATFORM_SHAPES[kind]
   return (
     <svg width={size} height={size} viewBox={shape.viewBox} aria-hidden className="plat-icon">
       {shape.paths.map((d, i) => <path key={i} d={d} fill="currentColor" fillRule="evenodd" />)}
+      {(shape.strokes ?? []).map((t, i) => (
+        <path key={`s${i}`} d={t.d} fill="none" stroke="currentColor" strokeWidth={t.width}
+              strokeLinecap="round" strokeLinejoin="round" />
+      ))}
     </svg>
   )
 }

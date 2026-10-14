@@ -110,6 +110,10 @@ em-demo 的色值是为深色底图调的，例如测向线用橙色 `#f97316`�
 （`web/src/scene/style/platformIcons.ts`，路径数据自 em-demo `public/drone_icon.svg` 与 `fixed_wing_icon.svg`
 逐字拷入）：`multirotor` / `racing` 用多旋翼、`fixed_wing` / `medium` 用固定翼；多旋翼剪影中心对称、
 转航向看不出朝向，所以在机头加了一个小三角。右栏目标列表与焦点卡的小图标是同一份剪影。
+**遥控器自 D-109（2026-10-14）起用遥控器图标**（路径数据自 `models/remote.svg` 逐字拷入，外壳是描边）：
+判据是波形预设的角色为 `rc_hopping`（DJI 遥控上行、FrSky / Futaba 遥控），不看 `platform_type`；
+没有预设的波形（golden 场景里机载的 `burst` 遥控）照旧按 `platform_type` 画。遥控器图像名后缀 `-remote`，
+不随航向转；焦点卡「机型」行写「遥控器」。
 运行时光栅化后 `source-in` 染色并描一圈光晕（浅色白晕、深色底色晕），用 `map.addImage` 注册，
 不引精灵图集（铁律 6）。图像名多旋翼沿用 `cuav-drone` / `cuav-drone-alert`，固定翼加后缀 `-fixed_wing`。
 朝上画，靠 `icon-rotate` 表航向；图源 96 px、`pixelRatio: 3`，`icon-size` 1.25 得 40 CSS px。

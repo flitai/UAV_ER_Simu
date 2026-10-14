@@ -25,7 +25,7 @@ import {
 import { emitters, posOf, routeOf, sites, splitLinkId, waypointsOf, zoneOf, zones } from './editor/scenarioOps.js'
 import { currentSituation, situationRev } from './situationView.js'
 import type { ScenarioDoc } from '../state/types.js'
-import { platformKind, type PlatformKind } from './style/platformIcons.js'
+import { emitterPlatformKind, type PlatformKind } from './style/platformIcons.js'
 import { themeStore } from '../shell/theme.js'
 
 const TICK_MS = 50   // 20 Hz
@@ -167,7 +167,7 @@ export function useLiveSituation(
       const st = currentSituation(d)
       // 入圈判定（D-061，13 §4.3）：纯几何，每 tick 对每个实体算一次；选中环跟着选中走
       const kinds = new Map<string, PlatformKind>()
-      for (const e of emitters(d)) kinds.set(String(e.id), platformKind(typeof e.platform_type === 'string' ? e.platform_type : undefined).kind)
+      for (const e of emitters(d)) kinds.set(String(e.id), emitterPlatformKind(e))
       const targets = [] as Array<EntitySample & { alert: boolean; selected: boolean; focus: boolean; platform: PlatformKind }>
       st.entities.forEach((e) => targets.push({
         ...e, alert: zoneOf(d, e.lon, e.lat, e.alt_m) !== null, selected: e.id === selRef.current, focus: all || e.id === focus,

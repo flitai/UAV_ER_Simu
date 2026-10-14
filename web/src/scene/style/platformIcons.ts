@@ -4,14 +4,21 @@
 // 本方自研代码（铁律 13），路径数据逐字拷入、未改。只做了两处添加：
 //   1. 多旋翼剪影是中心对称的，转航向看不出朝哪飞——在机头方向加一个小三角（`nose`）；
 //   2. 按 `platform_type` 四选一：`multirotor` / `racing` 用多旋翼，`fixed_wing` / `medium` 用固定翼。
-// 全部朝上画（屏幕正北），航向靠 MapLibre 的 icon-rotate。
+// 遥控器图标（D-109）来自 `models/remote.svg`（用户提供），路径数据逐字拷入；外壳是描边路径，其余是填充。
+// 遥控器不看 `platform_type`，看波形预设的角色（`emitterPlatformKind`）。
+// 全部朝上画（屏幕正北），航向靠 MapLibre 的 icon-rotate（遥控器不转）。
 
-export type PlatformKind = 'multirotor' | 'fixed_wing'
+import { anyPresetById } from '../presets.js'
+
+export type PlatformKind = 'multirotor' | 'fixed_wing' | 'remote'
 
 export interface PlatformShape {
+  /** 必须是正方形：光栅化画进方形画布，告警变体按边长的一半取圆心 */
   viewBox: string
   /** 填充路径，evenodd */
   paths: readonly string[]
+  /** 描边路径（圆头圆角），width 用 viewBox 单位 */
+  strokes?: readonly { d: string; width: number }[]
 }
 
 const MULTIROTOR_PATHS = [
@@ -25,9 +32,21 @@ const FIXED_WING_PATH = 'M512 158c-12.7 0-23 10.3-23 23v146.8c0 30.6-19.7 60.7-4
 /** 机头三角：顶端两旋翼之间，指向正北（viewBox 94 76 1064 1064，中心 x = 626）。 */
 const MULTIROTOR_NOSE = 'M626 80 L746 270 L506 270 Z'
 
+// 遥控器：原图 viewBox 0 0 442 376，两根天线、顶部按钮、左右摇杆为填充，外壳为描边
+const REMOTE_PATHS = [
+  'M132 101V46C132 38 138 32 146 32S160 38 160 46V101Z',
+  'M283 101V46C283 38 289 32 297 32S311 38 311 46V101Z',
+  'M186 100H253C267 100 274 107 274 122V126C274 140 267 146 253 146H186C173 146 167 139 167 125V121C167 107 173 100 186 100ZM190 114C186 114 184 116 184 120V125C184 129 186 131 190 131H249C253 131 255 129 255 125V120C255 116 253 114 249 114Z',
+  'M195 216A57 57 0 1 1 81 216A57 57 0 1 1 195 216ZM102 194C96 203 94 215 97 227C101 246 117 259 137 259C160 259 178 242 180 221C181 211 178 201 173 194C175 203 175 212 171 221C165 237 153 247 138 247C122 247 110 237 105 221C101 212 101 203 102 194ZM138 173C129 173 125 177 125 185V193C125 202 130 210 138 210C146 210 152 202 152 193V185C152 177 147 173 138 173Z',
+  'M361 216A57 57 0 1 1 247 216A57 57 0 1 1 361 216ZM268 194C262 203 260 215 263 227C267 246 283 259 303 259C326 259 344 242 346 221C347 211 344 201 339 194C341 203 341 212 337 221C331 237 319 247 304 247C288 247 276 237 271 221C267 212 267 203 268 194ZM304 173C295 173 291 177 291 185V193C291 202 296 210 304 210C312 210 318 202 318 193V185C318 177 313 173 304 173Z',
+] as const
+const REMOTE_SHELL = 'M174 119H131C121 119 115 124 113 136H101C71 136 57 148 57 175L55 302C54 328 68 341 96 341H107C121 341 129 338 140 327L163 305C175 301 205 303 222 303H278L302 326C314 338 322 341 337 341H346C374 341 389 327 388 301L385 176C385 149 372 136 342 136H327C324 125 319 119 308 119H269'
+
 export const PLATFORM_SHAPES: Record<PlatformKind, PlatformShape> = {
   multirotor: { viewBox: '94 76 1064 1064', paths: [...MULTIROTOR_PATHS, MULTIROTOR_NOSE] },
   fixed_wing: { viewBox: '0 0 1024 1024', paths: [FIXED_WING_PATH] },
+  // 图形范围约 x 46–397、y 32–350（含描边），正方形取景以它为中心
+  remote: { viewBox: '31.5 1 380 380', paths: REMOTE_PATHS, strokes: [{ d: REMOTE_SHELL, width: 18 }] },
 }
 
 /** `platform_type` → 剪影。场景格式的四个取值都有着落；取值之外的回落多旋翼（`known = false`）。 */
@@ -44,11 +63,23 @@ export function platformKind(type: string | undefined): { kind: PlatformKind; kn
   }
 }
 
+/**
+ * 辐射源 → 剪影。波形预设的角色是 `rc_hopping`（DJI 遥控上行、FrSky / Futaba 遥控）即遥控器；
+ * 其余按 `platform_type`。没有预设的波形（`burst` 等）不当遥控器——golden 场景里的「穿越机 · 遥控」是机载的。
+ */
+export function emitterPlatformKind(e: Record<string, unknown> | undefined): PlatformKind {
+  const em = e?.emission as Record<string, unknown> | undefined
+  const wf = em?.waveform as Record<string, unknown> | undefined
+  if (anyPresetById(wf?.preset_id)?.role === 'rc_hopping') return 'remote'
+  return platformKind(typeof e?.platform_type === 'string' ? e.platform_type : undefined).kind
+}
+
 /** 剪影的完整 SVG 文本（单色黑，供光栅化后 source-in 染色；ring 为真时外加告警圆环）。 */
 export function platformSvg(kind: PlatformKind, ring = false): string {
   const s = PLATFORM_SHAPES[kind]
   const [x, y, w] = s.viewBox.split(' ').map(Number) as [number, number, number]
   const body = s.paths.map((d) => `<path fill="#000" fill-rule="evenodd" d="${d}"/>`).join('')
+    + (s.strokes ?? []).map((t) => `<path fill="none" stroke="#000" stroke-width="${t.width}" stroke-linecap="round" stroke-linejoin="round" d="${t.d}"/>`).join('')
   if (!ring) return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${s.viewBox}">${body}</svg>`
   // 告警变体：机身缩到 72%，外加一圈粗环（D-061）
   const c = w / 2

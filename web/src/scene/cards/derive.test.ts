@@ -106,7 +106,7 @@ test('站点卡：链路数与最差测向档；探针形状逐项挑', () => {
   assert.equal(sc[0]!.sync_state, 'locked')
   assert.ok(qualityRank('invalid') > qualityRank('DF-Q4') && qualityRank('DF-Q4') > qualityRank('DF-Q1'))
   const pc = probeCards(buildTargetCards(doc, sit))
-  assert.deepEqual(Object.keys(pc[0]!).sort(), ['fixes', 'id', 'inZone', 'motionSource', 'nearest_m', 'platform_type', 'sites'])
+  assert.deepEqual(Object.keys(pc[0]!).sort(), ['fixes', 'id', 'inZone', 'motionSource', 'nearest_m', 'platform_kind', 'platform_type', 'sites'])
   assert.deepEqual(Object.keys(pc[0]!.sites[0]!).sort(),
     ['azimuth_deg', 'bearing_deg', 'df_quality', 'distance_m', 'path_loss_dB', 'rx_dBm', 'sigma_deg', 'site_id', 'snr_dB', 'source'])
   assert.deepEqual(probeSiteCards(sc)[0], { id: 'site-1', links: 3, worst_quality: 'DF-Q3', sync_state: 'locked' })

@@ -323,7 +323,9 @@ export function addSituationLayers(map: MLMap): void {
           ['concat', 'cuav-drone-alert', ['get', 'icon_suffix']],
           ['concat', 'cuav-drone', ['get', 'icon_suffix']]],
         'icon-size': 1.25,
-        'icon-rotate': ['get', 'heading'], 'icon-rotation-alignment': 'map',
+        // 遥控器在地面、不随航向转（D-109）
+        'icon-rotate': ['case', ['==', ['get', 'icon_suffix'], droneIconSuffix('remote')], 0, ['get', 'heading']],
+        'icon-rotation-alignment': 'map',
         'icon-allow-overlap': true, 'icon-ignore-placement': true,
       },
       // 不发射时画淡一点：图标还在（目标仍被跟踪），但一眼能看出没在发

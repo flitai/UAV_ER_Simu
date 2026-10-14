@@ -14,6 +14,7 @@ import type { ScenarioDoc } from '../../state/types.js'
 import type { BearingSample, EntitySample, LinkSample, PositionSample } from '../sceneStore.js'
 import { derivedLinks, emitters, posOf, sites, zoneOf, type Obj } from '../editor/scenarioOps.js'
 import { lookAngles } from '../editor/preview.js'
+import { emitterPlatformKind, type PlatformKind } from '../style/platformIcons.js'
 
 /** 态势快照里卡片用到的四张表（与 sceneStore 的状态同形，测试可以直接造）。 */
 export interface SituationLike {
@@ -93,6 +94,8 @@ export interface TargetCardData {
   id: string
   name: string
   platform_type: string
+  /** 剪影：遥控器按波形预设的角色判，其余按 platform_type（D-109） */
+  platform_kind: PlatformKind
   equipment_model: string | null
   center_Hz: number | null
   bw_Hz: number | null
@@ -227,6 +230,7 @@ export function buildTargetCards(doc: ScenarioDoc | null, sit: SituationLike): T
 
     out.push({
       id, name: str(e, 'name') ?? id, platform_type: str(e, 'platform_type') ?? 'multirotor',
+      platform_kind: emitterPlatformKind(e),
       equipment_model: str(e, 'equipment_model'),
       center_Hz: num(em, 'center_Hz'), bw_Hz: num(em, 'bw_Hz'), tx_power_dBm: txPower, tx_gain_dBi: txGain,
       polarization: str(em, 'polarization'),
@@ -271,6 +275,7 @@ export function probeCards(cards: TargetCardData[]) {
   return cards.map((c) => ({
     id: c.id,
     platform_type: c.platform_type,
+    platform_kind: c.platform_kind,
     inZone: c.inZone,
     motionSource: c.motion?.source ?? null,
     nearest_m: c.nearest_m,

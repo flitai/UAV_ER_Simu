@@ -92,9 +92,10 @@ const SITE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 
 /**
  * 图标名。无人机按机型分图（D-078，剪影见 platformIcons.ts）：多旋翼沿用旧名 `cuav-drone` /
- * `cuav-drone-alert`（端到端按这两个名字断言），固定翼加后缀 `-fixed_wing`。
+ * `cuav-drone-alert`（端到端按这两个名字断言），固定翼加后缀 `-fixed_wing`，遥控器加 `-remote`（D-109）。
  */
-export type IconName = 'cuav-drone' | 'cuav-drone-alert' | 'cuav-drone-fixed_wing' | 'cuav-drone-alert-fixed_wing' | 'cuav-site'
+export type IconName = 'cuav-drone' | 'cuav-drone-alert' | 'cuav-drone-fixed_wing' | 'cuav-drone-alert-fixed_wing'
+  | 'cuav-drone-remote' | 'cuav-drone-alert-remote' | 'cuav-site'
 
 /** 机型 → 图标名后缀（多旋翼为空，保住旧名）。 */
 export function droneIconSuffix(kind: PlatformKind): string {
@@ -150,6 +151,8 @@ export const ICON_SVG: Record<IconName, string> = {
   'cuav-drone-alert': platformSvg('multirotor', true),
   'cuav-drone-fixed_wing': platformSvg('fixed_wing'),
   'cuav-drone-alert-fixed_wing': platformSvg('fixed_wing', true),
+  'cuav-drone-remote': platformSvg('remote'),
+  'cuav-drone-alert-remote': platformSvg('remote', true),
   'cuav-site': SITE_SVG,
 }
 
