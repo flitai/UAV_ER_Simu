@@ -135,6 +135,34 @@ class EngineSourceTest(unittest.TestCase):
             with self.assertRaisesRegex(pack.PackError, "sha256"):
                 pack.engine_from_dir(d, "a" * 40)
 
+    def test_local_build_record(self):
+        """本机 MSVC 编出的引擎：记录与 CI 同形，kind = local、提交取 HEAD、编译器版本按 CI 同一口径取。"""
+        with tempfile.TemporaryDirectory() as t:
+            b = Path(t)
+            (b / "Release").mkdir()
+            (b / "Release" / "cuav_run.exe").write_bytes(b"MZlocal")
+            cm = b / "CMakeFiles" / "3.31.0"
+            cm.mkdir(parents=True)
+            (cm / "CMakeCXXCompiler.cmake").write_text(
+                'set(CMAKE_CXX_COMPILER "cl.exe")\nset(CMAKE_CXX_COMPILER_VERSION "19.44.35207.1")\n', encoding="utf-8")
+            exe, rec = pack.engine_from_local(b, "c" * 40)
+            self.assertEqual(exe.name, "cuav_run.exe")
+            self.assertEqual(rec["kind"], "local")
+            self.assertEqual(rec["commit"], "c" * 40)
+            self.assertEqual(rec["compiler"], "MSVC 19.44.35207.1")
+            self.assertEqual(rec["sha256"], hashlib.sha256(b"MZlocal").hexdigest())
+            self.assertIsNone(rec["run_id"])
+
+    def test_local_build_missing_exe(self):
+        with tempfile.TemporaryDirectory() as t:
+            with self.assertRaisesRegex(pack.PackError, "cmake --build engine/build"):
+                pack.engine_from_local(Path(t), "c" * 40)
+
+    def test_engine_local_only_on_windows(self):
+        if sys.platform == "win32":
+            self.skipTest("在 Windows 上这条路是允许的")
+        self.assertEqual(pack.main(["build", "--engine-local", "--skip-build"]), 1)
+
 
 class DemCheckTest(unittest.TestCase):
     def test_dem_index_hash(self):

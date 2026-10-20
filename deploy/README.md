@@ -71,6 +71,19 @@ cuav-demo-<提交日期>-<短哈希>-win-x64/
    node deploy/smoke.mjs dist/cuav-demo-<...>-host-darwin --full
    ```
 
+### 在 Windows 上用本机编译的引擎组包
+
+没有 CI 产物时（例如同事拿到源码在自己的 Windows 机上组包），引擎可以本机编：
+
+1. 前提：Git、Python ≥ 3.11、Node.js 22（npm）、Visual Studio 2022 生成工具的「使用 C++ 的桌面开发」（含 CMake）。
+   不在 git 里的数据（建筑集、两份底图与 DEM、13 段实测片段、便携 Node 压缩包）按仓库相对路径放进来。
+2. `cd server && npm ci && npm run build`，`cd web && npm ci && npm run build`。
+3. `cmake -S engine -B engine/build`，`cmake --build engine/build --config Release --parallel`（运行库 /MT 由引擎 CMake 设）。
+4. `python deploy\pack.py build --scope full --engine-local --skip-build --zip`，再 `node deploy\smoke.mjs dist\<包目录> --full`。
+
+`--engine-local` 只在 Windows 上可用，读 `engine/build/Release/cuav_run.exe`。本机构建没有构建记录，证不了 exe 出自哪个提交，
+所以清单写 `source.kind = local`、`deliverable: false`：包能用，但只供本机自用；交付的包仍用 CI 产物。导入表检查照旧。
+
 改了实测片段的规则或批索引之后，先 `uv run --quiet python deploy/pack.py subset` 重新生成 `iq-subset.json`、
 审阅后提交；清单与规则算出来的不一致时组包会拒。
 

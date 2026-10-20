@@ -11,6 +11,8 @@
 引擎有三种来源：
   --engine-ci <运行号>  从 GitHub Actions 取 cuav_run-win-x64 产物（调 gh run download）。交付用这一种。
   --engine <目录>       已经下载好的同一个产物目录（含 cuav_run.exe 与 cuav_run.build.json）。CI 用。
+  --engine-local        只在 Windows 上：用本机 MSVC 编出的 engine/build/Release/cuav_run.exe。证不了它出自哪个提交，
+                        清单写 source.kind = local、deliverable: false，供本机自用，不作交付。
   --host                用本机构建的 engine/build/cuav_run、不带便携 Node。**只用于在开发机上验证数据是全的**，
                         包名带 -host、清单写 deliverable: false，不交付。
 前两种都读 cuav_run.build.json：其中的提交与当前 HEAD 不同即拒——包里的每个文件都出自同一个提交。
@@ -20,6 +22,7 @@
   python deploy/pack.py build --scope full --engine-ci <运行号> --zip
   python deploy/pack.py build --scope program --engine <目录> --skip-build
   python deploy/pack.py build --scope full --host
+  python deploy/pack.py build --scope full --engine-local --skip-build --zip     （Windows，本机编译的引擎）
 """
 from __future__ import annotations
 
@@ -291,6 +294,27 @@ def engine_from_ci(run_id: str, head: str) -> tuple[Path, dict]:
     return engine_from_dir(d, head)
 
 
+def engine_from_local(build_dir: Path, head: str) -> tuple[Path, dict]:
+    """本机 MSVC 编出的引擎（Windows 上自己组包用）。记录与 CI 产物同形，但 kind = local、没有运行号。
+
+    这里不核对 exe 出自哪个提交（本机构建没有构建记录），所以清单写 deliverable: false；
+    /MT 由 check_stage 读导入表把关，与 CI 产物同一道检查。"""
+    exe = build_dir / "Release" / "cuav_run.exe"
+    if not exe.is_file():
+        raise PackError(f"找不到 {exe}；先在仓库根执行 cmake -S engine -B engine/build 与 "
+                        "cmake --build engine/build --config Release --parallel")
+    compiler = "MSVC"
+    for f in sorted((build_dir / "CMakeFiles").glob("*/CMakeCXXCompiler.cmake")):
+        m = re.search(r'set\(CMAKE_CXX_COMPILER_VERSION "([^"]*)"\)', f.read_text(encoding="utf-8", errors="replace"))
+        if m:
+            compiler = f"MSVC {m.group(1)}"
+            break
+    rec = {"kind": "local", "sha256": sha256_file(exe), "bytes": exe.stat().st_size, "commit": head,
+           "repository": None, "run_id": None, "run_attempt": None,
+           "compiler": compiler, "runtime_library": "MultiThreaded (/MT)"}
+    return exe, rec
+
+
 def node_zip() -> Path:
     z = CACHE / NODE_ZIP
     if not z.is_file():
@@ -356,10 +380,16 @@ def stage_program(st: Stage, args: argparse.Namespace, head: str) -> dict:
         os.chmod(st.root / "bin" / "cuav_run", 0o755)
         info["engine"] = {"file": "bin/cuav_run", "sha256": st.files["bin/cuav_run"][1], "source": {"kind": "local"}}
     else:
-        exe, rec = engine_from_ci(args.engine_ci, head) if args.engine_ci else engine_from_dir(Path(args.engine), head)
+        if args.engine_local:
+            exe, rec = engine_from_local(ROOT / "engine" / "build", head)
+            say(f"  引擎取本机编译的 {exe.relative_to(ROOT).as_posix()}（{rec['compiler']}）：证不了出自哪个提交，包只供本机自用")
+        elif args.engine_ci:
+            exe, rec = engine_from_ci(args.engine_ci, head)
+        else:
+            exe, rec = engine_from_dir(Path(args.engine), head)
         st.put(exe, "bin/cuav_run.exe")
         info["engine"] = {"file": "bin/cuav_run.exe", "sha256": rec["sha256"],
-                          "source": {"kind": "ci", **{k: rec[k] for k in ("repository", "run_id", "run_attempt", "commit", "compiler", "runtime_library")}}}
+                          "source": {"kind": rec.get("kind", "ci"), **{k: rec[k] for k in ("repository", "run_id", "run_attempt", "commit", "compiler", "runtime_library")}}}
 
     # 便携 Node：只取 node.exe 与 LICENSE
     if not args.host:
@@ -520,8 +550,11 @@ def write_zip(st: Stage, name: str, when: dt.datetime, out: Path) -> Path:
 
 
 def cmd_build(args: argparse.Namespace) -> int:
-    if not (args.host or args.engine or args.engine_ci):
-        raise PackError("要指定引擎来源：--engine-ci <运行号>、--engine <目录> 或 --host")
+    if not (args.host or args.engine or args.engine_ci or args.engine_local):
+        raise PackError("要指定引擎来源：--engine-ci <运行号>、--engine <目录>、--engine-local（Windows）或 --host")
+    if args.engine_local and sys.platform != "win32":
+        raise PackError("--engine-local 只在 Windows 上用（读 MSVC 编出的 engine/build/Release/cuav_run.exe）；"
+                        "其他平台验证数据用 --host")
     head = git("rev-parse", "HEAD")
     dirty = git("status", "--porcelain", "--untracked-files=no", "--", *PACKAGE_SOURCES)
     if dirty and not args.allow_dirty:
@@ -555,7 +588,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         "name": name,
         "scope": args.scope,
         "platform": "win-x64" if not args.host else f"host-{sys.platform}",
-        "deliverable": not args.host and not dirty,
+        "deliverable": not args.host and not args.engine_local and not dirty,
         "git": {"commit": head, "commit_time_utc": when.strftime("%Y-%m-%dT%H:%M:%SZ"), "dirty": bool(dirty)},
         **info,
         "file_count": len(st.files),
@@ -582,6 +615,8 @@ def main(argv: list[str] | None = None) -> int:
     g = b.add_mutually_exclusive_group()
     g.add_argument("--engine-ci", metavar="运行号")
     g.add_argument("--engine", metavar="目录")
+    g.add_argument("--engine-local", action="store_true",
+                   help="Windows 上用本机 MSVC 编出的 engine/build/Release/cuav_run.exe；包只供本机自用，不交付")
     g.add_argument("--host", action="store_true", help="用本机引擎、不带便携 Node；只用于验证，不交付")
     b.add_argument("--out", default=str(ROOT / "dist"))
     b.add_argument("--zip", action="store_true")
