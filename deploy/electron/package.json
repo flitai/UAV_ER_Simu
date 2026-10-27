@@ -1,0 +1,8 @@
+{
+  "name": "cuav-demo-shell",
+  "productName": "CuavDemo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "无人机电子信号侦察仿真系统的 Electron 外壳（D-111）：窗口里打开本机应用服务，服务与引擎不变",
+  "main": "main.js"
+}

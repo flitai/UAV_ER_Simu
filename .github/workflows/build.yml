@@ -7,6 +7,8 @@
 #
 # W-2 起另有两件（D-099）：Windows 引擎静态链接运行库并作为产物上传；用它组单机包的程序部分，
 # 在 Windows 上用包自己的启动器起服务、跑一条链路（package-smoke）。
+# D-111 起再加 macOS arm64 一路：引擎按最低系统 13.0 编（与 Electron 44 相同）并上传；
+# 单机包冒烟在 Windows 与 macOS 上各跑一遍，含 Electron 外壳（程序窗口）起服务、加载界面、退出时停服务。
 #
 # **这里证明不了什么**（都要真机，属 P2 交付阶段）：
 #   · 单机一体化包在干净 Windows 机上安装运行；
@@ -43,6 +45,11 @@ jobs:
             label: Linux x64 / GCC
           - os: windows-latest
             label: Windows x64 / MSVC
+          - os: macos-latest
+            label: macOS arm64 / Apple Clang
+    # Mac 包的引擎要在 macOS 13 上能跑（D-111）；CMake 只在 Apple 平台读这个变量，另两个平台不受影响
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
     # Windows 上也用 bash：命令两个平台逐字相同，且 `set -e` 的语义一致
     defaults:
       run:
@@ -129,15 +136,77 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # 单机包冒烟（W-2，D-099）：用上一步编出的 Windows 引擎组「程序部分」的包（只取 git 里的文件；
-  # 建筑集、底图、实测片段不在 git 里，完整包在开发机上组），再用包自己的便携 Node 与启动器起服务、
-  # 跑一条全合成典型链路。应用服务的单测只在 Linux 上跑，这是服务、引擎与便携 Node 第一次在 Windows 上连起来跑。
-  # **证明不了的**：干净机上缺系统组件（构建机装着 VS）、Edge 的实际渲染、断网——留 W-4 真机。
+      # ---- 以下只在 macOS：Mac 包要的引擎（D-111）-------------------------------------------
+      # 只许依赖系统库、最低系统不高于 13.0——按开发机系统编出的引擎在旧一点的 Mac 上起不来
+      - name: 引擎只依赖系统库、最低系统 13.0（macOS）
+        if: runner.os == 'macOS'
+        run: |
+          python3 - <<'PY'
+          import sys; sys.path.insert(0, "deploy")
+          from pathlib import Path
+          import pack
+          probs = pack.mac_engine_problems(Path("engine/build/cuav_run"))
+          print("\n".join(probs) or "依赖与最低系统都合要求")
+          sys.exit(1 if probs else 0)
+          PY
+
+      - name: 整理引擎产物与构建记录（macOS）
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist/engine
+          cp engine/build/cuav_run dist/engine/
+          CXXVER=$(grep -h -m 1 'set(CMAKE_CXX_COMPILER_VERSION' engine/build/CMakeFiles/*/CMakeCXXCompiler.cmake \
+                   | sed 's/.*"\(.*\)".*/\1/')
+          python3 - "$CXXVER" <<'PY'
+          import hashlib, json, os, sys
+          exe = "dist/engine/cuav_run"
+          rec = {
+              "schema": "cuav-engine-build/1",
+              "file": "cuav_run",
+              "sha256": hashlib.sha256(open(exe, "rb").read()).hexdigest(),
+              "bytes": os.path.getsize(exe),
+              "commit": os.environ["GITHUB_SHA"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "compiler": "AppleClang " + sys.argv[1],
+              "runtime_library": "libc++（系统）",
+              "macos_min": os.environ["MACOSX_DEPLOYMENT_TARGET"],
+          }
+          text = json.dumps(rec, ensure_ascii=False, indent=2) + "\n"
+          open("dist/engine/cuav_run.build.json", "w", encoding="utf-8").write(text)
+          print(text, end="")
+          PY
+
+      - name: 上传引擎产物（macOS）
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuav_run-mac-arm64
+          path: dist/engine/
+          if-no-files-found: error
+          retention-days: 30
+
+  # 单机包冒烟（W-2，D-099；D-111 起加 macOS 与 Electron 外壳）：用上一步编出的引擎组「程序部分」的包
+  # （只取 git 里的文件；建筑集、底图、实测片段不在 git 里，完整包在开发机上组），再用包自己的备用启动器
+  # 起服务、跑一条全合成典型链路，并打开 Electron 外壳：已有服务时直接用、空闲端口上自己起服务、退出时停服务。
+  # **证明不了的**：干净机上缺系统组件（构建机装着 VS）、真实屏幕上的渲染、断网、Mac 上首次打开的
+  # 系统放行（构建机没有隔离属性）——留真机。
   package-smoke:
-    name: 单机包冒烟 (Windows x64)
+    name: 单机包冒烟 (${{ matrix.label }})
     needs: cpp
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows x64
+            target: win-x64
+          - os: macos-latest
+            label: macOS arm64
+            target: mac-arm64
     defaults:
       run:
         shell: bash
@@ -161,16 +230,18 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: cuav_run-win-x64
+          name: cuav_run-${{ matrix.target }}
           path: dist/engine
 
-      # 便携 Node 从 nodejs.org 下载、按锁定的 sha256 核对（组包可联网，运行不联网，铁律 6）
+      # 便携 Node 从 nodejs.org、Electron 从 GitHub 下载，按锁定的 sha256 核对（组包可联网，运行不联网，铁律 6）
       - name: 组程序部分的包
-        run: python deploy/pack.py build --scope program --engine dist/engine --skip-build --out dist/pkg
+        run: |
+          chmod +x dist/engine/cuav_run 2>/dev/null || true
+          python deploy/pack.py build --target ${{ matrix.target }} --scope program --engine dist/engine --skip-build --out dist/pkg
 
       - name: 冒烟
         timeout-minutes: 15
-        run: node deploy/smoke.mjs dist/pkg/cuav-demo-*-win-x64-program
+        run: node deploy/smoke.mjs dist/pkg/cuav-demo-*-${{ matrix.target }}-program
 
   js:
     name: 前端与应用服务 (Linux x64)

@@ -1,6 +1,6 @@
 # deploy 目录
 
-单机一体化包的组包脚本、启动器与冒烟测试（W-2，决策 D-099）。对应 04 号方案的 WP8。
+单机一体化包的组包脚本、启动器与冒烟测试（W-2，决策 D-099；Electron 外壳与 Mac 版，D-111）。对应 04 号方案的 WP8。
 
 ## 已冻结
 
@@ -11,6 +11,8 @@
 | 客户端与单机包 | Windows x64 优先 | D-015 |
 | 集中部署服务端 | Windows 或 Linux x64 视情况选择 | D-016 |
 | 启动器形态 | `start.bat` + 便携 Node | D-084 |
+| 程序窗口 | Electron 外壳作主入口（Windows `app\CuavDemo.exe`、Mac `CuavDemo.app`），窗口里打开同一个本机地址；`start.bat` / `start.command` 加系统浏览器保留作备用 | D-111 |
+| 目标平台 | `win-x64`（CI 的 MSVC 引擎）与 `mac-arm64`（CI 的 macOS 引擎，最低系统 13.0） | D-099、D-111 |
 | 交付底图 | 北京市区域底图 + 全球概览（zoom 0–6），不带全球底图 | D-084 |
 | 引擎运行库 | MSVC 静态链接（/MT），不依赖 VC++ 运行库 DLL | D-099 |
 | 实测片段 | 每个类别一段，取自实测样本集（不取验证集），共 13 段 | D-099 |
@@ -22,11 +24,14 @@
 | `pack.py` | 组包。只用标准库，开发机与 Windows CI 都能跑 |
 | `smoke.mjs` | 冒烟：用包自己的启动器起服务，跑几件演示必经的事，再停掉 |
 | `pe_imports.py` | 读 Windows 可执行文件的导入表；`--forbid` 见到 VC++ 运行库即失败 |
+| `electron/main.js`、`electron/package.json` | Electron 外壳：找包根目录、用 Electron 自带的 Node 以子进程起 `launch.mjs`、开窗口、退出时停服务（D-111） |
+| `mac/start.command` | Mac 包的备用启动方式：用 `CuavDemo.app` 自带的 Node 起服务并打开系统浏览器。**只含 ASCII、LF 换行** |
+| `mac/README.template.txt` | Mac 包内中文使用说明的模板（UTF-8、LF） |
 | `iq-subset.json` | 进包的实测片段清单，由 `pack.py subset` 按写死的规则生成，审阅后入库 |
 | `windows/start.bat` | 包根目录的启动脚本。**只含 ASCII、CRLF 换行** |
-| `windows/launch.mjs` | 启动器本体：补环境变量、防重复启动、等服务监听成功再开浏览器 |
+| `windows/launch.mjs` | 启动器本体（两个平台共用）：补环境变量、防重复启动、等服务监听成功再开浏览器；由外壳经 IPC 调起时报就绪、收 `stop` 即停 |
 | `windows/README.template.txt` | 包内中文使用说明的模板（UTF-8 带 BOM、CRLF，记事本能正确显示） |
-| `.cache/` | 下载的便携 Node 与 CI 引擎产物，按 sha256 核对后复用。不入 git |
+| `.cache/` | 下载的便携 Node、Electron 与 CI 引擎产物，按 sha256 核对后复用。不入 git |
 
 ## 包的布局
 
@@ -35,8 +40,9 @@
 
 ```
 cuav-demo-<提交日期>-<短哈希>-win-x64/
+  app/CuavDemo.exe ...               Electron v44.7.1 运行时（electron.exe 改名），外壳在 app/resources/app/
   start.bat  launch.mjs  README.txt  THIRD-PARTY-NOTICES  package.manifest.json
-  node/{node.exe, LICENSE}           便携 Node v22.23.3
+  node/{node.exe, LICENSE}           便携 Node v22.23.3（start.bat 用）
   bin/cuav_run.exe                   CI 上 MSVC 编出、静态链接运行库
   server/{package.json, dist/**/*.js, node_modules/ws/}
   web/dist/                          不带 .map
@@ -48,7 +54,12 @@ cuav-demo-<提交日期>-<短哈希>-win-x64/
   data/{runs, diagrams, exports, tmp}/   空目录，运行时写入
 ```
 
-`package.manifest.json` 列出包内每个文件的大小与 sha256、git 提交、引擎来源（CI 运行号、编译器）与 Node 版本。
+Mac 包（`-mac-arm64`）的不同处：根目录是 `CuavDemo.app`（Electron 运行时，外壳在 `Contents/Resources/app/`，
+`Info.plist` 改了名称与标识、整体重新做临时签名）与 `start.command`，没有 `node/`（备用启动方式用 `CuavDemo.app` 自带的 Node），
+引擎是 `bin/cuav_run`（CI 的 macOS 一路编出，最低系统 13.0，只依赖系统库）。
+
+`package.manifest.json` 列出包内每个文件的大小与 sha256、git 提交、引擎来源（CI 运行号、编译器）、Node 与 Electron 版本；
+Mac 包另列 `.app` 里的符号链接（`links`）。
 
 ## 组包
 
@@ -57,10 +68,11 @@ cuav-demo-<提交日期>-<短哈希>-win-x64/
 1. 提交全部改动并推送；等 CI 的 `build` 工作流跑完。包里每个文件都出自同一个提交：
    引擎产物的构建记录写着它出自哪个提交；与当前 HEAD 不同时，两者之间编进引擎的源（`ENGINE_SOURCES`：engine、geo、models、third_party、CI 配置）一个字节没变才照用，否则拒；包的来源目录（`PACKAGE_SOURCES`：deploy、server、web、models、engine、geo、third_party、data 等）里有未提交改动也拒，别处的改动不挡组包。
 2. 查 CI 运行号：`gh run list --limit 3`。
-3. 组包：
+3. 组包（Mac 包只能在 Mac 上组：要 `ditto` 解压保留符号链接、`codesign` 重新签名）：
 
    ```sh
    uv run --quiet python deploy/pack.py build --scope full --engine-ci <运行号> --zip
+   uv run --quiet python deploy/pack.py build --target mac-arm64 --scope full --engine-ci <运行号> --zip
    ```
 
    产物在 `dist/`：一个目录与同名 `.zip`。同一输入两次出包，压缩包逐字节相同。
@@ -70,6 +82,11 @@ cuav-demo-<提交日期>-<短哈希>-win-x64/
    uv run --quiet python deploy/pack.py build --scope full --host
    node deploy/smoke.mjs dist/cuav-demo-<...>-host-darwin --full
    ```
+
+   Mac 包可以在开发机上直接冒烟（含外壳的四项）：`node deploy/smoke.mjs dist/cuav-demo-<...>-mac-arm64 --full`。
+   不等 CI、只在本机试 Mac 包：先按最低系统单独编引擎
+   `cmake -S engine -B engine/build-mac -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 && cmake --build engine/build-mac --parallel`，
+   再用 `--engine-local` 组包（清单写 `deliverable: false`）。
 
 ### 在 Windows 上用本机编译的引擎组包
 
@@ -95,9 +112,11 @@ cuav-demo-<提交日期>-<短哈希>-win-x64/
 |---|---|
 | 建筑集、两份底图按清单的 sha256；DEM 按建库时同一口径的逐块索引哈希；每段实测片段按它的清单与批索引 | 铁律 10、15 |
 | 三份基准场景记的场景数据包清单哈希等于包里那一份（引擎会核） | D-049 ⑦ |
-| 包内文件名是不含空格的 ASCII | 铁律 15 |
-| 包内全部文本文件不含机器路径 | 铁律 17 |
-| `start.bat` 只含 ASCII、每行以 CRLF 结尾 | 本节「已知坑」第 1 条 |
+| 包内文件名是不含空格的 ASCII（`CuavDemo.app` 内部由 Electron 上游定名，只要求 ASCII） | 铁律 15 |
+| 包内全部文本文件不含机器路径（Electron 运行时是上游原样文件，不扫；外壳照扫） | 铁律 17 |
+| `start.bat` 只含 ASCII、每行以 CRLF 结尾；`start.command` 以 `#!/bin/sh` 开头、只用 LF | 本节「已知坑」第 1 条 |
+| Mac 引擎只依赖系统库、最低系统不高于 13.0 | D-111 |
+| `CuavDemo.app` 重新签名后 `codesign --verify --deep --strict` 通过 | D-111 |
 | `cuav_run.exe` 不依赖 VC++ 运行库 | D-099 |
 | `ws` 的版本等于锁文件与随包约定的 8.21.3 | D-032 |
 
@@ -106,8 +125,9 @@ cuav-demo-<提交日期>-<短哈希>-win-x64/
 `.github/workflows/build.yml`：
 
 - Windows 那一路编完引擎后跑 `pe_imports.py --forbid`，再上传产物 `cuav_run-win-x64`（`cuav_run.exe` 与 `cuav_run.build.json`）。
-- `package-smoke`（windows-latest）：用这个产物组「程序部分」的包（`--scope program`，只取 git 里的文件），
-  再用包自己的便携 Node 与启动器跑 `smoke.mjs`。
+- macOS 那一路按 `MACOSX_DEPLOYMENT_TARGET=13.0` 编引擎，查依赖与最低系统，上传 `cuav_run-mac-arm64`（D-111）。
+- `package-smoke`（Windows 与 macOS 各一个）：用这个产物组「程序部分」的包（`--scope program`，只取 git 里的文件），
+  再用包自己的备用启动器跑 `smoke.mjs`，并打开 Electron 外壳：已有服务时直接用、空闲端口上自己起服务、退出时停服务。
 
 CI 证明不了的，留 W-4 在干净的 Windows 机上验：构建机装着 Visual Studio，缺系统组件看不出来；
 Edge 的实际渲染；断网运行；性能。
@@ -122,3 +142,18 @@ Edge 的实际渲染；断网运行；性能。
 4. 包不能解压到 `C:\Program Files` 下面：运行时要在 `data/` 里写任务结果。包内 `README.txt` 写明了。
 5. 关闭控制台窗口发的是 SIGHUP、Ctrl+Break 发 SIGBREAK；应用服务在 Windows 上把这两个也当作停止信号，
    运行中的任务因此能落终态。
+
+## Electron 外壳与 Mac 版的已知坑（D-111）
+
+1. **环境变量 `ELECTRON_RUN_AS_NODE` 设着时，外壳不是窗口程序而是一个 Node**（`CuavDemo.exe` / `Electron` 原地等标准输入）。
+   从资源管理器或 Finder 打开不会有它；从 VS Code 之类 Electron 程序的终端里直接运行时会继承它，要先 `unset`。
+   `smoke.mjs` 起外壳前会删掉它；`start.command` 正是靠它把同一个二进制当 Node 用。
+2. **没有 Apple 开发者账号，Mac 版只做临时签名、不公证**。从网络收到的压缩包带隔离属性，第一次打开要放行
+   （「系统设置 → 隐私与安全性 → 仍要打开」，或 `xattr -dr com.apple.quarantine <目录>`）。带隔离属性直接打开时
+   系统可能把 `.app` 挪到临时位置运行（App Translocation），外壳找不到同目录的服务，会弹框说明怎么处理。
+3. **Mac 的 `.app` 里有符号链接**（框架的 `Versions/Current` 等）。解压要用 `ditto`，打包把它们按 Unix 约定存成链接；
+   当普通文件展开会破坏框架与签名，程序起不来。
+4. **服务不放进外壳主进程**：放进去的话一次几十毫秒的抽取、导出或解调会卡住窗口。外壳经 IPC 等 `launch.mjs`
+   报「就绪」，退出时发 `stop`，与关控制台窗口走同一条停止处理；外壳被强行结束时通道断开，服务同样会停。
+5. 界面在视口宽度小于 1920 时收起两栏（加载时判一次）。外壳按屏幕工作区宽度设初始缩放
+   `min(1, max(0.75, 宽 / 1920))`，14 英寸 MacBook Pro（1512）上是 0.7875。

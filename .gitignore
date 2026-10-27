@@ -59,6 +59,7 @@ C-UAV Model Demo/
 # 构建产物
 node_modules/
 build/
+build-mac/
 dist/
 *.tsbuildinfo
 .vite/

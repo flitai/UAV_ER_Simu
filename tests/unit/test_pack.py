@@ -11,6 +11,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -261,6 +262,115 @@ class ZipAndReadmeTest(unittest.TestCase):
         self.assertEqual(text.count("\n"), text.count("\r\n"))
         for word in ("录音", "验收集", "分子带"):   # D-095、D-097、D-098 的旧称不得出现在交付文字里
             self.assertNotIn(word, text)
+
+
+class ElectronShellTest(unittest.TestCase):
+    """Electron 外壳（D-111）带来的几条组包规则。"""
+
+    def test_app_bundle_names_may_have_spaces_elsewhere_not(self):
+        with tempfile.TemporaryDirectory() as t:
+            st = stage_with(Path(t), {"start.bat": GOOD_BAT,
+                                      "CuavDemo.app/Contents/Frameworks/Electron Helper (GPU).app/Contents/Info.plist": b"x"})
+            pack.check_stage(st)
+        for name in ("app/a b.dll", "CuavDemo.app/Contents/中文.txt"):
+            with tempfile.TemporaryDirectory() as t:
+                st = stage_with(Path(t), {"start.bat": GOOD_BAT, name: b"x"})
+                with self.assertRaisesRegex(pack.PackError, "ASCII"):
+                    pack.check_stage(st)
+
+    def test_machine_path_scan_skips_runtime_not_shell(self):
+        text = b"built at /Users/someone/electron"
+        for rel in ("app/LICENSES.chromium.html", "CuavDemo.app/Contents/Resources/LICENSES.chromium.html"):
+            with tempfile.TemporaryDirectory() as t:
+                pack.check_stage(stage_with(Path(t), {"start.bat": GOOD_BAT, rel: text}))
+        for rel in ("app/resources/app/main.js", "CuavDemo.app/Contents/Resources/app/main.js"):
+            with tempfile.TemporaryDirectory() as t:
+                st = stage_with(Path(t), {"start.bat": GOOD_BAT, rel: text})
+                with self.assertRaisesRegex(pack.PackError, "机器路径"):
+                    pack.check_stage(st)
+
+    def test_shell_files_have_no_machine_path(self):
+        for f in ("main.js", "package.json"):
+            self.assertIsNone(pack.MACHINE_PATH.search((pack.DEPLOY / "electron" / f).read_text(encoding="utf-8")), f)
+
+    def test_start_command_format(self):
+        good = (pack.DEPLOY / "mac" / "start.command").read_bytes()
+        self.assertTrue(os.access(pack.DEPLOY / "mac" / "start.command", os.X_OK) or sys.platform == "win32")
+        with tempfile.TemporaryDirectory() as t:
+            pack.check_stage(stage_with(Path(t), {"start.command": good}))
+        for bad in (good.replace(b"\n", b"\r\n"), b"echo no shebang\n"):
+            with tempfile.TemporaryDirectory() as t:
+                with self.assertRaisesRegex(pack.PackError, "start.command"):
+                    pack.check_stage(stage_with(Path(t), {"start.command": bad}))
+
+    def test_zip_keeps_symlinks_and_exec_bits(self):
+        if sys.platform == "win32":
+            self.skipTest("Windows 上建符号链接要特权")
+        when = dt.datetime(2026, 10, 27, 0, 0, 0, tzinfo=dt.timezone.utc)
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t) / "stage"
+            fw = root / "CuavDemo.app" / "Contents" / "Frameworks" / "X.framework"
+            (fw / "Versions" / "A").mkdir(parents=True)
+            exe = fw / "Versions" / "A" / "X"
+            exe.write_bytes(b"\xcf\xfa\xed\xfe")
+            exe.chmod(0o755)
+            (fw / "Versions" / "A" / "Info.plist").write_bytes(b"<plist/>")
+            os.symlink("A", fw / "Versions" / "Current")
+            os.symlink("Versions/Current/X", fw / "X")
+            st = pack.Stage(root)
+            self.assertEqual(st.adopt_tree("CuavDemo.app"), 2)
+            self.assertEqual(st.links, {"CuavDemo.app/Contents/Frameworks/X.framework/Versions/Current": "A",
+                                        "CuavDemo.app/Contents/Frameworks/X.framework/X": "Versions/Current/X"})
+            out = Path(t) / "out"
+            out.mkdir()
+            z = pack.write_zip(st, "pkg", when, out)
+            with zipfile.ZipFile(z) as zf:
+                base = "pkg/CuavDemo.app/Contents/Frameworks/X.framework/"
+                link = zf.getinfo(base + "Versions/Current")
+                self.assertEqual(link.external_attr >> 16 & 0o170000, 0o120000)
+                self.assertEqual(zf.read(link), b"A")
+                self.assertEqual(zf.getinfo(base + "Versions/A/X").external_attr >> 16 & 0o777, 0o755)
+                self.assertEqual(zf.getinfo(base + "Versions/A/Info.plist").external_attr >> 16 & 0o777, 0o644)
+
+    def test_mac_readme(self):
+        data = pack.render_readme("cuav-demo-20261027-abcdef0-mac-arm64", "abcdef0123456789", "mac-arm64")
+        self.assertFalse(data.startswith(b"\xef\xbb\xbf"))
+        text = data.decode("utf-8")
+        self.assertIn("cuav-demo-20261027-abcdef0-mac-arm64", text)
+        self.assertNotIn("\r", text)
+        self.assertNotIn("{commit}", text)
+        for word in ("录音", "验收集", "分子带"):
+            self.assertNotIn(word, text)
+
+    def test_windows_readme_names_shell(self):
+        text = pack.render_readme("x", "abcdef0123456789").decode("utf-8-sig")
+        self.assertIn("CuavDemo.exe", text)
+        self.assertIn("start.bat", text)
+
+    def test_electron_pins(self):
+        self.assertEqual(set(pack.ELECTRON_ZIP), set(pack.TARGETS))
+        for name, sha in pack.ELECTRON_ZIP.values():
+            self.assertIn(pack.ELECTRON_VERSION, name)
+            self.assertRegex(sha, r"^[0-9a-f]{64}$")
+
+    def test_mac_only_on_mac(self):
+        if sys.platform == "darwin":
+            self.skipTest("在 Mac 上这条路是允许的")
+        self.assertEqual(pack.main(["build", "--target", "mac-arm64", "--engine", ".", "--skip-build"]), 1)
+
+    def test_mac_engine_min_os(self):
+        if sys.platform != "darwin":
+            self.skipTest("要 otool")
+        good = pack.ROOT / "engine" / "build-mac" / "cuav_run"
+        if not good.is_file():
+            self.skipTest("没有按最低系统编出的 engine/build-mac/cuav_run")
+        self.assertEqual(pack.mac_engine_problems(good), [])
+        dev = pack.ROOT / "engine" / "build" / "cuav_run"
+        if dev.is_file():
+            probs = pack.mac_engine_problems(dev)
+            minos = subprocess.run(["vtool", "-show-build", str(dev)], capture_output=True, text=True).stdout
+            if "minos 13.0" not in minos:
+                self.assertTrue(any("最低系统" in p for p in probs), probs)
 
 
 if __name__ == "__main__":

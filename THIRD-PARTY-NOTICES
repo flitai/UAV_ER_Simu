@@ -59,6 +59,13 @@ Node.js v22.23.3（Windows x64 便携版）-- MIT
   node/LICENSE。来源压缩包 node-v22.23.3-win-x64.zip，按官方 SHASUMS256.txt 的 sha256 核对。
 Microsoft C/C++ 运行库 -- 静态链接进 bin/cuav_run.exe（MSVC 19.51，/MT），程序因此不依赖 VC++ 运行库 DLL。
   随 Visual Studio 的可分发代码条款提供；许可终检在 W-8。
+Electron v44.7.1 -- MIT（含 Chromium 152 与 Node.js 24.21 及其各第三方件）
+  Copyright (c) Electron contributors; Copyright (c) 2013-2020 GitHub Inc.
+  https://www.electronjs.org/
+  用途：单机包的程序窗口（决策 D-111）。Windows 包在 app/，Mac 包为 CuavDemo.app；运行时原样取自
+  官方压缩包 electron-v44.7.1-{win32-x64,darwin-arm64}.zip（按官方 SHASUMS256.txt 的 sha256 核对），
+  只去掉其中的示例应用。Electron 的许可证随包放在 app/LICENSE（Mac：CuavDemo.app/Contents/Resources/LICENSE），
+  Chromium 及其各第三方件的许可证全文在同目录的 LICENSES.chromium.html。
 MATLAB Coder 生成的 C 代码（models/{channelizer,receiver,radiator}/coder/）-- 编进 bin/cuav_run.exe。
   产物随包交付，许可经确认无障碍（决策 D-084）。
 

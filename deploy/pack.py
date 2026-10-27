@@ -8,18 +8,26 @@
   program  只取 git 里的文件（程序、模型、场景文件、清单），不取盘上的大文件。CI 用它在 Windows 上冒烟。
   full     再加盘上数据：建筑集、北京区域底图与 DEM、全球概览底图、实测片段子集。交付用。
 
-引擎有三种来源：
-  --engine-ci <运行号>  从 GitHub Actions 取 cuav_run-win-x64 产物（调 gh run download）。交付用这一种。
-  --engine <目录>       已经下载好的同一个产物目录（含 cuav_run.exe 与 cuav_run.build.json）。CI 用。
-  --engine-local        只在 Windows 上：用本机 MSVC 编出的 engine/build/Release/cuav_run.exe。证不了它出自哪个提交，
+两个目标平台（--target，D-111）：
+  win-x64    Windows 包：Electron 外壳 app/CuavDemo.exe 作主入口，start.bat + 便携 Node 作备用。
+  mac-arm64  Mac 包（只能在 Mac 上组：要 ditto 解压保留符号链接、codesign 重新签名）：
+             CuavDemo.app 作主入口，start.command 作备用（用 Electron 自带的 Node 起服务）。
+  --no-electron 不带外壳（调试用；交付包都带）。
+
+引擎有四种来源：
+  --engine-ci <运行号>  从 GitHub Actions 取 cuav_run-<目标> 产物（调 gh run download）。交付用这一种。
+  --engine <目录>       已经下载好的同一个产物目录（含 cuav_run[.exe] 与 cuav_run.build.json）。CI 用。
+  --engine-local        本机编出的引擎：Windows 上是 MSVC 编出的 engine/build/Release/cuav_run.exe，
+                        Mac 上是按最低系统 13.0 单独编的 engine/build-mac/cuav_run。证不了它出自哪个提交，
                         清单写 source.kind = local、deliverable: false，供本机自用，不作交付。
-  --host                用本机构建的 engine/build/cuav_run、不带便携 Node。**只用于在开发机上验证数据是全的**，
+  --host                用本机开发引擎 engine/build/cuav_run、不带便携 Node 与外壳。**只用于在开发机上验证数据是全的**，
                         包名带 -host、清单写 deliverable: false，不交付。
 前两种都读 cuav_run.build.json：其中的提交与当前 HEAD 不同即拒——包里的每个文件都出自同一个提交。
 
 用法：
   python deploy/pack.py subset                         按规则生成 deploy/iq-subset.json（审阅后提交）
   python deploy/pack.py build --scope full --engine-ci <运行号> --zip
+  python deploy/pack.py build --target mac-arm64 --scope full --engine-ci <运行号> --zip
   python deploy/pack.py build --scope program --engine <目录> --skip-build
   python deploy/pack.py build --scope full --host
   python deploy/pack.py build --scope full --engine-local --skip-build --zip     （Windows，本机编译的引擎）
@@ -32,7 +40,9 @@ import datetime as dt
 import hashlib
 import json
 import os
+import plistlib
 import re
+import stat
 import shutil
 import subprocess
 import sys
@@ -49,7 +59,21 @@ NODE_ZIP = f"node-{NODE_VERSION}-win-x64.zip"
 NODE_ZIP_SHA256 = "2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71"   # 官方 SHASUMS256.txt
 NODE_URL = f"https://nodejs.org/dist/{NODE_VERSION}/{NODE_ZIP}"
 
-ENGINE_ARTIFACT = "cuav_run-win-x64"
+TARGETS = ("win-x64", "mac-arm64")
+ENGINE_ARTIFACT = {"win-x64": "cuav_run-win-x64", "mac-arm64": "cuav_run-mac-arm64"}
+ENGINE_EXE = {"win-x64": "cuav_run.exe", "mac-arm64": "cuav_run"}
+MAC_MIN_OS = "13.0"          # 与 Electron 44 的最低系统相同；CI 的 macOS 引擎按它编
+
+# Electron 外壳（D-111）。2026-10-13 发布；Node 24.21、Chromium 152。sha256 取自官方 SHASUMS256.txt
+ELECTRON_VERSION = "v44.7.1"
+ELECTRON_ZIP = {
+    "win-x64": ("electron-v44.7.1-win32-x64.zip", "ace7ce1580d33e9fe7284823d7e23ba687263c448d85d8dc4b5daa9bba73f97a"),
+    "mac-arm64": ("electron-v44.7.1-darwin-arm64.zip", "747dfcb4fb57c635f3c5009fda329b9e6f9c84d0d37800b40c2b2b9eb7e2e571"),
+}
+ELECTRON_URL = "https://github.com/electron/electron/releases/download/{v}/{z}"
+SHELL_TITLE = "无人机电子信号侦察仿真系统"
+MAC_APP = "CuavDemo.app"
+WIN_APP_DIR = "app"
 WS_VERSION = "8.21.3"
 
 AOI = "beijing-yayuncun"
@@ -211,6 +235,8 @@ class Stage:
         self.root = root
         self.files: dict[str, tuple[int, str]] = {}
         self.dirs: set[str] = set()
+        self.links: dict[str, str] = {}       # 符号链接（Mac 的 .app 里有）：包内路径 → 链接目标
+        self.execs: set[str] = set()          # 要带可执行位的文件
 
     def _dst(self, rel: str) -> Path:
         if rel in self.files:
@@ -245,6 +271,27 @@ class Stage:
         (self.root / rel).mkdir(parents=True, exist_ok=True)
         self.dirs.add(rel)
 
+    def adopt_tree(self, rel: str) -> int:
+        """已经放在暂存目录里的一棵树（Mac 的 .app：解压、改动、签名都在原地做）逐件记账，
+        符号链接记链接目标、不跟进去，可执行位照文件本身的权限。"""
+        n = 0
+        for dirpath, dirnames, filenames in os.walk(self.root / rel):
+            d = Path(dirpath)
+            for name in sorted(dirnames + filenames):
+                p = d / name
+                r = p.relative_to(self.root).as_posix()
+                if p.is_symlink():
+                    self.links[r] = os.readlink(p)
+                elif p.is_file():
+                    if r in self.files:
+                        raise PackError(f"包内路径重复：{r}")
+                    self.files[r] = (p.stat().st_size, sha256_file(p))
+                    if p.stat().st_mode & stat.S_IXUSR:
+                        self.execs.add(r)
+                    n += 1
+            dirnames[:] = [x for x in dirnames if not (d / x).is_symlink()]
+        return n
+
 
 def run_build(skip: bool) -> None:
     if skip:
@@ -257,14 +304,14 @@ def run_build(skip: bool) -> None:
         subprocess.run([npm, "run", "build"], cwd=ROOT / sub, check=True, stdout=subprocess.DEVNULL)
 
 
-def engine_from_dir(d: Path, head: str) -> tuple[Path, dict]:
-    exe, rec_path = d / "cuav_run.exe", d / "cuav_run.build.json"
+def engine_from_dir(d: Path, head: str, target: str = "win-x64") -> tuple[Path, dict]:
+    exe, rec_path = d / ENGINE_EXE[target], d / "cuav_run.build.json"
     if not exe.is_file() or not rec_path.is_file():
-        raise PackError(f"{d} 里没有 cuav_run.exe 与 cuav_run.build.json（应是 CI 产物 {ENGINE_ARTIFACT}）")
+        raise PackError(f"{d} 里没有 {ENGINE_EXE[target]} 与 cuav_run.build.json（应是 CI 产物 {ENGINE_ARTIFACT[target]}）")
     rec = json.loads(rec_path.read_text(encoding="utf-8"))
     got = sha256_file(exe)
     if got != rec["sha256"]:
-        raise PackError(f"cuav_run.exe 的 sha256 {got} 与构建记录 {rec['sha256']} 不符")
+        raise PackError(f"{exe.name} 的 sha256 {got} 与构建记录 {rec['sha256']} 不符")
     if rec["commit"] != head:
         changed = engine_sources_changed(rec["commit"], head)
         if changed:
@@ -283,15 +330,16 @@ def engine_sources_changed(commit: str, head: str) -> list[str]:
     return [line for line in out.splitlines() if line]
 
 
-def engine_from_ci(run_id: str, head: str) -> tuple[Path, dict]:
-    d = CACHE / f"engine-{run_id}"
-    if not (d / "cuav_run.exe").is_file():
+def engine_from_ci(run_id: str, head: str, target: str = "win-x64") -> tuple[Path, dict]:
+    d = CACHE / f"engine-{run_id}" if target == "win-x64" else CACHE / f"engine-{run_id}-{target}"
+    if not (d / ENGINE_EXE[target]).is_file():
         if not shutil.which("gh"):
             raise PackError("找不到 gh（GitHub CLI）；或先手动下载产物再用 --engine <目录>")
         d.mkdir(parents=True, exist_ok=True)
-        say(f"下载 CI 运行 {run_id} 的产物 {ENGINE_ARTIFACT} …")
-        subprocess.run(["gh", "run", "download", run_id, "-n", ENGINE_ARTIFACT, "-D", str(d)], cwd=ROOT, check=True)
-    return engine_from_dir(d, head)
+        say(f"下载 CI 运行 {run_id} 的产物 {ENGINE_ARTIFACT[target]} …")
+        subprocess.run(["gh", "run", "download", run_id, "-n", ENGINE_ARTIFACT[target], "-D", str(d)], cwd=ROOT, check=True)
+    (d / ENGINE_EXE[target]).chmod(0o755)   # 下载的产物不带可执行位
+    return engine_from_dir(d, head, target)
 
 
 def engine_from_local(build_dir: Path, head: str) -> tuple[Path, dict]:
@@ -315,19 +363,104 @@ def engine_from_local(build_dir: Path, head: str) -> tuple[Path, dict]:
     return exe, rec
 
 
-def node_zip() -> Path:
-    z = CACHE / NODE_ZIP
-    if not z.is_file():
+def engine_from_local_mac(head: str) -> tuple[Path, dict]:
+    """Mac 上本机编出的引擎。必须按最低系统 MAC_MIN_OS 单独编：开发用的 engine/build 是按本机系统编的。"""
+    exe = ROOT / "engine" / "build-mac" / "cuav_run"
+    if not exe.is_file():
+        raise PackError("找不到 engine/build-mac/cuav_run；先在仓库根执行 "
+                        f"cmake -S engine -B engine/build-mac -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET={MAC_MIN_OS} "
+                        "与 cmake --build engine/build-mac --parallel")
+    rec = {"kind": "local", "sha256": sha256_file(exe), "bytes": exe.stat().st_size, "commit": head,
+           "repository": None, "run_id": None, "run_attempt": None,
+           "compiler": "AppleClang", "runtime_library": "libc++（系统）", "macos_min": MAC_MIN_OS}
+    return exe, rec
+
+
+def download_checked(url: str, dst: Path, want: str) -> Path:
+    if not dst.is_file():
         CACHE.mkdir(parents=True, exist_ok=True)
-        say(f"下载便携 Node {NODE_URL} …")
-        tmp = z.with_suffix(".part")
-        with urllib.request.urlopen(NODE_URL, timeout=120) as r, open(tmp, "wb") as f:
+        say(f"下载 {url} …")
+        tmp = dst.with_suffix(".part")
+        with urllib.request.urlopen(url, timeout=300) as r, open(tmp, "wb") as f:
             shutil.copyfileobj(r, f)
-        tmp.replace(z)
-    got = sha256_file(z)
-    if got != NODE_ZIP_SHA256:
-        raise PackError(f"{NODE_ZIP} 的 sha256 {got} 与官方值 {NODE_ZIP_SHA256} 不符；删掉 {z} 重新下载")
-    return z
+        tmp.replace(dst)
+    got = sha256_file(dst)
+    if got != want:
+        raise PackError(f"{dst.name} 的 sha256 {got} 与官方值 {want} 不符；删掉 {dst} 重新下载")
+    return dst
+
+
+def node_zip() -> Path:
+    return download_checked(NODE_URL, CACHE / NODE_ZIP, NODE_ZIP_SHA256)
+
+
+def electron_zip(target: str) -> Path:
+    name, want = ELECTRON_ZIP[target]
+    return download_checked(ELECTRON_URL.format(v=ELECTRON_VERSION, z=name), CACHE / name, want)
+
+
+def stage_electron(st: Stage, target: str) -> dict:
+    """Electron 外壳（D-111）：官方运行时原样解压，只去掉自带的示例应用、放进 deploy/electron 的外壳。"""
+    z = electron_zip(target)
+    shell_files = ("main.js", "package.json")
+    if target == "win-x64":
+        with zipfile.ZipFile(z) as zf:
+            for zi in sorted(zf.infolist(), key=lambda i: i.filename):
+                if zi.is_dir() or zi.filename == "resources/default_app.asar":
+                    continue
+                rel = "CuavDemo.exe" if zi.filename == "electron.exe" else zi.filename
+                st.put_bytes(zf.read(zi), f"{WIN_APP_DIR}/{rel}")
+        for f in shell_files:
+            st.put(DEPLOY / "electron" / f, f"{WIN_APP_DIR}/resources/app/{f}")
+        entry = f"{WIN_APP_DIR}/CuavDemo.exe"
+    else:
+        if sys.platform != "darwin":
+            raise PackError("Mac 包只能在 Mac 上组：要 ditto 解压（保留 .app 里的符号链接）与 codesign 重新签名")
+        tmp = st.root / ".electron-unpack"
+        subprocess.run(["ditto", "-x", "-k", str(z), str(tmp)], check=True)
+        app_dir = st.root / MAC_APP
+        (tmp / "Electron.app").rename(app_dir)
+        res = app_dir / "Contents" / "Resources"
+        # Mac 压缩包里许可证在 Electron.app 旁边，挪进 Resources 一起签名（与 THIRD-PARTY-NOTICES 写的位置一致）
+        for lic in ("LICENSE", "LICENSES.chromium.html"):
+            shutil.copyfile(tmp / lic, res / lic)
+        shutil.rmtree(tmp)
+        (res / "default_app.asar").unlink()
+        (res / "app").mkdir()
+        for f in shell_files:
+            shutil.copyfile(DEPLOY / "electron" / f, res / "app" / f)
+        plist_path = app_dir / "Contents" / "Info.plist"
+        with open(plist_path, "rb") as f:
+            plist = plistlib.load(f)
+        plist.update({"CFBundleName": "CuavDemo", "CFBundleDisplayName": SHELL_TITLE,
+                      "CFBundleIdentifier": "org.cuav.demo-shell"})
+        with open(plist_path, "wb") as f:
+            plistlib.dump(plist, f)
+        # 改了 Info.plist 与 Resources，原来的签名失效；Apple 芯片上签名无效的程序不让启动。
+        # 没有 Apple 开发者账号，只能做临时签名（ad-hoc），不能公证（包内说明写明首次打开的放行办法）
+        subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app_dir)], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        v = subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app_dir)], capture_output=True, text=True)
+        if v.returncode != 0:
+            raise PackError(f"{MAC_APP} 重新签名后校验不过：{v.stderr.strip()}")
+        st.adopt_tree(MAC_APP)
+        entry = MAC_APP
+    return {"electron": {"version": ELECTRON_VERSION, "zip": ELECTRON_ZIP[target][0], "zip_sha256": ELECTRON_ZIP[target][1],
+                         "entry": entry, "shell_files": [f"deploy/electron/{f}" for f in shell_files]}}
+
+
+def mac_engine_problems(exe: Path) -> list[str]:
+    """Mac 引擎只许依赖系统库，最低系统不高于 MAC_MIN_OS（否则旧一点的 Mac 上起不来）。"""
+    out = subprocess.run(["otool", "-L", str(exe)], capture_output=True, text=True, check=True).stdout
+    bad = [l.split()[0] for l in out.splitlines()[1:] if l.strip() and not l.strip().startswith(("/usr/lib/", "/System/"))]
+    probs = [f"依赖了非系统库：{bad}"] if bad else []
+    load = subprocess.run(["otool", "-l", str(exe)], capture_output=True, text=True, check=True).stdout
+    m = re.search(r"cmd LC_BUILD_VERSION.*?minos (\S+)", load, re.S)
+    if not m:
+        probs.append("读不出最低系统版本（LC_BUILD_VERSION）")
+    elif tuple(int(x) for x in m.group(1).split(".")) > tuple(int(x) for x in MAC_MIN_OS.split(".")):
+        probs.append(f"最低系统是 {m.group(1)}，高于 {MAC_MIN_OS}；按 CMAKE_OSX_DEPLOYMENT_TARGET={MAC_MIN_OS} 重编")
+    return probs
 
 
 def check_dem(rel: str, man: dict) -> list[Path]:
@@ -366,8 +499,14 @@ def stage_program(st: Stage, args: argparse.Namespace, head: str) -> dict:
     """程序部分：启动器、服务、前端、模型、git 里的场景与清单、引擎、便携 Node。"""
     info: dict = {}
 
-    # 启动器与说明
-    st.put(DEPLOY / "windows" / "start.bat", "start.bat")
+    target = args.target
+    # 启动器与说明。launch.mjs 两个平台共用；备用启动方式 Windows 是 start.bat，Mac 是 start.command
+    if not args.host:
+        if target == "win-x64":
+            st.put(DEPLOY / "windows" / "start.bat", "start.bat")
+        else:
+            st.put(DEPLOY / "mac" / "start.command", "start.command")
+            st.execs.add("start.command")
     st.put(DEPLOY / "windows" / "launch.mjs", "launch.mjs")
     st.put(ROOT / "THIRD-PARTY-NOTICES", "THIRD-PARTY-NOTICES")
 
@@ -381,18 +520,24 @@ def stage_program(st: Stage, args: argparse.Namespace, head: str) -> dict:
         info["engine"] = {"file": "bin/cuav_run", "sha256": st.files["bin/cuav_run"][1], "source": {"kind": "local"}}
     else:
         if args.engine_local:
-            exe, rec = engine_from_local(ROOT / "engine" / "build", head)
+            exe, rec = engine_from_local_mac(head) if target == "mac-arm64" else engine_from_local(ROOT / "engine" / "build", head)
             say(f"  引擎取本机编译的 {exe.relative_to(ROOT).as_posix()}（{rec['compiler']}）：证不了出自哪个提交，包只供本机自用")
         elif args.engine_ci:
-            exe, rec = engine_from_ci(args.engine_ci, head)
+            exe, rec = engine_from_ci(args.engine_ci, head, target)
         else:
-            exe, rec = engine_from_dir(Path(args.engine), head)
-        st.put(exe, "bin/cuav_run.exe")
-        info["engine"] = {"file": "bin/cuav_run.exe", "sha256": rec["sha256"],
-                          "source": {"kind": rec.get("kind", "ci"), **{k: rec[k] for k in ("repository", "run_id", "run_attempt", "commit", "compiler", "runtime_library")}}}
+            exe, rec = engine_from_dir(Path(args.engine), head, target)
+        rel = f"bin/{ENGINE_EXE[target]}"
+        st.put(exe, rel)
+        if target == "mac-arm64":
+            st.execs.add(rel)
+            os.chmod(st.root / rel, 0o755)
+        keys = ("repository", "run_id", "run_attempt", "commit", "compiler", "runtime_library")
+        info["engine"] = {"file": rel, "sha256": rec["sha256"],
+                          "source": {"kind": rec.get("kind", "ci"), **{k: rec.get(k) for k in keys},
+                                     **({"macos_min": rec.get("macos_min")} if target == "mac-arm64" else {})}}
 
-    # 便携 Node：只取 node.exe 与 LICENSE
-    if not args.host:
+    # 便携 Node：只取 node.exe 与 LICENSE（Windows 包；Mac 包用 Electron 自带的 Node）
+    if not args.host and target == "win-x64":
         z = node_zip()
         with zipfile.ZipFile(z) as zf:
             top = f"node-{NODE_VERSION}-win-x64"
@@ -438,8 +583,10 @@ def stage_program(st: Stage, args: argparse.Namespace, head: str) -> dict:
                 "data/basemap/overview/world-z6.manifest.json"):
         st.put(need_file(rel), rel)
     scene_sha = st.files[f"{SCENE}/manifest.json"][1]
-    for p in sorted((ROOT / SCENE / "scenarios").glob("*.scenario.json")):
-        rel = p.relative_to(ROOT).as_posix()
+    # 只取 git 里的场景：盘上还可能有未入库的副本（演示备场脚本写进来的正式集格子），
+    # 它们不属于任何提交，进了包就说不清包出自哪个提交
+    for rel in sorted(r for r in git("ls-files", f"{SCENE}/scenarios").splitlines() if r.endswith(".scenario.json")):
+        p = ROOT / rel
         st.put(p, rel)
         want = json.loads(p.read_text(encoding="utf-8"))["aoi"]["manifest_sha256"]
         if want != scene_sha:
@@ -447,6 +594,9 @@ def stage_program(st: Stage, args: argparse.Namespace, head: str) -> dict:
 
     for d in ("data/runs", "data/diagrams", "data/exports", "data/tmp"):
         st.mkdir(d)
+
+    if not args.host and not args.no_electron:
+        info.update(stage_electron(st, target))
     return info
 
 
@@ -488,14 +638,20 @@ def stage_data(st: Stage) -> dict:
     return {"iq_subset": {"list": SUBSET_LIST, "products": len(ids), "bytes": iq_bytes}}
 
 
-def check_stage(st: Stage) -> None:
+def check_stage(st: Stage, args: argparse.Namespace | None = None) -> None:
     """出包前检查（铁律 15、17；deploy/README.md 的已知坑）。"""
-    bad_names = [r for r in list(st.files) + sorted(st.dirs) if not re.fullmatch(r"[!-~]+", r)]
+    # Mac 的 .app 内部文件名由 Electron 上游定（如「Electron Helper (GPU).app」），含空格；对它只要求 ASCII
+    in_app = lambda r: r.startswith(f"{MAC_APP}/")
+    names = list(st.files) + sorted(st.dirs) + list(st.links)
+    bad_names = [r for r in names if not re.fullmatch(r"[ -~]+" if in_app(r) else r"[!-~]+", r)]
     if bad_names:
         raise PackError(f"包内文件名必须是不含空格的 ASCII：{bad_names[:5]}")
     hits = []
     for rel in st.files:
         if Path(rel).suffix.lower() not in TEXT_EXT:
+            continue
+        # Electron 运行时是上游原样的文件（许可证文本等），铁律 17 管的是本项目自己的文件；外壳本身照查
+        if (in_app(rel) or rel.startswith(f"{WIN_APP_DIR}/")) and "/resources/app/" not in rel.replace("/Resources/", "/resources/"):
             continue
         text = (st.root / rel).read_text(encoding="utf-8", errors="replace")
         m = MACHINE_PATH.search(text)
@@ -503,11 +659,21 @@ def check_stage(st: Stage) -> None:
             hits.append(f"{rel}: …{text[max(0, m.start() - 30):m.end() + 30]}…")
     if hits:
         raise PackError("包内有机器路径（铁律 17）：\n  " + "\n  ".join(hits[:10]))
-    bat = (st.root / "start.bat").read_bytes()
-    if any(b > 0x7E or (b < 0x20 and b not in (0x0D, 0x0A, 0x09)) for b in bat):
-        raise PackError("start.bat 必须只含 ASCII：cmd.exe 按系统代码页读它")
-    if bat.count(b"\n") != bat.count(b"\r\n") or not bat.endswith(b"\r\n"):
-        raise PackError("start.bat 的每一行都必须以 CRLF 结尾")
+    if "start.bat" in st.files:
+        bat = (st.root / "start.bat").read_bytes()
+        if any(b > 0x7E or (b < 0x20 and b not in (0x0D, 0x0A, 0x09)) for b in bat):
+            raise PackError("start.bat 必须只含 ASCII：cmd.exe 按系统代码页读它")
+        if bat.count(b"\n") != bat.count(b"\r\n") or not bat.endswith(b"\r\n"):
+            raise PackError("start.bat 的每一行都必须以 CRLF 结尾")
+    if "start.command" in st.files:
+        cmd = (st.root / "start.command").read_bytes()
+        if b"\r" in cmd or not cmd.startswith(b"#!/bin/sh"):
+            raise PackError("start.command 必须以 #!/bin/sh 开头、只用 LF 换行")
+    # Mac 引擎：交付的包要查依赖与最低系统；--host 组的验证包用的是开发引擎，不查
+    if "bin/cuav_run" in st.files and args is not None and not args.host and sys.platform == "darwin":
+        probs = mac_engine_problems(st.root / "bin" / "cuav_run")
+        if probs:
+            raise PackError("Mac 引擎不合要求：" + "；".join(probs))
     if "bin/cuav_run.exe" in st.files:
         sys.path.insert(0, str(DEPLOY))
         import pe_imports
@@ -517,7 +683,10 @@ def check_stage(st: Stage) -> None:
             raise PackError(f"cuav_run.exe 依赖了 VC++ 运行库（应静态链接 /MT）：{bad}")
 
 
-def render_readme(name: str, commit: str) -> bytes:
+def render_readme(name: str, commit: str, target: str = "win-x64") -> bytes:
+    if target == "mac-arm64":
+        text = (DEPLOY / "mac" / "README.template.txt").read_text(encoding="utf-8")
+        return text.replace("{version}", name).replace("{commit}", commit[:12]).encode("utf-8")
     text = (DEPLOY / "windows" / "README.template.txt").read_bytes().decode("utf-8-sig")
     text = text.replace("{version}", name).replace("{commit}", commit[:12])
     return "﻿".encode("utf-8") + text.encode("utf-8")
@@ -528,14 +697,18 @@ def write_zip(st: Stage, name: str, when: dt.datetime, out: Path) -> Path:
     zpath = out / f"{name}.zip"
     tmp = zpath.with_suffix(".zip.part")
     stamp = when.timetuple()[:6]
-    entries = sorted([(rel, True) for rel in st.files] + [(rel, False) for rel in st.dirs])
+    entries = sorted([(rel, "f") for rel in st.files] + [(rel, "d") for rel in st.dirs] + [(rel, "l") for rel in st.links])
     with zipfile.ZipFile(tmp, "w", allowZip64=True) as zf:
-        for rel, is_file in entries:
-            arc = f"{name}/{rel}" + ("" if is_file else "/")
+        for rel, kind in entries:
+            arc = f"{name}/{rel}" + ("/" if kind == "d" else "")
             zi = zipfile.ZipInfo(arc, date_time=stamp)
             zi.create_system = 3                                  # 按 Unix 记权限位，各平台一致
-            if is_file:
-                mode = 0o755 if rel.endswith((".exe", ".bat")) or rel in ("bin/cuav_run",) else 0o644
+            if kind == "l":
+                # 符号链接按 Unix 约定存：类型位 S_IFLNK、内容是链接目标（Finder 与 ditto 解压时还原成链接）
+                zi.external_attr = (0o120000 | 0o755) << 16
+                zf.writestr(zi, st.links[rel])
+            elif kind == "f":
+                mode = 0o755 if rel.endswith((".exe", ".bat")) or rel in ("bin/cuav_run",) or rel in st.execs else 0o644
                 zi.external_attr = (0o100000 | mode) << 16
                 stored = Path(rel).suffix.lower() in STORED_EXT
                 zi.compress_type = zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED
@@ -552,7 +725,9 @@ def write_zip(st: Stage, name: str, when: dt.datetime, out: Path) -> Path:
 def cmd_build(args: argparse.Namespace) -> int:
     if not (args.host or args.engine or args.engine_ci or args.engine_local):
         raise PackError("要指定引擎来源：--engine-ci <运行号>、--engine <目录>、--engine-local（Windows）或 --host")
-    if args.engine_local and sys.platform != "win32":
+    if args.target == "mac-arm64" and sys.platform != "darwin" and not args.host:
+        raise PackError("Mac 包只能在 Mac 上组（要 ditto 与 codesign）")
+    if args.engine_local and args.target == "win-x64" and sys.platform != "win32":
         raise PackError("--engine-local 只在 Windows 上用（读 MSVC 编出的 engine/build/Release/cuav_run.exe）；"
                         "其他平台验证数据用 --host")
     head = git("rev-parse", "HEAD")
@@ -560,7 +735,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     if dirty and not args.allow_dirty:
         raise PackError("包的来源目录里有未提交的改动，包就说不清出自哪个提交；先提交，或加 --allow-dirty（只用于调试）：\n" + dirty)
     when = dt.datetime.fromtimestamp(int(git("show", "-s", "--format=%ct", head)), dt.timezone.utc)
-    name = f"cuav-demo-{when:%Y%m%d}-{head[:7]}-" + (f"host-{sys.platform}" if args.host else "win-x64")
+    name = f"cuav-demo-{when:%Y%m%d}-{head[:7]}-" + (f"host-{sys.platform}" if args.host else args.target)
     if args.scope == "program":
         name += "-program"
 
@@ -577,8 +752,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         info = stage_program(st, args, head)
         if args.scope == "full":
             info.update(stage_data(st))
-        st.put_bytes(render_readme(name, head), "README.txt")
-        check_stage(st)
+        st.put_bytes(render_readme(name, head, args.target), "README.txt")
+        check_stage(st, args)
     except BaseException:
         shutil.rmtree(stage_root, ignore_errors=True)   # 不留半截的包目录
         raise
@@ -587,13 +762,14 @@ def cmd_build(args: argparse.Namespace) -> int:
         "schema": "cuav-package/1",
         "name": name,
         "scope": args.scope,
-        "platform": "win-x64" if not args.host else f"host-{sys.platform}",
+        "platform": args.target if not args.host else f"host-{sys.platform}",
         "deliverable": not args.host and not args.engine_local and not dirty,
         "git": {"commit": head, "commit_time_utc": when.strftime("%Y-%m-%dT%H:%M:%SZ"), "dirty": bool(dirty)},
         **info,
         "file_count": len(st.files),
         "total_bytes": sum(b for b, _ in st.files.values()),
         "files": [{"path": rel, "bytes": b, "sha256": h} for rel, (b, h) in sorted(st.files.items())],
+        **({"links": [{"path": rel, "target": t} for rel, t in sorted(st.links.items())]} if st.links else {}),
     }
     text = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
     st.put_bytes(text.encode("utf-8"), "package.manifest.json")
@@ -612,12 +788,14 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("subset", help=f"按规则生成 {SUBSET_LIST}")
     b = sub.add_parser("build", help="组包")
     b.add_argument("--scope", choices=("program", "full"), default="full")
+    b.add_argument("--target", choices=TARGETS, default="win-x64", help="目标平台（D-111）")
+    b.add_argument("--no-electron", action="store_true", help="不带 Electron 外壳（调试用；交付包都带）")
     g = b.add_mutually_exclusive_group()
     g.add_argument("--engine-ci", metavar="运行号")
     g.add_argument("--engine", metavar="目录")
     g.add_argument("--engine-local", action="store_true",
-                   help="Windows 上用本机 MSVC 编出的 engine/build/Release/cuav_run.exe；包只供本机自用，不交付")
-    g.add_argument("--host", action="store_true", help="用本机引擎、不带便携 Node；只用于验证，不交付")
+                   help="本机编出的引擎（Windows：MSVC 编出的 engine/build/Release/cuav_run.exe；Mac：engine/build-mac/cuav_run）；包只供本机自用，不交付")
+    g.add_argument("--host", action="store_true", help="用本机开发引擎、不带便携 Node 与外壳；只用于验证，不交付")
     b.add_argument("--out", default=str(ROOT / "dist"))
     b.add_argument("--zip", action="store_true")
     b.add_argument("--skip-build", action="store_true", help="前端与服务已经建好时跳过 npm run build")

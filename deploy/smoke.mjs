@@ -6,11 +6,14 @@
 //   2. 组件目录取得到——引擎能在这台机器上起来；
 //   3. 提交全合成典型链路（golden-01、E1，不要建筑集）并等到终态 finished，产品文件在；
 //   4. 再双击一次：启动器认出本系统已在跑，只「开浏览器」不起第二份；
-//   5. 端口被别的程序占着：启动器给出说明并以退出码 2 结束，不崩。
+//   5. 端口被别的程序占着：启动器给出说明并以退出码 2 结束，不崩；
+// 包里带 Electron 外壳（D-111）时再加：
+//   6. 服务已在运行时打开外壳：直接用这一份，界面加载得出，退出外壳后服务照常在跑；
+//   7. 空闲端口上打开外壳：外壳自己起服务、界面加载得出，退出外壳时服务随之停掉。
 // 带 --full（完整包）再加：
-//   6. 底图端点给出北京区域底图与全球概览，pmtiles 与建筑集支持 Range（206）；
-//   7. 数据中心只列包里带的实测片段（= 裁剪后的批索引）；
-//   8. 实测回放链路跑完；E3（建筑遮挡）链路跑完——建筑集在包里且哈希对得上。
+//   8. 底图端点给出北京区域底图与全球概览，pmtiles 与建筑集支持 Range（206）；
+//   9. 数据中心只列包里带的实测片段（= 裁剪后的批索引）；
+//  10. 实测回放链路跑完；E3（建筑遮挡）链路跑完——建筑集在包里且哈希对得上。
 //
 // 跑完删掉自己建的任务目录，包目录恢复原样。任何一项不过即退出码 1。
 
@@ -29,8 +32,13 @@ if (!existsSync(join(pkg, 'launch.mjs'))) {
   console.error('用法：node deploy/smoke.mjs <包目录> [--full]')
   process.exit(1)
 }
-// 包里带便携 Node 就用它（Windows 包），否则用当前 Node（宿主版的包）
-const nodeExe = existsSync(join(pkg, 'node', 'node.exe')) ? join(pkg, 'node', 'node.exe') : process.execPath
+// 起服务用哪个 Node：Windows 包带便携 Node（start.bat 用它）；Mac 包用 CuavDemo.app 自带的 Node
+// （start.command 用它，ELECTRON_RUN_AS_NODE）；宿主版的包用当前 Node。
+const MAC_ELECTRON = join(pkg, 'CuavDemo.app', 'Contents', 'MacOS', 'Electron')
+const WIN_SHELL = join(pkg, 'app', 'CuavDemo.exe')
+const nodeExe = existsSync(join(pkg, 'node', 'node.exe')) ? join(pkg, 'node', 'node.exe')
+  : existsSync(MAC_ELECTRON) ? MAC_ELECTRON : process.execPath
+const shellExe = existsSync(WIN_SHELL) ? WIN_SHELL : existsSync(MAC_ELECTRON) ? MAC_ELECTRON : null
 
 let failures = 0
 let passes = 0
@@ -55,6 +63,7 @@ async function freePort() {
 
 function launch(port, label) {
   const env = { ...process.env, PORT: String(port), HOST: '127.0.0.1', CUAV_NO_BROWSER: '1' }
+  if (nodeExe === MAC_ELECTRON) env.ELECTRON_RUN_AS_NODE = '1'
   delete env.CUAV_RUN
   delete env.CUAV_BASEMAP
   const p = spawn(nodeExe, [join(pkg, 'launch.mjs')], { cwd: pkg, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
@@ -68,6 +77,36 @@ function launch(port, label) {
   p.stderr.on('data', tee)
   const exited = new Promise((r) => p.on('exit', (code) => r(code)))
   return { proc: p, exited, output: () => out }
+}
+
+/** 以冒烟模式打开 Electron 外壳（CUAV_SHELL_SMOKE=1）：页面加载完即自检、退出，最后一行是 SHELL-SMOKE <JSON>。 */
+async function runShell(port, label) {
+  const env = { ...process.env, PORT: String(port), CUAV_SHELL_SMOKE: '1' }
+  for (const k of ['ELECTRON_RUN_AS_NODE', 'CUAV_RUN', 'CUAV_BASEMAP', 'CUAV_ROOT']) delete env[k]
+  const p = spawn(shellExe, [], { cwd: pkg, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  let out = ''
+  const tee = (b) => {
+    const t = b.toString('utf8')
+    out += t
+    for (const line of t.split(/\r?\n/)) if (line.trim() && !line.startsWith('SHELL-SMOKE')) console.log(`    [${label}] ${line}`)
+  }
+  p.stdout.on('data', tee)
+  p.stderr.on('data', tee)
+  const code = await Promise.race([new Promise((r) => p.on('exit', (c) => r(c))), sleep(180000).then(() => 'timeout')])
+  if (code === 'timeout') p.kill()
+  const line = out.split(/\r?\n/).reverse().find((l) => l.startsWith('SHELL-SMOKE '))
+  let res = null
+  try { res = line ? JSON.parse(line.slice('SHELL-SMOKE '.length)) : null } catch { /* 坏行 */ }
+  return { code, res }
+}
+
+async function answers(base) {
+  try {
+    const r = await fetch(`${base}/api/v1/tasks?limit=1`, { signal: AbortSignal.timeout(2000) })
+    return r.ok
+  } catch {
+    return false
+  }
 }
 
 async function getJson(base, path, init) {
@@ -158,6 +197,25 @@ async function main() {
     const code3 = await Promise.race([clash.exited, sleep(60000).then(() => 'timeout')])
     foreign.close()
     check(code3 === 2 && clash.output().includes('已被其他程序占用'), '端口被别的程序占用时给出说明、不崩', `退出码 ${code3}`)
+
+    if (shellExe) {
+      // 服务已在运行：外壳直接用这一份，退出时不去停它
+      const a = await runShell(port, '外壳·已有服务')
+      check(a.code === 0 && a.res?.ok && a.res.owned === false, '服务已在运行时打开程序窗口：直接使用、界面加载得出',
+        `退出码 ${a.code}，${JSON.stringify(a.res?.page ?? a.res?.error ?? null)}`)
+      check(await answers(base), '退出程序窗口后，原来那份服务照常在跑')
+
+      // 空闲端口：外壳自己起服务，退出时停掉
+      const sport = await freePort()
+      const logRel = 'data/tmp/server.log'
+      const hadLog = existsSync(join(pkg, logRel))
+      const b = await runShell(sport, '外壳·自起服务')
+      check(b.code === 0 && b.res?.ok && b.res.owned === true, '程序窗口自己起服务、界面加载得出',
+        `退出码 ${b.code}，视口 ${b.res?.page?.innerWidth}，缩放 ${b.res?.zoom}${b.res?.error ? `，${b.res.error}` : ''}`)
+      check(b.res?.server_exit !== null && b.res?.server_exit !== undefined && !(await answers(`http://127.0.0.1:${sport}`)),
+        '退出程序窗口时服务随之停止', `服务退出码 ${b.res?.server_exit}`)
+      if (!hadLog) rmSync(join(pkg, logRel), { force: true })
+    }
 
     if (full) {
       const bm = await getJson(base, '/api/v1/basemap')
