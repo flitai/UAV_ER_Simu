@@ -373,5 +373,60 @@ class ElectronShellTest(unittest.TestCase):
                 self.assertTrue(any("最低系统" in p for p in probs), probs)
 
 
+class AppLayoutTest(unittest.TestCase):
+    """程序形式（D-112）：运行环境挪进程序里、Windows 把程序目录提成包根。"""
+
+    def test_nest_and_hoist_windows(self):
+        with tempfile.TemporaryDirectory() as t:
+            st = stage_with(Path(t), {"launch.mjs": b"x", "server/dist/index.js": b"y", "bin/cuav_run.exe": b"MZ",
+                                      "app/CuavDemo.exe": b"MZ", "app/resources/app/main.js": b"z"})
+            st.mkdir("data/runs")
+            where = pack.nest_payload(st, "win-x64", "pkg-name", "c" * 40)
+            self.assertEqual(where, "resources/payload")
+            self.assertEqual(sorted(st.files), ["CuavDemo.exe", "resources/app/main.js", "resources/payload/bin/cuav_run.exe",
+                                                "resources/payload/launch.mjs", "resources/payload/payload.json",
+                                                "resources/payload/server/dist/index.js"])
+            self.assertEqual(st.dirs, {"resources/payload/data/runs"})
+            for rel in st.files:
+                self.assertTrue((st.root / rel).is_file(), rel)
+            self.assertTrue((st.root / "resources/payload/data/runs").is_dir())
+            self.assertEqual(json.loads((st.root / "resources/payload/payload.json").read_text())["name"], "pkg-name")
+            self.assertEqual(sorted(os.listdir(st.root)), ["CuavDemo.exe", "resources"])
+
+    def test_nest_mac_keeps_app(self):
+        with tempfile.TemporaryDirectory() as t:
+            st = stage_with(Path(t), {"launch.mjs": b"x", "server/dist/index.js": b"y"})
+            (st.root / "CuavDemo.app" / "Contents" / "Resources").mkdir(parents=True)
+            where = pack.nest_payload(st, "mac-arm64", "pkg-name", "c" * 40)
+            self.assertEqual(where, "CuavDemo.app/Contents/Resources/payload")
+            self.assertIn("CuavDemo.app/Contents/Resources/payload/launch.mjs", st.files)
+            self.assertEqual(os.listdir(st.root), ["CuavDemo.app"])
+
+    def test_hoist_refuses_leftovers(self):
+        with tempfile.TemporaryDirectory() as t:
+            st = stage_with(Path(t), {"app/a.dll": b"x", "stray.txt": b"y"})
+            with self.assertRaises(pack.PackError):
+                st.hoist("app")
+
+    def test_app_readmes(self):
+        w = pack.render_readme("cuav-demo-x-win-x64-app", "abcdef0123456789", "win-x64", "app")
+        self.assertTrue(w.startswith(b"\xef\xbb\xbf"))
+        wt = w.decode("utf-8-sig")
+        self.assertEqual(wt.count("\n"), wt.count("\r\n"))
+        self.assertNotIn("start.bat", wt)
+        self.assertIn("LOCALAPPDATA", wt)
+        self.assertIn("cuav-demo-x-win-x64-app", wt)
+        m = pack.render_readme("cuav-demo-x-mac-arm64-app", "abcdef0123456789", "mac-arm64", "app").decode("utf-8")
+        self.assertNotIn("start.command", m)
+        self.assertIn("Application Support/CuavDemo/runtime/cuav-demo-x-mac-arm64-app", m)
+        for text in (wt, m):
+            for word in ("录音", "验收集", "分子带", "{version}", "{commit}"):
+                self.assertNotIn(word, text)
+
+    def test_layout_argument_rules(self):
+        self.assertEqual(pack.main(["build", "--layout", "app", "--host", "--skip-build"]), 1)
+        self.assertEqual(pack.main(["build", "--dmg", "--engine", ".", "--skip-build"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

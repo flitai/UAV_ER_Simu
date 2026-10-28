@@ -1,6 +1,6 @@
 # deploy 目录
 
-单机一体化包的组包脚本、启动器与冒烟测试（W-2，决策 D-099；Electron 外壳与 Mac 版，D-111）。对应 04 号方案的 WP8。
+单机一体化包的组包脚本、启动器与冒烟测试（W-2，决策 D-099；Electron 外壳与 Mac 版，D-111；程序形式与 DMG，D-112）。对应 04 号方案的 WP8。
 
 ## 已冻结
 
@@ -13,6 +13,7 @@
 | 启动器形态 | `start.bat` + 便携 Node | D-084 |
 | 程序窗口 | Electron 外壳作主入口（Windows `app\CuavDemo.exe`、Mac `CuavDemo.app`），窗口里打开同一个本机地址；`start.bat` / `start.command` 加系统浏览器保留作备用 | D-111 |
 | 目标平台 | `win-x64`（CI 的 MSVC 引擎）与 `mac-arm64`（CI 的 macOS 引擎，最低系统 13.0） | D-099、D-111 |
+| 两种形式 | `--layout folder`（缺省，目录形式，带备用启动方式）与 `--layout app`（程序形式：运行环境放进程序里，Windows 压缩包展开即程序目录，Mac 出 DMG；首次运行拷到用户目录） | D-111、D-112 |
 | 交付底图 | 北京市区域底图 + 全球概览（zoom 0–6），不带全球底图 | D-084 |
 | 引擎运行库 | MSVC 静态链接（/MT），不依赖 VC++ 运行库 DLL | D-099 |
 | 实测片段 | 每个类别一段，取自实测样本集（不取验证集），共 13 段 | D-099 |
@@ -27,6 +28,7 @@
 | `electron/main.js`、`electron/package.json` | Electron 外壳：找包根目录、用 Electron 自带的 Node 以子进程起 `launch.mjs`、开窗口、退出时停服务（D-111） |
 | `mac/start.command` | Mac 包的备用启动方式：用 `CuavDemo.app` 自带的 Node 起服务并打开系统浏览器。**只含 ASCII、LF 换行** |
 | `mac/README.template.txt` | Mac 包内中文使用说明的模板（UTF-8、LF） |
+| `windows/README.app.template.txt`、`mac/README.app.template.txt` | 程序形式的包内说明（D-112） |
 | `iq-subset.json` | 进包的实测片段清单，由 `pack.py subset` 按写死的规则生成，审阅后入库 |
 | `windows/start.bat` | 包根目录的启动脚本。**只含 ASCII、CRLF 换行** |
 | `windows/launch.mjs` | 启动器本体（两个平台共用）：补环境变量、防重复启动、等服务监听成功再开浏览器；由外壳经 IPC 调起时报就绪、收 `stop` 即停 |
@@ -58,6 +60,22 @@ Mac 包（`-mac-arm64`）的不同处：根目录是 `CuavDemo.app`（Electron �
 `Info.plist` 改了名称与标识、整体重新做临时签名）与 `start.command`，没有 `node/`（备用启动方式用 `CuavDemo.app` 自带的 Node），
 引擎是 `bin/cuav_run`（CI 的 macOS 一路编出，最低系统 13.0，只依赖系统库）。
 
+**程序形式**（`--layout app`，D-112）：上面根目录下除外壳以外的东西（`launch.mjs`、`server/`、`web/`、`bin/`、`models/`、`data/`、
+`THIRD-PARTY-NOTICES`）整体挪进程序里，另加 `payload.json`（包名与提交，外壳按它决定装到哪、要不要重装）：
+
+```
+cuav-demo-<…>-win-x64-app/              压缩包展开即是程序目录
+  CuavDemo.exe ...  README.txt  package.manifest.json
+  resources/app/                        外壳
+  resources/payload/                    运行环境
+cuav-demo-<…>-mac-arm64-app.dmg         卷里：CuavDemo.app、README.txt、package.manifest.json、「应用程序」快捷方式
+  CuavDemo.app/Contents/Resources/payload/
+```
+
+首次运行外壳把 `payload/` 拷到 `%LOCALAPPDATA%\CuavDemo\runtime\<包名>`（Mac：`~/Library/Application Support/CuavDemo/runtime/<包名>`），
+写完成标记 `.installed.json`，此后直接从那里运行；任务结果与导出也写在那里（菜单「文件 → 打开数据目录」）。
+没有备用启动方式，端口由外壳从 8080 起自动选到 8099。
+
 `package.manifest.json` 列出包内每个文件的大小与 sha256、git 提交、引擎来源（CI 运行号、编译器）、Node 与 Electron 版本；
 Mac 包另列 `.app` 里的符号链接（`links`）。
 
@@ -73,6 +91,9 @@ Mac 包另列 `.app` 里的符号链接（`links`）。
    ```sh
    uv run --quiet python deploy/pack.py build --scope full --engine-ci <运行号> --zip
    uv run --quiet python deploy/pack.py build --target mac-arm64 --scope full --engine-ci <运行号> --zip
+   # 程序形式（D-112）
+   uv run --quiet python deploy/pack.py build --layout app --scope full --engine-ci <运行号> --zip
+   uv run --quiet python deploy/pack.py build --target mac-arm64 --layout app --scope full --engine-ci <运行号> --dmg
    ```
 
    产物在 `dist/`：一个目录与同名 `.zip`。同一输入两次出包，压缩包逐字节相同。
@@ -83,7 +104,8 @@ Mac 包另列 `.app` 里的符号链接（`links`）。
    node deploy/smoke.mjs dist/cuav-demo-<...>-host-darwin --full
    ```
 
-   Mac 包可以在开发机上直接冒烟（含外壳的四项）：`node deploy/smoke.mjs dist/cuav-demo-<...>-mac-arm64 --full`。
+   Mac 包可以在开发机上直接冒烟（含外壳的四项）：`node deploy/smoke.mjs dist/cuav-demo-<...>-mac-arm64 --full`；
+   DMG 直接给 `.dmg`（只读挂载、从卷上打开程序，运行环境装到临时目录，跑完卸下）：`node deploy/smoke.mjs dist/<…>-mac-arm64-app.dmg --full`。
    不等 CI、只在本机试 Mac 包：先按最低系统单独编引擎
    `cmake -S engine -B engine/build-mac -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 && cmake --build engine/build-mac --parallel`，
    再用 `--engine-local` 组包（清单写 `deliverable: false`）。
@@ -157,3 +179,6 @@ Edge 的实际渲染；断网运行；性能。
    报「就绪」，退出时发 `stop`，与关控制台窗口走同一条停止处理；外壳被强行结束时通道断开，服务同样会停。
 5. 界面在视口宽度小于 1920 时收起两栏（加载时判一次）。外壳按屏幕工作区宽度设初始缩放
    `min(1, max(0.75, 宽 / 1920))`，14 英寸 MacBook Pro（1512）上是 0.7875。
+6. **程序形式不能在程序所在位置写数据**（DMG 只读、「应用程序」与 Program Files 要管理员权限、Mac 对下载的程序可能临时隔离运行），
+   所以首次运行拷一份运行环境到用户目录（约 0.4 GB）。换版本另拷一份（目录按包名），旧任务留在旧目录，不自动删。
+7. Mac 程序形式的签名放在最后做：运行环境要先放进 `Contents/Resources/payload/`，签完再改签名就作废。

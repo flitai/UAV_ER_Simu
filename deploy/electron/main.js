@@ -1,13 +1,20 @@
 'use strict';
 
-// 单机包的 Electron 外壳（D-111）。B/S 不变：外壳只是一个窗口，打开的仍是本机应用服务的
+// 单机包的 Electron 外壳（D-111、D-112）。B/S 不变：外壳只是一个窗口，打开的仍是本机应用服务的
 // http://127.0.0.1:<端口>/；服务、引擎、前端与数据都是包里同一份。
 //
-// 做六件事：
-//   1. 找到包根目录（向上找 launch.mjs 与 server/dist/index.js），并确认 data/ 可写；
-//   2. 端口上已经是本系统就直接用，不另起（判据与 launch.mjs 相同），退出时也不去停它；
-//   3. 否则用 Electron 自带的 Node（ELECTRON_RUN_AS_NODE）以子进程运行包里的 launch.mjs，
-//      经 IPC 等它报「就绪」；服务不放进外壳主进程，免得一次几十毫秒的抽取或导出卡住窗口；
+// 两种包的形式（deploy/pack.py --layout）：
+//   folder  外壳在包目录里（Windows app/、Mac CuavDemo.app），向上找同级的 launch.mjs 与 server/，直接在包目录里运行；
+//   app     运行环境整体放在程序里（resources/payload/）。程序所在位置可能只读（DMG、「应用程序」、Program Files、
+//           Mac 对下载程序的临时隔离运行），而任务结果要写在 data/ 下，所以首次运行把它拷到用户目录再从那里运行
+//           （Windows %LOCALAPPDATA%\CuavDemo\runtime\<包名>，Mac ~/Library/Application Support/CuavDemo/runtime/<包名>）。
+//
+// 其余几件事两种形式相同：
+//   1. 确认运行目录的 data/ 可写；
+//   2. 端口从 PORT（缺省 8080）起依次试到 8099：是本系统就直接用、退出时也不去停它；空着就起服务；
+//      被别的程序占着就试下一个；
+//   3. 起服务用 Electron 自带的 Node（ELECTRON_RUN_AS_NODE）以子进程运行 launch.mjs，经 IPC 等它报「就绪」；
+//      服务不放进外壳主进程，免得一次几十毫秒的抽取或导出卡住窗口；
 //   4. 窗口按屏幕工作区宽度定初始缩放：界面在视口宽度小于 1920 时收起左右两栏（加载时判一次）；
 //   5. 外部链接交给系统浏览器，窗口只停在本机地址上；
 //   6. 退出时给服务发 stop，走服务既有的停止处理（运行中的任务落终态、引擎子进程一并结束），
@@ -15,6 +22,7 @@
 //
 // CUAV_SHELL_SMOKE=1：页面加载完即自检并退出，标准输出最后一行是 SHELL-SMOKE <JSON>，退出码 0 / 1（冒烟用）。
 // CUAV_SHELL_CAPTURE=<文件>：与冒烟同用，退出前把窗口内容存成 PNG。
+// CUAV_RUNTIME_DIR=<目录>：程序形式下运行环境装到这里（冒烟用，免得装进真实的用户目录）。
 // CUAV_DEVTOOLS=1：菜单里多一项开发者工具（内部诊断用，交付时不设）。
 
 const { app, BrowserWindow, Menu, dialog, shell, screen } = require('electron');
@@ -24,10 +32,13 @@ const path = require('node:path');
 
 const TITLE = '无人机电子信号侦察仿真系统';
 const SMOKE = process.env.CUAV_SHELL_SMOKE === '1';
-const PORT = Number(process.env.PORT || 8080);
-const URL_BASE = `http://127.0.0.1:${PORT}/`;
+const FIRST_PORT = Number(process.env.PORT || 8080);
+const LAST_PORT = Math.max(FIRST_PORT, 8099);
+const urlOf = (port) => `http://127.0.0.1:${port}/`;
 
 let win = null;
+let root = null;          // 运行目录（包根或装好的运行环境）
+let urlBase = null;       // 选定端口后的本机地址
 let server = null;        // 我们起的服务子进程；端口上已有一份时为 null
 let serverExit = null;    // 子进程退出码
 let stopping = null;
@@ -47,17 +58,66 @@ function fail(msg) {
   app.exit(1);
 }
 
-/** 包根目录：从外壳所在位置向上找。开发时可用 CUAV_ROOT 指定。 */
-function findRoot() {
+const isRoot = (d) => fs.existsSync(path.join(d, 'launch.mjs')) && fs.existsSync(path.join(d, 'server', 'dist', 'index.js'));
+
+/** 目录形式的包根：从外壳所在位置向上找。开发时可用 CUAV_ROOT 指定。 */
+function findFolderRoot() {
   if (process.env.CUAV_ROOT) return path.resolve(process.env.CUAV_ROOT);
   let d = app.getAppPath();
   for (let i = 0; i < 8; i++) {
-    if (fs.existsSync(path.join(d, 'launch.mjs')) && fs.existsSync(path.join(d, 'server', 'dist', 'index.js'))) return d;
+    if (isRoot(d)) return d;
     const up = path.dirname(d);
     if (up === d) break;
     d = up;
   }
   return null;
+}
+
+/** 程序形式：程序里的运行环境（含 payload.json 标识这一版）。 */
+function findPayload() {
+  const p = path.join(process.resourcesPath, 'payload');
+  const marker = path.join(p, 'payload.json');
+  if (!fs.existsSync(marker) || !isRoot(p)) return null;
+  try {
+    const m = JSON.parse(fs.readFileSync(marker, 'utf8'));
+    return typeof m.name === 'string' && /^[A-Za-z0-9._-]+$/.test(m.name) ? { dir: p, name: m.name, marker } : null;
+  } catch {
+    return null;
+  }
+}
+
+function runtimeBase() {
+  if (process.env.CUAV_RUNTIME_DIR) return path.resolve(process.env.CUAV_RUNTIME_DIR);
+  // Windows 放 LOCALAPPDATA（不随漫游配置同步）；Mac 放 Application Support
+  const base = process.platform === 'win32' && process.env.LOCALAPPDATA
+    ? path.join(process.env.LOCALAPPDATA, 'CuavDemo') : app.getPath('userData');
+  return path.join(base, 'runtime');
+}
+
+/** 首次运行把程序里的运行环境拷到用户目录；已装好（完成标记里的包名对得上）就直接用。 */
+async function installRuntime(payload) {
+  const target = path.join(runtimeBase(), payload.name);
+  const done = path.join(target, '.installed.json');
+  try {
+    if (JSON.parse(fs.readFileSync(done, 'utf8')).name === payload.name && isRoot(target)) {
+      smoke.install = 'reused';
+      return target;
+    }
+  } catch { /* 没装过或没装完 */ }
+  showSplash('首次运行，正在准备运行环境（约 0.4 GB，需要几十秒）…');
+  const tmp = `${target}.part-${process.pid}`;
+  const t0 = Date.now();
+  await fs.promises.rm(tmp, { recursive: true, force: true });
+  await fs.promises.mkdir(path.dirname(target), { recursive: true });
+  await fs.promises.cp(payload.dir, tmp, { recursive: true, errorOnExist: false, force: true });
+  await fs.promises.rm(target, { recursive: true, force: true });
+  await fs.promises.rename(tmp, target);
+  await fs.promises.writeFile(done, JSON.stringify({ name: payload.name, installed_at: new Date().toISOString(),
+    from: payload.dir }, null, 2) + '\n');
+  smoke.install = 'copied';
+  smoke.install_s = (Date.now() - t0) / 1000;
+  log(`运行环境已装到 ${target}（${smoke.install_s.toFixed(1)} s）`);
+  return target;
 }
 
 function rootProblem() {
@@ -70,8 +130,8 @@ function rootProblem() {
 }
 
 /** data/ 必须可写：任务结果与导出都写在这里。 */
-function checkWritable(root) {
-  const probe = path.join(root, 'data', 'tmp', `.write-test-${process.pid}`);
+function checkWritable(dir) {
+  const probe = path.join(dir, 'data', 'tmp', `.write-test-${process.pid}`);
   try {
     fs.mkdirSync(path.dirname(probe), { recursive: true });
     fs.writeFileSync(probe, 'ok');
@@ -83,9 +143,9 @@ function checkWritable(root) {
 }
 
 /** 端口上是不是本系统：任务列表端点按约定的形状应答（与 launch.mjs 同一判据）。 */
-async function alreadyRunning() {
+async function isOurs(port) {
   try {
-    const r = await fetch(`${URL_BASE}api/v1/tasks?limit=1`, { signal: AbortSignal.timeout(1500) });
+    const r = await fetch(`${urlOf(port)}api/v1/tasks?limit=1`, { signal: AbortSignal.timeout(1500) });
     if (!r.ok) return false;
     const j = await r.json();
     return Array.isArray(j.tasks) && typeof j.total === 'number';
@@ -94,39 +154,58 @@ async function alreadyRunning() {
   }
 }
 
-/** 以子进程起服务，等它报就绪。返回 'ready' | 'already-running'，失败时抛出可以照着做的说明。 */
-function startServer(root) {
-  const logFile = path.join(root, 'data', 'tmp', 'server.log');
-  const out = fs.createWriteStream(logFile, { flags: 'a' });
-  out.write(`\n==== ${new Date().toISOString()} 外壳启动服务\n`);
-  server = fork(path.join(root, 'launch.mjs'), [], {
+/**
+ * 在一个端口上以子进程起服务，等它报就绪。
+ * 返回 'ready'（我们起的）、'already-running'（端口上已是本系统）或 'in-use'（被别的程序占着）；
+ * 其他失败抛出可以照着做的说明。
+ */
+function startServer(port) {
+  const out = fs.createWriteStream(path.join(root, 'data', 'tmp', 'server.log'), { flags: 'a' });
+  out.write(`\n==== ${new Date().toISOString()} 外壳在端口 ${port} 上启动服务\n`);
+  const child = fork(path.join(root, 'launch.mjs'), [], {
     cwd: root,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', CUAV_NO_BROWSER: '1', PORT: String(PORT) },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', CUAV_NO_BROWSER: '1', PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     windowsHide: true,
   });
-  server.stdout.pipe(out, { end: false });
-  server.stderr.pipe(out, { end: false });
+  child.stdout.pipe(out, { end: false });
+  child.stderr.pipe(out, { end: false });
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`服务 90 秒内没有就绪。日志在 data/tmp/server.log`)), 90000);
-    server.on('message', (m) => {
+    let settled = false;
+    const settle = (fn, v) => { if (!settled) { settled = true; clearTimeout(timer); fn(v); } };
+    const timer = setTimeout(() => settle(reject, new Error('服务 90 秒内没有就绪。日志在运行目录的 data/tmp/server.log')), 90000);
+    child.on('message', (m) => {
       if (!m || typeof m !== 'object') return;
-      if (m.type === 'ready') { clearTimeout(timer); resolve('ready'); }
-      else if (m.type === 'already-running') { clearTimeout(timer); server = null; resolve('already-running'); }
+      if (m.type === 'ready') { server = child; settle(resolve, 'ready'); }
+      else if (m.type === 'already-running') settle(resolve, 'already-running');
       else if (m.type === 'error') {
-        clearTimeout(timer);
-        reject(new Error(m.code === 'EADDRINUSE'
-          ? `端口 ${PORT} 已被其他程序占用，服务没有启动。\n\n请关闭占用该端口的程序后重新打开；` +
-            '或改用包里的备用启动方式（Windows：start.bat；Mac：start.command），它们可以改端口。'
-          : `服务启动失败：${m.message || m.code}\n\n日志在 data/tmp/server.log`));
+        if (m.code === 'EADDRINUSE') settle(resolve, 'in-use');
+        else settle(reject, new Error(`服务启动失败：${m.message || m.code}\n\n日志在运行目录的 data/tmp/server.log`));
       }
     });
-    server.on('exit', (code) => {
-      serverExit = code;
-      clearTimeout(timer);
-      reject(new Error(`服务进程意外退出（退出码 ${code}）。日志在 data/tmp/server.log`));
+    child.on('exit', (code) => {
+      if (server === child) serverExit = code;
+      settle(reject, new Error(`服务进程意外退出（退出码 ${code}）。日志在运行目录的 data/tmp/server.log`));
     });
   });
+}
+
+/** 从 FIRST_PORT 起找一个端口：本系统已在跑就用它，空着就起服务，被别的程序占着就试下一个。 */
+async function connect() {
+  for (let port = FIRST_PORT; port <= LAST_PORT; port++) {
+    if (await isOurs(port)) {
+      smoke.owned = false;
+      log(`端口 ${port} 上已有本系统在运行，直接使用`);
+      return port;
+    }
+    const r = await startServer(port);
+    if (r === 'ready') { smoke.owned = true; return port; }
+    if (r === 'already-running') { smoke.owned = false; return port; }
+    log(`端口 ${port} 被其他程序占用，试下一个`);
+  }
+  const backup = ['start.bat', 'start.command'].find((f) => fs.existsSync(path.join(root, f)));
+  throw new Error(`端口 ${FIRST_PORT}–${LAST_PORT} 都被其他程序占用，服务没有启动。\n\n请关闭占用这些端口的程序后重新打开` +
+    (backup ? `；或改用包里的备用启动方式 ${backup}（它可以改端口）。` : '。'));
 }
 
 /** 停服务：发 stop，等它自己退出；6 秒等不到就强制结束。 */
@@ -134,8 +213,7 @@ function stopServer() {
   if (!server || serverExit !== null) return Promise.resolve();
   if (stopping) return stopping;
   stopping = new Promise((resolve) => {
-    const done = () => resolve();
-    server.once('exit', (code) => { serverExit = code; done(); });
+    server.once('exit', (code) => { serverExit = code; resolve(); });
     const t = setTimeout(() => { try { server.kill(); } catch { /* 已退出 */ } }, 6000);
     t.unref();
     try { server.send({ type: 'stop' }); } catch { try { server.kill(); } catch { /* 已退出 */ } }
@@ -143,13 +221,17 @@ function stopServer() {
   return stopping;
 }
 
-function splash(text) {
+function splashUrl(text) {
   const html = `<!doctype html><meta charset="utf-8"><title>${TITLE}</title>
 <body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f2ee;
 font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;color:#3a3f47">
 <div style="text-align:center"><div style="font-size:26px;font-weight:700;letter-spacing:2px">${TITLE}</div>
 <div style="margin-top:14px;font-size:15px;color:#6b7280">${text}</div></div></body>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
+function showSplash(text) {
+  if (win) win.loadURL(splashUrl(text));
 }
 
 function buildMenu() {
@@ -161,6 +243,8 @@ function buildMenu() {
     { role: 'togglefullscreen', label: '全屏' },
   ];
   if (process.env.CUAV_DEVTOOLS === '1') zoomItems.push({ type: 'separator' }, { role: 'toggleDevTools', label: '开发者工具' });
+  // 任务结果（data/runs）与导出的 SigMF（data/exports）都在运行目录的 data/ 下；程序形式下它在用户目录里，不好找
+  const openData = { label: '打开数据目录', click: () => { if (root) shell.openPath(path.join(root, 'data')); } };
   const template = [];
   if (process.platform === 'darwin') {
     template.push({ label: TITLE, submenu: [
@@ -168,8 +252,9 @@ function buildMenu() {
       { role: 'hide', label: '隐藏' }, { role: 'hideOthers', label: '隐藏其他' }, { type: 'separator' },
       { role: 'quit', label: '退出' },
     ] });
+    template.push({ label: '文件', submenu: [openData] });
   } else {
-    template.push({ label: '文件', submenu: [{ role: 'quit', label: '退出' }] });
+    template.push({ label: '文件', submenu: [openData, { type: 'separator' }, { role: 'quit', label: '退出' }] });
   }
   // 编辑菜单不能省：Mac 上没有它，输入框里的复制粘贴快捷键不起作用
   template.push({ label: '编辑', submenu: [
@@ -195,7 +280,7 @@ function createWindow() {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
-    if (url.startsWith(URL_BASE) || url.startsWith('data:')) return;
+    if ((urlBase && url.startsWith(urlBase)) || url.startsWith('data:')) return;
     e.preventDefault();
     if (/^https?:/i.test(url)) shell.openExternal(url);
   });
@@ -203,12 +288,14 @@ function createWindow() {
   const visible = !SMOKE || Boolean(process.env.CUAV_SHELL_CAPTURE);
   if (visible) win.maximize();
   win.once('ready-to-show', () => { if (visible) win.show(); });
-  win.loadURL(splash('正在启动服务…'));
+  win.loadURL(splashUrl('正在启动服务…'));
 }
 
 async function finishSmoke(code) {
   await stopServer();
   smoke.server_exit = serverExit;
+  smoke.root = root;
+  smoke.url = urlBase;
   console.log(`SHELL-SMOKE ${JSON.stringify(smoke)}`);
   app.exit(code);
 }
@@ -236,7 +323,7 @@ async function runSmoke() {
     fs.writeFileSync(process.env.CUAV_SHELL_CAPTURE, img.toPNG());
     smoke.capture = img.getSize();
   }
-  smoke.ok = Boolean(smoke.page && smoke.page.hasViewButtons >= 3 && smoke.page.href.startsWith(URL_BASE));
+  smoke.ok = Boolean(smoke.page && smoke.page.hasViewButtons >= 3 && smoke.page.href.startsWith(urlBase));
   await finishSmoke(smoke.ok ? 0 : 1);
 }
 
@@ -251,29 +338,36 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     buildMenu();
-    const root = findRoot();
-    if (!root) return fail(rootProblem());
+    createWindow();
+    const payload = findPayload();
+    smoke.layout = payload ? 'app' : 'folder';
+    if (payload) {
+      try {
+        root = await installRuntime(payload);
+      } catch (e) {
+        return fail(`准备运行环境失败：${e.message}\n\n目标位置：${runtimeBase()}。请确认磁盘空间足够（约 0.4 GB）。`);
+      }
+    } else {
+      root = findFolderRoot();
+      if (!root) return fail(rootProblem());
+    }
     smoke.steps.push('root');
     if (!checkWritable(root)) {
       return fail(`程序所在目录不可写（${root}）。任务结果要写在包里的 data 目录下。\n\n` +
         '请把整个目录解压或拷贝到可写的位置（如桌面、D 盘根目录），不要放在 Program Files 或「应用程序」等系统目录下。');
     }
     smoke.steps.push('writable');
-    createWindow();
+    showSplash('正在启动服务…');
+    let port;
     try {
-      if (await alreadyRunning()) {
-        smoke.owned = false;
-        log(`端口 ${PORT} 上已有本系统在运行，直接使用`);
-      } else {
-        const r = await startServer(root);
-        smoke.owned = r === 'ready';
-      }
+      port = await connect();
     } catch (e) {
       return fail(e.message);
     }
+    urlBase = urlOf(port);
     smoke.steps.push('server');
     if (SMOKE) win.webContents.once('did-finish-load', () => runSmoke());
-    win.loadURL(URL_BASE);
+    win.loadURL(urlBase);
   });
 
   app.on('window-all-closed', () => app.quit());

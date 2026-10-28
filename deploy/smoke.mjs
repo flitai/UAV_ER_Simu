@@ -15,30 +15,52 @@
 //   9. 数据中心只列包里带的实测片段（= 裁剪后的批索引）；
 //  10. 实测回放链路跑完；E3（建筑遮挡）链路跑完——建筑集在包里且哈希对得上。
 //
-// 跑完删掉自己建的任务目录，包目录恢复原样。任何一项不过即退出码 1。
+// 程序形式的包（--layout app，D-112；给包目录或 Mac 的 .dmg，后者只读挂载后从卷上直接打开程序）先做三件：
+//   a. 用外壳把运行环境装到临时目录（CUAV_RUNTIME_DIR）、起服务、加载界面、退出时停服务；
+//   b. 再开一次外壳：认出已经装好、直接复用；
+//   c. 对装好的目录跑上面全部检查（起服务用程序自带的 Node）。
+//
+// 跑完删掉自己建的任务目录，包目录恢复原样（程序形式删掉临时装的运行环境、卸下 DMG）。任何一项不过即退出码 1。
 
-import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const full = args.includes('--full')
-const pkg = resolve(args.find((a) => !a.startsWith('--')) ?? '')
-if (!existsSync(join(pkg, 'launch.mjs'))) {
-  console.error('用法：node deploy/smoke.mjs <包目录> [--full]')
+const given = resolve(args.find((a) => !a.startsWith('--')) ?? '')
+
+// DMG：只读挂载，从卷上直接打开程序（用户不拖进「应用程序」时就是这样运行的）
+let mounted = null
+let target = given
+if (given.endsWith('.dmg')) {
+  mounted = mkdtempSync(join(tmpdir(), 'cuav-dmg-'))
+  execFileSync('hdiutil', ['attach', '-nobrowse', '-readonly', '-noautoopen', '-mountpoint', mounted, given], { stdio: 'ignore' })
+  target = mounted
+}
+const appPayload = [join(target, 'resources', 'payload'), join(target, 'CuavDemo.app', 'Contents', 'Resources', 'payload')]
+  .find((d) => existsSync(join(d, 'launch.mjs')) && existsSync(join(d, 'payload.json')))
+const appLayout = Boolean(appPayload)
+if (!appLayout && !existsSync(join(target, 'launch.mjs'))) {
+  console.error('用法：node deploy/smoke.mjs <包目录 | Mac 的 .dmg> [--full]')
   process.exit(1)
 }
-// 起服务用哪个 Node：Windows 包带便携 Node（start.bat 用它）；Mac 包用 CuavDemo.app 自带的 Node
+const MAC_ELECTRON = join(target, 'CuavDemo.app', 'Contents', 'MacOS', 'Electron')
+const WIN_SHELL = [join(target, 'app', 'CuavDemo.exe'), join(target, 'CuavDemo.exe')].find((p) => existsSync(p))
+const shellExe = WIN_SHELL ?? (existsSync(MAC_ELECTRON) ? MAC_ELECTRON : null)
+// 程序形式：运行环境装到临时目录，之后的检查都对装好的目录做
+const runtimeDir = appLayout ? mkdtempSync(join(tmpdir(), 'cuav-runtime-')) : null
+const payloadName = appLayout ? JSON.parse(readFileSync(join(appPayload, 'payload.json'), 'utf8')).name : null
+let pkg = appLayout ? join(runtimeDir, payloadName) : target
+// 起服务用哪个 Node：Windows 目录形式带便携 Node（start.bat 用它）；Mac 包与程序形式用程序自带的 Node
 // （start.command 用它，ELECTRON_RUN_AS_NODE）；宿主版的包用当前 Node。
-const MAC_ELECTRON = join(pkg, 'CuavDemo.app', 'Contents', 'MacOS', 'Electron')
-const WIN_SHELL = join(pkg, 'app', 'CuavDemo.exe')
-const nodeExe = existsSync(join(pkg, 'node', 'node.exe')) ? join(pkg, 'node', 'node.exe')
-  : existsSync(MAC_ELECTRON) ? MAC_ELECTRON : process.execPath
-const shellExe = existsSync(WIN_SHELL) ? WIN_SHELL : existsSync(MAC_ELECTRON) ? MAC_ELECTRON : null
+const nodeExe = existsSync(join(target, 'node', 'node.exe')) ? join(target, 'node', 'node.exe')
+  : shellExe ?? process.execPath
 
 let failures = 0
 let passes = 0
@@ -63,7 +85,7 @@ async function freePort() {
 
 function launch(port, label) {
   const env = { ...process.env, PORT: String(port), HOST: '127.0.0.1', CUAV_NO_BROWSER: '1' }
-  if (nodeExe === MAC_ELECTRON) env.ELECTRON_RUN_AS_NODE = '1'
+  if (nodeExe === shellExe) env.ELECTRON_RUN_AS_NODE = '1'
   delete env.CUAV_RUN
   delete env.CUAV_BASEMAP
   const p = spawn(nodeExe, [join(pkg, 'launch.mjs')], { cwd: pkg, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
@@ -82,8 +104,9 @@ function launch(port, label) {
 /** 以冒烟模式打开 Electron 外壳（CUAV_SHELL_SMOKE=1）：页面加载完即自检、退出，最后一行是 SHELL-SMOKE <JSON>。 */
 async function runShell(port, label) {
   const env = { ...process.env, PORT: String(port), CUAV_SHELL_SMOKE: '1' }
-  for (const k of ['ELECTRON_RUN_AS_NODE', 'CUAV_RUN', 'CUAV_BASEMAP', 'CUAV_ROOT']) delete env[k]
-  const p = spawn(shellExe, [], { cwd: pkg, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  for (const k of ['ELECTRON_RUN_AS_NODE', 'CUAV_RUN', 'CUAV_BASEMAP', 'CUAV_ROOT', 'CUAV_RUNTIME_DIR']) delete env[k]
+  if (runtimeDir) env.CUAV_RUNTIME_DIR = runtimeDir
+  const p = spawn(shellExe, [], { cwd: target, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
   let out = ''
   const tee = (b) => {
     const t = b.toString('utf8')
@@ -157,7 +180,26 @@ async function runDiagram(base, fixture, ms = 600000) {
 
 const fileSize = (rel) => (existsSync(join(pkg, rel)) ? statSync(join(pkg, rel)).size : -1)
 
+/** 程序形式：先装运行环境、再确认复用（第 a、b 件）。 */
+async function installChecks() {
+  const p1 = await freePort()
+  const a = await runShell(p1, '外壳·首次运行')
+  check(a.code === 0 && a.res?.ok && a.res.layout === 'app' && a.res.install === 'copied' && a.res.owned === true,
+    '程序形式首次运行：装好运行环境、起服务、界面加载得出',
+    `退出码 ${a.code}，装到 ${a.res?.root ?? '—'}，${a.res?.install_s?.toFixed?.(1) ?? '—'} s${a.res?.error ? `，${a.res.error}` : ''}`)
+  check(a.res?.server_exit !== null && a.res?.server_exit !== undefined && !(await answers(`http://127.0.0.1:${p1}`)),
+    '退出程序时服务随之停止', `服务退出码 ${a.res?.server_exit}`)
+  check(existsSync(join(pkg, 'launch.mjs')) && existsSync(join(pkg, '.installed.json')), '运行环境装在用户目录（这里是临时目录）里')
+  const b = await runShell(await freePort(), '外壳·再次运行')
+  check(b.code === 0 && b.res?.ok && b.res.install === 'reused', '再次运行时直接复用已装好的运行环境', `退出码 ${b.code}`)
+  return a.code === 0
+}
+
 async function main() {
+  if (appLayout && !(await installChecks())) {
+    console.log(`\n冒烟 ${passes} 项通过，${failures} 项失败（程序形式首次运行没有成功，其余检查不做）`)
+    return 1
+  }
   const port = await freePort()
   const base = `http://127.0.0.1:${port}`
   const srv = launch(port, '服务')
@@ -243,4 +285,14 @@ async function main() {
   return failures ? 1 : 0
 }
 
-process.exit(await main())
+let code = 1
+try {
+  code = await main()
+} finally {
+  if (runtimeDir) rmSync(runtimeDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  if (mounted) {
+    try { execFileSync('hdiutil', ['detach', mounted, '-force'], { stdio: 'ignore' }) } catch { /* 已卸下 */ }
+    rmSync(mounted, { recursive: true, force: true })
+  }
+}
+process.exit(code)

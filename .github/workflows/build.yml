@@ -8,7 +8,8 @@
 # W-2 起另有两件（D-099）：Windows 引擎静态链接运行库并作为产物上传；用它组单机包的程序部分，
 # 在 Windows 上用包自己的启动器起服务、跑一条链路（package-smoke）。
 # D-111 起再加 macOS arm64 一路：引擎按最低系统 13.0 编（与 Electron 44 相同）并上传；
-# 单机包冒烟在 Windows 与 macOS 上各跑一遍，含 Electron 外壳（程序窗口）起服务、加载界面、退出时停服务。
+# 单机包冒烟在 Windows 与 macOS 上各跑一遍，含 Electron 外壳（程序窗口）起服务、加载界面、退出时停服务；
+# D-112 起两种形式都冒烟：目录形式与程序形式（Windows 只有程序目录、Mac 是 DMG）。
 #
 # **这里证明不了什么**（都要真机，属 P2 交付阶段）：
 #   · 单机一体化包在干净 Windows 机上安装运行；
@@ -242,6 +243,22 @@ jobs:
       - name: 冒烟
         timeout-minutes: 15
         run: node deploy/smoke.mjs dist/pkg/cuav-demo-*-${{ matrix.target }}-program
+
+      # 程序形式（D-112）：运行环境放进程序里、首次运行装到用户目录；Mac 出 DMG，冒烟时只读挂载、从卷上直接打开
+      - name: 组程序形式的包
+        run: |
+          EXTRA=""
+          [ "${{ matrix.target }}" = "mac-arm64" ] && EXTRA="--dmg"
+          python deploy/pack.py build --target ${{ matrix.target }} --layout app --scope program --engine dist/engine --skip-build --out dist/pkg $EXTRA
+
+      - name: 冒烟（程序形式）
+        timeout-minutes: 15
+        run: |
+          if [ "${{ matrix.target }}" = "mac-arm64" ]; then
+            node deploy/smoke.mjs dist/pkg/cuav-demo-*-mac-arm64-app-program.dmg
+          else
+            node deploy/smoke.mjs dist/pkg/cuav-demo-*-win-x64-app-program
+          fi
 
   js:
     name: 前端与应用服务 (Linux x64)

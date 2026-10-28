@@ -14,6 +14,12 @@
              CuavDemo.app 作主入口，start.command 作备用（用 Electron 自带的 Node 起服务）。
   --no-electron 不带外壳（调试用；交付包都带）。
 
+两种形式（--layout，D-112）：
+  folder  缺省。包根目录与仓库同构，外壳与备用启动方式放在里面（上面两行说的就是它）。
+  app     只有程序：服务、前端、引擎、模型与数据整体放进程序里（Windows app/resources/payload/，
+          Mac CuavDemo.app/Contents/Resources/payload/），不带备用启动方式。Windows 压缩包展开即是程序目录；
+          Mac 用 --dmg 出 DMG（CuavDemo.app 加「应用程序」快捷方式）。首次运行时外壳把运行环境拷到用户目录。
+
 引擎有四种来源：
   --engine-ci <运行号>  从 GitHub Actions 取 cuav_run-<目标> 产物（调 gh run download）。交付用这一种。
   --engine <目录>       已经下载好的同一个产物目录（含 cuav_run[.exe] 与 cuav_run.build.json）。CI 用。
@@ -271,6 +277,43 @@ class Stage:
         (self.root / rel).mkdir(parents=True, exist_ok=True)
         self.dirs.add(rel)
 
+    def _rekey(self, fn) -> None:
+        self.files = {fn(r): v for r, v in self.files.items()}
+        self.dirs = {fn(r) for r in self.dirs}
+        self.links = {fn(r): v for r, v in self.links.items()}
+        self.execs = {fn(r) for r in self.execs}
+
+    def forget(self, prefix: str) -> None:
+        """从账上去掉某棵树（重新记账之前用）。"""
+        inside = lambda r: r == prefix or r.startswith(prefix + "/")
+        self.files = {r: v for r, v in self.files.items() if not inside(r)}
+        self.dirs = {r for r in self.dirs if not inside(r)}
+        self.links = {r: v for r, v in self.links.items() if not inside(r)}
+        self.execs = {r for r in self.execs if not inside(r)}
+
+    def nest(self, into: str, keep: set[str]) -> None:
+        """把根目录下除 keep 以外的每一项挪进 into/（磁盘与账一起改）。"""
+        dst = self.root / into
+        dst.mkdir(parents=True, exist_ok=True)
+        top = into.split("/", 1)[0]
+        moved = sorted(n for n in os.listdir(self.root) if n not in keep and n != top)
+        for n in moved:
+            shutil.move(str(self.root / n), str(dst / n))
+        names = set(moved)
+        self._rekey(lambda r: f"{into}/{r}" if r.split("/", 1)[0] in names else r)
+
+    def hoist(self, sub: str) -> None:
+        """把 sub/ 里的东西提到根目录、去掉 sub 这一层（根目录下除 sub 以外必须是空的）。"""
+        others = [n for n in os.listdir(self.root) if n != sub]
+        if others:
+            raise PackError(f"把 {sub}/ 提成包根之前，根目录下还有 {others}")
+        tmp = self.root / f".hoist-{sub}"
+        (self.root / sub).rename(tmp)
+        for n in sorted(os.listdir(tmp)):
+            shutil.move(str(tmp / n), str(self.root / n))
+        tmp.rmdir()
+        self._rekey(lambda r: r[len(sub) + 1:] if r.startswith(sub + "/") else r)
+
     def adopt_tree(self, rel: str) -> int:
         """已经放在暂存目录里的一棵树（Mac 的 .app：解压、改动、签名都在原地做）逐件记账，
         符号链接记链接目标、不跟进去，可执行位照文件本身的权限。"""
@@ -282,6 +325,9 @@ class Stage:
                 r = p.relative_to(self.root).as_posix()
                 if p.is_symlink():
                     self.links[r] = os.readlink(p)
+                elif p.is_dir():
+                    if not any(p.iterdir()):
+                        self.dirs.add(r)      # 空目录（data/runs 等）也要进包：服务往里写
                 elif p.is_file():
                     if r in self.files:
                         raise PackError(f"包内路径重复：{r}")
@@ -436,17 +482,55 @@ def stage_electron(st: Stage, target: str) -> dict:
                       "CFBundleIdentifier": "org.cuav.demo-shell"})
         with open(plist_path, "wb") as f:
             plistlib.dump(plist, f)
-        # 改了 Info.plist 与 Resources，原来的签名失效；Apple 芯片上签名无效的程序不让启动。
-        # 没有 Apple 开发者账号，只能做临时签名（ad-hoc），不能公证（包内说明写明首次打开的放行办法）
-        subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app_dir)], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        v = subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app_dir)], capture_output=True, text=True)
-        if v.returncode != 0:
-            raise PackError(f"{MAC_APP} 重新签名后校验不过：{v.stderr.strip()}")
-        st.adopt_tree(MAC_APP)
+        # 签名放到最后（finalize_mac_app）：程序形式还要把运行环境放进 Resources，签完再改就作废了
         entry = MAC_APP
     return {"electron": {"version": ELECTRON_VERSION, "zip": ELECTRON_ZIP[target][0], "zip_sha256": ELECTRON_ZIP[target][1],
                          "entry": entry, "shell_files": [f"deploy/electron/{f}" for f in shell_files]}}
+
+
+def finalize_mac_app(st: Stage) -> None:
+    """改了 Info.plist 与 Resources，原来的签名失效；Apple 芯片上签名无效的程序不让启动。
+    没有 Apple 开发者账号，只能做临时签名（ad-hoc），不能公证（包内说明写明首次打开的放行办法）。
+    签完把整个 .app 重新记账（签名会改写里面的可执行文件、加 _CodeSignature）。"""
+    app_dir = st.root / MAC_APP
+    subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app_dir)], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    v = subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app_dir)], capture_output=True, text=True)
+    if v.returncode != 0:
+        raise PackError(f"{MAC_APP} 重新签名后校验不过：{v.stderr.strip()}")
+    st.forget(MAC_APP)
+    st.adopt_tree(MAC_APP)
+
+
+def nest_payload(st: Stage, target: str, name: str, head: str) -> str:
+    """程序形式（D-112）：把运行环境整体挪进程序里，并写 payload.json 标识这一版（外壳按它决定装到哪、要不要重装）。
+    Windows 再把程序目录本身提成包根：压缩包展开即是 CuavDemo.exe 所在的目录。返回运行环境在包里的位置。"""
+    st.put_bytes((json.dumps({"name": name, "commit": head}, indent=2) + "\n").encode("utf-8"), "payload.json")
+    if target == "win-x64":
+        payload = f"{WIN_APP_DIR}/resources/payload"
+        st.nest(payload, keep={WIN_APP_DIR})
+        st.hoist(WIN_APP_DIR)
+        return "resources/payload"
+    payload = f"{MAC_APP}/Contents/Resources/payload"
+    st.nest(payload, keep={MAC_APP})
+    return payload
+
+
+def write_dmg(st: Stage, name: str, out: Path) -> Path:
+    """Mac 的 DMG：CuavDemo.app、使用说明，加一个指向「应用程序」的快捷方式（拖进去即安装）。"""
+    link = st.root / "Applications"
+    dmg = out / f"{name}.dmg"
+    tmp = out / f"{name}.part.dmg"
+    os.symlink("/Applications", link)
+    try:
+        tmp.unlink(missing_ok=True)
+        subprocess.run(["hdiutil", "create", "-volname", "CuavDemo", "-srcfolder", str(st.root), "-fs", "HFS+",
+                        "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", str(tmp)],
+                       check=True, stdout=subprocess.DEVNULL)
+    finally:
+        link.unlink()
+    tmp.replace(dmg)
+    return dmg
 
 
 def mac_engine_problems(exe: Path) -> list[str]:
@@ -501,7 +585,7 @@ def stage_program(st: Stage, args: argparse.Namespace, head: str) -> dict:
 
     target = args.target
     # 启动器与说明。launch.mjs 两个平台共用；备用启动方式 Windows 是 start.bat，Mac 是 start.command
-    if not args.host:
+    if not args.host and args.layout == "folder":
         if target == "win-x64":
             st.put(DEPLOY / "windows" / "start.bat", "start.bat")
         else:
@@ -537,7 +621,7 @@ def stage_program(st: Stage, args: argparse.Namespace, head: str) -> dict:
                                      **({"macos_min": rec.get("macos_min")} if target == "mac-arm64" else {})}}
 
     # 便携 Node：只取 node.exe 与 LICENSE（Windows 包；Mac 包用 Electron 自带的 Node）
-    if not args.host and target == "win-x64":
+    if not args.host and target == "win-x64" and args.layout == "folder":
         z = node_zip()
         with zipfile.ZipFile(z) as zf:
             top = f"node-{NODE_VERSION}-win-x64"
@@ -683,11 +767,12 @@ def check_stage(st: Stage, args: argparse.Namespace | None = None) -> None:
             raise PackError(f"cuav_run.exe 依赖了 VC++ 运行库（应静态链接 /MT）：{bad}")
 
 
-def render_readme(name: str, commit: str, target: str = "win-x64") -> bytes:
+def render_readme(name: str, commit: str, target: str = "win-x64", layout: str = "folder") -> bytes:
+    tpl = "README.app.template.txt" if layout == "app" else "README.template.txt"
     if target == "mac-arm64":
-        text = (DEPLOY / "mac" / "README.template.txt").read_text(encoding="utf-8")
+        text = (DEPLOY / "mac" / tpl).read_text(encoding="utf-8")
         return text.replace("{version}", name).replace("{commit}", commit[:12]).encode("utf-8")
-    text = (DEPLOY / "windows" / "README.template.txt").read_bytes().decode("utf-8-sig")
+    text = (DEPLOY / "windows" / tpl).read_bytes().decode("utf-8-sig")
     text = text.replace("{version}", name).replace("{commit}", commit[:12])
     return "﻿".encode("utf-8") + text.encode("utf-8")
 
@@ -727,6 +812,10 @@ def cmd_build(args: argparse.Namespace) -> int:
         raise PackError("要指定引擎来源：--engine-ci <运行号>、--engine <目录>、--engine-local（Windows）或 --host")
     if args.target == "mac-arm64" and sys.platform != "darwin" and not args.host:
         raise PackError("Mac 包只能在 Mac 上组（要 ditto 与 codesign）")
+    if args.layout == "app" and (args.host or args.no_electron):
+        raise PackError("程序形式（--layout app）离不开外壳，不能与 --host / --no-electron 同用")
+    if args.dmg and (args.target != "mac-arm64" or args.layout != "app"):
+        raise PackError("--dmg 只用于 Mac 的程序形式：--target mac-arm64 --layout app")
     if args.engine_local and args.target == "win-x64" and sys.platform != "win32":
         raise PackError("--engine-local 只在 Windows 上用（读 MSVC 编出的 engine/build/Release/cuav_run.exe）；"
                         "其他平台验证数据用 --host")
@@ -736,6 +825,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         raise PackError("包的来源目录里有未提交的改动，包就说不清出自哪个提交；先提交，或加 --allow-dirty（只用于调试）：\n" + dirty)
     when = dt.datetime.fromtimestamp(int(git("show", "-s", "--format=%ct", head)), dt.timezone.utc)
     name = f"cuav-demo-{when:%Y%m%d}-{head[:7]}-" + (f"host-{sys.platform}" if args.host else args.target)
+    if args.layout == "app":
+        name += "-app"
     if args.scope == "program":
         name += "-program"
 
@@ -747,13 +838,17 @@ def cmd_build(args: argparse.Namespace) -> int:
     stage_root.mkdir(parents=True)
     st = Stage(stage_root)
 
-    say(f"组包 {name}（范围 {args.scope}）")
+    say(f"组包 {name}（范围 {args.scope}，形式 {args.layout}）")
     try:
         info = stage_program(st, args, head)
         if args.scope == "full":
             info.update(stage_data(st))
-        st.put_bytes(render_readme(name, head, args.target), "README.txt")
         check_stage(st, args)
+        if args.layout == "app":
+            info["payload"] = nest_payload(st, args.target, name, head)
+        if args.target == "mac-arm64" and not args.host and not args.no_electron:
+            finalize_mac_app(st)
+        st.put_bytes(render_readme(name, head, args.target, args.layout), "README.txt")
     except BaseException:
         shutil.rmtree(stage_root, ignore_errors=True)   # 不留半截的包目录
         raise
@@ -762,6 +857,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         "schema": "cuav-package/1",
         "name": name,
         "scope": args.scope,
+        "layout": args.layout,
         "platform": args.target if not args.host else f"host-{sys.platform}",
         "deliverable": not args.host and not args.engine_local and not dirty,
         "git": {"commit": head, "commit_time_utc": when.strftime("%Y-%m-%dT%H:%M:%SZ"), "dirty": bool(dirty)},
@@ -778,6 +874,9 @@ def cmd_build(args: argparse.Namespace) -> int:
     if args.zip:
         z = write_zip(st, name, when, out)
         say(f"  压缩包 {z.name}：{z.stat().st_size / 1e6:.1f} MB，sha256 {sha256_file(z)}")
+    if args.dmg:
+        d = write_dmg(st, name, out)
+        say(f"  磁盘映像 {d.name}：{d.stat().st_size / 1e6:.1f} MB，sha256 {sha256_file(d)}")
     return 0
 
 
@@ -790,6 +889,9 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--scope", choices=("program", "full"), default="full")
     b.add_argument("--target", choices=TARGETS, default="win-x64", help="目标平台（D-111）")
     b.add_argument("--no-electron", action="store_true", help="不带 Electron 外壳（调试用；交付包都带）")
+    b.add_argument("--layout", choices=("folder", "app"), default="folder",
+                   help="folder：目录形式，带备用启动方式（D-111）；app：只有程序，运行环境放进程序里（D-112）")
+    b.add_argument("--dmg", action="store_true", help="Mac 程序形式出 DMG（D-112）")
     g = b.add_mutually_exclusive_group()
     g.add_argument("--engine-ci", metavar="运行号")
     g.add_argument("--engine", metavar="目录")
